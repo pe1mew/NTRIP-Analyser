@@ -1,0 +1,29 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build NTRIP-Analyser (CodeBlocks MinGW)",
+            "type": "shell",
+            "command": "C:/Program Files/CodeBlocks/MinGW/bin/gcc.exe",
+            "args": [
+                "-g",
+                "-o",
+                "ntripanalyse.exe",
+                "main.c",
+                "lib/cJSON/cJSON.c",
+                "rtcm3x_parser.c",
+                "-lws2_32",
+                "-Wall"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Builds the NTRIP-Analyser executable using CodeBlocks MinGW"
+        }
+    ]
+}
