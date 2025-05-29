@@ -1,7 +1,0 @@
-{
-    "NTRIP_CASTER": "rfsee.net",
-    "NTRIP_PORT": 2101,
-    "MOUNTPOINT": "RFSEE01",
-    "USERNAME": "rfsee",
-    "PASSWORD": "0652528773"
-}
