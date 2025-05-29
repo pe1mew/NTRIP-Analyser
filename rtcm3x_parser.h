@@ -18,6 +18,15 @@ extern "C" {
 uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len);
 
 /**
+ * @brief Calculate CRC-24Q for the given data.
+ * 
+ * @param data   Pointer to input data buffer.
+ * @param length Number of bytes in the buffer.
+ * @return 24-bit CRC as uint32_t (lower 24 bits are valid).
+ */
+uint32_t crc24q(const uint8_t *data, size_t length);
+
+/**
  * @brief Analyze and print information about an RTCM message.
  * 
  * @param data   Pointer to the RTCM message buffer.
