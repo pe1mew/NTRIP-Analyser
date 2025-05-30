@@ -1,3 +1,18 @@
+/**
+ * @file rtcm3x_parser.c
+ * @brief RTCM 3.x Stream Analyzer - Implementation
+ *
+ * This file contains the implementation for parsing, analyzing, and decoding RTCM 3.x messages,
+ * including MSM7 message types for multiple GNSS constellations (GPS, GLONASS, Galileo, QZSS, BeiDou, SBAS).
+ * It provides utilities for bit extraction and CRC-24Q calculation, as well as message-specific decoders.
+ *
+ * Project: NTRIP RTCM 3.x Stream Analyzer
+ * Author: Remko Welling, PE1MEW
+ * License: Apache License 2.0 with Commons Clause (see LICENSE for details)
+ *
+ * For more information, see the project README and LICENSE files.
+ */
+
 #include <stdio.h>
 #include "rtcm3x_parser.h"
 

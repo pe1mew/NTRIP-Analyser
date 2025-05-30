@@ -1,3 +1,27 @@
+/**
+ * @file rtcm3x_parser.h
+ * @brief RTCM 3.x Stream Analyzer - Function Prototypes and Documentation
+ *
+ * This header provides function prototypes for parsing, analyzing, and decoding RTCM 3.x messages,
+ * including MSM7 message types for multiple GNSS constellations. It also includes bit extraction
+ * and CRC-24Q calculation utilities.
+ *
+ * Project: NTRIP RTCM 3.x Stream Analyzer
+ * Author: Remko Welling, PE1MEW
+ * License: Apache License 2.0 with Commons Clause (see LICENSE for details)
+ * 
+ * Supported message types:
+ *   - 1005: Stationary RTK Reference Station ARP
+ *   - 1077: MSM7 GPS
+ *   - 1087: MSM7 GLONASS
+ *   - 1097: MSM7 Galileo
+ *   - 1117: MSM7 QZSS
+ *   - 1127: MSM7 BeiDou
+ *   - 1137: MSM7 SBAS
+ *
+ * For more information, see the project README and LICENSE files.
+ */
+
 #ifndef RTCM3X_PARSER_H
 #define RTCM3X_PARSER_H
 
