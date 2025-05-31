@@ -223,8 +223,8 @@ void decode_rtcm_1137(const unsigned char *payload, int payload_len) {
     decode_rtcm_msm7(payload, payload_len, "SBAS", 1137);
 }
 
-void analyze_rtcm_message(const unsigned char *data, int length) {
-    if (length < 6) return;
+int analyze_rtcm_message(const unsigned char *data, int length) {
+    if (length < 6) return -1;
 
     if (data[0] == 0xD3) {
         int msg_length = ((data[1] & 0x03) << 8) | data[2];
@@ -266,30 +266,26 @@ void analyze_rtcm_message(const unsigned char *data, int length) {
             decode_rtcm_1137(&data[3], msg_length);
         } else {
             if (length >= frame_len) {
-                printf("RTCM Message: Type = %d, Length = %d, CRC = 0x%06X", msg_type, msg_length, crc_extracted);
-                if (crc_calc == crc_extracted) {
-                    printf(" (CRC OK)\n");
-                } else {
-                    printf(" (CRC FAIL! Calculated: 0x%06X)\n", crc_calc);
+                if (crc_calc != crc_extracted) {
+                    printf("RTCM Message: Type = %d, Length = %d, CRC = 0x%06X (CRC FAIL! Calculated: 0x%06X)\n", msg_type, msg_length, crc_extracted, crc_calc);
                 }
             } else {
                 printf("RTCM Message: Type = %d, Length = %d (frame incomplete)\n", msg_type, msg_length);
             }
         }
 
-        if (length >= frame_len) {
-            if (crc_calc == crc_extracted) {
-                // CRC OK, do not print values
-            } else {
-                printf("RTCM Message: CRC FAIL! Extracted: 0x%06X, Calculated: 0x%06X\n", crc_extracted, crc_calc);
-            }
+        if (length >= frame_len && crc_calc != crc_extracted) {
+            printf("  CRC check: FAIL | extracted: 0x%06X | calculated: 0x%06X\n", crc_extracted, crc_calc);
         }
+
+        return msg_type;
     } else {
         printf("Non-RTCM or malformed data (first bytes): ");
         for (int i = 0; i < length && i < 16; ++i) {
             printf("%02X ", data[i]);
         }
         printf("\n");
+        return -1;
     }
 }
 

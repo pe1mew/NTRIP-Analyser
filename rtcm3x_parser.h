@@ -1,15 +1,15 @@
 /**
  * @file rtcm3x_parser.h
- * @brief RTCM 3.x Stream Analyzer - Function Prototypes and Documentation
+ * @brief Function prototypes for the RTCM 3.x Stream Analyzer
  *
- * This header provides function prototypes for parsing, analyzing, and decoding RTCM 3.x messages,
- * including MSM7 message types for multiple GNSS constellations. It also includes bit extraction
- * and CRC-24Q calculation utilities.
+ * This header defines the API for parsing, analyzing, and decoding RTCM 3.x messages,
+ * including MSM7 message types for multiple GNSS constellations (GPS, GLONASS, Galileo, QZSS, BeiDou, SBAS).
+ * It provides utilities for bit extraction and CRC-24Q calculation.
  *
  * Project: NTRIP RTCM 3.x Stream Analyzer
  * Author: Remko Welling, PE1MEW
  * License: Apache License 2.0 with Commons Clause (see LICENSE for details)
- * 
+ *
  * Supported message types:
  *   - 1005: Stationary RTK Reference Station ARP
  *   - 1077: MSM7 GPS
@@ -18,6 +18,11 @@
  *   - 1117: MSM7 QZSS
  *   - 1127: MSM7 BeiDou
  *   - 1137: MSM7 SBAS
+ *
+ * Usage:
+ *   - Use analyze_rtcm_message() to process a raw RTCM message buffer.
+ *   - Use the decode_rtcm_xxxx() functions for message-specific decoding.
+ *   - Use get_bits() for bitfield extraction and crc24q() for CRC checking.
  *
  * For more information, see the project README and LICENSE files.
  */
@@ -52,11 +57,15 @@ uint32_t crc24q(const uint8_t *data, size_t length);
 
 /**
  * @brief Analyze and print information about an RTCM message.
- * 
- * @param data   Pointer to the RTCM message buffer.
+ *
+ * Parses the provided RTCM message buffer, verifies its CRC, and decodes the message
+ * if it is a supported type. Prints summary and decoding information to stdout.
+ *
+ * @param data   Pointer to the RTCM message buffer (should start with 0xD3 preamble).
  * @param length Length of the buffer in bytes.
+ * @return The RTCM message type as an integer if successfully parsed, or -1 on error or if not an RTCM message.
  */
-void analyze_rtcm_message(const unsigned char *data, int length);
+int analyze_rtcm_message(const unsigned char *data, int length);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1005 message.

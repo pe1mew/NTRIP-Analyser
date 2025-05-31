@@ -12,6 +12,8 @@
                 "main.c",
                 "lib/cJSON/cJSON.c",
                 "rtcm3x_parser.c",
+                "ntrip_handler.c",
+                "config.c",
                 "-lws2_32",
                 "-Wall"
             ],
