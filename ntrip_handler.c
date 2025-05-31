@@ -1,7 +1,9 @@
 #include "ntrip_handler.h"
+#include "rtcm3x_parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -11,10 +13,18 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #endif
-#include "rtcm3x_parser.h"
-#include "lib/cJSON/cJSON.h"
 
 #define BUFFER_SIZE 4096
+#define MAX_MSG_TYPES 4096
+
+typedef struct {
+    int count;
+    double min_dt;
+    double max_dt;
+    double sum_dt;
+    double last_time;
+    bool seen;
+} MsgStats;
 
 void base64_encode(const char *input, char *output) {
     const char *base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -193,20 +203,25 @@ void start_ntrip_stream(const NTRIP_Config *config) {
     int received;
     char *ptr;
     int header_skipped = 0;
-    while ((received = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
+    unsigned char msg_buffer[BUFFER_SIZE];
+    int msg_buffer_len = 0;
+
+    while (1) {
+        received = recv(sock, buffer, sizeof(buffer), 0);
+        if (received <= 0) break;
+
         if (!header_skipped) {
             buffer[received] = '\0';
             ptr = strstr(buffer, "\r\n\r\n");
             if (ptr) {
                 int offset = (ptr - buffer) + 4;
-                analyze_rtcm_message((unsigned char *)(buffer + offset), received - offset);
+                memmove(buffer, buffer + offset, received - offset);
+                received -= offset;
                 header_skipped = 1;
+            } else {
+                continue;
             }
-            continue;
         }
-
-        unsigned char msg_buffer[BUFFER_SIZE];
-        int msg_buffer_len = 0;
 
         int buf_pos = 0;
         while (buf_pos < received) {
@@ -231,7 +246,8 @@ void start_ntrip_stream(const NTRIP_Config *config) {
                 int full_frame = msg_length + 6;
                 if (msg_buffer_len < full_frame) break;
 
-                analyze_rtcm_message(msg_buffer, full_frame);
+                // Only decode and print, do not collect stats or print table
+                analyze_rtcm_message(msg_buffer, full_frame, false);
 
                 memmove(msg_buffer, msg_buffer + full_frame, msg_buffer_len - full_frame);
                 msg_buffer_len -= full_frame;
@@ -241,4 +257,161 @@ void start_ntrip_stream(const NTRIP_Config *config) {
 
     closesocket(sock);
     WSACleanup();
+}
+
+void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
+    WSADATA wsaData;
+    SOCKET sock;
+    struct sockaddr_in server;
+    struct addrinfo hints, *result;
+    char request[512];
+    char buffer[BUFFER_SIZE];
+
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
+        return;
+    }
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result) != 0) {
+        fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
+        WSACleanup();
+        return;
+    }
+
+    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+        freeaddrinfo(result);
+        WSACleanup();
+        return;
+    }
+
+    server.sin_family = AF_INET;
+    server.sin_port = htons(config->NTRIP_PORT);
+    server.sin_addr = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
+    memset(&(server.sin_zero), 0, 8);
+
+    freeaddrinfo(result);
+
+    if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) == SOCKET_ERROR) {
+        fprintf(stderr, "Connection failed: %d\n", WSAGetLastError());
+        closesocket(sock);
+        WSACleanup();
+        return;
+    }
+
+    snprintf(request, sizeof(request),
+             "GET /%s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "Ntrip-Version: Ntrip/2.0\r\n"
+             "User-Agent: NTRIP CClient/1.0\r\n"
+             "Authorization: Basic %s\r\n"
+             "\r\n",
+             config->MOUNTPOINT, config->NTRIP_CASTER, config->AUTH_BASIC);
+
+    int sent = send(sock, request, strlen(request), 0);
+    if (sent == SOCKET_ERROR) {
+        fprintf(stderr, "[ERROR] Failed to send NTRIP stream request: %d\n", WSAGetLastError());
+        closesocket(sock);
+        WSACleanup();
+        return;
+    }
+
+    int received;
+    char *ptr;
+    int header_skipped = 0;
+    unsigned char msg_buffer[BUFFER_SIZE];
+    int msg_buffer_len = 0;
+
+    MsgStats stats[MAX_MSG_TYPES] = {0};
+    double start_time = (double)clock() / CLOCKS_PER_SEC;
+
+    printf("[INFO] Analyzing message types for %d seconds...\n", analysis_time);
+
+    while (((double)clock() / CLOCKS_PER_SEC) - start_time < (double)analysis_time) {
+        received = recv(sock, buffer, sizeof(buffer), 0);
+        if (received <= 0) break;
+
+        if (!header_skipped) {
+            buffer[received] = '\0';
+            ptr = strstr(buffer, "\r\n\r\n");
+            if (ptr) {
+                int offset = (ptr - buffer) + 4;
+                memmove(buffer, buffer + offset, received - offset);
+                received -= offset;
+                header_skipped = 1;
+            } else {
+                continue;
+            }
+        }
+
+        int buf_pos = 0;
+        while (buf_pos < received) {
+            if (msg_buffer_len == 0) {
+                while (buf_pos < received && (unsigned char)buffer[buf_pos] != 0xD3) {
+                    buf_pos++;
+                }
+                if (buf_pos >= received) break;
+            }
+            int to_copy = received - buf_pos;
+            if (msg_buffer_len + to_copy > BUFFER_SIZE) to_copy = BUFFER_SIZE - msg_buffer_len;
+            memcpy(msg_buffer + msg_buffer_len, buffer + buf_pos, to_copy);
+            msg_buffer_len += to_copy;
+            buf_pos += to_copy;
+
+            while (msg_buffer_len >= 3) {
+                if (msg_buffer[0] != 0xD3) {
+                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
+                    continue;
+                }
+                int msg_length = ((msg_buffer[1] & 0x03) << 8) | msg_buffer[2];
+                int full_frame = msg_length + 6;
+                if (msg_buffer_len < full_frame) break;
+
+                double now = (double)clock() / CLOCKS_PER_SEC;
+                int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true);
+                if (msg_type > 0 && msg_type < MAX_MSG_TYPES) {
+                    MsgStats *s = &stats[msg_type];
+                    if (s->seen) {
+                        double dt = now - s->last_time;
+                        if (s->count == 1 || dt < s->min_dt) s->min_dt = dt;
+                        if (s->count == 1 || dt > s->max_dt) s->max_dt = dt;
+                        s->sum_dt += dt;
+                    }
+                    s->count++;
+                    s->last_time = now;
+                    s->seen = true;
+
+                    // Print message type on a single line as they are received
+                    printf("%d ", msg_type);
+                    fflush(stdout);
+                }
+
+                memmove(msg_buffer, msg_buffer + full_frame, msg_buffer_len - full_frame);
+                msg_buffer_len -= full_frame;
+            }
+        }
+    }
+
+    closesocket(sock);
+    WSACleanup();
+
+    printf("\nMessage Type Analysis (%d seconds):\n", analysis_time);
+    printf("+-----------+--------+-----------+-----------+-----------+\n");
+    printf("| Msg Type  | Count  | Min dt[s] | Avg dt[s] | Max dt[s] |\n");
+    printf("+-----------+--------+-----------+-----------+-----------+\n");
+    for (int i = 0; i < MAX_MSG_TYPES; ++i) {
+        if (stats[i].count > 1) {
+            double avg = stats[i].sum_dt / (stats[i].count - 1);
+            printf("| %-9d | %-6d | %-9.3f | %-9.3f | %-9.3f |\n",
+                i, stats[i].count, stats[i].min_dt, avg, stats[i].max_dt);
+        } else if (stats[i].count == 1) {
+            printf("| %-9d | %-6d | %-9s | %-9s | %-9s |\n", i, stats[i].count, "n/a", "n/a", "n/a");
+        }
+    }
+    printf("+-----------+--------+-----------+-----------+-----------+\n");
 }

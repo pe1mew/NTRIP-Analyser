@@ -74,6 +74,17 @@ char* receive_mount_table(const NTRIP_Config *config);
  */
 void start_ntrip_stream(const NTRIP_Config *config);
 
+/**
+ * @brief Analyze RTCM message types for a given duration and print a summary table.
+ *
+ * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,
+ * and analyzes the message types received for the specified duration.
+ *
+ * @param config Pointer to NTRIP_Config struct with connection details.
+ * @param analysis_time Duration in seconds to analyze message types.
+ */
+void analyze_message_types(const NTRIP_Config *config, int analysis_time);
+
 #ifdef __cplusplus
 }
 #endif

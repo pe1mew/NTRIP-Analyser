@@ -223,7 +223,7 @@ void decode_rtcm_1137(const unsigned char *payload, int payload_len) {
     decode_rtcm_msm7(payload, payload_len, "SBAS", 1137);
 }
 
-int analyze_rtcm_message(const unsigned char *data, int length) {
+int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output) {
     if (length < 6) return -1;
 
     if (data[0] == 0xD3) {
@@ -243,48 +243,52 @@ int analyze_rtcm_message(const unsigned char *data, int length) {
             crc_calc = crc24q(data, 3 + msg_length);
         }
 
-        if (msg_type == 1005) {
-            printf("RTCM Message: Type = %d, Length = %d (Type 1005 detected)\n", msg_type, msg_length);
-            decode_rtcm_1005(&data[3], msg_length);
-        } else if (msg_type == 1077) {
-            printf("RTCM Message: Type = %d, Length = %d (Type 1077 detected)\n", msg_type, msg_length);
-            decode_rtcm_1077(&data[3], msg_length);
-        } else if (msg_type == 1087) {
-            printf("RTCM Message: Type = %d, Length = %d (Type 1087 detected)\n", msg_type, msg_length);
-            decode_rtcm_1087(&data[3], msg_length);
-        } else if (msg_type == 1097) {
-            printf("RTCM Message: Type = %d, Length = %d (Type 1097 detected)\n", msg_type, msg_length);
-            decode_rtcm_1097(&data[3], msg_length);
-        } else if (msg_type == 1117) {
-            printf("RTCM Message: Type = %d, Length = %d (Type 1117 detected)\n", msg_type, msg_length);
-            decode_rtcm_1117(&data[3], msg_length);
-        } else if (msg_type == 1127) {
-            printf("RTCM Message: Type = %d, Length = %d (Type 1127 detected)\n", msg_type, msg_length);
-            decode_rtcm_1127(&data[3], msg_length);
-        } else if (msg_type == 1137) {
-            printf("RTCM Message: Type = %d, Length = %d (Type 1137 detected)\n", msg_type, msg_length);
-            decode_rtcm_1137(&data[3], msg_length);
-        } else {
-            if (length >= frame_len) {
-                if (crc_calc != crc_extracted) {
-                    printf("RTCM Message: Type = %d, Length = %d, CRC = 0x%06X (CRC FAIL! Calculated: 0x%06X)\n", msg_type, msg_length, crc_extracted, crc_calc);
-                }
+        if (!suppress_output) {
+            if (msg_type == 1005) {
+                printf("RTCM Message: Type = %d, Length = %d (Type 1005 detected)\n", msg_type, msg_length);
+                decode_rtcm_1005(&data[3], msg_length);
+            } else if (msg_type == 1077) {
+                printf("RTCM Message: Type = %d, Length = %d (Type 1077 detected)\n", msg_type, msg_length);
+                decode_rtcm_1077(&data[3], msg_length);
+            } else if (msg_type == 1087) {
+                printf("RTCM Message: Type = %d, Length = %d (Type 1087 detected)\n", msg_type, msg_length);
+                decode_rtcm_1087(&data[3], msg_length);
+            } else if (msg_type == 1097) {
+                printf("RTCM Message: Type = %d, Length = %d (Type 1097 detected)\n", msg_type, msg_length);
+                decode_rtcm_1097(&data[3], msg_length);
+            } else if (msg_type == 1117) {
+                printf("RTCM Message: Type = %d, Length = %d (Type 1117 detected)\n", msg_type, msg_length);
+                decode_rtcm_1117(&data[3], msg_length);
+            } else if (msg_type == 1127) {
+                printf("RTCM Message: Type = %d, Length = %d (Type 1127 detected)\n", msg_type, msg_length);
+                decode_rtcm_1127(&data[3], msg_length);
+            } else if (msg_type == 1137) {
+                printf("RTCM Message: Type = %d, Length = %d (Type 1137 detected)\n", msg_type, msg_length);
+                decode_rtcm_1137(&data[3], msg_length);
             } else {
-                printf("RTCM Message: Type = %d, Length = %d (frame incomplete)\n", msg_type, msg_length);
+                if (length >= frame_len) {
+                    if (crc_calc != crc_extracted) {
+                        printf("RTCM Message: Type = %d, Length = %d, CRC = 0x%06X (CRC FAIL! Calculated: 0x%06X)\n", msg_type, msg_length, crc_extracted, crc_calc);
+                    }
+                } else {
+                    printf("RTCM Message: Type = %d, Length = %d (frame incomplete)\n", msg_type, msg_length);
+                }
             }
-        }
 
-        if (length >= frame_len && crc_calc != crc_extracted) {
-            printf("  CRC check: FAIL | extracted: 0x%06X | calculated: 0x%06X\n", crc_extracted, crc_calc);
+            if (length >= frame_len && crc_calc != crc_extracted) {
+                printf("  CRC check: FAIL | extracted: 0x%06X | calculated: 0x%06X\n", crc_extracted, crc_calc);
+            }
         }
 
         return msg_type;
     } else {
-        printf("Non-RTCM or malformed data (first bytes): ");
-        for (int i = 0; i < length && i < 16; ++i) {
-            printf("%02X ", data[i]);
+        if (!suppress_output) {
+            printf("Non-RTCM or malformed data (first bytes): ");
+            for (int i = 0; i < length && i < 16; ++i) {
+                printf("%02X ", data[i]);
+            }
+            printf("\n");
         }
-        printf("\n");
         return -1;
     }
 }

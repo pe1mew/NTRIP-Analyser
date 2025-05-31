@@ -31,6 +31,7 @@
 #define RTCM3X_PARSER_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,13 +60,15 @@ uint32_t crc24q(const uint8_t *data, size_t length);
  * @brief Analyze and print information about an RTCM message.
  *
  * Parses the provided RTCM message buffer, verifies its CRC, and decodes the message
- * if it is a supported type. Prints summary and decoding information to stdout.
+ * if it is a supported type. Prints summary and decoding information to stdout unless
+ * suppress_output is true.
  *
  * @param data   Pointer to the RTCM message buffer (should start with 0xD3 preamble).
  * @param length Length of the buffer in bytes.
+ * @param suppress_output If true, do not print any output.
  * @return The RTCM message type as an integer if successfully parsed, or -1 on error or if not an RTCM message.
  */
-int analyze_rtcm_message(const unsigned char *data, int length);
+int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1005 message.
