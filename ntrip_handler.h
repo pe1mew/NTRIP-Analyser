@@ -75,6 +75,18 @@ char* receive_mount_table(const NTRIP_Config *config);
 void start_ntrip_stream(const NTRIP_Config *config);
 
 /**
+ * @brief Starts the NTRIP stream with a filter for specific RTCM message types.
+ *
+ * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,
+ * and processes messages using the RTCM parser, but only for the message types specified in the filter.
+ *
+ * @param config Pointer to NTRIP_Config struct with connection details.
+ * @param filter_list Array of RTCM message type IDs to filter (e.g., {1005, 1006, 1007}).
+ * @param filter_count Number of message types in the filter_list.
+ */
+void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count);
+
+/**
  * @brief Analyze RTCM message types for a given duration and print a summary table.
  *
  * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,

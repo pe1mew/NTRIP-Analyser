@@ -34,6 +34,9 @@ typedef struct {
 } MsgStats;
 
 bool show_mount_table = false; // Add this variable near the top with the other flags
+bool decode_stream = false;
+int filter_list[MAX_MSG_TYPES] = {0};
+int filter_count = 0;
 
 int main(int argc, char *argv[]) {
     NTRIP_Config config;
@@ -42,26 +45,57 @@ int main(int argc, char *argv[]) {
     bool analyze_types = false;
     int analysis_time = 60; // default to 60 seconds
 
-    // If no arguments, enable message type analysis for 60 seconds
-    if (argc == 1) {
-        analyze_types = true;
-    }
+    static struct option long_options[] = {
+        {"config",    optional_argument, 0, 'c'},
+        {"time",      optional_argument, 0, 't'},
+        {"mounts",    no_argument,       0, 'm'},
+        {"decode",    optional_argument, 0, 'd'},
+        {0, 0, 0, 0}
+    };
 
-    while ((opt = getopt(argc, argv, "c:t:m")) != -1) {
+    int option_index = 0;
+    while ((opt = getopt_long(argc, argv, "c::t::md::", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
-                config_filename = optarg;
+                config_filename = optarg ? optarg : "config.json";
                 break;
             case 't':
-                analysis_time = atoi(optarg);
-                if (analysis_time <= 0) analysis_time = 60;
-                analyze_types = true; // Only analyze if -t is set
+                analyze_types = true;
+                if (optarg) {
+                    analysis_time = atoi(optarg);
+                    if (analysis_time <= 0) analysis_time = 60;
+                } else if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+                    // Handle -t 10 (where 10 is the next argv)
+                    analysis_time = atoi(argv[optind]);
+                    if (analysis_time <= 0) analysis_time = 60;
+                    optind++; // Skip this argument
+                } else {
+                    analysis_time = 60;
+                }
                 break;
             case 'm':
                 show_mount_table = true;
                 break;
+            case 'd':
+                decode_stream = true;
+                if (optarg) {
+                    char *token = strtok(optarg, ", ");
+                    while (token && filter_count < MAX_MSG_TYPES) {
+                        filter_list[filter_count++] = atoi(token);
+                        token = strtok(NULL, ", ");
+                    }
+                } else if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+                    // Handle -d 1005 (where 1005 is the next argv)
+                    char *token = strtok(argv[optind], ", ");
+                    while (token && filter_count < MAX_MSG_TYPES) {
+                        filter_list[filter_count++] = atoi(token);
+                        token = strtok(NULL, ", ");
+                    }
+                    optind++; // Skip this argument
+                }
+                break;
             default:
-                fprintf(stderr, "Usage: %s [-c config_file] [-t seconds] [-m]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-c[config_file]] [-t[seconds]] [-m] [-d[message_numbers]]\n", argv[0]);
                 return 1;
         }
     }
@@ -91,17 +125,27 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "[ERROR] Failed to retrieve mountpoint list.\n");
             return 1;
         }
+        // If only -m is set, exit after showing the table
+        if (!decode_stream) {
+            return 0;
+        }
     }
-
-    // If only -m is set, exit after showing the table
-    if (!analyze_types) {
-        return 0;
-    }
-
 
     // === 2. Start NTRIP stream from configured mountpoint ===
-    printf("[DEBUG] Starting NTRIP stream from mountpoint '%s'...\n", config.MOUNTPOINT);
-    start_ntrip_stream(&config);
+    if (decode_stream) {
+        printf("[DEBUG] Starting NTRIP stream from mountpoint '%s'...\n", config.MOUNTPOINT);
+        if (filter_count > 0) {
+            printf("[DEBUG] Filter list: ");
+            for (int i = 0; i < filter_count; ++i) {
+                printf("%d ", filter_list[i]);
+            }
+            printf("\n");
+        } else {
+            printf("[DEBUG] No filter: all message types will be shown.\n");
+        }
+        start_ntrip_stream_with_filter(&config, filter_list, filter_count);
+        return 0;
+    }
 
     return 0;
 }
