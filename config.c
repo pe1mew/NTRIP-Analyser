@@ -50,6 +50,12 @@ int load_config(const char *filename, NTRIP_Config *config) {
     strcpy(config->USERNAME, cJSON_GetObjectItem(json, "USERNAME")->valuestring);
     strcpy(config->PASSWORD, cJSON_GetObjectItem(json, "PASSWORD")->valuestring);
 
+    // New: Extract latitude and longitude if present
+    cJSON *lat = cJSON_GetObjectItem(json, "LATITUDE");
+    cJSON *lon = cJSON_GetObjectItem(json, "LONGITUDE");
+    config->LATITUDE = (lat && cJSON_IsNumber(lat)) ? lat->valuedouble : 0.0;
+    config->LONGITUDE = (lon && cJSON_IsNumber(lon)) ? lon->valuedouble : 0.0;
+
     cJSON_Delete(json);
     return 0;
 }

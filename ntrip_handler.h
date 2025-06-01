@@ -39,9 +39,11 @@ typedef struct {
     char NTRIP_CASTER[256];   /**< Hostname or IP address of the NTRIP caster */
     int  NTRIP_PORT;          /**< TCP port of the NTRIP caster */
     char MOUNTPOINT[256];     /**< Mountpoint string to request from the caster */
-    char USERNAME[256];       /**< Username for HTTP Basic Authentication */
-    char PASSWORD[256];       /**< Password for HTTP Basic Authentication */
+    char USERNAME[128];       /**< Username for HTTP Basic Authentication */
+    char PASSWORD[128];       /**< Password for HTTP Basic Authentication */
     char AUTH_BASIC[256];     /**< Base64 encoded "username:password" for HTTP Basic Auth */
+    double LATITUDE;          /**< Latitude for NTRIP connection (optional) */
+    double LONGITUDE;         /**< Longitude for NTRIP connection (optional) */
 } NTRIP_Config;
 
 /**

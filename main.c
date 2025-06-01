@@ -50,6 +50,10 @@ int main(int argc, char *argv[]) {
         {"time",      optional_argument, 0, 't'},
         {"mounts",    no_argument,       0, 'm'},
         {"decode",    optional_argument, 0, 'd'},
+        {"latitude",  required_argument, 0,  1 },
+        {"lat",       required_argument, 0,  2 },
+        {"longitude", required_argument, 0,  3 },
+        {"lon",       required_argument, 0,  4 },
         {0, 0, 0, 0}
     };
 
@@ -93,6 +97,14 @@ int main(int argc, char *argv[]) {
                     }
                     optind++; // Skip this argument
                 }
+                break;
+            case 1: // --latitude
+            case 2: // --lat
+                if (optarg) config.LATITUDE = atof(optarg);
+                break;
+            case 3: // --longitude
+            case 4: // --lon
+                if (optarg) config.LONGITUDE = atof(optarg);
                 break;
             default:
                 fprintf(stderr, "Usage: %s [-c[config_file]] [-t[seconds]] [-m] [-d[message_numbers]]\n", argv[0]);

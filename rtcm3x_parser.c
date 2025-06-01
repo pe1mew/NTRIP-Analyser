@@ -14,6 +14,10 @@
  */
 
 #include <stdio.h>
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #include "rtcm3x_parser.h"
 
 uint32_t crc24q(const uint8_t *data, size_t length) {
@@ -43,38 +47,81 @@ uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len) {
 }
 
 void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
-    if (payload_len < 12) {
+    if (payload_len < 19) {
         printf("Type 1005: Payload too short!\n");
         return;
     }
 
-    int bit = 0;
+    int bit = 12; // Skip the 12-bit message number at the start of the payload
     uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
-    uint8_t itrf_year = (uint8_t)get_bits(payload, bit, 6); bit += 6;
-    uint8_t gps_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t glo_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t gal_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t ref_station_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    bit += 6; // Reserved
     int64_t ecef_x = (int64_t)get_bits(payload, bit, 38); bit += 38;
-    if (ecef_x & ((uint64_t)1 << 37)) ecef_x -= ((uint64_t)1 << 38); // sign extend
+    if (ecef_x & ((int64_t)1 << 37)) ecef_x -= ((int64_t)1 << 38);
     uint8_t osc_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    bit += 1; // reserved
+    bit += 1; // Reserved
     int64_t ecef_y = (int64_t)get_bits(payload, bit, 38); bit += 38;
-    if (ecef_y & ((uint64_t)1 << 37)) ecef_y -= ((uint64_t)1 << 38);
-    bit += 2; // reserved
+    if (ecef_y & ((int64_t)1 << 37)) ecef_y -= ((int64_t)1 << 38);
+    bit += 2; // Reserved
     int64_t ecef_z = (int64_t)get_bits(payload, bit, 38); bit += 38;
-    if (ecef_z & ((uint64_t)1 << 37)) ecef_z -= ((uint64_t)1 << 38);
-    bit += 3; // reserved
+    if (ecef_z & ((int64_t)1 << 37)) ecef_z -= ((int64_t)1 << 38);
+    bit += 2; // Reserved
 
-    printf("RTCM 1005 Stationary RTK Reference Station ARP:\n");
+    double x = ecef_x * 0.0001;
+    double y = ecef_y * 0.0001;
+    double z = ecef_z * 0.0001;
+
+    // ECEF to geodetic (WGS84)
+    double a = 6378137.0;
+    double e2 = 6.69437999014e-3;
+    double lon = atan2(y, x);
+    double p = sqrt(x * x + y * y);
+    double lat = atan2(z, p * (1 - e2));
+    double lat_prev;
+    do {
+        lat_prev = lat;
+        double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+        lat = atan2(z + e2 * N * sin(lat), p);
+    } while (fabs(lat - lat_prev) > 1e-11);
+
+    double lat_deg = lat * 180.0 / M_PI;
+    double lon_deg = lon * 180.0 / M_PI;
+
+    printf("RTCM 1005 (RTCM 3.2):\n");
     printf("  Reference Station ID: %u\n", ref_station_id);
-    printf("  ITRF Realization Year: %u\n", itrf_year);
-    printf("  GPS: %u, GLONASS: %u, Galileo: %u\n", gps_ind, glo_ind, gal_ind);
-    printf("  Reference Station Indicator: %u\n", ref_station_ind);
-    printf("  ECEF X: %.4f m\n", ecef_x * 0.0001);
-    printf("  ECEF Y: %.4f m\n", ecef_y * 0.0001);
-    printf("  ECEF Z: %.4f m\n", ecef_z * 0.0001);
+    printf("  ECEF X: %.4f m\n", x);
+    printf("  ECEF Y: %.4f m\n", y);
+    printf("  ECEF Z: %.4f m\n", z);
     printf("  Single Receiver Oscillator Indicator: %u\n", osc_ind);
+    printf("  WGS84 Lat: %.8f°, Lon: %.8f°\n", lat_deg, lon_deg);
+    printf("  [Google Maps Link] https://maps.google.com/?q=%.8f,%.8f\n", lat_deg, lon_deg);
+
+    // int bit = 0;
+    // uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    // uint8_t itrf_year = (uint8_t)get_bits(payload, bit, 6); bit += 6;
+    // uint8_t gps_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    // uint8_t glo_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    // uint8_t gal_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    // uint8_t ref_station_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    // int64_t ecef_x = (int64_t)get_bits(payload, bit, 38); bit += 38;
+    // if (ecef_x & ((uint64_t)1 << 37)) ecef_x -= ((uint64_t)1 << 38); // sign extend
+    // uint8_t osc_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    // bit += 1; // reserved
+    // int64_t ecef_y = (int64_t)get_bits(payload, bit, 38); bit += 38;
+    // if (ecef_y & ((uint64_t)1 << 37)) ecef_y -= ((uint64_t)1 << 38);
+    // bit += 2; // reserved
+    // int64_t ecef_z = (int64_t)get_bits(payload, bit, 38); bit += 38;
+    // if (ecef_z & ((uint64_t)1 << 37)) ecef_z -= ((uint64_t)1 << 38);
+    // bit += 3; // reserved
+
+    // printf("RTCM 1005 Stationary RTK Reference Station ARP:\n");
+    // printf("  Reference Station ID: %u\n", ref_station_id);
+    // printf("  ITRF Realization Year: %u\n", itrf_year);
+    // printf("  GPS: %u, GLONASS: %u, Galileo: %u\n", gps_ind, glo_ind, gal_ind);
+    // printf("  Reference Station Indicator: %u\n", ref_station_ind);
+    // printf("  ECEF X: %.4f m\n", ecef_x * 0.0001);
+    // printf("  ECEF Y: %.4f m\n", ecef_y * 0.0001);
+    // printf("  ECEF Z: %.4f m\n", ecef_z * 0.0001);
+    // printf("  Single Receiver Oscillator Indicator: %u\n", osc_ind);
 }
 
 void decode_rtcm_1077(const unsigned char *payload, int payload_len) {

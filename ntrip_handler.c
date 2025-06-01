@@ -509,6 +509,9 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
                 double now = (double)clock() / CLOCKS_PER_SEC;
                 int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true);
                 if (msg_type > 0 && msg_type < MAX_MSG_TYPES) {
+                    printf("%d ", msg_type); // Print message number in sequence
+                    fflush(stdout);
+
                     MsgStats *s = &stats[msg_type];
                     if (!s->seen) {
                         s->seen = true;
@@ -521,6 +524,7 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
                         s->min_dt = (dt < s->min_dt || s->min_dt == 0.0) ? dt : s->min_dt;
                         s->max_dt = dt > s->max_dt ? dt : s->max_dt;
                     }
+                    s->count++;
                 }
 
                 memmove(msg_buffer, msg_buffer + full_frame, msg_buffer_len - full_frame);
@@ -532,13 +536,17 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     closesocket(sock);
     WSACleanup();
 
-    // Print statistics
+    // Print statistics as a table
     printf("\n[INFO] Message type analysis complete. Statistics:\n");
+    printf("+-------------+-------+---------------+---------------+---------------+\n");
+    printf("| MessageType | Count |  Min-DT (S)   |  Max-DT (S)   |  Avg-DT (S)   |\n");
+    printf("+-------------+-------+---------------+---------------+---------------+\n");
     for (int i = 1; i < MAX_MSG_TYPES; i++) {
-        if (stats[i].seen) {
-            printf("Message Type %d: Count=%d, Min-DT=%.3f, Max-DT=%.3f, Avg-DT=%.3f\n",
-                   i, stats[i].count, stats[i].min_dt, stats[i].max_dt,
-                   stats[i].sum_dt / stats[i].count);
+        if (stats[i].seen && stats[i].count > 0) {
+            double avg_dt = stats[i].count > 0 ? stats[i].sum_dt / stats[i].count : 0.0;
+            printf("| %-11d | %5d | %13.3f | %13.3f | %13.3f |\n",
+                   i, stats[i].count, stats[i].min_dt, stats[i].max_dt, avg_dt);
         }
     }
+    printf("+-------------+-------+---------------+---------------+---------------+\n");
 }
