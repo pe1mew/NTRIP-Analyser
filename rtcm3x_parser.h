@@ -56,6 +56,8 @@ uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len);
  */
 uint32_t crc24q(const uint8_t *data, size_t length);
 
+int64_t extract_signed38(const unsigned char *buf, int start_bit);
+
 /**
  * @brief Analyze and print information about an RTCM message.
  *
@@ -77,6 +79,8 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1005(const unsigned char *payload, int payload_len);
+
+void decode_rtcm_1006(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1077 (MSM7 GPS) message.
@@ -125,6 +129,46 @@ void decode_rtcm_1127(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1137(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1008 message.
+ * 
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1008(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1013 message.
+ * 
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1013(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1033 message.
+ * 
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1033(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1045 message.
+ * 
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1045(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1230 message.
+ * 
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1230(const unsigned char *payload, int payload_len);
 
 #ifdef __cplusplus
 }
