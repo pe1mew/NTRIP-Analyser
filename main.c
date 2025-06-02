@@ -35,6 +35,7 @@ typedef struct {
 
 bool show_mount_table = false; // Add this variable near the top with the other flags
 bool decode_stream = false;
+bool verbose = false; // Add this global or local to main
 int filter_list[MAX_MSG_TYPES] = {0};
 int filter_count = 0;
 
@@ -54,14 +55,22 @@ int main(int argc, char *argv[]) {
         {"lat",       required_argument, 0,  2 },
         {"longitude", required_argument, 0,  3 },
         {"lon",       required_argument, 0,  4 },
+        {"verbose",   no_argument,       0, 'v'},
         {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "c::t::md::", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c::t::md::v", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
-                config_filename = optarg ? optarg : "config.json";
+                if (optarg) {
+                    config_filename = optarg;
+                } else if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+                    config_filename = argv[optind];
+                    optind++; // Skip this argument
+                } else {
+                    config_filename = "config.json";
+                }
                 break;
             case 't':
                 analyze_types = true;
@@ -106,21 +115,77 @@ int main(int argc, char *argv[]) {
             case 4: // --lon
                 if (optarg) config.LONGITUDE = atof(optarg);
                 break;
+            case 'v':
+                verbose = true;
+                break;
             default:
-                fprintf(stderr, "Usage: %s [-c[config_file]] [-t[seconds]] [-m] [-d[message_numbers]]\n", argv[0]);
+                fprintf(stderr,
+                    "Usage: %s [options]\n"
+                    "Options:\n"
+                    "  -c, --config [file]      Specify config file (default: config.json)\n"
+                    "  -t, --time [seconds]     Analyze message types for N seconds (default: 60)\n"
+                    "  -m, --mounts             Show mountpoint (sourcetable) list and exit\n"
+                    "  -d, --decode [types]     Decode RTCM stream, optionally filter by comma-separated RTCM-message numbers (e.g. 1005,1074)\n"
+                    "      --latitude [value]   Override latitude in json config-file\n"
+                    "      --lat [value]        Same as --latitude\n"
+                    "      --longitude [value]  Override longitude in json config-file\n"
+                    "      --lon [value]        Same as --longitude\n"
+                    "\n"
+                    "Examples:\n"
+                    "  %s -m\n"
+                    "  %s -d 1005,1074\n"
+                    "  %s -c myconfig.json -d\n",
+                    argv[0], argv[0], argv[0], argv[0]);
                 return 1;
         }
     }
 
     if (load_config(config_filename, &config) != 0) {
-        fprintf(stderr, "Failed to load configuration.\n");
+        fprintf(stderr, "[ERROR] Could not open or parse config file: %s\n", config_filename);
+        fprintf(stderr, "Aborting.\n");
         return 1;
     }
 
-    char auth[128];
+    // Increase auth buffer size
+    char auth[512]; // was 128
     snprintf(auth, sizeof(auth), "%s:%s", config.USERNAME, config.PASSWORD);
     base64_encode(auth, config.AUTH_BASIC);
 
+    // === Verbose reporting ===
+    if (verbose) {
+        printf("=== NTRIP-Analyser Configuration ===\n");
+        printf("  Config file: %s\n", config_filename);
+        printf("  NTRIP_CASTER: %s\n", config.NTRIP_CASTER);
+        printf("  NTRIP_PORT: %d\n", config.NTRIP_PORT);
+        printf("  MOUNTPOINT: %s\n", config.MOUNTPOINT);
+        printf("  USERNAME: %s\n", config.USERNAME);
+        printf("  PASSWORD: %s\n", config.PASSWORD);
+        printf("  LATITUDE: %.8f\n", config.LATITUDE);
+        printf("  LONGITUDE: %.8f\n", config.LONGITUDE);
+        printf("  Analysis time: %d\n", analysis_time);
+        printf("  Show mount table: %s\n", show_mount_table ? "yes" : "no");
+        printf("  Decode stream: %s\n", decode_stream ? "yes" : "no");
+        if (filter_count > 0) {
+            printf("  Filter list: ");
+            for (int i = 0; i < filter_count; ++i) {
+                printf("%d ", filter_list[i]);
+            }
+            printf("\n");
+        }
+        printf("  Action: ");
+        if (show_mount_table && !decode_stream) {
+            printf("Show mountpoint list and exit\n");
+        } else if (decode_stream) {
+            printf("Start NTRIP stream%s\n", filter_count > 0 ? " with filter" : "");
+        } else if (analyze_types) {
+            printf("Analyze message types for %d seconds\n", analysis_time);
+        } else {
+            printf("No action specified\n");
+        }
+        printf("====================================\n");
+    }
+
+    // === 0. Analyze message types if requested ===
     if (analyze_types) {
         analyze_message_types(&config, analysis_time);
         return 0;
@@ -158,6 +223,7 @@ int main(int argc, char *argv[]) {
         start_ntrip_stream_with_filter(&config, filter_list, filter_count);
         return 0;
     }
+
 
     return 0;
 }

@@ -1,0 +1,7 @@
+{
+    "NTRIP_CASTER": "ntrip.kadaster.nl",
+    "NTRIP_PORT": 2101,
+    "MOUNTPOINT": "APEL00NLD0",
+    "USERNAME": "rfsee",
+    "PASSWORD": "info@rfsee.nl"
+}

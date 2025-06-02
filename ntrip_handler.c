@@ -53,7 +53,7 @@ char* receive_mount_table(const NTRIP_Config *config) {
     SOCKET sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
-    char request[512];
+    char request[1024];
     char buffer[BUFFER_SIZE];
     char *mount_table = NULL;
     size_t mount_table_size = 0;
@@ -143,7 +143,7 @@ void start_ntrip_stream(const NTRIP_Config *config) {
     SOCKET sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
-    char request[512];
+    char request[1024];
     char buffer[BUFFER_SIZE];
 
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -264,7 +264,7 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
     SOCKET sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
-    char request[512];
+    char request[1024]; // Increased from 512 to 1024
     char buffer[BUFFER_SIZE];
 
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -370,16 +370,22 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
                 // Always analyze first to get the message type (no output)
                 int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true);
 
+                int in_filter = 0;
                 if (filter_count == 0) {
                     // No filter: print all messages
                     analyze_rtcm_message(msg_buffer, full_frame, false);
                 } else {
-                    // Only print if in filter_list
+                    // Only print if in filter_list, else print "."
                     for (int i = 0; i < filter_count; ++i) {
                         if (msg_type == filter_list[i]) {
                             analyze_rtcm_message(msg_buffer, full_frame, false);
+                            in_filter = 1;
                             break;
                         }
+                    }
+                    if (!in_filter) {
+                        printf(".");
+                        fflush(stdout);
                     }
                 }
 
@@ -398,7 +404,7 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     SOCKET sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
-    char request[512];
+    char request[1024]; // Increased from 512 to 1024
     char buffer[BUFFER_SIZE];
 
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
