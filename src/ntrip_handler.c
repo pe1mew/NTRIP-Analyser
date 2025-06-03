@@ -819,7 +819,7 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
 
 
     // Set satellites column width for 30 satellites, 3 chars per satellite (2 digits + space): 30*3 = 90
-    #define SAT_COL_WIDTH 110
+    #define SAT_COL_WIDTH 60
 
     // Calculate total unique satellites
     int total_unique = 0;
@@ -827,18 +827,30 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
         total_unique += summary.gnss[i].count;
     }
 
-    printf("\nTotal unique satellites seen: %d\n", total_unique);
-    printf("GNSS systems and satellites seen:\n");
-    printf("+-----------+------------+---------------------------------------------------------------------------------------------------------------+\n");
+    // Print dynamic table border
+    char border[256];
+    int pos = 0;
+    border[pos++] = '+';
+    for (int i = 0; i < 11; ++i) border[pos++] = '-'; // GNSS col
+    border[pos++] = '+';
+    for (int i = 0; i < 12; ++i) border[pos++] = '-'; // #Sats Seen col
+    border[pos++] = '+';
+    for (int i = 0; i < SAT_COL_WIDTH+1; ++i) border[pos++] = '-'; // Satellites col
+    border[pos++] = '+';
+    border[pos++] = '\0';
+
+    // printf("\nTotal unique satellites seen: %d\n", total_unique);
+    printf("\nGNSS systems and satellites seen:\n");
+    printf("%s\n", border);
     printf("|   GNSS    | #Sats Seen | Satellites%*s|\n", SAT_COL_WIDTH - 10, ""); // 10 = strlen("Satellites")
-    printf("+-----------+------------+---------------------------------------------------------------------------------------------------------------+\n");
+    printf("%s\n", border);
     for (int i = 0; i < summary.gnss_count; ++i) {
         // Prepare satellite list as a string, 2 chars per satellite, with space between
-        char sat_list[SAT_COL_WIDTH + 1] = "";
+        char sat_list[MAX_SATS_PER_GNSS * 4] = "";
         int pos = 0;
         int first = 1;
         char idbuf[8];
-        for (int s = 0; s < MAX_SATS_PER_GNSS && pos < SAT_COL_WIDTH - 4; ++s) {
+        for (int s = 0; s < MAX_SATS_PER_GNSS; ++s) {
             if (summary.gnss[i].sat_seen[s]) {
                 const char *rinex = rinex_id_from_gnss(summary.gnss[i].gnss_id, s + 1, idbuf, sizeof(idbuf));
                 pos += snprintf(sat_list + pos, sizeof(sat_list) - pos, "%s%s", first ? "" : " ", rinex);
@@ -846,12 +858,35 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
             }
         }
         if (pos == 0) snprintf(sat_list, sizeof(sat_list), "None");
-        printf("| %-9s | %10d | %-*s|\n",
-               gnss_name_from_id(summary.gnss[i].gnss_id),
-               summary.gnss[i].count,
-               SAT_COL_WIDTH, sat_list);
+
+        // Word-wrap the satellite list
+        int len = strlen(sat_list);
+        int offset = 0;
+        int first_line = 1;
+        while (offset < len) {
+            char line_buf[SAT_COL_WIDTH + 1];
+            int copy_len = (len - offset > SAT_COL_WIDTH) ? SAT_COL_WIDTH : (len - offset);
+            strncpy(line_buf, sat_list + offset, copy_len);
+            line_buf[copy_len] = '\0';
+
+            if (first_line) {
+                printf("| %-9s | %10d | %-*s|\n",
+                       gnss_name_from_id(summary.gnss[i].gnss_id),
+                       summary.gnss[i].count,
+                       SAT_COL_WIDTH, line_buf);
+                first_line = 0;
+            } else {
+                printf("| %-9s | %10s | %-*s|\n",
+                       "", "", SAT_COL_WIDTH, line_buf);
+            }
+            offset += copy_len;
+            // Skip leading spaces on next line
+            while (sat_list[offset] == ' ') offset++;
+        }
     }
-    printf("+-----------+------------+---------------------------------------------------------------------------------------------------------------+\n");
+    printf("%s\n", border);
+    printf("| Total     | %10d | %-*s|\n", total_unique, SAT_COL_WIDTH, ""); // Print total at the end
+    printf("%s\n", border);
 }
 
 const char* gnss_name_from_id(int gnss_id) {

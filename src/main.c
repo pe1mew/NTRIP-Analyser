@@ -181,20 +181,17 @@ int main(int argc, char *argv[]) {
         printf("  PASSWORD: %s\n", config.PASSWORD);
         printf("  LATITUDE: %.8f\n", config.LATITUDE);
         printf("  LONGITUDE: %.8f\n", config.LONGITUDE);
-        printf("  Analysis time: %d\n", analysis_time);
-        printf("  Satellite analysis: %s\n", analyze_sats ? "yes" : "no");
-        if (analyze_sats) {
-            printf("  Satellite analysis time: %d\n", sat_analysis_time);
-        }
-        printf("  Show mount table: %s\n", show_mount_table ? "yes" : "no");
-        printf("  Decode stream: %s\n", decode_stream ? "yes" : "no");
-        if (filter_count > 0) {
-            printf("  Filter list: ");
-            for (int i = 0; i < filter_count; ++i) {
-                printf("%d ", filter_list[i]);
-            }
-            printf("\n");
-        }
+        // printf("  Analysis time: %d\n", analysis_time);
+        // printf("  Satellite analysis: %s\n", analyze_sats ? "yes" : "no");
+        // printf("  Show mount table: %s\n", show_mount_table ? "yes" : "no");
+        // printf("  Decode stream: %s\n", decode_stream ? "yes" : "no");
+        // if (filter_count > 0) {
+        //     printf("  Filter list: ");
+        //     for (int i = 0; i < filter_count; ++i) {
+        //         printf("%d ", filter_list[i]);
+        //     }
+        //     printf("\n");
+        // }
         printf("  Action: ");
         if (show_mount_table && !decode_stream) {
             printf("Show mountpoint list and exit\n");
