@@ -30,6 +30,13 @@ extern "C" {
  */
 int load_config(const char *filename, NTRIP_Config *config);
 
+/**
+ * @brief Initialize a config file with dummy/default values.
+ * @param filename The file to write (e.g. "config.json")
+ * @return 0 on success, nonzero on error
+ */
+int initialize_config(const char *filename);
+
 #ifdef __cplusplus
 }
 #endif

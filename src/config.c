@@ -59,3 +59,33 @@ int load_config(const char *filename, NTRIP_Config *config) {
     cJSON_Delete(json);
     return 0;
 }
+
+int initialize_config(const char *filename) {
+    FILE *test = fopen(filename, "r");
+    if (test) {
+        fclose(test);
+        fprintf(stderr, "Config file '%s' already exists. Aborting to avoid overwrite.\n", filename);
+        fprintf(stderr, "If you want to create a new config, please remove or rename the existing file first.\n");
+        return 1;
+    }
+
+    FILE *f = fopen(filename, "w");
+    if (!f) {
+        fprintf(stderr, "Could not create %s\n", filename);
+        return 1;
+    }
+    fprintf(f,
+        "{\n"
+        "    \"NTRIP_CASTER\": \"your.caster.example.com\",\n"
+        "    \"NTRIP_PORT\": 2101,\n"
+        "    \"MOUNTPOINT\": \"MOUNTPOINT\",\n"
+        "    \"USERNAME\": \"your_username\",\n"
+        "    \"PASSWORD\": \"your_password\",\n"
+        "    \"LATITUDE\": 0.0,\n"
+        "    \"LONGITUDE\": 0.0\n"
+        "}\n"
+    );
+    fclose(f);
+    printf("A template config file '%s' has been created. Please edit it and set the values manually before running the program.\n", filename);
+    return 0;
+}

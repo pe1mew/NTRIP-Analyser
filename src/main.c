@@ -56,11 +56,12 @@ int main(int argc, char *argv[]) {
         {"longitude", required_argument, 0,  3 },
         {"lon",       required_argument, 0,  4 },
         {"verbose",   no_argument,       0, 'v'},
+        {"initialize", no_argument,      0, 'i'}, // Add this line
         {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "c::t::md::v", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c::t::md::vi", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
                 if (optarg) {
@@ -118,6 +119,9 @@ int main(int argc, char *argv[]) {
             case 'v':
                 verbose = true;
                 break;
+            case 'i':
+                initialize_config("config.json");
+                return 0;
             default:
                 fprintf(stderr,
                     "Usage: %s [options]\n"
