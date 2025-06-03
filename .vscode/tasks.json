@@ -8,12 +8,13 @@
             "args": [
                 "-g",
                 "-o",
-                "ntripanalyse.exe",
-                "main.c",
+                "bin/ntripanalyse.exe",
+                "src/main.c",
                 "lib/cJSON/cJSON.c",
-                "rtcm3x_parser.c",
-                "ntrip_handler.c",
-                "config.c",
+                "src/rtcm3x_parser.c",
+                "src/ntrip_handler.c",
+                "src/config.c",
+                "-Ilib/cJSON",
                 "-lws2_32",
                 "-Wall"
             ],

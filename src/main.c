@@ -16,7 +16,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #endif
-#include "lib/cJSON/cJSON.h" // Include cJSON library
+#include "cJSON.h" // Include cJSON library
 #include "rtcm3x_parser.h" // Include RTCM parser header
 #include "ntrip_handler.h"
 #include "config.h"

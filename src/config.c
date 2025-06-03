@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "lib/cJSON/cJSON.h"
+#include "cJSON.h"
 
 int load_config(const char *filename, NTRIP_Config *config) {
     FILE *file = fopen(filename, "r");
