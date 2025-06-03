@@ -25,6 +25,10 @@
 #define BUFFER_SIZE 4096
 #define MAX_MSG_TYPES 4096
 
+// Define column widths for verbose printing
+#define CONF_KEY_WIDTH 14
+#define CONF_VAL_WIDTH 26
+
 typedef struct {
     int count;
     double min_dt;
@@ -34,8 +38,6 @@ typedef struct {
     bool seen;
 } MsgStats;
 
-bool show_mount_table = false;
-bool decode_stream = false;
 bool verbose = false;
 int filter_list[MAX_MSG_TYPES] = {0};
 int filter_count = 0;
@@ -44,17 +46,16 @@ int main(int argc, char *argv[]) {
     NTRIP_Config config;
     const char *config_filename = "config.json";
     int opt;
-    bool analyze_types = false;
     int analysis_time = 60; // default to 60 seconds
-    bool analyze_sats = false;           // <-- add this
-    int sat_analysis_time = 60;          // <-- and this
+    Operation operation = OP_NONE;
 
     static struct option long_options[] = {
         {"config",    optional_argument, 0, 'c'},
         {"time",      optional_argument, 0, 't'},
         {"mounts",    no_argument,       0, 'm'},
         {"decode",    optional_argument, 0, 'd'},
-        {"sat",       optional_argument, 0, 's'}, // <-- add this line
+        {"sat",       optional_argument, 0, 's'},
+        {"raw",       no_argument,       0, 'r'}, // <-- Add this line
         {"latitude",  required_argument, 0,  1 },
         {"lat",       required_argument, 0,  2 },
         {"longitude", required_argument, 0,  3 },
@@ -66,7 +67,7 @@ int main(int argc, char *argv[]) {
     };
 
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "c::t::md::vs::gi", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c::t::md::vs::gir", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
                 if (optarg) {
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 't':
-                analyze_types = true;
+                operation = OP_ANALYZE_TYPES;
                 if (optarg) {
                     analysis_time = atoi(optarg);
                     if (analysis_time <= 0) analysis_time = 60;
@@ -92,10 +93,13 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             case 'm':
-                show_mount_table = true;
+                operation = OP_SHOW_MOUNT_FORMATTED;
+                break;
+            case 'r':
+                operation = OP_SHOW_MOUNT_RAW;
                 break;
             case 'd':
-                decode_stream = true;
+                operation = OP_DECODE_STREAM;
                 if (optarg) {
                     char *token = strtok(optarg, ", ");
                     while (token && filter_count < MAX_MSG_TYPES) {
@@ -111,17 +115,17 @@ int main(int argc, char *argv[]) {
                     optind++; // Skip this argument
                 }
                 break;
-            case 's': // -sat
-                analyze_sats = true;
+            case 's':
+                operation = OP_ANALYZE_SATS;
                 if (optarg) {
-                    sat_analysis_time = atoi(optarg);
-                    if (sat_analysis_time <= 0) sat_analysis_time = 60;
+                    analysis_time = atoi(optarg);
+                    if (analysis_time <= 0) analysis_time = 60;
                 } else if (optind < argc && argv[optind] && argv[optind][0] != '-') {
-                    sat_analysis_time = atoi(argv[optind]);
-                    if (sat_analysis_time <= 0) sat_analysis_time = 60;
+                    analysis_time = atoi(argv[optind]);
+                    if (analysis_time <= 0) analysis_time = 60;
                     optind++;
                 } else {
-                    sat_analysis_time = 60;
+                    analysis_time = 60;
                 }
                 break;
             case 1: // --latitude
@@ -150,14 +154,18 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // If no arguments provided, force verbose to show "No action specified"
+    if (argc == 1) {
+        verbose = true;
+    }
+
     if (load_config(config_filename, &config) != 0) {
         fprintf(stderr, "[ERROR] Could not open or parse config file: %s\n", config_filename);
         fprintf(stderr, "Aborting.\n");
         return 1;
     }
 
-    // === Windows-specific: Initialize Winsock ===
-#ifdef _WIN32
+#ifdef _WIN32   // === Windows-specific: Initialize Winsock ===
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
         fprintf(stderr, "[ERROR] WSAStartup failed.\n");
@@ -165,50 +173,21 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    // Increase auth buffer size
     char auth[512];
     snprintf(auth, sizeof(auth), "%s:%s", config.USERNAME, config.PASSWORD);
     base64_encode(auth, config.AUTH_BASIC);
 
     // === Verbose reporting ===
     if (verbose) {
-        printf("=== NTRIP-Analyser Configuration ===\n");
-        printf("  Config file: %s\n", config_filename);
-        printf("  NTRIP_CASTER: %s\n", config.NTRIP_CASTER);
-        printf("  NTRIP_PORT: %d\n", config.NTRIP_PORT);
-        printf("  MOUNTPOINT: %s\n", config.MOUNTPOINT);
-        printf("  USERNAME: %s\n", config.USERNAME);
-        printf("  PASSWORD: %s\n", config.PASSWORD);
-        printf("  LATITUDE: %.8f\n", config.LATITUDE);
-        printf("  LONGITUDE: %.8f\n", config.LONGITUDE);
-        // printf("  Analysis time: %d\n", analysis_time);
-        // printf("  Satellite analysis: %s\n", analyze_sats ? "yes" : "no");
-        // printf("  Show mount table: %s\n", show_mount_table ? "yes" : "no");
-        // printf("  Decode stream: %s\n", decode_stream ? "yes" : "no");
-        // if (filter_count > 0) {
-        //     printf("  Filter list: ");
-        //     for (int i = 0; i < filter_count; ++i) {
-        //         printf("%d ", filter_list[i]);
-        //     }
-        //     printf("\n");
-        // }
-        printf("  Action: ");
-        if (show_mount_table && !decode_stream) {
-            printf("Show mountpoint list and exit\n");
-        } else if (decode_stream) {
-            printf("Start NTRIP stream%s\n", filter_count > 0 ? " with filter" : "");
-        } else if (analyze_types) {
-            printf("Analyze message types for %d seconds\n", analysis_time);
-        } else if (analyze_sats) {
-            printf("Analyze unique satellites for %d seconds\n", sat_analysis_time);
-        } else {
-            printf("No action specified\n");
-        }
-        printf("====================================\n");
+        print_verbose_config(
+            &config,
+            config_filename,
+            operation
+        );
     }
 
     // === 0. Analyze message types if requested ===
-    if (analyze_types) {
+    if (operation == OP_ANALYZE_TYPES) {
         analyze_message_types(&config, analysis_time);
 #ifdef _WIN32
         WSACleanup();
@@ -217,11 +196,17 @@ int main(int argc, char *argv[]) {
     }
 
     // === 1. Request and display mountpoint list ===
-    if (show_mount_table) {
+    if (operation == OP_SHOW_MOUNT_FORMATTED || operation == OP_SHOW_MOUNT_RAW) {
         printf("[DEBUG] Requesting mountpoint list (sourcetable)...\n");
         char *mount_table = receive_mount_table(&config);
         if (mount_table) {
-            printf("%s\n", mount_table);
+            if (operation == OP_SHOW_MOUNT_RAW) {
+                // Print raw mountpoint list
+                printf("%s", mount_table);
+            } else {
+                // Print formatted mountpoint list (default behavior)
+                printf("%s\n", mount_table);
+            }
             free(mount_table);
         } else {
             fprintf(stderr, "[ERROR] Failed to retrieve mountpoint list.\n");
@@ -230,8 +215,8 @@ int main(int argc, char *argv[]) {
 #endif
             return 1;
         }
-        // If only -m is set, exit after showing the table
-        if (!decode_stream) {
+        // If only -m or -r is set, exit after showing the table
+        if (operation != OP_DECODE_STREAM) {
 #ifdef _WIN32
             WSACleanup();
 #endif
@@ -240,7 +225,7 @@ int main(int argc, char *argv[]) {
     }
 
     // === 2. Start NTRIP stream from configured mountpoint ===
-    if (decode_stream) {
+    if (operation == OP_DECODE_STREAM) {
         printf("[DEBUG] Starting NTRIP stream from mountpoint '%s'...\n", config.MOUNTPOINT);
         if (filter_count > 0) {
             printf("[DEBUG] Filter list: ");
@@ -258,17 +243,18 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    if (analyze_sats) {
-    analyze_satellites_stream(&config, sat_analysis_time);
+    if (operation == OP_ANALYZE_SATS) {
+        analyze_satellites_stream(&config, analysis_time);
 #ifdef _WIN32
-    WSACleanup();
+        WSACleanup();
 #endif
-    return 0;
+        return 0;
     }
-    
 
 #ifdef _WIN32
     WSACleanup();
 #endif
     return 0;
 }
+
+ 

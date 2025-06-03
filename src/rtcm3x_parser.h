@@ -17,11 +17,17 @@
  *   - 1008: Antenna Descriptor & Serial Number
  *   - 1012: GLONASS L1&L2 RTK Observables
  *   - 1013: System Parameters
+ *   - *1019: GPS L1&L2 RTK Observables*
+ *   - *1020: GLONASS L1&L2 RTK Observables*
  *   - 1033: Receiver & Antenna Descriptor
+ *   - *1042: GPS Code-Phase Biases*
+ *   - *1044: GLONASS Code-Phase Biases*
  *   - 1045: SSR Messages
+ *   - *1046: Galileo Code-Phase Biases*
  *   - 1077: MSM7 GPS
  *   - 1087: MSM7 GLONASS
  *   - 1097: MSM7 Galileo
+ *   - *1107: MSM7 QZSS*
  *   - 1117: MSM7 QZSS
  *   - 1127: MSM7 BeiDou
  *   - 1137: MSM7 SBAS
@@ -35,7 +41,7 @@
  * For more information, see the project README and LICENSE files.
  * 
  * @todo add scaling of extracted values to real-world units (e.g., meters, seconds).
- * @todo implement additional message types as needed. 
+ * @todo implement additional message types as needed: 1019, 1020, 1042, 1044, 1046, 1107 
  */
 
 #ifndef RTCM3X_PARSER_H

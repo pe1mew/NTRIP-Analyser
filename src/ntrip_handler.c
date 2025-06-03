@@ -25,6 +25,9 @@
 #define BUFFER_SIZE 4096
 #define MAX_MSG_TYPES 4096
 
+// Set satellites column width for 30 satellites, 3 chars per satellite (2 digits + space): 30*3 = 90
+#define SAT_COL_WIDTH 60
+
 typedef struct {
     int count;
     double min_dt;
@@ -816,10 +819,6 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
     }
 
     CLOSESOCKET(sock);
-
-
-    // Set satellites column width for 30 satellites, 3 chars per satellite (2 digits + space): 30*3 = 90
-    #define SAT_COL_WIDTH 60
 
     // Calculate total unique satellites
     int total_unique = 0;
