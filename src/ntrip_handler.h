@@ -46,6 +46,20 @@ typedef struct {
     double LONGITUDE;         /**< Longitude for NTRIP connection (optional) */
 } NTRIP_Config;
 
+#define MAX_GNSS 8
+#define MAX_SATS_PER_GNSS 64
+
+typedef struct {
+    int gnss_id; // 1=GPS, 2=GLONASS, 3=Galileo, 4=QZSS, 5=BeiDou, 6=SBAS, etc.
+    int sat_seen[MAX_SATS_PER_GNSS]; // 1 if seen, 0 if not
+    int count; // number of unique satellites seen
+} GnssSatStats;
+
+typedef struct {
+    GnssSatStats gnss[MAX_GNSS];
+    int gnss_count;
+} SatStatsSummary;
+
 /**
  * @brief Encode a string to Base64 for HTTP Basic Authentication.
  *
@@ -98,6 +112,17 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
  * @param analysis_time Duration in seconds to analyze message types.
  */
 void analyze_message_types(const NTRIP_Config *config, int analysis_time);
+
+// Returns GNSS system ID from RTCM message type
+int get_gnss_id_from_rtcm(int msg_type); // Only the declaration, not the definition
+
+// Extracts satellites from MSM7/RTCM message into summary
+void extract_satellites(const unsigned char *data, int len, int msg_type, SatStatsSummary *summary);
+
+// Opens NTRIP stream and analyzes satellites for a period
+void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time);
+
+const char* gnss_name_from_id(int gnss_id);
 
 #ifdef __cplusplus
 }

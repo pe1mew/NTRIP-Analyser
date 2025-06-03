@@ -1,3 +1,4 @@
 *.exe
 /config.json
 ntripanalyse.exe
+/bin/config.json

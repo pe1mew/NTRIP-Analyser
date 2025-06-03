@@ -46,12 +46,15 @@ int main(int argc, char *argv[]) {
     int opt;
     bool analyze_types = false;
     int analysis_time = 60; // default to 60 seconds
+    bool analyze_sats = false;           // <-- add this
+    int sat_analysis_time = 60;          // <-- and this
 
     static struct option long_options[] = {
         {"config",    optional_argument, 0, 'c'},
         {"time",      optional_argument, 0, 't'},
         {"mounts",    no_argument,       0, 'm'},
         {"decode",    optional_argument, 0, 'd'},
+        {"sat",       optional_argument, 0, 's'}, // <-- add this line
         {"latitude",  required_argument, 0,  1 },
         {"lat",       required_argument, 0,  2 },
         {"longitude", required_argument, 0,  3 },
@@ -63,7 +66,7 @@ int main(int argc, char *argv[]) {
     };
 
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "c::t::md::vgi", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c::t::md::vs::gi", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
                 if (optarg) {
@@ -106,6 +109,19 @@ int main(int argc, char *argv[]) {
                         token = strtok(NULL, ", ");
                     }
                     optind++; // Skip this argument
+                }
+                break;
+            case 's': // -sat
+                analyze_sats = true;
+                if (optarg) {
+                    sat_analysis_time = atoi(optarg);
+                    if (sat_analysis_time <= 0) sat_analysis_time = 60;
+                } else if (optind < argc && argv[optind] && argv[optind][0] != '-') {
+                    sat_analysis_time = atoi(argv[optind]);
+                    if (sat_analysis_time <= 0) sat_analysis_time = 60;
+                    optind++;
+                } else {
+                    sat_analysis_time = 60;
                 }
                 break;
             case 1: // --latitude
@@ -238,6 +254,15 @@ int main(int argc, char *argv[]) {
 #endif
         return 0;
     }
+
+    if (analyze_sats) {
+    analyze_satellites_stream(&config, sat_analysis_time);
+#ifdef _WIN32
+    WSACleanup();
+#endif
+    return 0;
+    }
+    
 
 #ifdef _WIN32
     WSACleanup();

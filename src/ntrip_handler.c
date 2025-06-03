@@ -649,3 +649,200 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     }
     printf("+-------------+-------+---------------+---------------+---------------+\n");
 }
+
+void extract_satellites(const unsigned char *data, int len, int msg_type, SatStatsSummary *summary) {
+    int gnss_id = get_gnss_id_from_rtcm(msg_type);
+    if (!gnss_id) return;
+
+    int idx = -1;
+    for (int i = 0; i < summary->gnss_count; ++i) {
+        if (summary->gnss[i].gnss_id == gnss_id) {
+            idx = i;
+            break;
+        }
+    }
+    if (idx == -1 && summary->gnss_count < MAX_GNSS) {
+        idx = summary->gnss_count++;
+        summary->gnss[idx].gnss_id = gnss_id;
+        memset(summary->gnss[idx].sat_seen, 0, sizeof(summary->gnss[idx].sat_seen));
+        summary->gnss[idx].count = 0;
+    }
+    if (idx == -1) return;
+
+    int bit = 24;
+    /* int n_sat = (int)get_bits(data, bit, 6); */ bit += 6; // Remove unused variable warning
+    bit += 1 + 3; // skip other MSM header fields
+
+    for (int s = 1; s <= 64 && s <= MAX_SATS_PER_GNSS; ++s) {
+        if (get_bits(data, bit, 1)) {
+            if (!summary->gnss[idx].sat_seen[s-1]) {
+                summary->gnss[idx].sat_seen[s-1] = 1;
+                summary->gnss[idx].count++;
+            }
+        }
+        bit++;
+    }
+}
+
+void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
+    printf("Opening NTRIP stream and analyzing satellites for %d seconds...\n", analysis_time);
+    SatStatsSummary summary = {0};
+
+    SOCKET_TYPE sock;
+    struct sockaddr_in server;
+    struct addrinfo hints, *result;
+    char request[1024];
+    char buffer[BUFFER_SIZE];
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int gai_ret = getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result);
+    if (gai_ret != 0) {
+        fprintf(stderr, "DNS lookup failed\n");
+        return;
+    }
+
+    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (SOCK_ERR(sock)) {
+        fprintf(stderr, "Socket creation failed\n");
+        freeaddrinfo(result);
+        return;
+    }
+
+    server.sin_family = AF_INET;
+    server.sin_port = htons(config->NTRIP_PORT);
+    server.sin_addr = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
+    memset(&(server.sin_zero), 0, 8);
+
+    freeaddrinfo(result);
+
+    if (SOCK_CONN_ERR(connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)))) {
+        fprintf(stderr, "Connection failed\n");
+        CLOSESOCKET(sock);
+        return;
+    }
+
+    snprintf(request, sizeof(request),
+             "GET /%s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "Ntrip-Version: Ntrip/2.0\r\n"
+             "User-Agent: NTRIP CClient/1.0\r\n"
+             "Authorization: Basic %s\r\n"
+             "\r\n",
+             config->MOUNTPOINT, config->NTRIP_CASTER, config->AUTH_BASIC);
+
+    send(sock, request, strlen(request), 0);
+
+    int received;
+    int header_skipped = 0;
+    unsigned char msg_buffer[BUFFER_SIZE];
+    int msg_buffer_len = 0;
+
+    time_t start_time = time(NULL);
+
+    while (difftime(time(NULL), start_time) < analysis_time) {
+        received = recv(sock, buffer, sizeof(buffer), 0);
+        if (received <= 0) break;
+
+        if (!header_skipped) {
+            buffer[received] = '\0';
+            char *ptr = strstr(buffer, "\r\n\r\n");
+            if (ptr) {
+                int offset = (ptr - buffer) + 4;
+                memmove(buffer, buffer + offset, received - offset);
+                received -= offset;
+                header_skipped = 1;
+            } else {
+                continue;
+            }
+        }
+
+        int buf_pos = 0;
+        while (buf_pos < received) {
+            if (msg_buffer_len == 0) {
+                while (buf_pos < received && (unsigned char)buffer[buf_pos] != 0xD3) {
+                    buf_pos++;
+                }
+                if (buf_pos >= received) break;
+            }
+            int to_copy = received - buf_pos;
+            if (msg_buffer_len + to_copy > BUFFER_SIZE) to_copy = BUFFER_SIZE - msg_buffer_len;
+            memcpy(msg_buffer + msg_buffer_len, buffer + buf_pos, to_copy);
+            msg_buffer_len += to_copy;
+            buf_pos += to_copy;
+
+            while (msg_buffer_len >= 3) {
+                if (msg_buffer[0] != 0xD3) {
+                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
+                    continue;
+                }
+                int msg_length = ((msg_buffer[1] & 0x03) << 8) | msg_buffer[2];
+                int full_frame = msg_length + 6;
+                if (msg_buffer_len < full_frame) break;
+
+                int msg_type = (msg_buffer[3] << 4) | (msg_buffer[4] >> 4);
+
+                extract_satellites(msg_buffer + 3, msg_length, msg_type, &summary);
+
+                // Count unique satellites after this message
+                int total_unique = 0;
+                for (int i = 0; i < summary.gnss_count; ++i) {
+                    total_unique += summary.gnss[i].count;
+                }
+                printf("%d ", total_unique);
+
+                memmove(msg_buffer, msg_buffer + full_frame, msg_buffer_len - full_frame);
+                msg_buffer_len -= full_frame;
+            }
+        }
+    }
+
+    CLOSESOCKET(sock);
+
+    printf("\nGNSS systems and satellites seen:\n");
+    printf("+-----------+------------+----------------------------------------------------------+\n");
+    printf("|   GNSS    | #Sats Seen | Satellites                                               |\n");
+    printf("+-----------+------------+----------------------------------------------------------+\n");
+    for (int i = 0; i < summary.gnss_count; ++i) {
+        // Prepare satellite list as a string
+        char sat_list[256] = "";
+        int pos = 0;
+        int first = 1;
+        for (int s = 0; s < MAX_SATS_PER_GNSS; ++s) {
+            if (summary.gnss[i].sat_seen[s]) {
+                pos += snprintf(sat_list + pos, sizeof(sat_list) - pos, "%s%d", first ? "" : " ", s + 1);
+                first = 0;
+            }
+        }
+        if (first) snprintf(sat_list, sizeof(sat_list), "None");
+        printf("| %-9s | %10d | %-56s |\n",
+               gnss_name_from_id(summary.gnss[i].gnss_id),
+               summary.gnss[i].count,
+               sat_list);
+    }
+    printf("+-----------+------------+----------------------------------------------------------+\n");
+}
+
+const char* gnss_name_from_id(int gnss_id) {
+    switch (gnss_id) {
+        case 1: return "GPS";
+        case 2: return "GLONASS";
+        case 3: return "Galileo";
+        case 4: return "QZSS";
+        case 5: return "BeiDou";
+        case 6: return "SBAS";
+        default: return "Unknown";
+    }
+}
+
+int get_gnss_id_from_rtcm(int msg_type) {
+    if (msg_type >= 1070 && msg_type < 1080) return 1; // GPS
+    if (msg_type >= 1080 && msg_type < 1090) return 2; // GLONASS
+    if (msg_type >= 1090 && msg_type < 1100) return 3; // Galileo
+    if (msg_type >= 1110 && msg_type < 1120) return 4; // QZSS
+    if (msg_type >= 1120 && msg_type < 1130) return 5; // BeiDou
+    if (msg_type >= 1130 && msg_type < 1140) return 6; // SBAS
+    return 0;
+}

@@ -15,6 +15,7 @@
  *   - 1006: Stationary RTK Reference Station ARP with Height
  *   - 1007: Antenna Descriptor
  *   - 1008: Antenna Descriptor & Serial Number
+ *   - 1012: GLONASS L1&L2 RTK Observables
  *   - 1013: System Parameters
  *   - 1033: Receiver & Antenna Descriptor
  *   - 1045: SSR Messages
@@ -32,6 +33,9 @@
  *   - Use @ref get_bits for bitfield extraction and @ref crc24q for CRC checking.
  *
  * For more information, see the project README and LICENSE files.
+ * 
+ * @todo add scaling of extracted values to real-world units (e.g., meters, seconds).
+ * @todo implement additional message types as needed. 
  */
 
 #ifndef RTCM3X_PARSER_H
@@ -192,6 +196,13 @@ void decode_rtcm_1045(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1230(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1012 message (GLONASS L1&L2 RTK Observables).
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1012(const unsigned char *payload, int payload_len);
 
 #ifdef __cplusplus
 }

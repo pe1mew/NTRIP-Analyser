@@ -562,6 +562,60 @@ void decode_rtcm_1230(const unsigned char *payload, int payload_len) {
     }
 }
 
+void decode_rtcm_1012(const unsigned char *payload, int payload_len) {
+    int bit = 0;
+    int msg_type = (int)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1012) {
+        printf("[1012] Not a 1012 message (got %d)\n", msg_type);
+        return;
+    }
+
+    int ref_station_id = (int)get_bits(payload, bit, 12); bit += 12;
+    int epoch_time = (int)get_bits(payload, bit, 27); bit += 27;
+    int sync_gnss_flag = (int)get_bits(payload, bit, 1); bit += 1;
+    int num_satellites = (int)get_bits(payload, bit, 6); bit += 6;
+    int smoothing = (int)get_bits(payload, bit, 1); bit += 1;
+    int smoothing_interval = (int)get_bits(payload, bit, 3); bit += 3;
+
+    printf("RTCM 1012 (GLONASS L1&L2 RTK Observables)\n");
+    printf("  Reference Station ID: %d\n", ref_station_id);
+    printf("  Epoch Time: %d\n", epoch_time);
+    printf("  Synchronous GNSS Flag: %d\n", sync_gnss_flag);
+    printf("  Number of GLONASS Satellites: %d\n", num_satellites);
+    printf("  Smoothing: %d\n", smoothing);
+    printf("  Smoothing Interval: %d\n", smoothing_interval);
+
+    for (int i = 0; i < num_satellites; ++i) {
+        int sat_id = (int)get_bits(payload, bit, 6); bit += 6;
+        int l1_code_ind = (int)get_bits(payload, bit, 1); bit += 1;
+        int l1_pseudorange = (int)get_bits(payload, bit, 25); bit += 25;
+        int l1_phase_range = (int)get_bits(payload, bit, 20); bit += 20;
+        int l1_lock_time = (int)get_bits(payload, bit, 7); bit += 7;
+        int l1_ambiguity = (int)get_bits(payload, bit, 7); bit += 7;
+        int l1_cnr = (int)get_bits(payload, bit, 8); bit += 8;
+
+        int l2_code_ind = (int)get_bits(payload, bit, 2); bit += 2;
+        int l2_pseudorange_diff = (int)get_bits(payload, bit, 14); bit += 14;
+        int l2_phase_range_diff = (int)get_bits(payload, bit, 20); bit += 20;
+        int l2_lock_time = (int)get_bits(payload, bit, 7); bit += 7;
+        int l2_cnr = (int)get_bits(payload, bit, 8); bit += 8;
+
+        printf("  Satellite %d:\n", i + 1);
+        printf("    Satellite ID: %d\n", sat_id);
+        printf("    L1 Code Indicator: %d\n", l1_code_ind);
+        printf("    L1 Pseudorange: %d\n", l1_pseudorange);
+        printf("    L1 Phase Range: %d\n", l1_phase_range);
+        printf("    L1 Lock Time Indicator: %d\n", l1_lock_time);
+        printf("    L1 Ambiguity: %d\n", l1_ambiguity);
+        printf("    L1 CNR: %d\n", l1_cnr);
+        printf("    L2 Code Indicator: %d\n", l2_code_ind);
+        printf("    L2 Pseudorange Diff: %d\n", l2_pseudorange_diff);
+        printf("    L2 Phase Range Diff: %d\n", l2_phase_range_diff);
+        printf("    L2 Lock Time Indicator: %d\n", l2_lock_time);
+        printf("    L2 CNR: %d\n", l2_cnr);
+    }
+}
+
 int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output) {
     if (length < 6) return -1;
 
@@ -622,6 +676,9 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1230) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1230 detected)\n", msg_type, msg_length);
                 decode_rtcm_1230(&data[3], msg_length);
+            } else if (msg_type == 1012) {
+                printf("\nRTCM Message: Type = %d, Length = %d (Type 1012 detected)\n", msg_type, msg_length);
+                decode_rtcm_1012(&data[3], msg_length);
             } else {
                 if (length >= frame_len) {
                     if (crc_calc != crc_extracted) {
