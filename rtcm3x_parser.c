@@ -60,69 +60,74 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit) {
 
     
 void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
-    if (payload_len < 19) {
+    if (payload_len < 19) { // 12+12+6+1+1+1+1+38+1+1+38+2+38+2 = 200 bits = 25 bytes
         printf("Type 1005: Payload too short!\n");
         return;
     }
+    int bit = 0;
+    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1006
+    uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    uint8_t itrf_year = (uint8_t)get_bits(payload, bit, 6); bit += 6;
+    uint8_t gps_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    uint8_t glo_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    uint8_t gal_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    uint8_t ref_station_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
 
-    // Print the first 20 bytes of the payload as hex for debugging
-    printf("1005 payload (first 20 bytes): ");
-    for (int i = 0; i < payload_len; ++i) {
-        printf("%02X ", payload[i]);
-    }
-    printf("\n");
+    uint64_t raw_x = get_bits(payload, bit, 38); bit += 38;
+    int64_t ecef_x = (raw_x & ((uint64_t)1 << 37)) ? (int64_t)(raw_x | (~((uint64_t)0x3FFFFFFFFF))) : (int64_t)raw_x;
 
-    // --- C equivalent of the Python logic ---
-    // Field positions (bit indices)
-    // Message number: bits 0–11
-    // Station ID: bits 12–23
-    // ITRF/indicators: bits 24–32
-    // X: bits 33–70 (38 bits)
-    // Y: bits 71–108 (38 bits)
-    // Z: bits 109–146 (38 bits)
-    // Oscillator Indicator: bits 147–148 (2 bits)
-    // Reserved: bits 149–151 (3 bits)
+    uint8_t osc_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    bit += 1; // Reserved
 
-    // Extract fields
-    uint16_t msg_number = (uint16_t)get_bits(payload, 0, 12);
-    uint16_t ref_station_id = (uint16_t)get_bits(payload, 12, 12);
-    uint8_t itrf_year = (uint8_t)get_bits(payload, 24, 6);
-    uint8_t gps_ind = (uint8_t)get_bits(payload, 30, 1);
-    uint8_t glo_ind = (uint8_t)get_bits(payload, 31, 1);
-    uint8_t gal_ind = (uint8_t)get_bits(payload, 32, 1);
+    uint64_t raw_y = get_bits(payload, bit, 38); bit += 38;
+    int64_t ecef_y = (raw_y & ((uint64_t)1 << 37)) ? (int64_t)(raw_y | (~((uint64_t)0x3FFFFFFFFF))) : (int64_t)raw_y;
 
-    int64_t ecef_x = extract_signed38(payload, 33);
-    int64_t ecef_y = extract_signed38(payload, 71);
-    int64_t ecef_z = extract_signed38(payload, 109);
+    bit += 2; // Reserved
 
-    uint8_t osc_ind = (uint8_t)get_bits(payload, 147, 2);
-    uint8_t reserved = (uint8_t)get_bits(payload, 149, 3);
+    uint64_t raw_z = get_bits(payload, bit, 38); bit += 38;
+    int64_t ecef_z = (raw_z & ((uint64_t)1 << 37)) ? (int64_t)(raw_z | (~((uint64_t)0x3FFFFFFFFF))) : (int64_t)raw_z;
+
+    bit += 2; // Reserved
+
+    uint16_t antenna_height = (uint16_t)get_bits(payload, bit, 16); bit += 16;
 
     double x = ecef_x * 0.0001;
     double y = ecef_y * 0.0001;
     double z = ecef_z * 0.0001;
+    double h = antenna_height * 0.0001;
 
-    // ITRF label
-    const char* itrf_name;
-    switch (itrf_year) {
-        case 0: itrf_name = "Unknown"; break;
-        case 1: itrf_name = "ITRF2000"; break;
-        case 2: itrf_name = "ITRF2005"; break;
-        case 3: itrf_name = "ITRF2008"; break;
-        case 4: itrf_name = "ITRF2014"; break;
-        default: itrf_name = "Other/Reserved"; break;
-    }
+    // ECEF to geodetic (WGS84)
+    double a = 6378137.0;
+    double e2 = 6.69437999014e-3;
+    double lon = atan2(y, x);
+    double p = sqrt(x * x + y * y);
+    double lat = atan2(z, p * (1 - e2));
+    double lat_prev;
+    do {
+        lat_prev = lat;
+        double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+        lat = atan2(z + e2 * N * sin(lat), p);
+    } while (fabs(lat - lat_prev) > 1e-11);
 
-    printf("RTCM 1005 (Stationary ARP):\n");
+    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+    double alt = p / cos(lat) - N + h;
+
+    double lat_deg = lat * 180.0 / M_PI;
+    double lon_deg = lon * 180.0 / M_PI;
+
+    printf("RTCM 1005:\n");
     printf("  Message Number: %u\n", msg_number);
     printf("  Reference Station ID: %u\n", ref_station_id);
-    printf("  ITRF Realization Year: %u (%s)\n", itrf_year, itrf_name);
+    printf("  ITRF Realization Year: %u\n", itrf_year);
     printf("  GPS: %u, GLONASS: %u, Galileo: %u\n", gps_ind, glo_ind, gal_ind);
-    printf("  Oscillator Indicator: %u\n", osc_ind);
-    printf("  Reserved: %u\n", reserved);
+    printf("  Reference Station Indicator: %u\n", ref_station_ind);
     printf("  ECEF X: %.4f m\n", x);
     printf("  ECEF Y: %.4f m\n", y);
     printf("  ECEF Z: %.4f m\n", z);
+    printf("  Single Receiver Oscillator Indicator: %u\n", osc_ind);
+    printf("WGS84 Lat: %.8f deg, Lon: %.8f deg, Alt: %.3f m\n", lat_deg, lon_deg, alt);
+    printf("[Google Maps Link] https://maps.google.com/?q=%.8f,%.8f\n", lat_deg, lon_deg);
+
 }
 
 void decode_rtcm_1006(const unsigned char *payload, int payload_len) {
@@ -193,11 +198,8 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len) {
     printf("  ECEF Z: %.4f m\n", z);
     printf("  Antenna Height: %.4f m\n", h);
     printf("  Single Receiver Oscillator Indicator: %u\n", osc_ind);
-    printf("  WGS84 Lat: %.8f deg, Lon: %.8f deg, Alt: %.3f m\n", lat_deg, lon_deg, alt);
-    printf("  [Google Maps Link] https://maps.google.com/?q=%.8f,%.8f\n", lat_deg, lon_deg);
-    printf("  Raw ECEF X: %" PRId64 "\n", (int64_t)ecef_x);
-    printf("  Raw ECEF Y: %" PRId64 "\n", (int64_t)ecef_y);
-    printf("  Raw ECEF Z: %" PRId64 "\n", (int64_t)ecef_z);
+    printf("WGS84 Lat: %.8f deg, Lon: %.8f deg, Alt: %.3f m\n", lat_deg, lon_deg, alt);
+    printf("[Google Maps Link] https://maps.google.com/?q=%.8f,%.8f\n", lat_deg, lon_deg);
 }
 
 void decode_rtcm_1077(const unsigned char *payload, int payload_len) {

@@ -1,6 +1,6 @@
 /**
  * @file rtcm3x_parser.h
- * @brief Function prototypes for the RTCM 3.x Stream Analyzer
+ * @brief API for RTCM 3.x Stream Analyzer and MSM7 Decoding
  *
  * This header defines the API for parsing, analyzing, and decoding RTCM 3.x messages,
  * including MSM7 message types for multiple GNSS constellations (GPS, GLONASS, Galileo, QZSS, BeiDou, SBAS).
@@ -12,12 +12,19 @@
  *
  * Supported message types:
  *   - 1005: Stationary RTK Reference Station ARP
+ *   - 1006: Stationary RTK Reference Station ARP with Height
+ *   - 1007: Antenna Descriptor
+ *   - 1008: Antenna Descriptor & Serial Number
+ *   - 1013: System Parameters
+ *   - 1033: Receiver & Antenna Descriptor
+ *   - 1045: SSR Messages
  *   - 1077: MSM7 GPS
  *   - 1087: MSM7 GLONASS
  *   - 1097: MSM7 Galileo
  *   - 1117: MSM7 QZSS
  *   - 1127: MSM7 BeiDou
  *   - 1137: MSM7 SBAS
+ *   - 1230: GLONASS Code-Phase Biases
  *
  * Usage:
  *   - Use analyze_rtcm_message() to process a raw RTCM message buffer.
@@ -39,23 +46,34 @@ extern "C" {
 
 /**
  * @brief Extract bits from a buffer (big-endian, MSB first).
- * 
- * @param buf      Pointer to the buffer.
- * @param start_bit Start bit index (0 = first bit of buf[0]).
- * @param bit_len   Number of bits to extract.
+ *
+ * Extracts a bitfield of length @p bit_len starting at @p start_bit from the buffer @p buf.
+ *
+ * @param buf        Pointer to the buffer.
+ * @param start_bit  Start bit index (0 = first bit of buf[0]).
+ * @param bit_len    Number of bits to extract.
  * @return Extracted bits as an unsigned 64-bit integer.
  */
 uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len);
 
 /**
  * @brief Calculate CRC-24Q for the given data.
- * 
+ *
+ * Computes the CRC-24Q checksum for the given data buffer.
+ *
  * @param data   Pointer to input data buffer.
  * @param length Number of bytes in the buffer.
  * @return 24-bit CRC as uint32_t (lower 24 bits are valid).
  */
 uint32_t crc24q(const uint8_t *data, size_t length);
 
+/**
+ * @brief Extract a signed 38-bit integer from a buffer.
+ *
+ * @param buf        Pointer to the buffer.
+ * @param start_bit  Start bit index.
+ * @return Extracted signed 38-bit integer as int64_t.
+ */
 int64_t extract_signed38(const unsigned char *buf, int start_bit);
 
 /**
@@ -65,106 +83,99 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit);
  * if it is a supported type. Prints summary and decoding information to stdout unless
  * suppress_output is true.
  *
- * @param data   Pointer to the RTCM message buffer (should start with 0xD3 preamble).
- * @param length Length of the buffer in bytes.
+ * @param data            Pointer to the RTCM message buffer (should start with 0xD3 preamble).
+ * @param length          Length of the buffer in bytes.
  * @param suppress_output If true, do not print any output.
  * @return The RTCM message type as an integer if successfully parsed, or -1 on error or if not an RTCM message.
  */
 int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1005 message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1005 message (Stationary RTK Reference Station ARP).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1005(const unsigned char *payload, int payload_len);
 
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1006 message (Stationary RTK Reference Station ARP with Height).
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
 void decode_rtcm_1006(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1077 (MSM7 GPS) message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1077 message (MSM7 GPS).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1077(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1087 (MSM7 GLONASS) message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1087 message (MSM7 GLONASS).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1087(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1097 (MSM7 Galileo) message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1097 message (MSM7 Galileo).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1097(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1117 (MSM7 QZSS) message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1117 message (MSM7 QZSS).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1117(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1127 (MSM7 BeiDou) message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1127 message (MSM7 BeiDou).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1127(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1137 (MSM7 SBAS) message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1137 message (MSM7 SBAS).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1137(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1008 message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1008 message (Antenna Descriptor & Serial Number).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1008(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1013 message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1013 message (System Parameters).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1013(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1033 message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1033 message (Receiver & Antenna Descriptor).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1033(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1045 message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1045 message (SSR Messages).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1045(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1230 message.
- * 
+ * @brief Decode and print the contents of an RTCM 3.x Type 1230 message (GLONASS Code-Phase Biases).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
