@@ -98,15 +98,61 @@ ntripanalyse [options]
   ```sh
   ntripanalyse -v -d
   ```
-
 ---
+
+## Using NTRIP analyser
+
+### 1. Using -v (Verbose)
+
+
+```sh
+>ntripanalyse.exe -t -v
+=== NTRIP-Analyser Configuration ===
+  Config file: config.json
+  NTRIP_CASTER: somecaster.net
+  NTRIP_PORT: 2101
+  MOUNTPOINT: SOMEMOUNTPOINT
+  USERNAME: SOMEUSERNAME
+  PASSWORD: SOMEPASSWORD
+  LATITUDE: 0.000
+  LONGITUDE: 0.000
+  Analysis time: 60
+  Show mount table: no
+  Decode stream: no
+  Action: Analyze message types for 60 seconds
+====================================
+```
+
+
+### 2. Test a NTRIP stream
+
+
+```sh
+>ntripanalyse.exe -t
+[INFO] Analyzing message types for 60 seconds...
+1137 1077 1087 1097 1117 1127 1127 1137 1077 1087 1097 1117 1127 1127 1137 1077 1087 1097 
+...
+1127 1137 1077 1087 1097 1117 1127 1127 1137
+[INFO] Message type analysis complete. Statistics:
++-------------+-------+---------------+---------------+---------------+
+| MessageType | Count |  Min-DT (S)   |  Max-DT (S)   |  Avg-DT (S)   |
++-------------+-------+---------------+---------------+---------------+
+| 1005        |     2 |        29.993 |        29.993 |        14.997 |
+| 1077        |    60 |         0.985 |         1.017 |         0.983 |
+| 1087        |    60 |         0.986 |         1.017 |         0.983 |
+| 1097        |    60 |         0.986 |         1.016 |         0.983 |
+| 1117        |    60 |         0.985 |         1.016 |         0.983 |
+| 1127        |   120 |         0.001 |         0.988 |         0.496 |
+| 1137        |    61 |         0.899 |         1.130 |         0.984 |
++-------------+-------+---------------+---------------+---------------+
+```
 
 ## Notes
 
 - The program will abort if `config.json` is missing or invalid.
 - If you use `-i` and a `config.json` already exists, it will not overwrite the file.
 - For decoding, if you specify a filter list, only those RTCM message types will be shown; all others will be indicated by a dot (`.`) in the output.
-- Always keep your credentials secure.
+- *Always keep your credentials secure.*
 
 ---
 
