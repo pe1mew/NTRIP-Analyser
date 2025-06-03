@@ -20,6 +20,7 @@
  * For more information, see the project README and LICENSE files.
  */
 
+#include <stddef.h>
 #ifndef NTRIP_HANDLER_H
 #define NTRIP_HANDLER_H
 
@@ -34,6 +35,16 @@ extern "C" {
  * This structure contains all necessary fields for connecting to an NTRIP caster,
  * including server address, port, mountpoint, user credentials, and a precomputed
  * Base64-encoded authentication string.
+ *
+ * Fields:
+ *   - NTRIP_CASTER: Hostname or IP address of the NTRIP caster
+ *   - NTRIP_PORT:   TCP port of the NTRIP caster
+ *   - MOUNTPOINT:   Mountpoint string to request from the caster
+ *   - USERNAME:     Username for HTTP Basic Authentication
+ *   - PASSWORD:     Password for HTTP Basic Authentication
+ *   - AUTH_BASIC:   Base64 encoded "username:password" for HTTP Basic Auth
+ *   - LATITUDE:     Latitude for NTRIP connection (optional)
+ *   - LONGITUDE:    Longitude for NTRIP connection (optional)
  */
 typedef struct {
     char NTRIP_CASTER[256];   /**< Hostname or IP address of the NTRIP caster */
@@ -46,15 +57,47 @@ typedef struct {
     double LONGITUDE;         /**< Longitude for NTRIP connection (optional) */
 } NTRIP_Config;
 
+/**
+ * @def MAX_GNSS
+ * @brief Maximum number of GNSS systems supported in statistics.
+ *
+ * Used as the size of the GNSS array in SatStatsSummary.
+ */
 #define MAX_GNSS 8
+
+/**
+ * @def MAX_SATS_PER_GNSS
+ * @brief Maximum number of satellites per GNSS system supported in statistics.
+ *
+ * Used as the size of the sat_seen array in GnssSatStats.
+ */
 #define MAX_SATS_PER_GNSS 64
 
+/**
+ * @struct GnssSatStats
+ * @brief Holds statistics for satellites seen for a single GNSS constellation.
+ *
+ * This structure contains statistics for one GNSS system, including which satellites have been seen.
+ *
+ * Fields:
+ *   - gnss_id:   GNSS system ID (1=GPS, 2=GLONASS, 3=Galileo, 4=QZSS, 5=BeiDou, 6=SBAS, etc.)
+ *   - sat_seen:  Array indicating which satellites have been seen (1 if seen, 0 if not)
+ *   - count:     Number of unique satellites seen for this GNSS
+ */
 typedef struct {
-    int gnss_id; // 1=GPS, 2=GLONASS, 3=Galileo, 4=QZSS, 5=BeiDou, 6=SBAS, etc.
-    int sat_seen[MAX_SATS_PER_GNSS]; // 1 if seen, 0 if not
-    int count; // number of unique satellites seen
+    int gnss_id;
+    int sat_seen[MAX_SATS_PER_GNSS]; ///< 1 if seen, 0 if not
+    int count; 
 } GnssSatStats;
 
+/**
+ * @struct SatStatsSummary
+ * @brief Holds summary statistics for all GNSS constellations in the stream.
+ *
+ * Fields:
+ *   - gnss:       Array of GnssSatStats, one per GNSS system
+ *   - gnss_count: Number of GNSS systems present in the summary
+ */
 typedef struct {
     GnssSatStats gnss[MAX_GNSS];
     int gnss_count;
@@ -122,7 +165,26 @@ void extract_satellites(const unsigned char *data, int len, int msg_type, SatSta
 // Opens NTRIP stream and analyzes satellites for a period
 void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time);
 
+/**
+ * @brief Returns the GNSS system name string for a given GNSS ID.
+ *
+ * @param gnss_id GNSS system ID (1=GPS, 2=GLONASS, 3=Galileo, 4=QZSS, 5=BeiDou, 6=SBAS, etc.)
+ * @return Pointer to a static string with the GNSS name (e.g., "GPS", "GLONASS").
+ */
 const char* gnss_name_from_id(int gnss_id);
+
+/**
+ * @brief Formats a RINEX satellite ID for a given GNSS and PRN.
+ *
+ * Converts the GNSS system ID and PRN number to a RINEX 3 satellite ID string (e.g., "G01", "R02").
+ *
+ * @param gnss_id GNSS system ID (1=GPS, 2=GLONASS, 3=Galileo, 4=QZSS, 5=BeiDou, 6=SBAS, etc.)
+ * @param prn     Satellite number within the constellation (1-based).
+ * @param buf     Output buffer for the RINEX ID string.
+ * @param buflen  Size of the output buffer.
+ * @return Pointer to the output buffer containing the RINEX ID string.
+ */
+const char* rinex_id_from_gnss(int gnss_id, int prn, char *buf, size_t buflen);
 
 #ifdef __cplusplus
 }

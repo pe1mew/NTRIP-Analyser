@@ -182,6 +182,10 @@ int main(int argc, char *argv[]) {
         printf("  LATITUDE: %.8f\n", config.LATITUDE);
         printf("  LONGITUDE: %.8f\n", config.LONGITUDE);
         printf("  Analysis time: %d\n", analysis_time);
+        printf("  Satellite analysis: %s\n", analyze_sats ? "yes" : "no");
+        if (analyze_sats) {
+            printf("  Satellite analysis time: %d\n", sat_analysis_time);
+        }
         printf("  Show mount table: %s\n", show_mount_table ? "yes" : "no");
         printf("  Decode stream: %s\n", decode_stream ? "yes" : "no");
         if (filter_count > 0) {
@@ -198,6 +202,8 @@ int main(int argc, char *argv[]) {
             printf("Start NTRIP stream%s\n", filter_count > 0 ? " with filter" : "");
         } else if (analyze_types) {
             printf("Analyze message types for %d seconds\n", analysis_time);
+        } else if (analyze_sats) {
+            printf("Analyze unique satellites for %d seconds\n", sat_analysis_time);
         } else {
             printf("No action specified\n");
         }

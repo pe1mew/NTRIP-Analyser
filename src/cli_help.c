@@ -21,6 +21,7 @@ void print_help(const char *progname) {
         "  -t, --time [seconds]     Analyze message types for N seconds (default: 60)\n"
         "  -m, --mounts             Show mountpoint (sourcetable) list and exit\n"
         "  -d, --decode [types]     Decode RTCM stream, optionally filter by comma-separated RTCM-message numbers (e.g. 1005,1074)\n"
+        "  -s, --sat [seconds]      Analyze unique satellites per GNSS for N seconds (default: 60)\n"
         "  -v, --verbose            Print configuration and action details before running\n"
         "  -g, --generate           Create a template config.json and exit\n"
         "  -i, --info               Print program information and exit\n"
@@ -33,9 +34,10 @@ void print_help(const char *progname) {
         "Examples:\n"
         "  %s -m\n"
         "  %s -d 1005,1074\n"
+        "  %s -s 120\n"
         "  %s -c myconfig.json -d\n"
         "  %s -g\n"
         "  %s -i\n",
-        progname, progname, progname, progname, progname, progname
+        progname, progname, progname, progname, progname, progname, progname
     );
 }

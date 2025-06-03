@@ -684,6 +684,22 @@ void extract_satellites(const unsigned char *data, int len, int msg_type, SatSta
     }
 }
 
+const char* rinex_id_from_gnss(int gnss_id, int prn, char *buf, size_t buflen) {
+    // RINEX 3: G = GPS, R = GLONASS, E = Galileo, J = QZSS, C = BeiDou, S = SBAS
+    char sys = '?';
+    switch (gnss_id) {
+        case 1: sys = 'G'; break; // GPS
+        case 2: sys = 'R'; break; // GLONASS
+        case 3: sys = 'E'; break; // Galileo
+        case 4: sys = 'J'; break; // QZSS
+        case 5: sys = 'C'; break; // BeiDou
+        case 6: sys = 'S'; break; // SBAS
+        default: sys = '?'; break;
+    }
+    snprintf(buf, buflen, "%c%02d", sys, prn);
+    return buf;
+}
+
 void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
     printf("Opening NTRIP stream and analyzing satellites for %d seconds...\n", analysis_time);
     SatStatsSummary summary = {0};
@@ -801,28 +817,41 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
 
     CLOSESOCKET(sock);
 
-    printf("\nGNSS systems and satellites seen:\n");
-    printf("+-----------+------------+----------------------------------------------------------+\n");
-    printf("|   GNSS    | #Sats Seen | Satellites                                               |\n");
-    printf("+-----------+------------+----------------------------------------------------------+\n");
+
+    // Set satellites column width for 30 satellites, 3 chars per satellite (2 digits + space): 30*3 = 90
+    #define SAT_COL_WIDTH 110
+
+    // Calculate total unique satellites
+    int total_unique = 0;
     for (int i = 0; i < summary.gnss_count; ++i) {
-        // Prepare satellite list as a string
-        char sat_list[256] = "";
+        total_unique += summary.gnss[i].count;
+    }
+
+    printf("\nTotal unique satellites seen: %d\n", total_unique);
+    printf("GNSS systems and satellites seen:\n");
+    printf("+-----------+------------+---------------------------------------------------------------------------------------------------------------+\n");
+    printf("|   GNSS    | #Sats Seen | Satellites%*s|\n", SAT_COL_WIDTH - 10, ""); // 10 = strlen("Satellites")
+    printf("+-----------+------------+---------------------------------------------------------------------------------------------------------------+\n");
+    for (int i = 0; i < summary.gnss_count; ++i) {
+        // Prepare satellite list as a string, 2 chars per satellite, with space between
+        char sat_list[SAT_COL_WIDTH + 1] = "";
         int pos = 0;
         int first = 1;
-        for (int s = 0; s < MAX_SATS_PER_GNSS; ++s) {
+        char idbuf[8];
+        for (int s = 0; s < MAX_SATS_PER_GNSS && pos < SAT_COL_WIDTH - 4; ++s) {
             if (summary.gnss[i].sat_seen[s]) {
-                pos += snprintf(sat_list + pos, sizeof(sat_list) - pos, "%s%d", first ? "" : " ", s + 1);
+                const char *rinex = rinex_id_from_gnss(summary.gnss[i].gnss_id, s + 1, idbuf, sizeof(idbuf));
+                pos += snprintf(sat_list + pos, sizeof(sat_list) - pos, "%s%s", first ? "" : " ", rinex);
                 first = 0;
             }
         }
-        if (first) snprintf(sat_list, sizeof(sat_list), "None");
-        printf("| %-9s | %10d | %-56s |\n",
+        if (pos == 0) snprintf(sat_list, sizeof(sat_list), "None");
+        printf("| %-9s | %10d | %-*s|\n",
                gnss_name_from_id(summary.gnss[i].gnss_id),
                summary.gnss[i].count,
-               sat_list);
+               SAT_COL_WIDTH, sat_list);
     }
-    printf("+-----------+------------+----------------------------------------------------------+\n");
+    printf("+-----------+------------+---------------------------------------------------------------------------------------------------------------+\n");
 }
 
 const char* gnss_name_from_id(int gnss_id) {
