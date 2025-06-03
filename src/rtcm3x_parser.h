@@ -7,10 +7,10 @@
  * It provides utilities for bit extraction and CRC-24Q calculation.
  *
  * Project: NTRIP RTCM 3.x Stream Analyzer
- * Author: Remko Welling, PE1MEW
- * License: Apache License 2.0 with Commons Clause (see LICENSE for details)
+ * @author Remko Welling, PE1MEW
+ * @license Apache License 2.0 with Commons Clause (see LICENSE for details)
  *
- * Supported message types:
+ * ## Supported message types:
  *   - 1005: Stationary RTK Reference Station ARP
  *   - 1006: Stationary RTK Reference Station ARP with Height
  *   - 1007: Antenna Descriptor
@@ -26,10 +26,10 @@
  *   - 1137: MSM7 SBAS
  *   - 1230: GLONASS Code-Phase Biases
  *
- * Usage:
- *   - Use analyze_rtcm_message() to process a raw RTCM message buffer.
+ * ## Usage:
+ *   - Use @ref analyze_rtcm_message to process a raw RTCM message buffer.
  *   - Use the decode_rtcm_xxxx() functions for message-specific decoding.
- *   - Use get_bits() for bitfield extraction and crc24q() for CRC checking.
+ *   - Use @ref get_bits for bitfield extraction and @ref crc24q for CRC checking.
  *
  * For more information, see the project README and LICENSE files.
  */
@@ -43,7 +43,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /**
  * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.

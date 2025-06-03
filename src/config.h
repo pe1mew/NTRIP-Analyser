@@ -2,11 +2,12 @@
  * @file config.h
  * @brief Configuration loader for NTRIP RTCM 3.x Stream Analyzer
  *
- * Provides functions to load NTRIP configuration from a JSON file into an NTRIP_Config struct.
+ * Provides functions to load NTRIP configuration from a JSON file into an NTRIP_Config struct,
+ * and to generate a template config file with all required fields.
  *
  * Project: NTRIP RTCM 3.x Stream Analyzer
- * Author: Remko Welling, PE1MEW
- * License: Apache License 2.0 with Commons Clause (see LICENSE for details)
+ * @author Remko Welling, PE1MEW
+ * @license Apache License 2.0 with Commons Clause (see LICENSE for details)
  */
 
 #ifndef CONFIG_H
@@ -31,7 +32,11 @@ extern "C" {
 int load_config(const char *filename, NTRIP_Config *config);
 
 /**
- * @brief Initialize a config file with dummy/default values.
+ * @brief Create a config file with all required fields and dummy values.
+ *
+ * Generates a template JSON config file with all fields required by NTRIP_Config,
+ * populated with placeholder values. Will not overwrite an existing file.
+ *
  * @param filename The file to write (e.g. "config.json")
  * @return 0 on success, nonzero on error
  */

@@ -8,14 +8,14 @@
  *   - Starting and handling an NTRIP RTCM 3.x data stream
  *
  * Project: NTRIP RTCM 3.x Stream Analyzer
- * Author: Remko Welling, PE1MEW
- * License: Apache License 2.0 with Commons Clause (see LICENSE for details)
+ * @author Remko Welling, PE1MEW
+ * @license Apache License 2.0 with Commons Clause (see LICENSE for details)
  *
- * Usage:
+ * ## Usage:
  *   - Fill an NTRIP_Config struct with connection and authentication details.
  *   - Use base64_encode() to prepare the AUTH_BASIC field.
  *   - Use receive_mount_table() to fetch the sourcetable from the caster.
- *   - Use start_ntrip_stream() to connect and process RTCM data.
+ *   - Use start_ntrip_stream() or start_ntrip_stream_with_filter() to connect and process RTCM data.
  *
  * For more information, see the project README and LICENSE files.
  */
@@ -47,7 +47,7 @@ typedef struct {
 } NTRIP_Config;
 
 /**
- * @brief Encode a string to Base64.
+ * @brief Encode a string to Base64 for HTTP Basic Authentication.
  *
  * Encodes the input string (typically "username:password") to Base64 for use in HTTP Basic Authentication.
  *
