@@ -34,9 +34,9 @@ typedef struct {
     bool seen;
 } MsgStats;
 
-bool show_mount_table = false; // Add this variable near the top with the other flags
+bool show_mount_table = false;
 bool decode_stream = false;
-bool verbose = false; // Add this global or local to main
+bool verbose = false;
 int filter_list[MAX_MSG_TYPES] = {0};
 int filter_count = 0;
 
@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
         {"lon",       required_argument, 0,  4 },
         {"verbose",   no_argument,       0, 'v'},
         {"generate",  no_argument,       0, 'g'},
-        {"info",      no_argument,       0, 'i'}, // <-- add -i/--info
+        {"info",      no_argument,       0, 'i'},
         {0, 0, 0, 0}
     };
 
@@ -81,7 +81,6 @@ int main(int argc, char *argv[]) {
                     analysis_time = atoi(optarg);
                     if (analysis_time <= 0) analysis_time = 60;
                 } else if (optind < argc && argv[optind] && argv[optind][0] != '-') {
-                    // Handle -t 10 (where 10 is the next argv)
                     analysis_time = atoi(argv[optind]);
                     if (analysis_time <= 0) analysis_time = 60;
                     optind++; // Skip this argument
@@ -101,7 +100,6 @@ int main(int argc, char *argv[]) {
                         token = strtok(NULL, ", ");
                     }
                 } else if (optind < argc && argv[optind] && argv[optind][0] != '-') {
-                    // Handle -d 1005 (where 1005 is the next argv)
                     char *token = strtok(argv[optind], ", ");
                     while (token && filter_count < MAX_MSG_TYPES) {
                         filter_list[filter_count++] = atoi(token);
@@ -121,10 +119,10 @@ int main(int argc, char *argv[]) {
             case 'v':
                 verbose = true;
                 break;
-            case 'g': // changed from 'i' to 'g'
+            case 'g':
                 initialize_config("config.json");
                 return 0;
-            case 'i': // -i or --info
+            case 'i':
                 print_program_info();
                 return 0;
             case 'h':
@@ -142,8 +140,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // === Windows-specific: Initialize Winsock ===
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
+        fprintf(stderr, "[ERROR] WSAStartup failed.\n");
+        return 1;
+    }
+#endif
+
     // Increase auth buffer size
-    char auth[512]; // was 128
+    char auth[512];
     snprintf(auth, sizeof(auth), "%s:%s", config.USERNAME, config.PASSWORD);
     base64_encode(auth, config.AUTH_BASIC);
 
@@ -184,6 +191,9 @@ int main(int argc, char *argv[]) {
     // === 0. Analyze message types if requested ===
     if (analyze_types) {
         analyze_message_types(&config, analysis_time);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return 0;
     }
 
@@ -196,10 +206,16 @@ int main(int argc, char *argv[]) {
             free(mount_table);
         } else {
             fprintf(stderr, "[ERROR] Failed to retrieve mountpoint list.\n");
+#ifdef _WIN32
+            WSACleanup();
+#endif
             return 1;
         }
         // If only -m is set, exit after showing the table
         if (!decode_stream) {
+#ifdef _WIN32
+            WSACleanup();
+#endif
             return 0;
         }
     }
@@ -217,9 +233,14 @@ int main(int argc, char *argv[]) {
             printf("[DEBUG] No filter: all message types will be shown.\n");
         }
         start_ntrip_stream_with_filter(&config, filter_list, filter_count);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return 0;
     }
 
-
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return 0;
 }

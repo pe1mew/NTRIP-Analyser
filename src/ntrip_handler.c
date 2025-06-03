@@ -7,11 +7,19 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#define CLOSESOCKET closesocket
+#define SOCKET_TYPE SOCKET
+#define SOCK_ERR(val) ((val) == INVALID_SOCKET)
+#define SOCK_CONN_ERR(val) ((val) == SOCKET_ERROR)
 #else
 #include <netdb.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#define CLOSESOCKET close
+#define SOCKET_TYPE int
+#define SOCK_ERR(val) ((val) < 0)
+#define SOCK_CONN_ERR(val) ((val) < 0)
 #endif
 
 #define BUFFER_SIZE 4096
@@ -49,8 +57,15 @@ void base64_encode(const char *input, char *output) {
 }
 
 char* receive_mount_table(const NTRIP_Config *config) {
+#ifdef _WIN32
     WSADATA wsaData;
-    SOCKET sock;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
+        return NULL;
+    }
+#endif
+
+    SOCKET_TYPE sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
     char request[1024];
@@ -58,26 +73,28 @@ char* receive_mount_table(const NTRIP_Config *config) {
     char *mount_table = NULL;
     size_t mount_table_size = 0;
 
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
-        return NULL;
-    }
-
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result) != 0) {
+    int gai_ret = getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result);
+    if (gai_ret != 0) {
+#ifdef _WIN32
         fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
         WSACleanup();
+#else
+        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
+#endif
         return NULL;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == INVALID_SOCKET) {
-        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+    if (SOCK_ERR(sock)) {
+        fprintf(stderr, "Socket creation failed\n");
         freeaddrinfo(result);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return NULL;
     }
 
@@ -88,10 +105,12 @@ char* receive_mount_table(const NTRIP_Config *config) {
 
     freeaddrinfo(result);
 
-    if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) == SOCKET_ERROR) {
-        fprintf(stderr, "Connection failed: %d\n", WSAGetLastError());
-        closesocket(sock);
+    if (SOCK_CONN_ERR(connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)))) {
+        fprintf(stderr, "Connection failed\n");
+        CLOSESOCKET(sock);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return NULL;
     }
 
@@ -103,16 +122,31 @@ char* receive_mount_table(const NTRIP_Config *config) {
              "\r\n",
              config->NTRIP_CASTER, config->AUTH_BASIC);
 
+#ifdef _WIN32
     int sent = send(sock, request, strlen(request), 0);
     if (sent == SOCKET_ERROR) {
         fprintf(stderr, "[ERROR] Failed to send mountpoint list request: %d\n", WSAGetLastError());
-        closesocket(sock);
+        CLOSESOCKET(sock);
         WSACleanup();
         return NULL;
     }
+#else
+    ssize_t sent = send(sock, request, strlen(request), 0);
+    if (sent < 0) {
+        perror("[ERROR] Failed to send mountpoint list request");
+        CLOSESOCKET(sock);
+        return NULL;
+    }
+#endif
 
     int received;
-    while ((received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
+    while (
+#ifdef _WIN32
+        (received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0
+#else
+        (received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0
+#endif
+    ) {
         buffer[received] = '\0';
         size_t old_size = mount_table_size;
         mount_table_size += received;
@@ -120,8 +154,10 @@ char* receive_mount_table(const NTRIP_Config *config) {
         if (!new_table) {
             free(mount_table);
             fprintf(stderr, "[ERROR] Memory allocation failed for mount table.\n");
-            closesocket(sock);
+            CLOSESOCKET(sock);
+#ifdef _WIN32
             WSACleanup();
+#endif
             return NULL;
         }
         mount_table = new_table;
@@ -133,39 +169,50 @@ char* receive_mount_table(const NTRIP_Config *config) {
     if (mount_table)
         mount_table[mount_table_size] = '\0';
 
-    closesocket(sock);
+    CLOSESOCKET(sock);
+#ifdef _WIN32
     WSACleanup();
+#endif
     return mount_table;
 }
 
 void start_ntrip_stream(const NTRIP_Config *config) {
+#ifdef _WIN32
     WSADATA wsaData;
-    SOCKET sock;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
+        return;
+    }
+#endif
+
+    SOCKET_TYPE sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
     char request[1024];
     char buffer[BUFFER_SIZE];
 
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
-        return;
-    }
-
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result) != 0) {
+    int gai_ret = getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result);
+    if (gai_ret != 0) {
+#ifdef _WIN32
         fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
         WSACleanup();
+#else
+        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
+#endif
         return;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == INVALID_SOCKET) {
-        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+    if (SOCK_ERR(sock)) {
+        fprintf(stderr, "Socket creation failed\n");
         freeaddrinfo(result);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
 
@@ -176,10 +223,12 @@ void start_ntrip_stream(const NTRIP_Config *config) {
 
     freeaddrinfo(result);
 
-    if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) == SOCKET_ERROR) {
-        fprintf(stderr, "Connection failed: %d\n", WSAGetLastError());
-        closesocket(sock);
+    if (SOCK_CONN_ERR(connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)))) {
+        fprintf(stderr, "Connection failed\n");
+        CLOSESOCKET(sock);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
 
@@ -192,13 +241,22 @@ void start_ntrip_stream(const NTRIP_Config *config) {
              "\r\n",
              config->MOUNTPOINT, config->NTRIP_CASTER, config->AUTH_BASIC);
 
+#ifdef _WIN32
     int sent = send(sock, request, strlen(request), 0);
     if (sent == SOCKET_ERROR) {
         fprintf(stderr, "[ERROR] Failed to send NTRIP stream request: %d\n", WSAGetLastError());
-        closesocket(sock);
+        CLOSESOCKET(sock);
         WSACleanup();
         return;
     }
+#else
+    ssize_t sent = send(sock, request, strlen(request), 0);
+    if (sent < 0) {
+        perror("[ERROR] Failed to send NTRIP stream request");
+        CLOSESOCKET(sock);
+        return;
+    }
+#endif
 
     int received;
     char *ptr;
@@ -207,7 +265,11 @@ void start_ntrip_stream(const NTRIP_Config *config) {
     int msg_buffer_len = 0;
 
     while (1) {
+#ifdef _WIN32
         received = recv(sock, buffer, sizeof(buffer), 0);
+#else
+        received = recv(sock, buffer, sizeof(buffer), 0);
+#endif
         if (received <= 0) break;
 
         if (!header_skipped) {
@@ -255,38 +317,49 @@ void start_ntrip_stream(const NTRIP_Config *config) {
         }
     }
 
-    closesocket(sock);
+    CLOSESOCKET(sock);
+#ifdef _WIN32
     WSACleanup();
+#endif
 }
 
 void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count) {
+#ifdef _WIN32
     WSADATA wsaData;
-    SOCKET sock;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
+        return;
+    }
+#endif
+
+    SOCKET_TYPE sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
     char request[1024]; // Increased from 512 to 1024
     char buffer[BUFFER_SIZE];
 
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
-        return;
-    }
-
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result) != 0) {
+    int gai_ret = getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result);
+    if (gai_ret != 0) {
+#ifdef _WIN32
         fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
         WSACleanup();
+#else
+        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
+#endif
         return;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == INVALID_SOCKET) {
-        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+    if (SOCK_ERR(sock)) {
+        fprintf(stderr, "Socket creation failed\n");
         freeaddrinfo(result);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
 
@@ -297,10 +370,12 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
 
     freeaddrinfo(result);
 
-    if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) == SOCKET_ERROR) {
-        fprintf(stderr, "Connection failed: %d\n", WSAGetLastError());
-        closesocket(sock);
+    if (SOCK_CONN_ERR(connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)))) {
+        fprintf(stderr, "Connection failed\n");
+        CLOSESOCKET(sock);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
 
@@ -313,13 +388,22 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
              "\r\n",
              config->MOUNTPOINT, config->NTRIP_CASTER, config->AUTH_BASIC);
 
+#ifdef _WIN32
     int sent = send(sock, request, strlen(request), 0);
     if (sent == SOCKET_ERROR) {
         fprintf(stderr, "[ERROR] Failed to send NTRIP stream request: %d\n", WSAGetLastError());
-        closesocket(sock);
+        CLOSESOCKET(sock);
         WSACleanup();
         return;
     }
+#else
+    ssize_t sent = send(sock, request, strlen(request), 0);
+    if (sent < 0) {
+        perror("[ERROR] Failed to send NTRIP stream request");
+        CLOSESOCKET(sock);
+        return;
+    }
+#endif
 
     int received;
     char *ptr;
@@ -395,13 +479,22 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
         }
     }
 
-    closesocket(sock);
+    CLOSESOCKET(sock);
+#ifdef _WIN32
     WSACleanup();
+#endif
 }
 
 void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
+#ifdef _WIN32
     WSADATA wsaData;
-    SOCKET sock;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
+        return;
+    }
+#endif
+
+    SOCKET_TYPE sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
     char request[1024]; // Increased from 512 to 1024

@@ -14,6 +14,7 @@
                 "src/rtcm3x_parser.c",
                 "src/ntrip_handler.c",
                 "src/config.c",
+                "src/cli_help.c",
                 "-Ilib/cJSON",
                 "-lws2_32",
                 "-Wall"
