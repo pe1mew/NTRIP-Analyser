@@ -58,6 +58,24 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     }
 }
 
+void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, double *lon_deg, double *alt) {
+    double a = 6378137.0;
+    double e2 = 6.69437999014e-3;
+    double lon = atan2(y, x);
+    double p = sqrt(x * x + y * y);
+    double lat = atan2(z, p * (1 - e2));
+    double lat_prev;
+    do {
+        lat_prev = lat;
+        double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+        lat = atan2(z + e2 * N * sin(lat), p);
+    } while (fabs(lat - lat_prev) > 1e-11);
+
+    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
+    if (alt) *alt = p / cos(lat) - N + h;
+    if (lat_deg) *lat_deg = lat * 180.0 / M_PI;
+    if (lon_deg) *lon_deg = lon * 180.0 / M_PI;
+}
     
 void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
     if (payload_len < 19) { // 12+12+6+1+1+1+1+38+1+1+38+2+38+2 = 200 bits = 25 bytes
@@ -65,7 +83,7 @@ void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
         return;
     }
     int bit = 0;
-    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1006
+    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1005
     uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
     uint8_t itrf_year = (uint8_t)get_bits(payload, bit, 6); bit += 6;
     uint8_t gps_ind = (uint8_t)get_bits(payload, bit, 1); bit += 1;
@@ -89,31 +107,14 @@ void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
 
     bit += 2; // Reserved
 
-    uint16_t antenna_height = (uint16_t)get_bits(payload, bit, 16); bit += 16;
-
+    // 1005 does not have antenna height
     double x = ecef_x * 0.0001;
     double y = ecef_y * 0.0001;
     double z = ecef_z * 0.0001;
-    double h = antenna_height * 0.0001;
+    double h = 0.0;
 
-    // ECEF to geodetic (WGS84)
-    double a = 6378137.0;
-    double e2 = 6.69437999014e-3;
-    double lon = atan2(y, x);
-    double p = sqrt(x * x + y * y);
-    double lat = atan2(z, p * (1 - e2));
-    double lat_prev;
-    do {
-        lat_prev = lat;
-        double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
-        lat = atan2(z + e2 * N * sin(lat), p);
-    } while (fabs(lat - lat_prev) > 1e-11);
-
-    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
-    double alt = p / cos(lat) - N + h;
-
-    double lat_deg = lat * 180.0 / M_PI;
-    double lon_deg = lon * 180.0 / M_PI;
+    double lat_deg, lon_deg, alt;
+    ecef_to_geodetic(x, y, z, h, &lat_deg, &lon_deg, &alt);
 
     printf("RTCM 1005:\n");
     printf("  Message Number: %u\n", msg_number);
@@ -127,7 +128,6 @@ void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
     printf("  Single Receiver Oscillator Indicator: %u\n", osc_ind);
     printf("WGS84 Lat: %.8f deg, Lon: %.8f deg, Alt: %.3f m\n", lat_deg, lon_deg, alt);
     printf("[Google Maps Link] https://maps.google.com/?q=%.8f,%.8f\n", lat_deg, lon_deg);
-
 }
 
 void decode_rtcm_1006(const unsigned char *payload, int payload_len) {
@@ -168,24 +168,8 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len) {
     double z = ecef_z * 0.0001;
     double h = antenna_height * 0.0001;
 
-    // ECEF to geodetic (WGS84)
-    double a = 6378137.0;
-    double e2 = 6.69437999014e-3;
-    double lon = atan2(y, x);
-    double p = sqrt(x * x + y * y);
-    double lat = atan2(z, p * (1 - e2));
-    double lat_prev;
-    do {
-        lat_prev = lat;
-        double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
-        lat = atan2(z + e2 * N * sin(lat), p);
-    } while (fabs(lat - lat_prev) > 1e-11);
-
-    double N = a / sqrt(1 - e2 * sin(lat) * sin(lat));
-    double alt = p / cos(lat) - N + h;
-
-    double lat_deg = lat * 180.0 / M_PI;
-    double lon_deg = lon * 180.0 / M_PI;
+    double lat_deg, lon_deg, alt;
+    ecef_to_geodetic(x, y, z, h, &lat_deg, &lon_deg, &alt);
 
     printf("RTCM 1006:\n");
     printf("  Message Number: %u\n", msg_number);
@@ -578,15 +562,6 @@ void decode_rtcm_1230(const unsigned char *payload, int payload_len) {
     }
 }
 
-void print_rtcm_1005_message_hex(const unsigned char *data, int length) {
-    printf("Complete RTCM 1005 message (%d bytes):\n", length);
-    for (int i = 0; i < length; ++i) {
-        printf("%02X ", data[i]);
-        if ((i + 1) % 16 == 0) printf("\n");
-    }
-    if (length % 16 != 0) printf("\n");
-}
-
 int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output) {
     if (length < 6) return -1;
 
@@ -609,7 +584,6 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
 
         if (!suppress_output) {
             if (msg_type == 1005) {
-                print_rtcm_1005_message_hex(data, frame_len);
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1005 detected)\n", msg_type, msg_length);
                 decode_rtcm_1005(&data[3], msg_length);
             } else if (msg_type == 1006) {

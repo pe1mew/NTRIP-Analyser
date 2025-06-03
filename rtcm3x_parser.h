@@ -44,6 +44,19 @@
 extern "C" {
 #endif
 
+
+/**
+ * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.
+ * @param x ECEF X (meters)
+ * @param y ECEF Y (meters)
+ * @param z ECEF Z (meters)
+ * @param h Antenna height (meters, optional, can be 0)
+ * @param lat_deg [out] Latitude in degrees
+ * @param lon_deg [out] Longitude in degrees
+ * @param alt [out] Altitude in meters
+ */
+void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, double *lon_deg, double *alt);
+
 /**
  * @brief Extract bits from a buffer (big-endian, MSB first).
  *
