@@ -20,6 +20,7 @@
 #include "rtcm3x_parser.h" // Include RTCM parser header
 #include "ntrip_handler.h"
 #include "config.h"
+#include "cli_help.h"
 
 #define BUFFER_SIZE 4096
 #define MAX_MSG_TYPES 4096
@@ -56,12 +57,13 @@ int main(int argc, char *argv[]) {
         {"longitude", required_argument, 0,  3 },
         {"lon",       required_argument, 0,  4 },
         {"verbose",   no_argument,       0, 'v'},
-        {"initialize", no_argument,      0, 'i'}, // Add this line
+        {"generate",  no_argument,       0, 'g'},
+        {"info",      no_argument,       0, 'i'}, // <-- add -i/--info
         {0, 0, 0, 0}
     };
 
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "c::t::md::vi", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "c::t::md::vgi", long_options, &option_index)) != -1) {
         switch (opt) {
             case 'c':
                 if (optarg) {
@@ -119,27 +121,17 @@ int main(int argc, char *argv[]) {
             case 'v':
                 verbose = true;
                 break;
-            case 'i':
+            case 'g': // changed from 'i' to 'g'
                 initialize_config("config.json");
                 return 0;
+            case 'i': // -i or --info
+                print_program_info();
+                return 0;
+            case 'h':
+                print_help(argv[0]);
+                return 0;
             default:
-                fprintf(stderr,
-                    "Usage: %s [options]\n"
-                    "Options:\n"
-                    "  -c, --config [file]      Specify config file (default: config.json)\n"
-                    "  -t, --time [seconds]     Analyze message types for N seconds (default: 60)\n"
-                    "  -m, --mounts             Show mountpoint (sourcetable) list and exit\n"
-                    "  -d, --decode [types]     Decode RTCM stream, optionally filter by comma-separated RTCM-message numbers (e.g. 1005,1074)\n"
-                    "      --latitude [value]   Override latitude in json config-file\n"
-                    "      --lat [value]        Same as --latitude\n"
-                    "      --longitude [value]  Override longitude in json config-file\n"
-                    "      --lon [value]        Same as --longitude\n"
-                    "\n"
-                    "Examples:\n"
-                    "  %s -m\n"
-                    "  %s -d 1005,1074\n"
-                    "  %s -c myconfig.json -d\n",
-                    argv[0], argv[0], argv[0], argv[0]);
+                print_help(argv[0]);
                 return 1;
         }
     }
