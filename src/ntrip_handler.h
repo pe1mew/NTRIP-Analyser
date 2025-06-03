@@ -186,6 +186,12 @@ const char* gnss_name_from_id(int gnss_id);
  */
 const char* rinex_id_from_gnss(int gnss_id, int prn, char *buf, size_t buflen);
 
+/**
+ * @brief Connect to a virtual mountpoint using coordinates from config and send a GNGGA NMEA sentence.
+ * @param config Pointer to the NTRIP_Config structure with coordinates.
+ */
+void connect_virtual_mountpoint(const NTRIP_Config *config);
+
 #ifdef __cplusplus
 }
 #endif

@@ -15,6 +15,7 @@
                 "src/ntrip_handler.c",
                 "src/config.c",
                 "src/cli_help.c",
+                "src/nmea_parser.c",
                 "-Ilib/cJSON",
                 "-lws2_32",
                 "-Wall"

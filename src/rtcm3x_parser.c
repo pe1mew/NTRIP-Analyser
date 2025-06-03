@@ -14,11 +14,8 @@
  */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <math.h>
-#include <inttypes.h>
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 #include "rtcm3x_parser.h"
 
 uint32_t crc24q(const uint8_t *data, size_t length) {
@@ -56,6 +53,16 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     } else {
         return (int64_t)raw;
     }
+}
+
+// Helper to extract signed N-bit values
+static int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
+    uint64_t val = get_bits(buf, start_bit, bit_len);
+    // Sign-extend if needed
+    if (val & ((uint64_t)1 << (bit_len - 1))) {
+        val |= (~0ULL) << bit_len;
+    }
+    return (int64_t)val;
 }
 
 void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, double *lon_deg, double *alt) {
@@ -330,6 +337,37 @@ void decode_rtcm_1127(const unsigned char *payload, int payload_len) {
 
 void decode_rtcm_1137(const unsigned char *payload, int payload_len) {
     decode_rtcm_msm7(payload, payload_len, "SBAS", 1137);
+}
+
+void decode_rtcm_1007(const unsigned char *payload, int payload_len) {
+    int bit = 0;
+    if (payload_len < 4) {
+        printf("Type 1007: Payload too short!\n");
+        return;
+    }
+
+    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1007
+    uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+
+    uint8_t desc_len = (uint8_t)get_bits(payload, bit, 8); bit += 8;
+    if (payload_len < 4 + desc_len) {
+        printf("Type 1007: Payload too short for antenna descriptor!\n");
+        return;
+    }
+
+    char descriptor[65] = {0};
+    for (int i = 0; i < desc_len && i < 64; ++i) {
+        descriptor[i] = (char)get_bits(payload, bit, 8); bit += 8;
+    }
+    descriptor[64] = '\0';
+
+    uint8_t setup_id = (uint8_t)get_bits(payload, bit, 8); bit += 8;
+
+    printf("RTCM 1007:\n");
+    printf("  Message Number: %u\n", msg_number);
+    printf("  Reference Station ID: %u\n", ref_station_id);
+    printf("  Antenna Descriptor: %.*s\n", desc_len, descriptor);
+    printf("  Antenna Setup ID: %u\n", setup_id);
 }
 
 void decode_rtcm_1008(const unsigned char *payload, int payload_len) {
@@ -643,6 +681,9 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1006) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1006 detected)\n", msg_type, msg_length);
                 decode_rtcm_1006(&data[3], msg_length);
+            } else if (msg_type == 1019) {
+                printf("\nRTCM Message: Type = %d, Length = %d (Type 1019 detected)\n", msg_type, msg_length);
+                decode_rtcm_1019(&data[3], msg_length);
             } else if (msg_type == 1077) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1077 detected)\n", msg_type, msg_length);
                 decode_rtcm_1077(&data[3], msg_length);
@@ -661,6 +702,9 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1137) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1137 detected)\n", msg_type, msg_length);
                 decode_rtcm_1137(&data[3], msg_length);
+            } else if (msg_type == 1007) {
+                printf("\nRTCM Message: Type = %d, Length = %d (Type 1007 detected)\n", msg_type, msg_length);
+                decode_rtcm_1007(&data[3], msg_length);
             } else if (msg_type == 1008) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1008 detected)\n", msg_type, msg_length);
                 decode_rtcm_1008(&data[3], msg_length);
@@ -705,6 +749,102 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
         }
         return -1;
     }
+}
+
+void decode_rtcm_1019(const unsigned char *payload, int payload_len) {
+    if (!payload || payload_len < 51) {
+        printf("RTCM 1019: Payload too short\n");
+        return;
+    }
+
+    int bit = 0;
+    uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1019) {
+        printf("[1019] Not a 1019 message (got %d)\n", msg_type);
+        return;
+    }
+
+    uint32_t prn = (uint32_t)get_bits(payload, bit, 6); bit += 6;
+    uint32_t gps_week = (uint32_t)get_bits(payload, bit, 10); bit += 10;
+    uint32_t sv_accuracy = (uint32_t)get_bits(payload, bit, 4); bit += 4;
+    uint32_t code_on_l2 = (uint32_t)get_bits(payload, bit, 2); bit += 2;
+    int16_t idot = (int16_t)extract_signed(payload, bit, 14); bit += 14;
+    uint32_t iode = (uint32_t)get_bits(payload, bit, 8); bit += 8;
+    uint32_t toc = (uint32_t)get_bits(payload, bit, 16); bit += 16;
+    int8_t af2 = (int8_t)extract_signed(payload, bit, 8); bit += 8;
+    int16_t af1 = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int32_t af0 = (int32_t)extract_signed(payload, bit, 22); bit += 22;
+    uint32_t iodc = (uint32_t)get_bits(payload, bit, 10); bit += 10;
+    int16_t crs = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int16_t delta_n = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int32_t m0 = (int32_t)extract_signed(payload, bit, 32); bit += 32;
+    int16_t cuc = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int16_t cus = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int16_t crc = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int16_t crs2 = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int16_t cic = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    int16_t cis = (int16_t)extract_signed(payload, bit, 16); bit += 16;
+    uint32_t e = (uint32_t)get_bits(payload, bit, 32); bit += 32;
+    uint32_t sqrtA = (uint32_t)get_bits(payload, bit, 32); bit += 32;
+    uint32_t toe = (uint32_t)get_bits(payload, bit, 16); bit += 16;
+    uint8_t fit_flag = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+    uint8_t aodo = (uint8_t)get_bits(payload, bit, 5); bit += 5;
+    uint8_t health = (uint8_t)get_bits(payload, bit, 6); bit += 6;
+    int8_t tgd = (int8_t)extract_signed(payload, bit, 8); bit += 8;
+    uint32_t tx_time = (uint32_t)get_bits(payload, bit, 16); bit += 16;
+    uint8_t reserved = (uint8_t)get_bits(payload, bit, 2); bit += 2;
+
+    // Apply scaling
+    double idot_s = idot * pow(2, -43) * M_PI; // semi-circles/sec to rad/sec
+    double toc_s = toc * pow(2, 4);
+    double af2_s = af2 * pow(2, -55);
+    double af1_s = af1 * pow(2, -43);
+    double af0_s = af0 * pow(2, -31);
+    double crs_s = crs * pow(2, -5);
+    double delta_n_s = delta_n * pow(2, -43) * M_PI; // semi-circles/sec to rad/sec
+    double m0_s = m0 * pow(2, -31) * M_PI; // semi-circles to radians
+    double cuc_s = cuc * pow(2, -29);
+    double cus_s = cus * pow(2, -29);
+    double crc_s = crc * pow(2, -5);
+    double crs2_s = crs2 * pow(2, -5);
+    double cic_s = cic * pow(2, -29);
+    double cis_s = cis * pow(2, -29);
+    double e_s = e * pow(2, -33);
+    double sqrtA_s = sqrtA * pow(2, -19);
+    double toe_s = toe * pow(2, 4);
+    double tgd_s = tgd * pow(2, -31);
+    double tx_time_s = tx_time * pow(2, 4);
+
+    printf("RTCM 1019 (GPS Ephemeris):\n");
+    printf("  PRN: %u\n", prn);
+    printf("  GPS Week: %u\n", gps_week);
+    printf("  SV Accuracy: %u\n", sv_accuracy);
+    printf("  Code on L2: %u\n", code_on_l2);
+    printf("  IDOT: %g rad/s\n", idot_s);
+    printf("  IODE: %u\n", iode);
+    printf("  toc: %.0f s\n", toc_s);
+    printf("  af2: %.12g s/s^2\n", af2_s);
+    printf("  af1: %.12g s/s\n", af1_s);
+    printf("  af0: %.12g s\n", af0_s);
+    printf("  IODC: %u\n", iodc);
+    printf("  crs: %.3f m\n", crs_s);
+    printf("  delta n: %.12g rad/s\n", delta_n_s);
+    printf("  M0: %.12g rad\n", m0_s);
+    printf("  cuc: %.12g rad\n", cuc_s);
+    printf("  cus: %.12g rad\n", cus_s);
+    printf("  crc: %.3f m\n", crc_s);
+    printf("  crs (2): %.3f m\n", crs2_s);
+    printf("  cic: %.12g rad\n", cic_s);
+    printf("  cis: %.12g rad\n", cis_s);
+    printf("  e: %.15g\n", e_s);
+    printf("  sqrtA: %.8f m^0.5\n", sqrtA_s);
+    printf("  toe: %.0f s\n", toe_s);
+    printf("  fit interval flag: %u\n", fit_flag);
+    printf("  AODO: %u\n", aodo);
+    printf("  GNSS health: %u\n", health);
+    printf("  TGD: %.12g s\n", tgd_s);
+    printf("  Transmission time: %.0f s\n", tx_time_s);
+    printf("  Reserved: %u\n", reserved);
 }
 
 

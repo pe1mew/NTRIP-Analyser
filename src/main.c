@@ -258,3 +258,5 @@ int main(int argc, char *argv[]) {
 }
 
  
+
+// connect_virtual_mountpoint(&config);

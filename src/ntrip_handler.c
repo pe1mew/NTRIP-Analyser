@@ -1,4 +1,5 @@
 #include "ntrip_handler.h"
+#include "nmea_parser.h"
 #include "rtcm3x_parser.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,6 +69,11 @@ char* receive_mount_table(const NTRIP_Config *config) {
     }
 #endif
 
+    if (!config) {
+        fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
+        return NULL; // -1
+    }
+
     SOCKET_TYPE sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
@@ -88,7 +94,7 @@ char* receive_mount_table(const NTRIP_Config *config) {
 #else
         fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
 #endif
-        return NULL;
+        return NULL; // -2
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -98,7 +104,7 @@ char* receive_mount_table(const NTRIP_Config *config) {
 #ifdef _WIN32
         WSACleanup();
 #endif
-        return NULL;
+        return NULL; // -3
     }
 
     server.sin_family = AF_INET;
@@ -114,7 +120,7 @@ char* receive_mount_table(const NTRIP_Config *config) {
 #ifdef _WIN32
         WSACleanup();
 #endif
-        return NULL;
+        return NULL; // -4
     }
 
     snprintf(request, sizeof(request),
@@ -131,14 +137,14 @@ char* receive_mount_table(const NTRIP_Config *config) {
         fprintf(stderr, "[ERROR] Failed to send mountpoint list request: %d\n", WSAGetLastError());
         CLOSESOCKET(sock);
         WSACleanup();
-        return NULL;
+        return NULL; // -5
     }
 #else
     ssize_t sent = send(sock, request, strlen(request), 0);
     if (sent < 0) {
         perror("[ERROR] Failed to send mountpoint list request");
         CLOSESOCKET(sock);
-        return NULL;
+        return NULL; // -5
     }
 #endif
 
@@ -161,7 +167,7 @@ char* receive_mount_table(const NTRIP_Config *config) {
 #ifdef _WIN32
             WSACleanup();
 #endif
-            return NULL;
+            return NULL; // -6
         }
         mount_table = new_table;
         memcpy(mount_table + old_size, buffer, received + 1);
@@ -176,7 +182,7 @@ char* receive_mount_table(const NTRIP_Config *config) {
 #ifdef _WIN32
     WSACleanup();
 #endif
-    return mount_table;
+    return mount_table; // 0 (success)
 }
 
 void start_ntrip_stream(const NTRIP_Config *config) {
@@ -184,9 +190,14 @@ void start_ntrip_stream(const NTRIP_Config *config) {
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
-        return;
+        return; //-1;
     }
 #endif
+
+    if (!config) {
+        fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
+        return; //-1;
+    }
 
     SOCKET_TYPE sock;
     struct sockaddr_in server;
@@ -206,7 +217,7 @@ void start_ntrip_stream(const NTRIP_Config *config) {
 #else
         fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
 #endif
-        return;
+        return; //-2;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -216,7 +227,7 @@ void start_ntrip_stream(const NTRIP_Config *config) {
 #ifdef _WIN32
         WSACleanup();
 #endif
-        return;
+        return; //-3;
     }
 
     server.sin_family = AF_INET;
@@ -232,7 +243,7 @@ void start_ntrip_stream(const NTRIP_Config *config) {
 #ifdef _WIN32
         WSACleanup();
 #endif
-        return;
+        return; //-4
     }
 
     snprintf(request, sizeof(request),
@@ -250,14 +261,14 @@ void start_ntrip_stream(const NTRIP_Config *config) {
         fprintf(stderr, "[ERROR] Failed to send NTRIP stream request: %d\n", WSAGetLastError());
         CLOSESOCKET(sock);
         WSACleanup();
-        return;
+        return; // -5;
     }
 #else
     ssize_t sent = send(sock, request, strlen(request), 0);
     if (sent < 0) {
         perror("[ERROR] Failed to send NTRIP stream request");
         CLOSESOCKET(sock);
-        return;
+        return NULL; -5
     }
 #endif
 
@@ -334,6 +345,11 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
         return;
     }
 #endif
+
+    if (!config) {
+        fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
+        return;
+    }
 
     SOCKET_TYPE sock;
     struct sockaddr_in server;
@@ -908,4 +924,92 @@ int get_gnss_id_from_rtcm(int msg_type) {
     if (msg_type >= 1120 && msg_type < 1130) return 5; // BeiDou
     if (msg_type >= 1130 && msg_type < 1140) return 6; // SBAS
     return 0;
+}
+
+void connect_virtual_mountpoint(const NTRIP_Config *config) {
+    if (!config) {
+        fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
+        return; // -1;
+    }
+
+    char gga[100];
+    create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
+
+    printf("[INFO] Connecting to virtual mountpoint '%s' at %s:%d\n",
+           config->MOUNTPOINT, config->NTRIP_CASTER, config->NTRIP_PORT);
+    printf("[INFO] Sending NMEA GGA: %s\n", gga);
+
+    int sock = -1;
+    struct addrinfo hints = {0}, *res = NULL;
+    char portstr[16];
+    snprintf(portstr, sizeof(portstr), "%d", config->NTRIP_PORT);
+
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int gai_ret = getaddrinfo(config->NTRIP_CASTER, portstr, &hints, &res);
+    if (gai_ret != 0) {
+#ifdef _WIN32
+        fprintf(stderr, "[ERROR] DNS lookup failed: %d\n", WSAGetLastError());
+#else
+        fprintf(stderr, "[ERROR] DNS lookup failed: %s\n", gai_strerror(gai_ret));
+#endif
+        return; //  -2;
+    }
+
+    sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sock < 0) {
+        perror("[ERROR] socket");
+        freeaddrinfo(res);
+        return; //  -3;
+    }
+
+    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
+        perror("[ERROR] connect");
+#ifdef _WIN32
+        closesocket(sock);
+#else
+        close(sock);
+#endif
+        freeaddrinfo(res);
+        return; //  -4;
+    }
+
+    freeaddrinfo(res);
+
+    // Send NMEA GGA sentence (with CRLF)
+    char gga_with_crlf[104];
+    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
+    ssize_t sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
+    if (sent < 0) {
+        perror("[ERROR] Failed to send GGA sentence");
+#ifdef _WIN32
+        closesocket(sock);
+#else
+        close(sock);
+#endif
+        return; //  -5;
+    }
+
+    printf("[INFO] GGA sentence sent successfully.\n");
+
+    // ... (continue with NTRIP request/response as needed) ...
+    /*
+    
+    After connecting to an NTRIP virtual mountpoint, you can:
+
+    - Request and receive GNSS correction data streams (RTCM messages) tailored to your location.
+    - Send updated position (GGA) messages to get new, location-specific corrections.
+    - Receive status or keep-alive requests as required by the protocol or network.
+
+    */
+
+#ifdef _WIN32
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+
+    printf("[INFO] Connection to virtual mountpoint closed.\n");
+    return; //  0;
 }

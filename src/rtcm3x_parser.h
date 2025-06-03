@@ -11,13 +11,13 @@
  * @license Apache License 2.0 with Commons Clause (see LICENSE for details)
  *
  * ## Supported message types:
- *   - 1005: Stationary RTK Reference Station ARP
- *   - 1006: Stationary RTK Reference Station ARP with Height
+ *   - 1005: Stationary RTK Reference Station ARP (verified)
+ *   - 1006: Stationary RTK Reference Station ARP with Height (verified)
  *   - 1007: Antenna Descriptor
  *   - 1008: Antenna Descriptor & Serial Number
  *   - 1012: GLONASS L1&L2 RTK Observables
  *   - 1013: System Parameters
- *   - *1019: GPS L1&L2 RTK Observables*
+ *   - 1019: GPS L1&L2 RTK Observables
  *   - *1020: GLONASS L1&L2 RTK Observables*
  *   - 1033: Receiver & Antenna Descriptor
  *   - *1042: GPS Code-Phase Biases*
@@ -41,7 +41,7 @@
  * For more information, see the project README and LICENSE files.
  * 
  * @todo add scaling of extracted values to real-world units (e.g., meters, seconds).
- * @todo implement additional message types as needed: 1019, 1020, 1042, 1044, 1046, 1107 
+ * @todo implement additional message types as needed: 1007,1020, 1042, 1044, 1046, 1107 
  */
 
 #ifndef RTCM3X_PARSER_H
@@ -127,6 +127,18 @@ void decode_rtcm_1005(const unsigned char *payload, int payload_len);
 void decode_rtcm_1006(const unsigned char *payload, int payload_len);
 
 /**
+ * @brief Decode RTCM 1019 message (GPS Ephemeris)
+ *
+ * This function decodes the RTCM 1019 message, which contains ephemeris data for GPS satellites.
+ * The ephemeris data includes satellite position, velocity, and clock bias information,
+ * which are essential for precise satellite navigation and timing.
+ *
+ * @param payload Pointer to the RTCM message payload
+ * @param payload_len Length of the payload in bytes
+ */
+void decode_rtcm_1019(const unsigned char *payload, int payload_len);
+
+/**
  * @brief Decode and print the contents of an RTCM 3.x Type 1077 message (MSM7 GPS).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
@@ -167,6 +179,13 @@ void decode_rtcm_1127(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1137(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1007 message (Antenna Descriptor).
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1007(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1008 message (Antenna Descriptor & Serial Number).
