@@ -3,5 +3,7 @@
     "NTRIP_PORT": 2101,
     "MOUNTPOINT": "mountPoint",
     "USERNAME": "userName",
-    "PASSWORD": "passWord"
+    "PASSWORD": "passWord",
+    "LATITUDE": 0.0,
+    "LONGITUDE": 0.0
 }

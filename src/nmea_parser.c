@@ -45,5 +45,5 @@ void create_gngga_sentence(double latitude, double longitude, char *buffer) {
     unsigned char cksum = nmea_checksum(sentence);
 
     // Write final NMEA sentence to buffer
-    snprintf(buffer, 100, "$%s*%02X\r\n", sentence, cksum);
+    snprintf(buffer, 128, "$%s*%02X\r\n", sentence, cksum);
 }
