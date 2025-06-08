@@ -6,21 +6,23 @@
 #include <string.h>
 #include <time.h>
 #ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#define CLOSESOCKET closesocket
-#define SOCKET_TYPE SOCKET
-#define SOCK_ERR(val) ((val) == INVALID_SOCKET)
-#define SOCK_CONN_ERR(val) ((val) == SOCKET_ERROR)
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #define CLOSESOCKET closesocket
+    #define SOCKET_TYPE SOCKET
+    #define SOCK_ERR(val) ((val) == INVALID_SOCKET)
+    #define SOCK_CONN_ERR(val) ((val) == SOCKET_ERROR)
 #else
-#include <netdb.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#define CLOSESOCKET close
-#define SOCKET_TYPE int
-#define SOCK_ERR(val) ((val) < 0)
-#define SOCK_CONN_ERR(val) ((val) < 0)
+    #include <netdb.h>
+    #include <sys/socket.h>
+    #include <arpa/inet.h>
+    #include <unistd.h>
+    #include <errno.h>
+    #define CLOSESOCKET close
+    #define SOCKET_TYPE int
+    #define SOCK_ERR(val) ((val) < 0)
+    #define SOCK_CONN_ERR(val) ((val) < 0)
+    #define SOCKET_ERROR   -1
 #endif
 
 #define BUFFER_SIZE 4096
@@ -92,20 +94,26 @@ char* receive_mount_table(const NTRIP_Config *config) {
         fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
         WSACleanup();
 #else
-        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
+        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(errno));
 #endif
         return NULL; // -2
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (SOCK_ERR(sock)) {
-        fprintf(stderr, "Socket creation failed\n");
-        freeaddrinfo(result);
 #ifdef _WIN32
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+        freeaddrinfo(result);
         WSACleanup();
-#endif
         return NULL; // -3
     }
+#else
+    if (sock < 0) {
+        perror("Socket creation failed");
+        freeaddrinfo(result);
+        return NULL; // -3
+    }
+#endif
 
     server.sin_family = AF_INET;
     server.sin_port = htons(config->NTRIP_PORT);
@@ -215,20 +223,26 @@ void start_ntrip_stream(const NTRIP_Config *config) {
         fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
         WSACleanup();
 #else
-        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
+        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(errno));
 #endif
         return; //-2;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (SOCK_ERR(sock)) {
-        fprintf(stderr, "Socket creation failed\n");
-        freeaddrinfo(result);
 #ifdef _WIN32
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+        freeaddrinfo(result);
         WSACleanup();
-#endif
         return; //-3;
     }
+#else
+    if (sock < 0) {
+        perror("Socket creation failed");
+        freeaddrinfo(result);
+        return; //-3;
+    }
+#endif
 
     server.sin_family = AF_INET;
     server.sin_port = htons(config->NTRIP_PORT);
@@ -268,7 +282,7 @@ void start_ntrip_stream(const NTRIP_Config *config) {
     if (sent < 0) {
         perror("[ERROR] Failed to send NTRIP stream request");
         CLOSESOCKET(sock);
-        return NULL; -5
+        return; //-5
     }
 #endif
 
@@ -396,20 +410,26 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
         fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
         WSACleanup();
 #else
-        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(gai_ret));
+        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(errno));
 #endif
         return;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (SOCK_ERR(sock)) {
-        fprintf(stderr, "Socket creation failed\n");
-        freeaddrinfo(result);
 #ifdef _WIN32
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+        freeaddrinfo(result);
         WSACleanup();
-#endif
         return;
     }
+#else
+    if (sock < 0) {
+        perror("Socket creation failed");
+        freeaddrinfo(result);
+        return;
+    }
+#endif
 
     server.sin_family = AF_INET;
     server.sin_port = htons(config->NTRIP_PORT);
@@ -587,22 +607,30 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     hints.ai_socktype = SOCK_STREAM;
 
     if (getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result) != 0) {
-        fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
 #ifdef _WIN32
-        WSACleanup();
+    fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
+    WSACleanup();
+#else
+    fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(errno));
 #endif
         return;
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#ifdef _WIN32
     if (sock == INVALID_SOCKET) {
         fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
         freeaddrinfo(result);
-#ifdef _WIN32
         WSACleanup();
-#endif
         return;
     }
+#else
+    if (sock < 0) {
+        perror("Socket creation failed");
+        freeaddrinfo(result);
+        return;
+    }
+#endif
 
     server.sin_family = AF_INET;
     server.sin_port = htons(config->NTRIP_PORT);
@@ -611,11 +639,20 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
 
     freeaddrinfo(result);
 
-    if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) == SOCKET_ERROR) {
+    if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) == 
+#ifdef _WIN32
+        SOCKET_ERROR
+#else
+        -1
+#endif
+    ) {
+#ifdef _WIN32
         fprintf(stderr, "Connection failed: %d\n", WSAGetLastError());
         closesocket(sock);
-#ifdef _WIN32
         WSACleanup();
+#else
+        perror("Connection failed");
+        close(sock);
 #endif
         return;
     }
@@ -631,10 +668,11 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
 
     int sent = send(sock, request, strlen(request), 0);
     if (sent == SOCKET_ERROR) {
-        fprintf(stderr, "[ERROR] Failed to send NTRIP stream request: %d\n", WSAGetLastError());
-        closesocket(sock);
 #ifdef _WIN32
+        fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
         WSACleanup();
+#else
+        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(errno));
 #endif
         return;
     }
@@ -653,11 +691,18 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     int msg_buffer_len = 0;
 
     MsgStats stats[MAX_MSG_TYPES] = {0};
-    double start_time = (double)clock() / CLOCKS_PER_SEC;
+    // double start_time = (double)clock() / CLOCKS_PER_SEC;
+    time_t start_time = time(NULL);
+
 
     printf("[INFO] Analyzing message types for %d seconds...\n", analysis_time);
 
-    while (((double)clock() / CLOCKS_PER_SEC) - start_time < (double)analysis_time) {
+    // time_t end_time = start_time + analysis_time;
+    // while (time(NULL) < end_time) {
+
+    
+    while (difftime(time(NULL), start_time) < analysis_time) {
+
         received = recv(sock, buffer, sizeof(buffer), 0);
         if (received <= 0) break;
 
@@ -732,7 +777,7 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
         }
     }
 
-    closesocket(sock);
+    CLOSESOCKET(sock);
 #ifdef _WIN32
     WSACleanup();
 #endif
@@ -823,11 +868,20 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
     }
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (SOCK_ERR(sock)) {
-        fprintf(stderr, "Socket creation failed\n");
+#ifdef _WIN32
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
+        freeaddrinfo(result);
+        WSACleanup();
+        return;
+    }
+#else
+    if (sock < 0) {
+        perror("Socket creation failed");
         freeaddrinfo(result);
         return;
     }
+#endif
 
     server.sin_family = AF_INET;
     server.sin_port = htons(config->NTRIP_PORT);
@@ -924,7 +978,8 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
                 for (int i = 0; i < summary.gnss_count; ++i) {
                     total_unique += summary.gnss[i].count;
                 }
-                printf("%d ", total_unique);
+                printf("%d ", total_unique); // Print after each message
+                fflush(stdout);              // Ensure immediate output
 
                 memmove(msg_buffer, msg_buffer + full_frame, msg_buffer_len - full_frame);
                 msg_buffer_len -= full_frame;
