@@ -482,7 +482,7 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
                 WSACleanup();
                 return;
             } else {
-                printf("!");
+                printf("GGA ");
             }
 #else
             sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
@@ -491,7 +491,7 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
                 CLOSESOCKET(sock);
                 return;
             }else {
-                printf("!");
+                printf("GGA ");
             }
 #endif
             last_gga_time = now;
@@ -550,7 +550,7 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
                         }
                     }
                     if (!in_filter) {
-                        printf(".");
+                        printf("%d ", msg_type); // Print message number in sequence
                         fflush(stdout);
                     }
                 }
@@ -1022,92 +1022,4 @@ int get_gnss_id_from_rtcm(int msg_type) {
     if (msg_type >= 1120 && msg_type < 1130) return 5; // BeiDou
     if (msg_type >= 1130 && msg_type < 1140) return 6; // SBAS
     return 0;
-}
-
-void connect_virtual_mountpoint(const NTRIP_Config *config) {
-    if (!config) {
-        fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
-        return; // -1;
-    }
-
-    char gga[100];
-    create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
-
-    printf("[INFO] Connecting to virtual mountpoint '%s' at %s:%d\n",
-           config->MOUNTPOINT, config->NTRIP_CASTER, config->NTRIP_PORT);
-    printf("[INFO] Sending NMEA GGA: %s\n", gga);
-
-    int sock = -1;
-    struct addrinfo hints = {0}, *res = NULL;
-    char portstr[16];
-    snprintf(portstr, sizeof(portstr), "%d", config->NTRIP_PORT);
-
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-
-    int gai_ret = getaddrinfo(config->NTRIP_CASTER, portstr, &hints, &res);
-    if (gai_ret != 0) {
-#ifdef _WIN32
-        fprintf(stderr, "[ERROR] DNS lookup failed: %d\n", WSAGetLastError());
-#else
-        fprintf(stderr, "[ERROR] DNS lookup failed: %s\n", gai_strerror(gai_ret));
-#endif
-        return; //  -2;
-    }
-
-    sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sock < 0) {
-        perror("[ERROR] socket");
-        freeaddrinfo(res);
-        return; //  -3;
-    }
-
-    if (connect(sock, res->ai_addr, res->ai_addrlen) != 0) {
-        perror("[ERROR] connect");
-#ifdef _WIN32
-        closesocket(sock);
-#else
-        close(sock);
-#endif
-        freeaddrinfo(res);
-        return; //  -4;
-    }
-
-    freeaddrinfo(res);
-
-    // Send NMEA GGA sentence (with CRLF)
-    char gga_with_crlf[104];
-    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
-    ssize_t sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
-    if (sent < 0) {
-        perror("[ERROR] Failed to send GGA sentence");
-#ifdef _WIN32
-        closesocket(sock);
-#else
-        close(sock);
-#endif
-        return; //  -5;
-    }
-
-    printf("[INFO] GGA sentence sent successfully.\n");
-
-    // ... (continue with NTRIP request/response as needed) ...
-    /*
-    
-    After connecting to an NTRIP virtual mountpoint, you can:
-
-    - Request and receive GNSS correction data streams (RTCM messages) tailored to your location.
-    - Send updated position (GGA) messages to get new, location-specific corrections.
-    - Receive status or keep-alive requests as required by the protocol or network.
-
-    */
-
-#ifdef _WIN32
-    closesocket(sock);
-#else
-    close(sock);
-#endif
-
-    printf("[INFO] Connection to virtual mountpoint closed.\n");
-    return; //  0;
 }
