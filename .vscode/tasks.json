@@ -29,6 +29,35 @@
             },
             "problemMatcher": ["$gcc"],
             "detail": "Builds the NTRIP-Analyser executable using CodeBlocks MinGW"
+        },
+        {
+            "label": "Build NTRIP-Analyser (Linux GCC)",
+            "type": "shell",
+            "command": "gcc",
+            "args": [
+                "-g",
+                "-o",
+                "bin/ntripanalyse",
+                "src/main.c",
+                "lib/cjson/cJSON.c",
+                "src/rtcm3x_parser.c",
+                "src/ntrip_handler.c",
+                "src/config.c",
+                "src/cli_help.c",
+                "src/nmea_parser.c",
+                "-Ilib/cjson",
+                "-Wall",
+                "-lm"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Builds the NTRIP-Analyser executable for Linux using GCC"
         }
     ]
 }

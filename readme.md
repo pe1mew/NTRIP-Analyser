@@ -9,6 +9,14 @@ The primary goal of this project is to deepen my understanding of NTRIP streams,
 A secondary goal is to practice and experiment with programming, leveraging AI tools such as GitHub Copilot. Please note that, while AI assistance has accelerated development, I cannot guarantee the originality or accuracy of all code segments, as the sources used by large language models are not always transparent or verifiable. The results and information presented here have not been exhaustively validated. As such, I advise caution: **do not rely on this code or its output for critical applications without independent verification.** The included disclaimer applies in full.
 
 
+# Compiling
+
+## Linux
+
+```
+sudo apt install build-essential manpages-dev
+```
+
 
 
 ## License and disclaimer. 
