@@ -272,6 +272,13 @@ void start_ntrip_stream(const NTRIP_Config *config) {
     }
 #endif
 
+    // --- GGA sending logic ---
+    char gga[100];
+    create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
+    char gga_with_crlf[104];
+    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
+    time_t last_gga_time = time(NULL);
+
     int received;
     char *ptr;
     int header_skipped = 0;
@@ -285,6 +292,28 @@ void start_ntrip_stream(const NTRIP_Config *config) {
         received = recv(sock, buffer, sizeof(buffer), 0);
 #endif
         if (received <= 0) break;
+
+        // Send GGA every 1 second during reception
+        time_t now = time(NULL);
+        if (now - last_gga_time >= 1) {
+#ifdef _WIN32
+            sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
+            if (sent == SOCKET_ERROR) {
+                fprintf(stderr, "[ERROR] Failed to send GGA sentence: %d\n", WSAGetLastError());
+                CLOSESOCKET(sock);
+                WSACleanup();
+                return;
+            }
+#else
+            sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
+            if (sent < 0) {
+                perror("[ERROR] Failed to send GGA sentence");
+                CLOSESOCKET(sock);
+                return;
+            }
+#endif
+            last_gga_time = now;
+        }
 
         if (!header_skipped) {
             buffer[received] = '\0';
@@ -354,7 +383,7 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
     SOCKET_TYPE sock;
     struct sockaddr_in server;
     struct addrinfo hints, *result;
-    char request[1024]; // Increased from 512 to 1024
+    char request[1024];
     char buffer[BUFFER_SIZE];
 
     memset(&hints, 0, sizeof(hints));
@@ -424,6 +453,14 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
     }
 #endif
 
+    // Prepare GGA sentence
+    char gga[100];
+    create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
+    char gga_with_crlf[104];
+    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
+
+    time_t last_gga_time = time(NULL);
+
     int received;
     char *ptr;
     int header_skipped = 0;
@@ -433,6 +470,32 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
     while (1) {
         received = recv(sock, buffer, sizeof(buffer), 0);
         if (received <= 0) break;
+
+        // Send GGA every 1 second during reception
+        time_t now = time(NULL);
+        if (now - last_gga_time >= 1) {
+#ifdef _WIN32
+            sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
+            if (sent == SOCKET_ERROR) {
+                fprintf(stderr, "[ERROR] Failed to send GGA sentence: %d\n", WSAGetLastError());
+                CLOSESOCKET(sock);
+                WSACleanup();
+                return;
+            } else {
+                printf("!");
+            }
+#else
+            sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
+            if (sent < 0) {
+                perror("[ERROR] Failed to send GGA sentence");
+                CLOSESOCKET(sock);
+                return;
+            }else {
+                printf("!");
+            }
+#endif
+            last_gga_time = now;
+        }
 
         if (!header_skipped) {
             buffer[received] = '\0';
@@ -519,18 +582,15 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     char request[1024]; // Increased from 512 to 1024
     char buffer[BUFFER_SIZE];
 
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
-        return;
-    }
-
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
     if (getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result) != 0) {
         fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
 
@@ -538,7 +598,9 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     if (sock == INVALID_SOCKET) {
         fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
         freeaddrinfo(result);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
 
@@ -552,7 +614,9 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) == SOCKET_ERROR) {
         fprintf(stderr, "Connection failed: %d\n", WSAGetLastError());
         closesocket(sock);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
 
@@ -569,9 +633,18 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     if (sent == SOCKET_ERROR) {
         fprintf(stderr, "[ERROR] Failed to send NTRIP stream request: %d\n", WSAGetLastError());
         closesocket(sock);
+#ifdef _WIN32
         WSACleanup();
+#endif
         return;
     }
+
+    // --- GGA sending logic ---
+    char gga[100];
+    create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
+    char gga_with_crlf[104];
+    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
+    time_t last_gga_time = time(NULL);
 
     int received;
     char *ptr;
@@ -587,6 +660,14 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     while (((double)clock() / CLOCKS_PER_SEC) - start_time < (double)analysis_time) {
         received = recv(sock, buffer, sizeof(buffer), 0);
         if (received <= 0) break;
+
+        // Send GGA every 1 second during reception
+        time_t now = time(NULL);
+        if (now - last_gga_time >= 1) {
+            send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
+            printf("GGA ");
+            last_gga_time = now;
+        }
 
         if (!header_skipped) {
             buffer[received] = '\0';
@@ -652,7 +733,9 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     }
 
     closesocket(sock);
+#ifdef _WIN32
     WSACleanup();
+#endif
 
     // Print statistics as a table
     printf("\n[INFO] Message type analysis complete. Statistics:\n");
@@ -770,6 +853,13 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
 
     send(sock, request, strlen(request), 0);
 
+    // --- GGA sending logic ---
+    char gga[100];
+    create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
+    char gga_with_crlf[104];
+    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
+    time_t last_gga_time = time(NULL);
+
     int received;
     int header_skipped = 0;
     unsigned char msg_buffer[BUFFER_SIZE];
@@ -780,6 +870,14 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
     while (difftime(time(NULL), start_time) < analysis_time) {
         received = recv(sock, buffer, sizeof(buffer), 0);
         if (received <= 0) break;
+
+        // Send GGA every 1 second during reception
+        time_t now = time(NULL);
+        if (now - last_gga_time >= 1) {
+            send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
+            printf(" GGA ");
+            last_gga_time = now;
+        }
 
         if (!header_skipped) {
             buffer[received] = '\0';
