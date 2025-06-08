@@ -352,7 +352,7 @@ void start_ntrip_stream(const NTRIP_Config *config) {
                 if (msg_buffer_len < full_frame) break;
 
                 // Only decode and print, do not collect stats or print table
-                analyze_rtcm_message(msg_buffer, full_frame, false);
+                analyze_rtcm_message(msg_buffer, full_frame, false, config);
 
                 memmove(msg_buffer, msg_buffer + full_frame, msg_buffer_len - full_frame);
                 msg_buffer_len -= full_frame;
@@ -534,17 +534,17 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
                 if (msg_buffer_len < full_frame) break;
 
                 // Always analyze first to get the message type (no output)
-                int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true);
+                int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true, config);
 
                 int in_filter = 0;
                 if (filter_count == 0) {
                     // No filter: print all messages
-                    analyze_rtcm_message(msg_buffer, full_frame, false);
+                    analyze_rtcm_message(msg_buffer, full_frame, false, config);
                 } else {
                     // Only print if in filter_list, else print "."
                     for (int i = 0; i < filter_count; ++i) {
                         if (msg_type == filter_list[i]) {
-                            analyze_rtcm_message(msg_buffer, full_frame, false);
+                            analyze_rtcm_message(msg_buffer, full_frame, false, config);
                             in_filter = 1;
                             break;
                         }
@@ -706,7 +706,7 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
                 if (msg_buffer_len < full_frame) break;
 
                 double now = (double)clock() / CLOCKS_PER_SEC;
-                int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true);
+                int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true, config);
                 if (msg_type > 0 && msg_type < MAX_MSG_TYPES) {
                     printf("%d ", msg_type); // Print message number in sequence
                     fflush(stdout);

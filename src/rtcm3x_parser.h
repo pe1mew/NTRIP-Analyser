@@ -49,6 +49,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "ntrip_handler.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,6 +100,34 @@ uint32_t crc24q(const uint8_t *data, size_t length);
 int64_t extract_signed38(const unsigned char *buf, int start_bit);
 
 /**
+ * @brief Extract a signed N-bit integer from a buffer.
+ *
+ * @param buf        Pointer to the buffer.
+ * @param start_bit  Start bit index.
+ * @param bit_len    Number of bits to extract.
+ * @return Extracted signed integer as int64_t.
+ */
+int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len);
+
+/**
+ * @brief Calculate the great-circle distance and heading between two WGS84 coordinates.
+ *
+ * Uses the Haversine formula to compute the shortest distance over the Earth's surface
+ * between two latitude/longitude points, and computes the initial heading (bearing) from
+ * the first point to the second.
+ *
+ * @param lat1        Latitude of the first point (degrees, WGS84)
+ * @param lon1        Longitude of the first point (degrees, WGS84)
+ * @param lat2        Latitude of the second point (degrees, WGS84)
+ * @param lon2        Longitude of the second point (degrees, WGS84)
+ * @param distance_km [out] Pointer to double to receive the distance in kilometers (may be NULL)
+ * @param heading_deg [out] Pointer to double to receive the heading in degrees (may be NULL)
+ *
+ * @note The heading is the initial bearing from point 1 to point 2, in degrees clockwise from North.
+ */
+void calc_distance_heading(double lat1, double lon1, double lat2, double lon2, double *distance_km, double *heading_deg);
+
+/**
  * @brief Analyze and print information about an RTCM message.
  *
  * Parses the provided RTCM message buffer, verifies its CRC, and decodes the message
@@ -108,23 +137,25 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit);
  * @param data            Pointer to the RTCM message buffer (should start with 0xD3 preamble).
  * @param length          Length of the buffer in bytes.
  * @param suppress_output If true, do not print any output.
+ * @param config          Pointer to NTRIP_Config with rover coordinates for distance/heading calculations.
  * @return The RTCM message type as an integer if successfully parsed, or -1 on error or if not an RTCM message.
  */
-int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output);
+int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output, const NTRIP_Config *config);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1005 message (Stationary RTK Reference Station ARP).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
+ * @param config      Pointer to NTRIP_Config with rover coordinates for distance/heading calculations.
  */
-void decode_rtcm_1005(const unsigned char *payload, int payload_len);
+void decode_rtcm_1005(const unsigned char *payload, int payload_len, const NTRIP_Config *config);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1006 message (Stationary RTK Reference Station ARP with Height).
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
-void decode_rtcm_1006(const unsigned char *payload, int payload_len);
+void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP_Config *config);
 
 /**
  * @brief Decode RTCM 1019 message (GPS Ephemeris)

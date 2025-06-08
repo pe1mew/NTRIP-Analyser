@@ -56,7 +56,7 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit) {
 }
 
 // Helper to extract signed N-bit values
-static int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
+int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
     uint64_t val = get_bits(buf, start_bit, bit_len);
     // Sign-extend if needed
     if (val & ((uint64_t)1 << (bit_len - 1))) {
@@ -83,8 +83,30 @@ void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, d
     if (lat_deg) *lat_deg = lat * 180.0 / M_PI;
     if (lon_deg) *lon_deg = lon * 180.0 / M_PI;
 }
+
+void calc_distance_heading(double lat1, double lon1, double lat2, double lon2, double *distance_km, double *heading_deg) {
+    const double R = 6371.0; // Earth radius in km
+    double phi1 = lat1 * M_PI / 180.0;
+    double phi2 = lat2 * M_PI / 180.0;
+    double dphi = (lat2 - lat1) * M_PI / 180.0;
+    double dlambda = (lon2 - lon1) * M_PI / 180.0;
+
+    double a = sin(dphi/2) * sin(dphi/2) +
+               cos(phi1) * cos(phi2) *
+               sin(dlambda/2) * sin(dlambda/2);
+    double c = 2 * atan2(sqrt(a), sqrt(1-a));
+    if (distance_km) *distance_km = R * c;
+
+    // Heading calculation (bearing from point 1 to point 2)
+    double y = sin(dlambda) * cos(phi2);
+    double x = cos(phi1)*sin(phi2) - sin(phi1)*cos(phi2)*cos(dlambda);
+    double theta = atan2(y, x);
+    double bearing = fmod((theta * 180.0 / M_PI) + 360.0, 360.0);
+    if (heading_deg) *heading_deg = bearing;
+}
+
     
-void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
+void decode_rtcm_1005(const unsigned char *payload, int payload_len, const NTRIP_Config *config) {
     if (payload_len < 19) { // 12+12+6+1+1+1+1+38+1+1+38+2+38+2 = 200 bits = 25 bytes
         printf("Type 1005: Payload too short!\n");
         return;
@@ -135,9 +157,17 @@ void decode_rtcm_1005(const unsigned char *payload, int payload_len) {
     printf("  Single Receiver Oscillator Indicator: %u\n", osc_ind);
     printf("WGS84 Lat: %.8f deg, Lon: %.8f deg, Alt: %.3f m\n", lat_deg, lon_deg, alt);
     printf("[Google Maps Link] https://maps.google.com/?q=%.8f,%.8f\n", lat_deg, lon_deg);
+
+    // --- Distance and heading calculation ---
+    if (config) {
+        double distance_km = 0, heading_deg = 0;
+        // Calculate distance and heading from rover (config) to base (RTCM 1005)
+        calc_distance_heading(config->LATITUDE, config->LONGITUDE, lat_deg, lon_deg, &distance_km, &heading_deg);
+        printf("Distance to base (from rover): %.3f km, Heading: %.1f deg\n", distance_km, heading_deg);
+    }
 }
 
-void decode_rtcm_1006(const unsigned char *payload, int payload_len) {
+void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP_Config *config) {
     if (payload_len < 21) { // 12+12+6+1+1+1+1+38+1+1+38+2+38+2+16 = 216 bits = 27 bytes
         printf("Type 1006: Payload too short!\n");
         return;
@@ -191,6 +221,14 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len) {
     printf("  Single Receiver Oscillator Indicator: %u\n", osc_ind);
     printf("WGS84 Lat: %.8f deg, Lon: %.8f deg, Alt: %.3f m\n", lat_deg, lon_deg, alt);
     printf("[Google Maps Link] https://maps.google.com/?q=%.8f,%.8f\n", lat_deg, lon_deg);
+
+    // --- Distance and heading calculation ---
+    if (config) {
+        double distance_km = 0, heading_deg = 0;
+        // Calculate distance and heading from rover (config) to base (RTCM 1005)
+        calc_distance_heading(config->LATITUDE, config->LONGITUDE, lat_deg, lon_deg, &distance_km, &heading_deg);
+        printf("Distance to base (from rover): %.3f km, Heading: %.1f deg\n", distance_km, heading_deg);
+    }
 }
 
 void decode_rtcm_1077(const unsigned char *payload, int payload_len) {
@@ -654,7 +692,7 @@ void decode_rtcm_1012(const unsigned char *payload, int payload_len) {
     }
 }
 
-int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output) {
+int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output,const NTRIP_Config *config) {
     if (length < 6) return -1;
 
     if (data[0] == 0xD3) {
@@ -677,10 +715,10 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
         if (!suppress_output) {
             if (msg_type == 1005) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1005 detected)\n", msg_type, msg_length);
-                decode_rtcm_1005(&data[3], msg_length);
+                decode_rtcm_1005(&data[3], msg_length, config);
             } else if (msg_type == 1006) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1006 detected)\n", msg_type, msg_length);
-                decode_rtcm_1006(&data[3], msg_length);
+                decode_rtcm_1006(&data[3], msg_length, config);
             } else if (msg_type == 1019) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1019 detected)\n", msg_type, msg_length);
                 decode_rtcm_1019(&data[3], msg_length);
