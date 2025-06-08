@@ -875,7 +875,7 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time) {
         time_t now = time(NULL);
         if (now - last_gga_time >= 1) {
             send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
-            printf(" GGA ");
+            printf("GGA ");
             last_gga_time = now;
         }
 

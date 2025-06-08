@@ -1,9 +1,0 @@
-{
-    "NTRIP_CASTER": "ntrip.kadaster.nl",
-    "NTRIP_PORT": 2101,
-    "MOUNTPOINT": "APEL00NLD0",
-    "USERNAME": "rfsee",
-    "PASSWORD": "info@rfsee.nl",
-    "LATITUDE": 52.2115225886123,
-    "LONGITUDE": 5.983697856178263
-}

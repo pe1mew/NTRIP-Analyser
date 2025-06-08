@@ -6,6 +6,7 @@
  *   - Base64 encoding for HTTP Basic Authentication
  *   - Receiving the NTRIP mountpoint table from a caster
  *   - Starting and handling an NTRIP RTCM 3.x data stream
+ *   - Analyzing RTCM message types and satellites
  *
  * Project: NTRIP RTCM 3.x Stream Analyzer
  * @author Remko Welling, PE1MEW
@@ -16,6 +17,7 @@
  *   - Use base64_encode() to prepare the AUTH_BASIC field.
  *   - Use receive_mount_table() to fetch the sourcetable from the caster.
  *   - Use start_ntrip_stream() or start_ntrip_stream_with_filter() to connect and process RTCM data.
+ *   - Use analyze_message_types() or analyze_satellites_stream() for analysis.
  *
  * For more information, see the project README and LICENSE files.
  */
@@ -85,9 +87,9 @@ typedef struct {
  *   - count:     Number of unique satellites seen for this GNSS
  */
 typedef struct {
-    int gnss_id;
-    int sat_seen[MAX_SATS_PER_GNSS]; ///< 1 if seen, 0 if not
-    int count; 
+    int gnss_id;                        /**< GNSS system ID */
+    int sat_seen[MAX_SATS_PER_GNSS];    /**< 1 if seen, 0 if not */
+    int count;                          /**< Number of unique satellites seen */
 } GnssSatStats;
 
 /**
@@ -99,8 +101,8 @@ typedef struct {
  *   - gnss_count: Number of GNSS systems present in the summary
  */
 typedef struct {
-    GnssSatStats gnss[MAX_GNSS];
-    int gnss_count;
+    GnssSatStats gnss[MAX_GNSS];    /**< Array of GNSS statistics */
+    int gnss_count;                 /**< Number of GNSS systems present */
 } SatStatsSummary;
 
 /**
@@ -156,13 +158,35 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
  */
 void analyze_message_types(const NTRIP_Config *config, int analysis_time);
 
-// Returns GNSS system ID from RTCM message type
-int get_gnss_id_from_rtcm(int msg_type); // Only the declaration, not the definition
+/**
+ * @brief Returns the GNSS system ID from an RTCM message type.
+ *
+ * @param msg_type RTCM message type number.
+ * @return GNSS system ID (1=GPS, 2=GLONASS, 3=Galileo, 4=QZSS, 5=BeiDou, 6=SBAS, etc.)
+ */
+int get_gnss_id_from_rtcm(int msg_type);
 
-// Extracts satellites from MSM7/RTCM message into summary
+/**
+ * @brief Extracts satellites from MSM7/RTCM message into summary.
+ *
+ * Parses the given RTCM message and updates the SatStatsSummary with satellites seen.
+ *
+ * @param data      Pointer to the RTCM message data.
+ * @param len       Length of the RTCM message data.
+ * @param msg_type  RTCM message type.
+ * @param summary   Pointer to SatStatsSummary to update.
+ */
 void extract_satellites(const unsigned char *data, int len, int msg_type, SatStatsSummary *summary);
 
-// Opens NTRIP stream and analyzes satellites for a period
+/**
+ * @brief Opens NTRIP stream and analyzes satellites for a period.
+ *
+ * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,
+ * and analyzes the satellites seen for the specified duration.
+ *
+ * @param config Pointer to NTRIP_Config struct with connection details.
+ * @param analysis_time Duration in seconds to analyze satellites.
+ */
 void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time);
 
 /**
@@ -185,7 +209,6 @@ const char* gnss_name_from_id(int gnss_id);
  * @return Pointer to the output buffer containing the RINEX ID string.
  */
 const char* rinex_id_from_gnss(int gnss_id, int prn, char *buf, size_t buflen);
-
 
 #ifdef __cplusplus
 }
