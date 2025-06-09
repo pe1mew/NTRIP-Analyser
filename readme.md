@@ -8,16 +8,25 @@ The primary goal of this project is to deepen my understanding of NTRIP streams,
 
 A secondary goal is to practice and experiment with programming, leveraging AI tools such as GitHub Copilot. Please note that, while AI assistance has accelerated development, I cannot guarantee the originality or accuracy of all code segments, as the sources used by large language models are not always transparent or verifiable. The results and information presented here have not been exhaustively validated. As such, I advise caution: **do not rely on this code or its output for critical applications without independent verification.** The included disclaimer applies in full.
 
+## Functionalities
 
-# Compiling
+The code will allow to do teh following analysis on NTRIP streams:
 
-## Linux
+ 1. Retrieve mountpointlist from a caster and display it on screen.
+ 2. Login to a caster and start a NTRIP stream. At reception:
+    a.  Decode all implemented NTRIP messages,
+    b.  Message overview: Analyse during a time (default 60 seconds) all received NTRIP messages and:
+        -   Count and present the message numbers received
+        -   Present minimum, average and maximum interval time between two of the same message number.
+    c.  Filtered message decoding.
+    d.  Satellite analysis: Analyse during a time (default 60 seconds) all received NTRIP messages and:
+        -   Count the unique satellites reported
+        -   Present the reportes uniques satellites per GNSS system
+        -   Present the total number of satellites seen.
 
-```
-sudo apt install build-essential manpages-dev
-```
+## Documentation
 
-
+[Documentation](docs/readme.md) is in the documentation folder.
 
 ## License and disclaimer. 
 

@@ -1,14 +1,24 @@
 # NTRIP-Analyser
 
-NTRIP-Analyser is a command-line tool for connecting to NTRIP casters, retrieving mountpoint tables, and analyzing or decoding RTCM 3.x streams. It is designed for GNSS professionals and enthusiasts who need to inspect or debug NTRIP data streams.
+NTRIP-Analyser is a command-line tool for connecting to NTRIP casters, retrieving mountpoint tables, and analyzing or decoding RTCM 3.x streams. It is designed for GNSS enthusiasts who need to inspect or debug NTRIP data streams.
 
 ---
 
 ## Getting Started
 
+### 0. General operation description
+
+The program will emulate a rover using preconfigured (static) coordinates. At connection the program will authenticate and either request the mountpoint list of a NTRIP stream. When a NTRIP stream is opened, the program will send an GGA NMEA sentense with the configured coordinates at a 1 second interval to the NTRIP caster.
+
 ### 1. Configuration File (`config.json`)
 
-Before using the program, you must create a configuration file named `config.json` in the working directory. This file contains all necessary connection and authentication details.
+Before using the program, you must create a configuration file named `config.json` in the working directory. This file contains all necessary connection and authentication details as well as teh coordinates of the rover emulated. *The program will not work without it.* 
+
+Generating a default `config.json` with dummy values is done by using the `-g` argument when running the program:
+
+```sh
+ntripanalysis.exe -g
+```
 
 **Example `config.json`:**
 ```json
@@ -22,19 +32,13 @@ Before using the program, you must create a configuration file named `config.jso
     "LONGITUDE": 0.0
 }
 ```
+Set the various parameters 
 - **NTRIP_CASTER**: Hostname or IP address of the NTRIP caster.
 - **NTRIP_PORT**: TCP port of the NTRIP caster (usually 2101).
 - **MOUNTPOINT**: The mountpoint to request from the caster.
 - **USERNAME**: Username for HTTP Basic Authentication.
 - **PASSWORD**: Password for HTTP Basic Authentication.
-- **LATITUDE**/**LONGITUDE**: Optional, used for some NTRIP services.
-
-You can generate a template config file with:
-```sh
-ntripanalyse -i
-```
-This will create a `config.json` with dummy values. Edit it and fill in your actual credentials and settings.
-
+- **LATITUDE**/**LONGITUDE**: latitude and longitude of the rover ocation being emulated.
 ---
 
 ### 2. Command-Line Arguments
@@ -51,14 +55,17 @@ ntripanalyse [options]
 |-------|--------------|------------------|-----------------------------------------------------------------------------|
 | -c    | --config     | [file]           | Specify config file (default: `config.json`)                                |
 | -m    | --mounts     |                  | Show mountpoint (sourcetable) list and exit                                 |
-| -d    | --decode     | [types]          | Decode RTCM stream, optionally filter by comma-separated message numbers     |
-| -t    | --time       | [seconds]        | Analyze message types for N seconds (default: 60)                           |
-| -v    | --verbose    |                  | Print configuration and action details before running                        |
-| -i    | --initialize |                  | Create a template `config.json` and exit                                     |
+| -d    | --decode     | [types]          | Decode RTCM stream, optionally filter by comma-separated message numbers    |
+| -s    | --sat        | [seconds]        | count satellites received for N seconds (default: 60)                       |
+| -t    | --types      | [seconds]        | Analyze message types for N seconds (default: 60)                           |
+| -v    | --verbose    |                  | Print configuration and action details before running                       |
+| -g    | --generate   |                  | Geerate default config.json with dummy values and exit.                     |
 |       | --latitude   | value            | Override latitude in config                                                 |
 |       | --longitude  | value            | Override longitude in config                                                |
 |       | --lat        | value            | Same as `--latitude`                                                        |
 |       | --lon        | value            | Same as `--longitude`                                                       |
+| -h    | --help       |                  | Help information                                                            |
+| -i    | --info       |                  | Information about the program, repository, an author                        |
 
 ---
 
@@ -82,6 +89,11 @@ ntripanalyse [options]
 - **Analyze message types for 120 seconds:**
   ```sh
   ntripanalyse -t 120
+  ```
+
+- **Count seen satellites for 120 seconds:**
+  ```sh
+  ntripanalyse -s 120
   ```
 
 - **Generate a template config file:**

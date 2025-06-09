@@ -51,11 +51,11 @@ int main(int argc, char *argv[]) {
 
     static struct option long_options[] = {
         {"config",    optional_argument, 0, 'c'},
-        {"time",      optional_argument, 0, 't'},
+        {"types",     optional_argument, 0, 't'},
         {"mounts",    no_argument,       0, 'm'},
         {"decode",    optional_argument, 0, 'd'},
         {"sat",       optional_argument, 0, 's'},
-        {"raw",       no_argument,       0, 'r'}, // <-- Add this line
+        {"raw",       no_argument,       0, 'r'},
         {"latitude",  required_argument, 0,  1 },
         {"lat",       required_argument, 0,  2 },
         {"longitude", required_argument, 0,  3 },
