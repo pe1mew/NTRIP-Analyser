@@ -725,6 +725,18 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1077) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1077 detected)\n", msg_type, msg_length);
                 decode_rtcm_1077(&data[3], msg_length);
+            } else if (msg_type == 1074) {
+                printf("\nRTCM Message: Type = %d, Length = %d (Type 1074 detected)\n", msg_type, msg_length);
+                // decode_rtcm_1074(&data[3], msg_length);
+            } else if (msg_type == 1084) {
+                printf("\nRTCM Message: Type = %d, Length = %d (Type 1084 detected)\n", msg_type, msg_length);
+                // decode_rtcm_1084(&data[3], msg_length);
+            } else if (msg_type == 1084) {
+                printf("\nRTCM Message: Type = %d, Length = %d (Type 1094 detected)\n", msg_type, msg_length);
+                // decode_rtcm_1094(&data[3], msg_length);
+            } else if (msg_type == 1124) {
+                printf("\nRTCM Message: Type = %d, Length = %d (Type 1124 detected)\n", msg_type, msg_length);
+                // decode_rtcm_1124(&data[3], msg_length);
             } else if (msg_type == 1087) {
                 printf("\nRTCM Message: Type = %d, Length = %d (Type 1087 detected)\n", msg_type, msg_length);
                 decode_rtcm_1087(&data[3], msg_length);

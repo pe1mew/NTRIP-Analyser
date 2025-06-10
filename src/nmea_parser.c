@@ -35,7 +35,7 @@ void create_gngga_sentence(double latitude, double longitude, char *buffer) {
     // Compose the sentence without checksum, Age of Differential Data is blank (two commas at the end)
     char sentence[100];
     snprintf(sentence, sizeof(sentence),
-        "GNGGA,%s,%02d%07.4f,%c,%03d%07.4f,%c,2,08,1.0,1.5,M,0.0,M,,",
+        "GNGGA,%s,%02d%07.4f,%c,%03d%07.4f,%c,1,08,1.0,1.5,M,0.0,M,,",
         timestr,
         lat_deg, lat_min, lat_hem,
         lon_deg, lon_min, lon_hem

@@ -23,6 +23,7 @@
  */
 
 #include <stddef.h>
+#include <stdbool.h>
 #ifndef NTRIP_HANDLER_H
 #define NTRIP_HANDLER_H
 
@@ -145,7 +146,7 @@ void start_ntrip_stream(const NTRIP_Config *config);
  * @param filter_list Array of RTCM message type IDs to filter (e.g., {1005, 1006, 1007}).
  * @param filter_count Number of message types in the filter_list.
  */
-void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count);
+void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count, bool debug);
 
 /**
  * @brief Analyze RTCM message types for a given duration and print a summary table.

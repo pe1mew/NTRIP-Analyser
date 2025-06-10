@@ -24,11 +24,15 @@
  *   - *1044: GLONASS Code-Phase Biases*
  *   - 1045: SSR Messages
  *   - *1046: Galileo Code-Phase Biases*
+ *   - #1074
  *   - 1077: MSM7 GPS
+ *   - #1084
  *   - 1087: MSM7 GLONASS
+ *   - #1094
  *   - 1097: MSM7 Galileo
  *   - *1107: MSM7 QZSS*
  *   - 1117: MSM7 QZSS
+ *   - #1124
  *   - 1127: MSM7 BeiDou
  *   - 1137: MSM7 SBAS
  *   - 1230: GLONASS Code-Phase Biases

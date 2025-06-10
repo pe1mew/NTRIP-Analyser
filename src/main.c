@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
         } else {
             printf("[DEBUG] No filter: all message types will be shown.\n");
         }
-        start_ntrip_stream_with_filter(&config, filter_list, filter_count);
+        start_ntrip_stream_with_filter(&config, filter_list, filter_count, verbose);
 #ifdef _WIN32
         WSACleanup();
 #endif

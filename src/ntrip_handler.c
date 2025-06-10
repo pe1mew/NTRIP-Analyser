@@ -299,7 +299,13 @@ void start_ntrip_stream(const NTRIP_Config *config) {
     unsigned char msg_buffer[BUFFER_SIZE];
     int msg_buffer_len = 0;
 
-    while (1) {
+    // --- Timing logic: run for a fixed period like -t mode ---
+    int analysis_time = 60; // Default to 60 seconds, or make this configurable
+    time_t start_time = time(NULL);
+
+    printf("[INFO] Decoding all messages for %d seconds...\n", analysis_time);
+
+    while (difftime(time(NULL), start_time) < analysis_time) {
 #ifdef _WIN32
         received = recv(sock, buffer, sizeof(buffer), 0);
 #else
@@ -380,7 +386,7 @@ void start_ntrip_stream(const NTRIP_Config *config) {
 #endif
 }
 
-void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count) {
+void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count, bool debug) {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -472,6 +478,23 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
         return;
     }
 #endif
+
+    if (sent > 0) {
+        buffer[sent] = '\0';
+        if (debug) {
+            printf("[NTRIP] Server response after login:\n%s\n", buffer);
+        // Print server response as HEX
+        printf("[NTRIP] Server response (HEX):\n");
+        for (int i = 0; i < sent; ++i) {
+            printf("%02X ", (unsigned char)buffer[i]);
+            if ((i + 1) % 16 == 0) printf("\n");
+        }
+        if (sent % 16 != 0) printf("\n");
+        }
+        
+    } else {
+        fprintf(stderr, "[ERROR] No response received from server after login.\n");
+    }
 
     // Prepare GGA sentence
     char gga[100];
@@ -680,6 +703,7 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     // --- GGA sending logic ---
     char gga[100];
     create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
+    // printf("[GGA] %s\n", gga); // <-- Add this line to print the generated GGA sentence
     char gga_with_crlf[104];
     snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
     time_t last_gga_time = time(NULL);
@@ -691,15 +715,9 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
     int msg_buffer_len = 0;
 
     MsgStats stats[MAX_MSG_TYPES] = {0};
-    // double start_time = (double)clock() / CLOCKS_PER_SEC;
     time_t start_time = time(NULL);
 
-
     printf("[INFO] Analyzing message types for %d seconds...\n", analysis_time);
-
-    // time_t end_time = start_time + analysis_time;
-    // while (time(NULL) < end_time) {
-
     
     while (difftime(time(NULL), start_time) < analysis_time) {
 
