@@ -145,6 +145,7 @@ void start_ntrip_stream(const NTRIP_Config *config);
  * @param config Pointer to NTRIP_Config struct with connection details.
  * @param filter_list Array of RTCM message type IDs to filter (e.g., {1005, 1006, 1007}).
  * @param filter_count Number of message types in the filter_list.
+ * @param debug If true, print debug information including server response after login.
  */
 void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count, bool debug);
 
