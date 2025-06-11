@@ -307,6 +307,25 @@ void decode_rtcm_1012(const unsigned char *payload, int payload_len);
  */
 void decode_rtcm_1074(const unsigned char *payload, int payload_len);
 
+/**
+ * @brief Generic decoder for RTCM MSM4 messages (shared for GPS, GLONASS, Galileo, QZSS, etc.).
+ *
+ * This function decodes and prints summary information for any MSM4 message,
+ * using parameters for GNSS-specific scaling and bit widths.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ * @param gnss_name   String for GNSS name (e.g., "GPS", "GLONASS", "QZSS").
+ * @param msg_type    RTCM message type number (for printing).
+ * @param pr_bits     Number of bits for pseudorange (e.g., 15 for GPS, 20 for QZSS).
+ * @param ph_bits     Number of bits for phase range (e.g., 22 for GPS, 24 for QZSS).
+ * @param pr_scale    Scaling for pseudorange (e.g., 0.02 for GPS, 0.1 for QZSS).
+ * @param ph_scale    Scaling for phase range (e.g., 0.0005 for all).
+ */
+void decode_rtcm_msm4_generic(const unsigned char *payload, int payload_len,
+                              const char *gnss_name, int msg_type,
+                              int pr_bits, int ph_bits, double pr_scale, double ph_scale);
+
 #ifdef __cplusplus
 }
 #endif
