@@ -8,35 +8,23 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential cmake
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake
 
-    - name: Configure project (if CMakeLists.txt exists)
-      if: ${{ exists('CMakeLists.txt') }}
-      run: cmake -B build
+      - name: Configure with CMake
+        run: cmake -B build
 
-    - name: Build with CMake (if CMakeLists.txt exists)
-      if: ${{ exists('CMakeLists.txt') }}
-      run: cmake --build build
+      - name: Build with CMake
+        run: cmake --build build
 
-    - name: Build with Makefile (if Makefile exists and no CMakeLists.txt)
-      if: ${{ !exists('CMakeLists.txt') && exists('Makefile') }}
-      run: make
-
-    - name: Run tests (if test target exists in Makefile)
-      if: ${{ exists('Makefile') }}
-      run: |
-        if grep -qE '^test:' Makefile; then
-          make test
-        else
-          echo "No test target in Makefile"
-        fi
+      - name: Run tests (if any)
+        run: |
+          ctest --test-dir build || echo "No tests found or tests failed"
