@@ -18,6 +18,7 @@ The code will allow to do the following analysis on NTRIP streams:
    b. Message overview: Analyse during a time (default 60 seconds) all received NTRIP messages and:  
       - Count and present the message numbers received  
       - Present minimum, average and maximum interval time between two of the same message number.  
+      
    c. Filtered message decoding  
    d. Satellite analysis: Analyse during a time (default 60 seconds) all received NTRIP messages and:  
       - Count the unique satellites reported  
