@@ -26,25 +26,25 @@
 #endif
 
 #ifdef _WIN32
-    #include <windows.h>
-    static inline double get_time_seconds() {
-        static LARGE_INTEGER freq;
-        static int freq_initialized = 0;
-        LARGE_INTEGER now;
-        if (!freq_initialized) {
-            QueryPerformanceFrequency(&freq);
-            freq_initialized = 1;
-        }
-        QueryPerformanceCounter(&now);
-        return (double)now.QuadPart / freq.QuadPart;
+#include <windows.h>
+static inline double get_time_seconds() {
+    static LARGE_INTEGER freq;
+    static int freq_initialized = 0;
+    LARGE_INTEGER now;
+    if (!freq_initialized) {
+        QueryPerformanceFrequency(&freq);
+        freq_initialized = 1;
     }
+    QueryPerformanceCounter(&now);
+    return (double)now.QuadPart / freq.QuadPart;
+}
 #else
-    #include <time.h>
-    static inline double get_time_seconds() {
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return ts.tv_sec + ts.tv_nsec / 1e9;
-    }
+#include <time.h>
+static inline double get_time_seconds() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1e9;
+}
 #endif
 
 /*
@@ -803,7 +803,7 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
                 int full_frame = msg_length + 6;
                 if (msg_buffer_len < full_frame) break;
 
-                double now = (double)clock() / CLOCKS_PER_SEC;
+                double now = get_time_seconds();
                 int msg_type = analyze_rtcm_message(msg_buffer, full_frame, true, config);
                 if (msg_type > 0 && msg_type < MAX_MSG_TYPES) {
                     printf("%d ", msg_type); // Print message number in sequence
