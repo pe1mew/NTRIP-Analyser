@@ -10,19 +10,19 @@ A secondary goal is to practice and experiment with programming, leveraging AI t
 
 ## Functionalities
 
-The code will allow to do teh following analysis on NTRIP streams:
+The code will allow to do the following analysis on NTRIP streams:
 
- 1. Retrieve mountpointlist from a caster and display it on screen.
- 2. Login to a caster and start a NTRIP stream. At reception:
-    a.  Decode all implemented NTRIP messages,
-    b.  Message overview: Analyse during a time (default 60 seconds) all received NTRIP messages and:
-        -   Count and present the message numbers received
-        -   Present minimum, average and maximum interval time between two of the same message number.
-    c.  Filtered message decoding.
-    d.  Satellite analysis: Analyse during a time (default 60 seconds) all received NTRIP messages and:
-        -   Count the unique satellites reported
-        -   Present the reportes uniques satellites per GNSS system
-        -   Present the total number of satellites seen.
+1. Retrieve mountpointlist from a caster and display it on screen.
+2. Login to a caster and start a NTRIP stream. At reception:  
+   a. Decode all implemented NTRIP messages  
+   b. Message overview: Analyse during a time (default 60 seconds) all received NTRIP messages and:  
+      - Count and present the message numbers received  
+      - Present minimum, average and maximum interval time between two of the same message number.  
+   c. Filtered message decoding  
+   d. Satellite analysis: Analyse during a time (default 60 seconds) all received NTRIP messages and:  
+      - Count the unique satellites reported  
+      - Present the reported unique satellites per GNSS system  
+      - Present the total number of satellites seen.
 
 ## Documentation
 
