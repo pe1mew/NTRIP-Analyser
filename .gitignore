@@ -1,5 +1,4 @@
 *.exe
-/config.json
+*.json
 ntripanalyse.exe
-/bin/config.json
-/bin/onocoy.json
+
