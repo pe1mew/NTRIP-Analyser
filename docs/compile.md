@@ -11,9 +11,23 @@ For linux install the following:
 ```bash
 sudo apt install build-essential manpages-dev
 ```
+
+Make sure the `bin` directory exists:
+```bash
+mkdir -p bin
+```
+
 To compile, in the root of the repository execute: 
 ```bash
-gcc etceta
+gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm
 ```
+
+This command will:
+- Compile all C source files in the `src/` directory using wildcard (`src/*.c`)
+- Include the cJSON library from `lib/cjson/cJSON.c`
+- Add the cJSON headers to include path (`-Ilib/cjson`)
+- Enable debug symbols (`-g`) and all warnings (`-Wall`)
+- Link the math library (`-lm`)
+- Output the executable to `bin/ntripanalyser`
 
 
