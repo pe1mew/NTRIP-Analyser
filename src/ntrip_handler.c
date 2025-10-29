@@ -545,15 +545,13 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
     unsigned char msg_buffer[BUFFER_SIZE];
     int msg_buffer_len = 0;
 
+    // --- Change: GGA sending is now independent of NTRIP data reception ---
     while (1) {
-        received = recv(sock, buffer, sizeof(buffer), 0);
-        if (received <= 0) break;
-
-        // Send GGA every 1 second during reception
+        // Check if it's time to send GGA
         time_t now = time(NULL);
         if (now - last_gga_time >= 1) {
+            int sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
 #ifdef _WIN32
-            sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
             if (sent == SOCKET_ERROR) {
                 fprintf(stderr, "[ERROR] Failed to send GGA sentence: %d\n", WSAGetLastError());
                 CLOSESOCKET(sock);
@@ -563,18 +561,49 @@ void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filte
                 printf("GGA ");
             }
 #else
-            sent = send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
             if (sent < 0) {
                 perror("[ERROR] Failed to send GGA sentence");
                 CLOSESOCKET(sock);
                 return;
-            }else {
+            } else {
                 printf("GGA ");
             }
 #endif
             last_gga_time = now;
         }
 
+        // Use non-blocking or timeout recv to avoid blocking forever
+#ifdef _WIN32
+        received = recv(sock, buffer, sizeof(buffer), 0);
+#else
+        received = recv(sock, buffer, sizeof(buffer), MSG_DONTWAIT);
+#endif
+        if (received < 0) {
+#ifdef _WIN32
+            if (WSAGetLastError() == WSAEWOULDBLOCK || WSAGetLastError() == WSAEINTR) {
+                // No data available, just continue loop
+                // Sleep a bit to avoid busy loop
+                Sleep(50);
+                continue;
+            } else {
+                break;
+            }
+#else
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                // No data available, just continue loop
+                // Sleep a bit to avoid busy loop
+                usleep(50000);
+                continue;
+            } else {
+                break;
+            }
+#endif
+        } else if (received == 0) {
+            // Connection closed
+            break;
+        }
+
+        // ...existing message processing logic...
         if (!header_skipped) {
             buffer[received] = '\0';
             ptr = strstr(buffer, "\r\n\r\n");

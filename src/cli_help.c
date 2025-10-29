@@ -10,7 +10,7 @@
 void print_program_info(void) {
     printf(
         "NTRIP-Analyser - RTCM 3.x Stream Analyzer and NTRIP Client\n"
-        "This program connects to NTRIP casters, retrieves mountpoint tables, and decodes or analyzes RTCM 3.x streams.\n"
+        "This program connects to NTRIP casters, retrieves mountpoint tables, and decodes RTCM 3.x streams.\n"
         "For usage instructions, run with -h or --help.\n"
         "\n"
         "Author: Remko Welling, PE1MEW\n"
