@@ -44,7 +44,16 @@ uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len) {
     return result;
 }
 
-// Helper for extracting signed 38-bit values (two's complement)
+/**
+ * @brief Helper for extracting signed 38-bit values (two's complement).
+ * 
+ * Extracts a 38-bit signed integer value from the buffer and properly handles
+ * two's complement negative numbers.
+ * 
+ * @param buf        Pointer to the buffer.
+ * @param start_bit  Start bit index (0 = first bit of buf[0]).
+ * @return Extracted signed 38-bit integer as int64_t.
+ */
 int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     uint64_t raw = get_bits(buf, start_bit, 38);
     if ((raw >> 37) & 1) {
@@ -55,7 +64,17 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     }
 }
 
-// Helper to extract signed N-bit values
+/**
+ * @brief Helper to extract signed N-bit values.
+ * 
+ * Generic function to extract signed integers of any bit length from the buffer,
+ * with automatic sign extension for negative values.
+ * 
+ * @param buf        Pointer to the buffer.
+ * @param start_bit  Start bit index (0 = first bit of buf[0]).
+ * @param bit_len    Number of bits to extract.
+ * @return Extracted signed integer as int64_t.
+ */
 int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
     uint64_t val = get_bits(buf, start_bit, bit_len);
     // Sign-extend if needed
@@ -294,6 +313,18 @@ void decode_rtcm_1077(const unsigned char *payload, int payload_len) {
     if (num_cells > 5) printf("  ... (%d more cells not shown)\n", num_cells - 5);
 }
 
+/**
+ * @brief Internal helper function to decode MSM7 messages for any GNSS constellation.
+ * 
+ * This function provides the core MSM7 decoding logic used by constellation-specific
+ * wrappers (1077, 1087, 1097, 1117, 1127, 1137). MSM7 provides the highest resolution
+ * observations including pseudorange, carrier phase, Doppler, and signal strength.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ * @param gnss_name   Name of the GNSS constellation (e.g., "GPS", "GLONASS", "Galileo").
+ * @param msg_type    RTCM message type number for display purposes.
+ */
 static void decode_rtcm_msm7(const unsigned char *payload, int payload_len, const char *gnss_name, int msg_type) {
     int bit = 0;
     if (payload_len < 20) {

@@ -16,8 +16,8 @@
  *   - 1007: Antenna Descriptor
  *   - 1008: Antenna Descriptor & Serial Number
  *   - 1012: GLONASS L1&L2 RTK Observables
- *   - 1013: System Parameters
- *   - 1019: GPS L1&L2 RTK Observables
+ *   - 1013: System Parameters (GLONASS synchronization and message schedule)
+ *   - 1019: GPS Ephemeris Data
  *   - *1020: GLONASS L1&L2 RTK Observables*
  *   - 1033: Receiver & Antenna Descriptor
  *   - *1042: GPS Code-Phase Biases*
@@ -148,6 +148,15 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1005 message (Stationary RTK Reference Station ARP).
+ * 
+ * Provides the Antenna Reference Point (ARP) position in ECEF coordinates for a stationary reference station.
+ * Contains:
+ * - Station ID
+ * - ECEF X, Y, Z coordinates (high precision)
+ * - Station type indicators
+ * 
+ * If rover coordinates are provided, also calculates distance and heading to the base station.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  * @param config      Pointer to NTRIP_Config with rover coordinates for distance/heading calculations.
@@ -156,8 +165,17 @@ void decode_rtcm_1005(const unsigned char *payload, int payload_len, const NTRIP
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1006 message (Stationary RTK Reference Station ARP with Height).
+ * 
+ * Extends Type 1005 with antenna height information.
+ * Contains:
+ * - Station ID  
+ * - ECEF X, Y, Z coordinates (high precision)
+ * - Station type indicators
+ * - Antenna height above ARP marker
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
+ * @param config      Pointer to NTRIP_Config with rover coordinates for distance/heading calculations.
  */
 void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP_Config *config);
 
@@ -175,6 +193,14 @@ void decode_rtcm_1019(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1077 message (MSM7 GPS).
+ * 
+ * MSM7 (Multiple Signal Message, highest resolution) provides full precision
+ * GPS observations across multiple signal types.
+ * Contains:
+ * - Station ID and GPS epoch time
+ * - Satellite and signal masks
+ * - High-resolution pseudorange, carrier phase, Doppler, and CNR data
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -193,6 +219,10 @@ void decode_rtcm_1084(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1087 message (MSM7 GLONASS).
+ * 
+ * MSM7 for GLONASS constellation providing full precision multi-signal observations.
+ * Includes GLONASS-specific frequency channel numbers (FCN) for FDMA signals.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -211,6 +241,10 @@ void decode_rtcm_1094(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1097 message (MSM7 Galileo).
+ * 
+ * MSM7 for Galileo constellation providing full precision observations across
+ * E1, E5a, E5b, and E6 signals.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -218,6 +252,10 @@ void decode_rtcm_1097(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1117 message (MSM7 QZSS).
+ * 
+ * MSM7 for the Quasi-Zenith Satellite System (Japanese regional navigation system)
+ * providing full precision multi-signal observations.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -236,6 +274,10 @@ void decode_rtcm_1124(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1127 message (MSM7 BeiDou).
+ * 
+ * MSM7 for BeiDou (BDS) constellation providing full precision observations
+ * across B1, B2, and B3 signals.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -243,6 +285,10 @@ void decode_rtcm_1127(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1137 message (MSM7 SBAS).
+ * 
+ * MSM7 for Satellite-Based Augmentation Systems (WAAS, EGNOS, MSAS, etc.)
+ * providing full precision observation data.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -250,6 +296,13 @@ void decode_rtcm_1137(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1007 message (Antenna Descriptor).
+ * 
+ * Provides antenna description and setup ID for the reference station.
+ * Contains:
+ * - Station ID
+ * - Antenna descriptor (variable length string)
+ * - Antenna setup ID
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -257,6 +310,14 @@ void decode_rtcm_1007(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1008 message (Antenna Descriptor & Serial Number).
+ * 
+ * Extends Type 1007 with antenna serial number information.
+ * Contains:
+ * - Station ID
+ * - Antenna descriptor (variable length string)
+ * - Antenna setup ID
+ * - Antenna serial number (variable length string)
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -264,6 +325,16 @@ void decode_rtcm_1008(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1013 message (System Parameters).
+ * 
+ * This message provides system-level timing and synchronization parameters, including:
+ * - Station ID
+ * - Modified Julian Day (MJD) number for date reference
+ * - Seconds of day for precise time-of-day
+ * - Leap seconds (GPS/UTC offset)
+ * - Synchronized message schedule (message types, sync flags, and transmission intervals)
+ * 
+ * Used primarily for GLONASS system synchronization in network RTK applications.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -271,13 +342,25 @@ void decode_rtcm_1013(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1033 message (Receiver & Antenna Descriptor).
+ * 
+ * Comprehensive station description including both receiver and antenna information.
+ * Contains:
+ * - Station ID
+ * - Antenna descriptor and serial number
+ * - Antenna setup ID
+ * - Receiver descriptor, firmware version, and serial number
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1033(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1045 message (SSR Messages).
+ * @brief Decode and print the contents of an RTCM 3.x Type 1045 message (Galileo Ephemeris).
+ * 
+ * Provides Galileo satellite ephemeris data including orbital parameters,
+ * satellite health status, and clock correction information.
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -285,6 +368,14 @@ void decode_rtcm_1045(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1230 message (GLONASS Code-Phase Biases).
+ * 
+ * Provides GLONASS satellite-specific code-phase bias information for
+ * improved pseudorange and carrier-phase measurements.
+ * Contains:
+ * - Station ID
+ * - Bias indicator flags
+ * - L1 and L2 code-phase biases for each satellite
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
@@ -292,6 +383,14 @@ void decode_rtcm_1230(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1012 message (GLONASS L1&L2 RTK Observables).
+ * 
+ * Contains GLONASS satellite observations on L1 and L2 frequencies.
+ * Includes:
+ * - Station ID and epoch time
+ * - Number of satellites
+ * - Pseudorange, carrier phase, and signal strength for each satellite
+ * - Lock time indicators
+ * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */

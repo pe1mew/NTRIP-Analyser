@@ -19,14 +19,20 @@ extern "C" {
 #include "config.h"
 #include <stdbool.h>
 
-// Add the Operation enum here
+/**
+ * @enum Operation
+ * @brief Enumeration of available operations for the NTRIP Analyser application.
+ * 
+ * Defines the various operational modes that the application can perform,
+ * selected via command-line arguments.
+ */
 typedef enum {
-    OP_NONE,
-    OP_ANALYZE_TYPES,
-    OP_ANALYZE_SATS,
-    OP_SHOW_MOUNT_RAW,
-    OP_SHOW_MOUNT_FORMATTED,
-    OP_DECODE_STREAM
+    OP_NONE,                   /**< No operation selected (default/error state) */
+    OP_ANALYZE_TYPES,          /**< Analyze and count RTCM message types in stream */
+    OP_ANALYZE_SATS,           /**< Analyze satellite visibility and statistics */
+    OP_SHOW_MOUNT_RAW,         /**< Display raw mountpoint source table from caster */
+    OP_SHOW_MOUNT_FORMATTED,   /**< Display formatted mountpoint table from caster */
+    OP_DECODE_STREAM           /**< Decode and display detailed RTCM message contents */
 } Operation;
 
 /**
