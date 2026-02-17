@@ -1093,12 +1093,23 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                                  false, &state->config);
             rtcm_set_output_buffer(NULL);
 
-            /* Send decoded text to detail window */
+            /* Convert \n → \r\n for Win32 EDIT control, then send */
             if (sb.len > 0) {
+                /* Count newlines to size the output buffer */
+                int nlCount = 0;
+                for (int i = 0; i < sb.len; i++)
+                    if (sb.buf[i] == '\n') nlCount++;
+
                 char *text = (char *)HeapAlloc(GetProcessHeap(),
-                                               0, sb.len + 1);
+                                               0, sb.len + nlCount + 1);
                 if (text) {
-                    memcpy(text, sb.buf, sb.len + 1);
+                    int j = 0;
+                    for (int i = 0; i < sb.len; i++) {
+                        if (sb.buf[i] == '\n')
+                            text[j++] = '\r';
+                        text[j++] = sb.buf[i];
+                    }
+                    text[j] = '\0';
                     PostMessage(state->hDetailWnds[msg_type],
                                 WM_USER + 1, 0, (LPARAM)text);
                 }

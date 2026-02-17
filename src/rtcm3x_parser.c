@@ -292,130 +292,221 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP
     }
 }
 
-void decode_rtcm_1077(const unsigned char *payload, int payload_len) {
-    int bit = 0;
-    if (payload_len < 20) {
-        rtcm_printf("Type 1077: Payload too short!\n");
-        return;
-    }
-
-    uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
-    uint32_t epoch_time = (uint32_t)get_bits(payload, bit, 30); bit += 30;
-    uint8_t mm_flag = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t iods = (uint8_t)get_bits(payload, bit, 3); bit += 3;
-    bit += 7; // reserved
-    uint8_t clk_steering = (uint8_t)get_bits(payload, bit, 2); bit += 2;
-    uint8_t ext_clk = (uint8_t)get_bits(payload, bit, 2); bit += 2;
-    uint8_t df_smoothing = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t smoothing_int = (uint8_t)get_bits(payload, bit, 3); bit += 3;
-
-    uint64_t sat_mask = get_bits(payload, bit, 64); bit += 64;
-    uint32_t sig_mask = (uint32_t)get_bits(payload, bit, 32); bit += 32;
-
-    int num_sats = 0, num_sigs = 0;
-    for (int i = 0; i < 64; ++i) if ((sat_mask >> (63 - i)) & 1) num_sats++;
-    for (int i = 0; i < 32; ++i) if ((sig_mask >> (31 - i)) & 1) num_sigs++;
-
-    int num_cells = 0;
-    for (int i = 0; i < num_sats * num_sigs; ++i)
-        if (get_bits(payload, bit + i, 1)) num_cells++;
-    bit += num_sats * num_sigs;
-
-    rtcm_printf("RTCM 1077 MSM7 (GPS Full Obs):\n");
-    rtcm_printf("  Reference Station ID: %u\n", ref_station_id);
-    rtcm_printf("  Epoch Time: %u ms\n", epoch_time);
-    rtcm_printf("  Multiple Message Flag: %u\n", mm_flag);
-    rtcm_printf("  IODS: %u\n", iods);
-    rtcm_printf("  Clock Steering: %u, Ext Clock: %u\n", clk_steering, ext_clk);
-    rtcm_printf("  Divergence-free Smoothing: %u, Smoothing Interval: %u\n", df_smoothing, smoothing_int);
-    rtcm_printf("  Satellites: %d, Signals: %d, Cells: %d\n", num_sats, num_sigs, num_cells);
-
-    for (int cell = 0; cell < num_cells && cell < 5; ++cell) {
-        int32_t pseudorange = (int32_t)get_bits(payload, bit, 20); bit += 20;
-        int32_t phaserange = (int32_t)get_bits(payload, bit, 24); bit += 24;
-        uint8_t lock = (uint8_t)get_bits(payload, bit, 7); bit += 7;
-        uint8_t half_cycle = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-        uint8_t cnr = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-        int16_t phaserate = (int16_t)get_bits(payload, bit, 15); bit += 15;
-
-        if (pseudorange & (1 << 19)) pseudorange -= (1 << 20);
-        if (phaserange & (1 << 23)) phaserange -= (1 << 24);
-        if (phaserate & (1 << 14)) phaserate -= (1 << 15);
-
-        rtcm_printf("  Cell %d: PR=%.4f m, PH=%.4f m, Lock=%u, Half=%u, CNR=%u dBHz, PHrate=%.4f m/s\n",
-            cell + 1,
-            pseudorange * 0.0001,
-            phaserange * 0.0001,
-            lock,
-            half_cycle,
-            cnr,
-            phaserate * 0.0001
-        );
-    }
-    if (num_cells > 5) rtcm_printf("  ... (%d more cells not shown)\n", num_cells - 5);
-}
-
-static void decode_rtcm_msm7(const unsigned char *payload, int payload_len, const char *gnss_name, int msg_type) {
+/**
+ * @brief Comprehensive MSM7 decoder used by 1077 and all other MSM7 types.
+ *
+ * Fully decodes the MSM7 structure per RTCM 3.3:
+ *   Header  → Satellite data (per sat) → Signal/Cell data (per cell)
+ *
+ * Satellite data block (per satellite, in mask order):
+ *   - Rough range integer         (8 bits, ms)
+ *   - Extended satellite info     (4 bits)
+ *   - Rough range modulo          (10 bits, ms/1024)
+ *   - Rough phase-range rate      (14 bits signed, m/s)
+ *
+ * Signal/cell data block (per active cell):
+ *   - Fine pseudorange            (20 bits signed, 2^-29 ms ≈ 0.0001 m)
+ *   - Fine phase range            (24 bits signed, 2^-31 ms ≈ 0.0001 m)
+ *   - Lock time indicator         (10 bits)
+ *   - Half-cycle ambiguity        (1 bit)
+ *   - CNR                         (10 bits, 0.0625 dB-Hz)
+ *   - Fine phase-range rate       (15 bits signed, 0.0001 m/s)
+ */
+static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
+                                   const char *gnss_name, int msg_type)
+{
     int bit = 0;
     if (payload_len < 20) {
         rtcm_printf("Type %d: Payload too short!\n", msg_type);
         return;
     }
 
+    /* ── MSM header ──────────────────────────────────────────── */
     uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
-    uint32_t epoch_time = (uint32_t)get_bits(payload, bit, 30); bit += 30;
-    uint8_t mm_flag = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t iods = (uint8_t)get_bits(payload, bit, 3); bit += 3;
-    bit += 7; // reserved
-    uint8_t clk_steering = (uint8_t)get_bits(payload, bit, 2); bit += 2;
-    uint8_t ext_clk = (uint8_t)get_bits(payload, bit, 2); bit += 2;
-    uint8_t df_smoothing = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t smoothing_int = (uint8_t)get_bits(payload, bit, 3); bit += 3;
+    uint32_t epoch_time     = (uint32_t)get_bits(payload, bit, 30); bit += 30;
+    uint8_t  mm_flag        = (uint8_t)get_bits(payload, bit, 1);  bit += 1;
+    uint8_t  iods           = (uint8_t)get_bits(payload, bit, 3);  bit += 3;
+    bit += 7; /* reserved */
+    uint8_t  clk_steering   = (uint8_t)get_bits(payload, bit, 2);  bit += 2;
+    uint8_t  ext_clk        = (uint8_t)get_bits(payload, bit, 2);  bit += 2;
+    uint8_t  df_smoothing   = (uint8_t)get_bits(payload, bit, 1);  bit += 1;
+    uint8_t  smoothing_int  = (uint8_t)get_bits(payload, bit, 3);  bit += 3;
 
     uint64_t sat_mask = get_bits(payload, bit, 64); bit += 64;
     uint32_t sig_mask = (uint32_t)get_bits(payload, bit, 32); bit += 32;
 
-    int num_sats = 0, num_sigs = 0;
-    for (int i = 0; i < 64; ++i) if ((sat_mask >> (63 - i)) & 1) num_sats++;
-    for (int i = 0; i < 32; ++i) if ((sig_mask >> (31 - i)) & 1) num_sigs++;
-
-    int num_cells = 0;
-    for (int i = 0; i < num_sats * num_sigs; ++i)
-        if (get_bits(payload, bit + i, 1)) num_cells++;
-    bit += num_sats * num_sigs;
-
-    rtcm_printf("RTCM %d MSM7 (%s Full Obs):\n", msg_type, gnss_name);
-    rtcm_printf("  Reference Station ID: %u\n", ref_station_id);
-    rtcm_printf("  Epoch Time: %u ms\n", epoch_time);
-    rtcm_printf("  Multiple Message Flag: %u\n", mm_flag);
-    rtcm_printf("  IODS: %u\n", iods);
-    rtcm_printf("  Clock Steering: %u, Ext Clock: %u\n", clk_steering, ext_clk);
-    rtcm_printf("  Divergence-free Smoothing: %u, Smoothing Interval: %u\n", df_smoothing, smoothing_int);
-    rtcm_printf("  Satellites: %d, Signals: %d, Cells: %d\n", num_sats, num_sigs, num_cells);
-
-    for (int cell = 0; cell < num_cells && cell < 5; ++cell) {
-        int32_t pseudorange = (int32_t)get_bits(payload, bit, 20); bit += 20;
-        int32_t phaserange = (int32_t)get_bits(payload, bit, 24); bit += 24;
-        uint8_t lock = (uint8_t)get_bits(payload, bit, 7); bit += 7;
-        uint8_t half_cycle = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-        uint8_t cnr = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-        int16_t phaserate = (int16_t)get_bits(payload, bit, 15); bit += 15;
-
-        if (pseudorange & (1 << 19)) pseudorange -= (1 << 20);
-        if (phaserange & (1 << 23)) phaserange -= (1 << 24);
-        if (phaserate & (1 << 14)) phaserate -= (1 << 15);
-
-        rtcm_printf("  Cell %d: PR=%.4f m, PH=%.4f m, Lock=%u, Half=%u, CNR=%u dBHz, PHrate=%.4f m/s\n",
-            cell + 1,
-            pseudorange * 0.0001,
-            phaserange * 0.0001,
-            lock,
-            half_cycle,
-            cnr,
-            phaserate * 0.0001
-        );
+    /* Build satellite PRN list from mask */
+    int sat_prns[64];
+    int num_sats = 0;
+    for (int i = 0; i < 64; ++i) {
+        if ((sat_mask >> (63 - i)) & 1)
+            sat_prns[num_sats++] = i + 1;   /* PRN = 1-based mask bit position */
     }
-    if (num_cells > 5) rtcm_printf("  ... (%d more cells not shown)\n", num_cells - 5);
+
+    /* Build signal ID list from mask */
+    int sig_ids[32];
+    int num_sigs = 0;
+    for (int i = 0; i < 32; ++i) {
+        if ((sig_mask >> (31 - i)) & 1)
+            sig_ids[num_sigs++] = i + 1;
+    }
+
+    /* Cell mask: num_sats × num_sigs bit matrix */
+    int cell_mask[64][32];
+    int num_cells = 0;
+    for (int s = 0; s < num_sats; s++) {
+        for (int g = 0; g < num_sigs; g++) {
+            cell_mask[s][g] = (int)get_bits(payload, bit, 1); bit += 1;
+            if (cell_mask[s][g]) num_cells++;
+        }
+    }
+
+    /* ── Print header ────────────────────────────────────────── */
+    rtcm_printf("RTCM %d MSM7 (%s Full Pseudorange and PhaseRange plus CNR (high resolution))\n", msg_type, gnss_name);
+    rtcm_printf("============================================================\n");
+    rtcm_printf("\n");
+    rtcm_printf("  Reference Station ID  : %u\n", ref_station_id);
+    rtcm_printf("  Epoch Time            : %u ms (%.3f s)\n", epoch_time, epoch_time / 1000.0);
+    rtcm_printf("  Multiple Message Flag : %u\n", mm_flag);
+    rtcm_printf("  IODS                  : %u\n", iods);
+    rtcm_printf("  Clock Steering        : %u\n", clk_steering);
+    rtcm_printf("  External Clock        : %u\n", ext_clk);
+    rtcm_printf("  Div-free Smoothing    : %u\n", df_smoothing);
+    rtcm_printf("  Smoothing Interval    : %u\n", smoothing_int);
+    rtcm_printf("  Satellites            : %d\n", num_sats);
+    rtcm_printf("  Signals               : %d\n", num_sigs);
+    rtcm_printf("  Cells                 : %d\n", num_cells);
+
+    /* ── Satellite data block ────────────────────────────────── */
+    int    rough_range_int[64];
+    int    ext_info[64];
+    int    rough_range_mod[64];
+    int    rough_phrate[64];
+
+    for (int s = 0; s < num_sats; s++) {
+        rough_range_int[s] = (int)get_bits(payload, bit, 8); bit += 8;
+    }
+    for (int s = 0; s < num_sats; s++) {
+        ext_info[s] = (int)get_bits(payload, bit, 4); bit += 4;
+    }
+    for (int s = 0; s < num_sats; s++) {
+        rough_range_mod[s] = (int)get_bits(payload, bit, 10); bit += 10;
+    }
+    for (int s = 0; s < num_sats; s++) {
+        int raw = (int)get_bits(payload, bit, 14); bit += 14;
+        if (raw & (1 << 13)) raw -= (1 << 14);
+        rough_phrate[s] = raw;
+    }
+
+    /* Print satellite summary */
+    rtcm_printf("\n");
+    rtcm_printf("  Satellite Data\n");
+    rtcm_printf("  -------------------------------------------------------\n");
+    rtcm_printf("  PRN   Range(ms)     ExtInfo  PhaseRate(m/s)\n");
+    rtcm_printf("  -------------------------------------------------------\n");
+    for (int s = 0; s < num_sats; s++) {
+        double range_ms = rough_range_int[s] + rough_range_mod[s] / 1024.0;
+        double phrate_ms = rough_phrate[s] * 1.0;
+        rtcm_printf("  %c%02d   %10.4f     %2d       %8.1f\n",
+                     gnss_name[0], sat_prns[s], range_ms, ext_info[s], phrate_ms);
+    }
+
+    /* ── Signal / cell data block ────────────────────────────── */
+    /* Read all cell data arrays (MSM7 bit widths) */
+    int32_t  fine_pr[256];
+    int32_t  fine_ph[256];
+    uint16_t lock_ind[256];
+    uint8_t  half_cyc[256];
+    uint16_t cnr_raw[256];
+    int16_t  fine_phrate[256];
+
+    int c = 0;
+    /* Fine pseudoranges (20 bits signed each) */
+    for (int s = 0; s < num_sats; s++)
+        for (int g = 0; g < num_sigs; g++)
+            if (cell_mask[s][g]) {
+                int32_t v = (int32_t)get_bits(payload, bit, 20); bit += 20;
+                if (v & (1 << 19)) v -= (1 << 20);
+                fine_pr[c++] = v;
+            }
+
+    c = 0;
+    /* Fine phase ranges (24 bits signed each) */
+    for (int s = 0; s < num_sats; s++)
+        for (int g = 0; g < num_sigs; g++)
+            if (cell_mask[s][g]) {
+                int32_t v = (int32_t)get_bits(payload, bit, 24); bit += 24;
+                if (v & (1 << 23)) v -= (1 << 24);
+                fine_ph[c++] = v;
+            }
+
+    c = 0;
+    /* Lock time indicators (10 bits each) */
+    for (int s = 0; s < num_sats; s++)
+        for (int g = 0; g < num_sigs; g++)
+            if (cell_mask[s][g]) {
+                lock_ind[c++] = (uint16_t)get_bits(payload, bit, 10); bit += 10;
+            }
+
+    c = 0;
+    /* Half-cycle ambiguity (1 bit each) */
+    for (int s = 0; s < num_sats; s++)
+        for (int g = 0; g < num_sigs; g++)
+            if (cell_mask[s][g]) {
+                half_cyc[c++] = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+            }
+
+    c = 0;
+    /* CNR (10 bits each, resolution 0.0625 dB-Hz) */
+    for (int s = 0; s < num_sats; s++)
+        for (int g = 0; g < num_sigs; g++)
+            if (cell_mask[s][g]) {
+                cnr_raw[c++] = (uint16_t)get_bits(payload, bit, 10); bit += 10;
+            }
+
+    c = 0;
+    /* Fine phase-range rates (15 bits signed, 0.0001 m/s) */
+    for (int s = 0; s < num_sats; s++)
+        for (int g = 0; g < num_sigs; g++)
+            if (cell_mask[s][g]) {
+                int16_t v = (int16_t)get_bits(payload, bit, 15); bit += 15;
+                if (v & (1 << 14)) v -= (1 << 15);
+                fine_phrate[c++] = v;
+            }
+
+    /* ── Print signal data per satellite ─────────────────────── */
+    rtcm_printf("\n");
+    rtcm_printf("  Signal Data\n");
+    rtcm_printf("  -------------------------------------------------------------------------------------\n");
+    rtcm_printf("  PRN   Sig  Fine PR(m)   Fine PH(m)   Lock  HC  CNR(dB-Hz)  PHrate(m/s)\n");
+    rtcm_printf("  -------------------------------------------------------------------------------------\n");
+
+    c = 0;
+    for (int s = 0; s < num_sats; s++) {
+        for (int g = 0; g < num_sigs; g++) {
+            if (cell_mask[s][g]) {
+                double pr_m      = fine_pr[c]     * 0.0001;
+                double ph_m      = fine_ph[c]     * 0.0001;
+                double cnr_dbhz  = cnr_raw[c]     * 0.0625;
+                double phrate_ms = fine_phrate[c]  * 0.0001;
+
+                rtcm_printf("  %c%02d   S%02d  %+10.4f   %+11.4f   %4u   %u   %7.2f     %+8.4f\n",
+                             gnss_name[0], sat_prns[s], sig_ids[g],
+                             pr_m, ph_m, lock_ind[c], half_cyc[c],
+                             cnr_dbhz, phrate_ms);
+                c++;
+            }
+        }
+    }
+    rtcm_printf("  -------------------------------------------------------------------------------------\n");
+}
+
+void decode_rtcm_1077(const unsigned char *payload, int payload_len) {
+    decode_rtcm_msm7_full(payload, payload_len, "GPS", 1077);
+}
+
+static void decode_rtcm_msm7(const unsigned char *payload, int payload_len, const char *gnss_name, int msg_type) {
+    decode_rtcm_msm7_full(payload, payload_len, gnss_name, msg_type);
 }
 
 void decode_rtcm_1087(const unsigned char *payload, int payload_len) {
@@ -512,37 +603,75 @@ void decode_rtcm_1008(const unsigned char *payload, int payload_len) {
 
 void decode_rtcm_1013(const unsigned char *payload, int payload_len) {
     int bit = 0;
-    if (payload_len < 44) { // 12+12+128+8+128+8+8 = 304 bits = 38 bytes, but allow for some extra
-        rtcm_printf("Type 1013: Payload too short!\n");
+
+    /* Header: 12+12+16+17+5+8 = 70 bits = 9 bytes minimum */
+    if (payload_len < 9) {
+        rtcm_printf("Type 1013: Payload too short (%d bytes)!\n", payload_len);
         return;
     }
 
-    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1013
-    uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    uint16_t msg_number      = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    uint16_t ref_station_id  = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    uint16_t mjd             = (uint16_t)get_bits(payload, bit, 16); bit += 16;
+    uint32_t seconds_of_day  = (uint32_t)get_bits(payload, bit, 17); bit += 17;
+    uint8_t  n_announcements = (uint8_t) get_bits(payload, bit,  5); bit += 5;
+    uint8_t  leap_seconds    = (uint8_t) get_bits(payload, bit,  8); bit += 8;
 
-    char aux_station_name[17] = {0};
-    for (int i = 0; i < 16; ++i) {
-        aux_station_name[i] = (char)get_bits(payload, bit, 8); bit += 8;
-    }
+    /* Convert MJD + seconds to human-readable date/time */
+    /* MJD epoch: November 17, 1858 (Julian day 2400000.5) */
+    /* Convert MJD to calendar date using standard algorithm */
+    long jd = (long)mjd + 2400001L;
+    long l = jd + 68569L;
+    long n_val = 4L * l / 146097L;
+    l = l - (146097L * n_val + 3L) / 4L;
+    long i_val = 4000L * (l + 1L) / 1461001L;
+    l = l - 1461L * i_val / 4L + 31L;
+    long j_val = 80L * l / 2447L;
+    int day   = (int)(l - 2447L * j_val / 80L);
+    l = j_val / 11L;
+    int month = (int)(j_val + 2L - 12L * l);
+    int year  = (int)(100L * (n_val - 49L) + i_val + l);
 
-    uint8_t aux_station_indicator = (uint8_t)get_bits(payload, bit, 8); bit += 8;
+    int hours   = (int)(seconds_of_day / 3600);
+    int minutes = (int)((seconds_of_day % 3600) / 60);
+    int secs    = (int)(seconds_of_day % 60);
 
-    char aux_station_provider[17] = {0};
-    for (int i = 0; i < 16; ++i) {
-        aux_station_provider[i] = (char)get_bits(payload, bit, 8); bit += 8;
-    }
-
-    uint8_t aux_station_setup_id = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-    uint8_t aux_station_interval = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-
-    rtcm_printf("RTCM 1013 (Network Auxiliary Station Description):\n");
-    rtcm_printf("  Message Number: %u\n", msg_number);
+    rtcm_printf("=== RTCM 1013 — System Parameters ===\n\n");
+    rtcm_printf("  Message Number      : %u\n", msg_number);
     rtcm_printf("  Reference Station ID: %u\n", ref_station_id);
-    rtcm_printf("  AUX Station Name: %.*s\n", 16, aux_station_name);
-    rtcm_printf("  AUX Station Indicator: %u\n", aux_station_indicator);
-    rtcm_printf("  AUX Station Provider: %.*s\n", 16, aux_station_provider);
-    rtcm_printf("  AUX Station Setup ID: %u\n", aux_station_setup_id);
-    rtcm_printf("  AUX Station Interval: %u s\n", aux_station_interval);
+    rtcm_printf("  Modified Julian Day : %u  (%04d-%02d-%02d)\n",
+                mjd, year, month, day);
+    rtcm_printf("  Seconds of Day      : %u  (%02d:%02d:%02d UTC)\n",
+                seconds_of_day, hours, minutes, secs);
+    rtcm_printf("  Leap Seconds (GPS-UTC): %u s\n", leap_seconds);
+    rtcm_printf("  Message Announcements : %u\n\n", n_announcements);
+
+    if (n_announcements > 0) {
+        /* Each announcement: 12+1+16 = 29 bits */
+        int bits_needed = bit + n_announcements * 29;
+        if (bits_needed > payload_len * 8) {
+            rtcm_printf("  [WARNING] Payload too short for %u announcements\n",
+                        n_announcements);
+            n_announcements = (uint8_t)((payload_len * 8 - bit) / 29);
+        }
+
+        rtcm_printf("  %-8s  %-6s  %s\n", "Msg ID", "Sync", "Interval (s)");
+        rtcm_printf("  %-8s  %-6s  %s\n", "------", "----", "------------");
+
+        for (int i = 0; i < n_announcements; i++) {
+            uint16_t announced_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+            uint8_t  sync_flag    = (uint8_t) get_bits(payload, bit,  1); bit += 1;
+            uint16_t interval_raw = (uint16_t)get_bits(payload, bit, 16); bit += 16;
+
+            /* Interval is in 0.1 second units */
+            double interval_sec = interval_raw * 0.1;
+
+            rtcm_printf("  %-8u  %-6s  %.1f\n",
+                        announced_id,
+                        sync_flag ? "Yes" : "No",
+                        interval_sec);
+        }
+    }
 }
 
 void decode_rtcm_1033(const unsigned char *payload, int payload_len) {
