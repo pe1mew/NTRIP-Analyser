@@ -58,6 +58,61 @@
             },
             "problemMatcher": ["$gcc"],
             "detail": "Builds the NTRIP-Analyser executable for Linux using GCC"
+        },
+        {
+            "label": "Compile GUI Resources",
+            "type": "shell",
+            "command": "C:/Program Files/CodeBlocks/MinGW/bin/windres.exe",
+            "args": [
+                "gui/resource.rc",
+                "-o",
+                "gui/resource.o"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "detail": "Compiles gui/resource.rc into gui/resource.o"
+        },
+        {
+            "label": "Build NTRIP-Analyser GUI (CodeBlocks MinGW)",
+            "type": "shell",
+            "command": "C:/Program Files/CodeBlocks/MinGW/bin/gcc.exe",
+            "args": [
+                "-g",
+                "-mwindows",
+                "-std=c99",
+                "-D_USE_MATH_DEFINES",
+                "-o",
+                "bin/ntrip-analyser-gui.exe",
+                "gui/gui_main.c",
+                "gui/gui_layout.c",
+                "gui/gui_events.c",
+                "gui/gui_thread.c",
+                "gui/gui_log.c",
+                "gui/gui_parsers.c",
+                "src/ntrip_handler.c",
+                "src/rtcm3x_parser.c",
+                "src/config.c",
+                "src/nmea_parser.c",
+                "lib/cJSON/cJSON.c",
+                "gui/resource.o",
+                "-Isrc",
+                "-Ilib/cJSON",
+                "-Igui",
+                "-lws2_32",
+                "-lcomctl32",
+                "-lcomdlg32",
+                "-lm",
+                "-Wall"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": ["$gcc"],
+            "detail": "Builds the NTRIP-Analyser Windows GUI using CodeBlocks MinGW",
+            "dependsOn": "Compile GUI Resources"
         }
     ]
 }
