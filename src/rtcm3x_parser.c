@@ -451,37 +451,56 @@ void decode_rtcm_1008(const unsigned char *payload, int payload_len) {
 
 void decode_rtcm_1013(const unsigned char *payload, int payload_len) {
     int bit = 0;
-    if (payload_len < 44) { // 12+12+128+8+128+8+8 = 304 bits = 38 bytes, but allow for some extra
+    if (payload_len < 8) { // Minimum size check (12+12+16+17+5+8 = 70 bits = 9 bytes minimum)
         printf("Type 1013: Payload too short!\n");
         return;
     }
 
-    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1013
-    uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    // DF002: Message Number (12 bits)
+    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    
+    // DF003: Station ID (12 bits)
+    uint16_t station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    
+    // DF051: Modified Julian Day Number (16 bits)
+    uint16_t mjd = (uint16_t)get_bits(payload, bit, 16); bit += 16;
+    
+    // DF052: Seconds of Day (17 bits)
+    uint32_t seconds_of_day = (uint32_t)get_bits(payload, bit, 17); bit += 17;
+    
+    // DF053: Number of Messages (5 bits)
+    uint8_t num_messages = (uint8_t)get_bits(payload, bit, 5); bit += 5;
+    
+    // DF054: Leap Seconds (8 bits)
+    uint8_t leap_seconds = (uint8_t)get_bits(payload, bit, 8); bit += 8;
 
-    char aux_station_name[17] = {0};
-    for (int i = 0; i < 16; ++i) {
-        aux_station_name[i] = (char)get_bits(payload, bit, 8); bit += 8;
-    }
-
-    uint8_t aux_station_indicator = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-
-    char aux_station_provider[17] = {0};
-    for (int i = 0; i < 16; ++i) {
-        aux_station_provider[i] = (char)get_bits(payload, bit, 8); bit += 8;
-    }
-
-    uint8_t aux_station_setup_id = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-    uint8_t aux_station_interval = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-
-    printf("RTCM 1013 (Network Auxiliary Station Description):\n");
+    printf("RTCM 1013 (System Parameters):\n");
     printf("  Message Number: %u\n", msg_number);
-    printf("  Reference Station ID: %u\n", ref_station_id);
-    printf("  AUX Station Name: %.*s\n", 16, aux_station_name);
-    printf("  AUX Station Indicator: %u\n", aux_station_indicator);
-    printf("  AUX Station Provider: %.*s\n", 16, aux_station_provider);
-    printf("  AUX Station Setup ID: %u\n", aux_station_setup_id);
-    printf("  AUX Station Interval: %u s\n", aux_station_interval);
+    printf("  Station ID: %u\n", station_id);
+    printf("  Modified Julian Day (MJD): %u\n", mjd);
+    printf("  Seconds of Day: %u (%.2f hours)\n", seconds_of_day, seconds_of_day / 3600.0);
+    printf("  Leap Seconds: %u\n", leap_seconds);
+    printf("  Number of Sync Messages: %u\n", num_messages);
+
+    // Decode each message sync info
+    for (int i = 0; i < num_messages; ++i) {
+        if ((bit + 29) / 8 > payload_len) {
+            printf("    Warning: Insufficient data for message %d\n", i + 1);
+            break;
+        }
+        
+        // DF055: Message Number (12 bits)
+        uint16_t sync_msg_num = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+        
+        // DF056: Sync Flag (1 bit)
+        uint8_t sync_flag = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+        
+        // DF057: Transmission Interval (16 bits)
+        uint16_t interval = (uint16_t)get_bits(payload, bit, 16); bit += 16;
+        
+        printf("    Message %d: Type=%u, Sync=%s, Interval=%u\n", 
+               i + 1, sync_msg_num, sync_flag ? "Yes" : "No", interval);
+    }
 }
 
 void decode_rtcm_1033(const unsigned char *payload, int payload_len) {
