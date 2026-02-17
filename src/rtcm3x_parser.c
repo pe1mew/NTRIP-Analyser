@@ -604,8 +604,8 @@ void decode_rtcm_1008(const unsigned char *payload, int payload_len) {
 void decode_rtcm_1013(const unsigned char *payload, int payload_len) {
     int bit = 0;
 
-    /* Header: 12+12+16+17+5+8 = 70 bits = 9 bytes minimum */
-    if (payload_len < 9) {
+    /* Header: 12+12+16+17+5 = 62 bits = 8 bytes minimum */
+    if (payload_len < 8) {
         rtcm_printf("Type 1013: Payload too short (%d bytes)!\n", payload_len);
         return;
     }
@@ -615,7 +615,6 @@ void decode_rtcm_1013(const unsigned char *payload, int payload_len) {
     uint16_t mjd             = (uint16_t)get_bits(payload, bit, 16); bit += 16;
     uint32_t seconds_of_day  = (uint32_t)get_bits(payload, bit, 17); bit += 17;
     uint8_t  n_announcements = (uint8_t) get_bits(payload, bit,  5); bit += 5;
-    uint8_t  leap_seconds    = (uint8_t) get_bits(payload, bit,  8); bit += 8;
 
     /* Convert MJD + seconds to human-readable date/time */
     /* MJD epoch: November 17, 1858 (Julian day 2400000.5) */
@@ -643,7 +642,6 @@ void decode_rtcm_1013(const unsigned char *payload, int payload_len) {
                 mjd, year, month, day);
     rtcm_printf("  Seconds of Day      : %u  (%02d:%02d:%02d UTC)\n",
                 seconds_of_day, hours, minutes, secs);
-    rtcm_printf("  Leap Seconds (GPS-UTC): %u s\n", leap_seconds);
     rtcm_printf("  Message Announcements : %u\n\n", n_announcements);
 
     if (n_announcements > 0) {
