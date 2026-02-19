@@ -60,6 +60,37 @@ extern "C" {
 #endif
 
 /**
+ * @brief Growable string buffer for capturing decode output.
+ *
+ * When passed to rtcm_set_output_buffer(), all decode_rtcm_*() printf
+ * output is redirected into this buffer instead of stdout.
+ */
+typedef struct {
+    char *buf;
+    int   len;
+    int   cap;
+} RtcmStrBuf;
+
+/** Initialise a string buffer with the given capacity. */
+void rtcm_strbuf_init(RtcmStrBuf *sb, int initial_cap);
+
+/** Free the string buffer memory. */
+void rtcm_strbuf_free(RtcmStrBuf *sb);
+
+/** Reset length to 0 (keeps allocated memory). */
+void rtcm_strbuf_clear(RtcmStrBuf *sb);
+
+/**
+ * @brief Redirect all decode output to a string buffer.
+ *
+ * Pass NULL to restore output to stdout (the default).
+ * Only the UI thread should call this; the worker thread always
+ * calls analyze_rtcm_message() with suppress_output=true and
+ * therefore never touches the buffer.
+ */
+void rtcm_set_output_buffer(RtcmStrBuf *sb);
+
+/**
  * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.
  * @param x ECEF X (meters)
  * @param y ECEF Y (meters)
