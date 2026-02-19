@@ -127,18 +127,24 @@ uint32_t crc24q(const uint8_t *data, size_t length);
 
 /**
  * @brief Extract a signed 38-bit integer from a buffer.
+ * 
+ * Extracts a 38-bit signed integer value from the buffer and properly handles
+ * two's complement negative numbers.
  *
  * @param buf        Pointer to the buffer.
- * @param start_bit  Start bit index.
+ * @param start_bit  Start bit index (0 = first bit of buf[0]).
  * @return Extracted signed 38-bit integer as int64_t.
  */
 int64_t extract_signed38(const unsigned char *buf, int start_bit);
 
 /**
  * @brief Extract a signed N-bit integer from a buffer.
+ * 
+ * Generic function to extract signed integers of any bit length from the buffer,
+ * with automatic sign extension for negative values.
  *
  * @param buf        Pointer to the buffer.
- * @param start_bit  Start bit index.
+ * @param start_bit  Start bit index (0 = first bit of buf[0]).
  * @param bit_len    Number of bits to extract.
  * @return Extracted signed integer as int64_t.
  */
@@ -225,12 +231,17 @@ void decode_rtcm_1019(const unsigned char *payload, int payload_len);
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1077 message (MSM7 GPS).
  * 
- * MSM7 (Multiple Signal Message, highest resolution) provides full precision
- * GPS observations across multiple signal types.
- * Contains:
- * - Station ID and GPS epoch time
- * - Satellite and signal masks
- * - High-resolution pseudorange, carrier phase, Doppler, and CNR data
+ * MSM7 (Multiple Signal Message, Type 7) provides the highest resolution
+ * GPS observations across multiple signal types (L1, L2, L5).
+ * 
+ * Displays:
+ * - Reference Station ID and GPS epoch time (milliseconds)
+ * - Multiple message flag, IODS, clock steering, external clock
+ * - Divergence-free smoothing flag and smoothing interval
+ * - Number of satellites, signals, and active cells
+ * - Per-satellite data: rough range, extended info, phase-range rate
+ * - Per-signal data: fine pseudorange, carrier phase, lock time, 
+ *   half-cycle ambiguity, CNR (carrier-to-noise ratio), fine Doppler
  * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
@@ -251,8 +262,12 @@ void decode_rtcm_1084(const unsigned char *payload, int payload_len);
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1087 message (MSM7 GLONASS).
  * 
- * MSM7 for GLONASS constellation providing full precision multi-signal observations.
- * Includes GLONASS-specific frequency channel numbers (FCN) for FDMA signals.
+ * MSM7 for GLONASS constellation providing full precision multi-signal observations
+ * on L1 and L2 frequencies. GLONASS uses FDMA (Frequency Division Multiple Access),
+ * so each satellite transmits on a different frequency channel.
+ * 
+ * Displays the same comprehensive MSM7 header and observation data as Type 1077,
+ * but for GLONASS satellites (R01-R24).
  * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
@@ -273,8 +288,11 @@ void decode_rtcm_1094(const unsigned char *payload, int payload_len);
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1097 message (MSM7 Galileo).
  * 
- * MSM7 for Galileo constellation providing full precision observations across
- * E1, E5a, E5b, and E6 signals.
+ * MSM7 for Galileo constellation (European GNSS) providing full precision observations
+ * across E1, E5a, E5b, and E6 signals.
+ * 
+ * Displays the same comprehensive MSM7 header and observation data as Type 1077,
+ * but for Galileo satellites (E01-E36).
  * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
@@ -284,8 +302,12 @@ void decode_rtcm_1097(const unsigned char *payload, int payload_len);
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1117 message (MSM7 QZSS).
  * 
- * MSM7 for the Quasi-Zenith Satellite System (Japanese regional navigation system)
- * providing full precision multi-signal observations.
+ * MSM7 for the Quasi-Zenith Satellite System (QZSS - Japanese regional navigation system)
+ * providing full precision multi-signal observations. QZSS uses GPS-compatible signals
+ * and provides enhanced coverage over the Asia-Pacific region.
+ * 
+ * Displays the same comprehensive MSM7 header and observation data as Type 1077,
+ * but for QZSS satellites (J01-J07).
  * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
@@ -306,8 +328,11 @@ void decode_rtcm_1124(const unsigned char *payload, int payload_len);
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1127 message (MSM7 BeiDou).
  * 
- * MSM7 for BeiDou (BDS) constellation providing full precision observations
- * across B1, B2, and B3 signals.
+ * MSM7 for BeiDou (BDS - Chinese navigation satellite system) constellation providing
+ * full precision observations across B1, B2, and B3 signals.
+ * 
+ * Displays the same comprehensive MSM7 header and observation data as Type 1077,
+ * but for BeiDou satellites (C01-C37).
  * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
@@ -317,8 +342,12 @@ void decode_rtcm_1127(const unsigned char *payload, int payload_len);
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1137 message (MSM7 SBAS).
  * 
- * MSM7 for Satellite-Based Augmentation Systems (WAAS, EGNOS, MSAS, etc.)
- * providing full precision observation data.
+ * MSM7 for Satellite-Based Augmentation Systems (SBAS) including WAAS (North America),
+ * EGNOS (Europe), MSAS (Japan), and GAGAN (India). These provide atmospheric corrections
+ * and integrity information.
+ * 
+ * Displays the same comprehensive MSM7 header and observation data as Type 1077,
+ * but for SBAS satellites (S20-S58).
  * 
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
@@ -440,17 +469,24 @@ void decode_rtcm_1074(const unsigned char *payload, int payload_len);
 /**
  * @brief Generic decoder for RTCM MSM4 messages (shared for GPS, GLONASS, Galileo, QZSS, etc.).
  *
- * This function decodes and prints summary information for any MSM4 message,
- * using parameters for GNSS-specific scaling and bit widths.
+ * Decodes and displays MSM4 (Multiple Signal Message, Type 4) observations which provide
+ * medium-resolution GNSS observations. MSM4 contains pseudorange, phase range, lock time,
+ * half-cycle ambiguity, and CNR data with reduced bit precision compared to MSM7.
+ * 
+ * This generic function handles all GNSS constellations by using constellation-specific
+ * scaling parameters passed as arguments.
  *
- * @param payload     Pointer to the message payload (after header).
+ * @param payload     Pointer to the message payload (after RTCM header).
  * @param payload_len Length of the payload in bytes.
- * @param gnss_name   String for GNSS name (e.g., "GPS", "GLONASS", "QZSS").
- * @param msg_type    RTCM message type number (for printing).
- * @param pr_bits     Number of bits for pseudorange (e.g., 15 for GPS, 20 for QZSS).
- * @param ph_bits     Number of bits for phase range (e.g., 22 for GPS, 24 for QZSS).
- * @param pr_scale    Scaling for pseudorange (e.g., 0.02 for GPS, 0.1 for QZSS).
- * @param ph_scale    Scaling for phase range (e.g., 0.0005 for all).
+ * @param gnss_name   String for GNSS name (e.g., "GPS", "GLONASS", "QZSS") for display.
+ * @param msg_type    RTCM message type number (e.g., 1074, 1084, 1094, 1124) for display.
+ * @param pr_bits     Number of bits for pseudorange field (e.g., 15 for GPS, 20 for QZSS).
+ * @param ph_bits     Number of bits for phase range field (e.g., 22 for GPS, 24 for QZSS).
+ * @param pr_scale    Scaling factor for pseudorange in meters (e.g., 0.02 for GPS, 0.1 for QZSS).
+ * @param ph_scale    Scaling factor for phase range in meters (typically 0.0005 for all).
+ * 
+ * @note Only the first 5 cells are displayed to prevent excessive output. 
+ *       Use suppress_output mode if you only need the message type.
  */
 void decode_rtcm_msm4_generic(const unsigned char *payload, int payload_len,
                               const char *gnss_name, int msg_type,

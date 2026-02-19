@@ -47,8 +47,17 @@ void rtcm_set_output_buffer(RtcmStrBuf *sb) {
 }
 
 /**
- * @brief Printf replacement that writes to g_rtcm_strbuf when set,
- *        otherwise falls through to stdout.
+ * @brief Printf replacement that writes to g_rtcm_strbuf when set, otherwise outputs to stdout.
+ * 
+ * This function provides redirectable output for all RTCM decode functions. When a string buffer
+ * is set via rtcm_set_output_buffer(), all output is captured into that buffer. Otherwise, 
+ * output goes to stdout. The buffer automatically expands if needed.
+ * 
+ * @param fmt Printf-style format string.
+ * @param ... Variable arguments matching the format string.
+ * 
+ * @note This is an internal function used by all decode_rtcm_*() functions.
+ * @see rtcm_set_output_buffer()
  */
 static void rtcm_printf(const char *fmt, ...) {
     va_list ap;
@@ -105,16 +114,6 @@ uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len) {
     return result;
 }
 
-/**
- * @brief Helper for extracting signed 38-bit values (two's complement).
- * 
- * Extracts a 38-bit signed integer value from the buffer and properly handles
- * two's complement negative numbers.
- * 
- * @param buf        Pointer to the buffer.
- * @param start_bit  Start bit index (0 = first bit of buf[0]).
- * @return Extracted signed 38-bit integer as int64_t.
- */
 int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     uint64_t raw = get_bits(buf, start_bit, 38);
     if ((raw >> 37) & 1) {
@@ -125,17 +124,6 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     }
 }
 
-/**
- * @brief Helper to extract signed N-bit values.
- * 
- * Generic function to extract signed integers of any bit length from the buffer,
- * with automatic sign extension for negative values.
- * 
- * @param buf        Pointer to the buffer.
- * @param start_bit  Start bit index (0 = first bit of buf[0]).
- * @param bit_len    Number of bits to extract.
- * @return Extracted signed integer as int64_t.
- */
 int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
     uint64_t val = get_bits(buf, start_bit, bit_len);
     // Sign-extend if needed
@@ -314,8 +302,24 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP
 /**
  * @brief Comprehensive MSM7 decoder used by 1077 and all other MSM7 types.
  *
- * Fully decodes the MSM7 structure per RTCM 3.3:
- *   Header  → Satellite data (per sat) → Signal/Cell data (per cell)
+ * Fully decodes the MSM7 (Multiple Signal Message, Type 7) structure per RTCM 3.3 specification.
+ * MSM7 provides the highest resolution observations including pseudorange, carrier phase, 
+ * Doppler, and signal strength measurements.
+ * 
+ * Structure: Header → Satellite data (per sat) → Signal/Cell data (per cell)
+ *
+ * MSM Header fields (displayed):
+ *   - Reference Station ID        (12 bits)
+ *   - Epoch Time                  (30 bits, GNSS time in milliseconds)
+ *   - Multiple Message Flag       (1 bit)
+ *   - Issue of Data Station       (3 bits, IODS)
+ *   - Clock Steering              (2 bits)
+ *   - External Clock              (2 bits)
+ *   - Divergence-free Smoothing   (1 bit)
+ *   - Smoothing Interval          (3 bits)
+ *   - Satellite mask              (64 bits)
+ *   - Signal mask                 (32 bits)
+ *   - Cell mask                   (variable, num_sats × num_sigs bits)
  *
  * Satellite data block (per satellite, in mask order):
  *   - Rough range integer         (8 bits, ms)
@@ -330,6 +334,11 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP
  *   - Half-cycle ambiguity        (1 bit)
  *   - CNR                         (10 bits, 0.0625 dB-Hz)
  *   - Fine phase-range rate       (15 bits signed, 0.0001 m/s)
+ *
+ * @param payload     Pointer to the message payload (after RTCM header).
+ * @param payload_len Length of the payload in bytes.
+ * @param gnss_name   Name of the GNSS constellation (e.g., "GPS", "GLONASS", "Galileo").
+ * @param msg_type    RTCM message type number (e.g., 1077, 1087, 1097, etc.) for display purposes.
  */
 static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
                                    const char *gnss_name, int msg_type)
@@ -380,23 +389,37 @@ static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
         }
     }
 
-/**
- * @brief Internal helper function to decode MSM7 messages for any GNSS constellation.
- * 
- * This function provides the core MSM7 decoding logic used by constellation-specific
- * wrappers (1077, 1087, 1097, 1117, 1127, 1137). MSM7 provides the highest resolution
- * observations including pseudorange, carrier phase, Doppler, and signal strength.
- *
- * @param payload     Pointer to the message payload (after header).
- * @param payload_len Length of the payload in bytes.
- * @param gnss_name   Name of the GNSS constellation (e.g., "GPS", "GLONASS", "Galileo").
- * @param msg_type    RTCM message type number for display purposes.
- */
-static void decode_rtcm_msm7(const unsigned char *payload, int payload_len, const char *gnss_name, int msg_type) {
-    int bit = 0;
-    if (payload_len < 20) {
-        printf("Type %d: Payload too short!\n", msg_type);
-        return;
+    rtcm_printf("  Reference Station ID  : %u\n", ref_station_id);
+    rtcm_printf("  Epoch Time            : %u\n", epoch_time);
+    rtcm_printf("  Multiple Message Flag : %u\n", mm_flag);
+    rtcm_printf("  IODS                  : %u\n", iods);
+    rtcm_printf("  Clock Steering        : %u\n", clk_steering);
+    rtcm_printf("  External Clock        : %u\n", ext_clk);
+    rtcm_printf("  Div-free Smoothing    : %u\n", df_smoothing);
+    rtcm_printf("  Smoothing Interval    : %u\n", smoothing_int);
+    rtcm_printf("  Satellites            : %d\n", num_sats);
+    rtcm_printf("  Signals               : %d\n", num_sigs);
+    rtcm_printf("  Cells                 : %d\n", num_cells);
+
+    /* ── Satellite data block ────────────────────────────────── */
+    int    rough_range_int[64];
+    int    ext_info[64];
+    int    rough_range_mod[64];
+    int    rough_phrate[64];
+
+    for (int s = 0; s < num_sats; s++) {
+        rough_range_int[s] = (int)get_bits(payload, bit, 8); bit += 8;
+    }
+    for (int s = 0; s < num_sats; s++) {
+        ext_info[s] = (int)get_bits(payload, bit, 4); bit += 4;
+    }
+    for (int s = 0; s < num_sats; s++) {
+        rough_range_mod[s] = (int)get_bits(payload, bit, 10); bit += 10;
+    }
+    for (int s = 0; s < num_sats; s++) {
+        int raw = (int)get_bits(payload, bit, 14); bit += 14;
+        if (raw & (1 << 13)) raw -= (1 << 14);
+        rough_phrate[s] = raw;
     }
 
     /* Print satellite summary */
@@ -506,6 +529,20 @@ void decode_rtcm_1077(const unsigned char *payload, int payload_len) {
     decode_rtcm_msm7_full(payload, payload_len, "GPS", 1077);
 }
 
+/**
+ * @brief Internal wrapper for MSM7 decoding (GLONASS, Galileo, QZSS, BeiDou, SBAS).
+ * 
+ * This static helper function provides a common interface for all non-GPS MSM7 message types.
+ * It wraps the full MSM7 decoder with constellation-specific parameters.
+ * 
+ * @param payload     Pointer to the message payload (after RTCM header).
+ * @param payload_len Length of the payload in bytes.
+ * @param gnss_name   Name of the GNSS constellation for display.
+ * @param msg_type    RTCM message type number for display purposes.
+ * 
+ * @note This is an internal function used by decode_rtcm_1087(), decode_rtcm_1097(), 
+ *       decode_rtcm_1117(), decode_rtcm_1127(), and decode_rtcm_1137().
+ */
 static void decode_rtcm_msm7(const unsigned char *payload, int payload_len, const char *gnss_name, int msg_type) {
     decode_rtcm_msm7_full(payload, payload_len, gnss_name, msg_type);
 }

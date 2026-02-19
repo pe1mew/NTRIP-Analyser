@@ -1,33 +1,67 @@
-# NTRIP-Analyser.
+# NTRIP-Analyser
 
-This repository contains my work on developing an NTRIP RTCM 3.x stream analyser.
+A tool for analyzing NTRIP RTCM 3.x data streams, available as both a command-line interface (CLI) and a Windows graphical user interface (GUI).
 
-## About this project.
+## About this project
 
 The primary goal of this project is to deepen my understanding of NTRIP streams, a field where open-source tools and public information are limited. By building this analyser, I aim to explore and learn the structure and content of RTCM 3.x messages transmitted over NTRIP.
 
 A secondary goal is to practice and experiment with programming, leveraging AI tools such as GitHub Copilot. Please note that, while AI assistance has accelerated development, I cannot guarantee the originality or accuracy of all code segments, as the sources used by large language models are not always transparent or verifiable. The results and information presented here have not been exhaustively validated. As such, I advise caution: **do not rely on this code or its output for critical applications without independent verification.** The included disclaimer applies in full.
 
-## Functionalities
+## Applications
 
-The code will allow to do the following analysis on NTRIP streams:
+### Command-Line Interface (CLI)
+The CLI application provides full analysis capabilities via command-line arguments, ideal for automation, scripting, and remote operation.
 
-1. Retrieve mountpointlist from a caster and display it on screen.
-2. Login to a caster and start a NTRIP stream. At reception:  
-   a. Decode all implemented NTRIP messages  
-   b. Message overview: Analyse during a time (default 60 seconds) all received NTRIP messages and:  
-      - Count and present the message numbers received  
-      - Present minimum, average and maximum interval time between two of the same message number.  
-      
-   c. Filtered message decoding  
-   d. Satellite analysis: Analyse during a time (default 60 seconds) all received NTRIP messages and:  
-      - Count the unique satellites reported  
-      - Present the reported unique satellites per GNSS system  
-      - Present the total number of satellites seen.
+**Executables:**
+- Windows: `bin/ntripanalyse.exe`
+- Linux: `bin/ntripanalyser`
+
+### Windows GUI Application
+The GUI application provides a user-friendly desktop interface with real-time monitoring, message analysis, satellite tracking, and detailed message decoding.
+
+**Executable:** `bin/ntrip-analyser-gui.exe`
+
+**Note:** The GUI is Windows-only and built with native Win32 API. See [GUI documentation](docs/gui.md) for detailed information.
+
+## Core Functionalities
+
+The analyser can perform the following operations on NTRIP streams:
+
+1. **Retrieve mountpoint list** from a caster and display available streams
+2. **Connect to NTRIP stream** and receive RTCM data with:
+   - Real-time message decoding for all implemented RTCM message types
+   - Message statistics (count, minimum/average/maximum transmission intervals)
+   - Filtered message decoding (show only specific message types)
+   - Satellite analysis (count unique satellites per GNSS constellation)
 
 ## Documentation
 
-[Documentation](docs/readme.md) is in the documentation folder.
+- **[Compilation Guide](docs/compile.md)** — Build instructions for Windows and Linux
+- **[GUI User Guide](docs/gui.md)** — Complete Windows GUI documentation
+- **[General Documentation](docs/readme.md)** — Additional project documentation
+
+## Quick Start
+
+### Building
+
+**Windows CLI:**
+```batch
+gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c -Ilib/cJSON -lws2_32 -Wall
+```
+
+**Windows GUI:**
+```batch
+build-gui.bat
+```
+
+**Linux CLI:**
+```bash
+mkdir -p bin
+gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm
+```
+
+See [compilation guide](docs/compile.md) for complete build instructions.
 
 ## License and disclaimer. 
 
