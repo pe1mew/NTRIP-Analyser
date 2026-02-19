@@ -52,6 +52,8 @@
 #define IDC_BTN_GET_MOUNTS      1110
 #define IDC_BTN_OPEN_STREAM     1111
 #define IDC_BTN_CLOSE_STREAM    1120
+#define IDC_BTN_MAP_PICK        1130    /* "Map" button: open browser map */
+#define IDC_BTN_MAP_PASTE       1131    /* "<<" button: paste coords from clipboard */
 
 /* ── Mountpoint ListView ──────────────────────────────────── */
 #define IDC_LV_MOUNTPOINTS      1301
@@ -82,6 +84,10 @@
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700
+
+/* ── Context menu IDs ────────────────────────────────────── */
+#define IDM_CTX_SELECT_ALL      3001
+#define IDM_CTX_COPY            3002
 
 /* ── Timer IDs ────────────────────────────────────────────── */
 #define IDT_LOG_PUMP            2001

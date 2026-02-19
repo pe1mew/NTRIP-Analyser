@@ -130,6 +130,123 @@ static void SortListView(HWND hLv, int col, BOOL isNumeric)
     }
 }
 
+/* ── ListView clipboard helpers ──────────────────────────── */
+
+/**
+ * @brief Select all items in a ListView.
+ */
+static void LvSelectAll(HWND hLv)
+{
+    int count = ListView_GetItemCount(hLv);
+    for (int i = 0; i < count; i++)
+        ListView_SetItemState(hLv, i, LVIS_SELECTED, LVIS_SELECTED);
+}
+
+/**
+ * @brief Copy selected ListView rows to the clipboard as tab-separated text.
+ *
+ * Includes a header row from column names, then one line per selected item.
+ */
+static void LvCopySelection(HWND hLv)
+{
+    HWND hHeader = ListView_GetHeader(hLv);
+    int nCols = Header_GetItemCount(hHeader);
+    if (nCols <= 0) return;
+
+    /* Build text in a growable buffer */
+    int cap = 4096;
+    int len = 0;
+    char *buf = (char *)malloc(cap);
+    if (!buf) return;
+
+    #define BUF_APPEND(s, slen) do {                          \
+        while (len + (slen) + 1 > cap) {                     \
+            cap *= 2;                                         \
+            char *tmp = (char *)realloc(buf, cap);            \
+            if (!tmp) { free(buf); return; }                  \
+            buf = tmp;                                        \
+        }                                                     \
+        memcpy(buf + len, (s), (slen));                       \
+        len += (slen);                                        \
+    } while (0)
+
+    /* Header row */
+    for (int c = 0; c < nCols; c++) {
+        char colName[128] = "";
+        HDITEM hdi;
+        hdi.mask = HDI_TEXT;
+        hdi.pszText = colName;
+        hdi.cchTextMax = sizeof(colName);
+        Header_GetItem(hHeader, c, &hdi);
+
+        if (c > 0) BUF_APPEND("\t", 1);
+        BUF_APPEND(colName, (int)strlen(colName));
+    }
+    BUF_APPEND("\r\n", 2);
+
+    /* Selected rows */
+    int sel = -1;
+    while ((sel = ListView_GetNextItem(hLv, sel, LVNI_SELECTED)) >= 0) {
+        for (int c = 0; c < nCols; c++) {
+            char cell[256] = "";
+            ListView_GetItemText(hLv, sel, c, cell, sizeof(cell));
+            if (c > 0) BUF_APPEND("\t", 1);
+            BUF_APPEND(cell, (int)strlen(cell));
+        }
+        BUF_APPEND("\r\n", 2);
+    }
+
+    #undef BUF_APPEND
+
+    buf[len] = '\0';
+
+    /* Copy to Windows clipboard */
+    if (OpenClipboard(hLv)) {
+        EmptyClipboard();
+        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, len + 1);
+        if (hMem) {
+            char *dst = (char *)GlobalLock(hMem);
+            memcpy(dst, buf, len + 1);
+            GlobalUnlock(hMem);
+            SetClipboardData(CF_TEXT, hMem);
+        }
+        CloseClipboard();
+    }
+    free(buf);
+}
+
+/**
+ * @brief Show a context menu with Select All / Copy at the cursor position.
+ */
+static void LvShowContextMenu(HWND hwnd, HWND hLv)
+{
+    HMENU hMenu = CreatePopupMenu();
+    if (!hMenu) return;
+
+    int selCount = ListView_GetSelectedCount(hLv);
+    int total    = ListView_GetItemCount(hLv);
+
+    AppendMenu(hMenu, MF_STRING, IDM_CTX_SELECT_ALL, "Select &All\tCtrl+A");
+    AppendMenu(hMenu, MF_STRING | (selCount > 0 ? 0 : MF_GRAYED),
+               IDM_CTX_COPY, "&Copy\tCtrl+C");
+
+    if (total == 0) {
+        EnableMenuItem(hMenu, IDM_CTX_SELECT_ALL, MF_GRAYED);
+    }
+
+    POINT pt;
+    GetCursorPos(&pt);
+    int cmd = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+                             pt.x, pt.y, 0, hwnd, NULL);
+    DestroyMenu(hMenu);
+
+    if (cmd == IDM_CTX_SELECT_ALL) {
+        LvSelectAll(hLv);
+    } else if (cmd == IDM_CTX_COPY) {
+        LvCopySelection(hLv);
+    }
+}
+
 /**
  * @brief Get the Y range (in client coords) of the splitter hit zone.
  *
@@ -459,6 +576,51 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     state->streamBytesLast = 0;
     state->streamRateTime  = gui_get_time_seconds();
 
+    /* Look up the Format column from the sourcetable for the selected
+     * mountpoint.  This tells us the declared stream format (e.g.
+     * "RTCM 3.2", "RT27", "LB2") so the worker can identify RAW
+     * streams that are wrapped inside RTCM 3.x framing.
+     *
+     * Strategy: first check the currently selected/focused row (fast
+     * path when user double-clicked a row), then fall back to a name
+     * search through all rows.  Skip leading '/' in mountpoint names
+     * since some configs store it with or without the slash. */
+    state->sourceFormat[0] = '\0';
+    state->sourceDetails[0] = '\0';
+    {
+        const char *mpName = state->config.MOUNTPOINT;
+        if (mpName[0] == '/') mpName++;   /* skip leading '/' */
+
+        int found = -1;
+
+        /* Fast path: check focused/selected row first */
+        int sel = ListView_GetNextItem(state->hLvMountpoints, -1, LVNI_SELECTED);
+        if (sel >= 0) {
+            char mp[256] = "";
+            ListView_GetItemText(state->hLvMountpoints, sel, 0, mp, sizeof(mp));
+            const char *c = (mp[0] == '/') ? mp + 1 : mp;
+            if (_stricmp(c, mpName) == 0) found = sel;
+        }
+
+        /* Fallback: search all rows */
+        if (found < 0) {
+            int count = ListView_GetItemCount(state->hLvMountpoints);
+            for (int i = 0; i < count; i++) {
+                char mp[256] = "";
+                ListView_GetItemText(state->hLvMountpoints, i, 0, mp, sizeof(mp));
+                const char *c = (mp[0] == '/') ? mp + 1 : mp;
+                if (_stricmp(c, mpName) == 0) { found = i; break; }
+            }
+        }
+
+        if (found >= 0) {
+            ListView_GetItemText(state->hLvMountpoints, found, 2,
+                                 state->sourceFormat, sizeof(state->sourceFormat));
+            ListView_GetItemText(state->hLvMountpoints, found, 3,
+                                 state->sourceDetails, sizeof(state->sourceDetails));
+        }
+    }
+
     /* Switch to the Msg Stats tab for real-time updates */
     TabCtrl_SetCurSel(state->hTabOutput, 1);
     OnTabSelChange(state);
@@ -565,6 +727,184 @@ static void OnStreamDone(HWND hwnd, AppState *state)
     SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Disconnected");
     SendMessage(state->hStatusBar, SB_SETTEXT, 1, (LPARAM)"");
     SendMessage(state->hStatusBar, SB_SETTEXT, 2, (LPARAM)"");
+}
+
+/* ── Map picker helpers ─────────────────────────────────────── */
+
+/**
+ * @brief Open an interactive Leaflet.js map in the default browser.
+ *
+ * Writes a self-contained HTML file to %TEMP% centered on the current
+ * Lat/Lon values.  Clicking the map copies "lat,lon" to the clipboard.
+ */
+static void OnMapPick(HWND hwnd, AppState *state)
+{
+    (void)hwnd;
+
+    /* Read current lat/lon from edit controls */
+    char latBuf[64], lonBuf[64];
+    GetWindowText(state->hEditLatitude,  latBuf, sizeof(latBuf));
+    GetWindowText(state->hEditLongitude, lonBuf, sizeof(lonBuf));
+
+    double lat = atof(latBuf);
+    double lon = atof(lonBuf);
+
+    /* Default to centre of Europe if coordinates are 0,0 */
+    if (lat == 0.0 && lon == 0.0) {
+        lat = 51.505;
+        lon = -0.09;
+    }
+
+    int zoom = 6;
+
+    /* Build HTML content with embedded Leaflet.js */
+    char html[8192];
+    snprintf(html, sizeof(html),
+        "<!DOCTYPE html>\n"
+        "<html><head><meta charset=\"utf-8\">\n"
+        "<title>Pick Location - NTRIP-Analyser</title>\n"
+        "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\"/>\n"
+        "<script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>\n"
+        "<style>\n"
+        "  body{margin:0;font-family:sans-serif}\n"
+        "  #map{height:calc(100vh - 50px)}\n"
+        "  #bar{height:50px;display:flex;align-items:center;justify-content:center;"
+        "background:#333;color:#fff;font-size:16px;gap:15px}\n"
+        "  #coords{font-family:monospace;font-size:18px;color:#0f0}\n"
+        "  #status{font-size:13px;color:#aaa;transition:opacity 0.3s}\n"
+        "</style>\n"
+        "</head><body>\n"
+        "<div id=\"bar\">\n"
+        "  <span>Click the map to pick a location:</span>\n"
+        "  <span id=\"coords\">%.6f, %.6f</span>\n"
+        "  <span id=\"status\"></span>\n"
+        "</div>\n"
+        "<div id=\"map\"></div>\n"
+        "<script>\n"
+        "var map=L.map('map').setView([%.6f,%.6f],%d);\n"
+        "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{\n"
+        "  maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);\n"
+        "var marker=L.marker([%.6f,%.6f]).addTo(map);\n"
+        "var st=document.getElementById('status');\n"
+        "function copyText(t){\n"
+        "  if(navigator.clipboard&&window.isSecureContext){\n"
+        "    navigator.clipboard.writeText(t);\n"
+        "  }else{\n"
+        "    var ta=document.createElement('textarea');\n"
+        "    ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';\n"
+        "    document.body.appendChild(ta);ta.select();\n"
+        "    document.execCommand('copy');\n"
+        "    document.body.removeChild(ta);\n"
+        "  }\n"
+        "}\n"
+        "map.on('click',function(e){\n"
+        "  var la=e.latlng.lat.toFixed(6);\n"
+        "  var lo=e.latlng.lng.toFixed(6);\n"
+        "  marker.setLatLng(e.latlng);\n"
+        "  document.getElementById('coords').textContent=la+', '+lo;\n"
+        "  copyText(la+','+lo);\n"
+        "  st.textContent='Copied to clipboard!';\n"
+        "  st.style.opacity='1';\n"
+        "  setTimeout(function(){st.style.opacity='0'},2000);\n"
+        "});\n"
+        "</script>\n"
+        "</body></html>\n",
+        lat, lon,       /* initial coords display */
+        lat, lon, zoom, /* map centre + zoom */
+        lat, lon        /* initial marker */
+    );
+
+    /* Write to temp file */
+    char tempPath[MAX_PATH];
+    GetTempPathA(MAX_PATH, tempPath);
+
+    char filePath[MAX_PATH + 32];
+    snprintf(filePath, sizeof(filePath), "%sntrip_map_picker.html", tempPath);
+
+    FILE *f = fopen(filePath, "w");
+    if (!f) {
+        MessageBox(hwnd, "Failed to create temporary map file.",
+                   APP_TITLE, MB_ICONERROR | MB_OK);
+        return;
+    }
+    fputs(html, f);
+    fclose(f);
+
+    /* Open in default browser */
+    ShellExecuteA(NULL, "open", filePath, NULL, NULL, SW_SHOWNORMAL);
+
+    AppendLog(state->hEditLog,
+        "[INFO] Map opened in browser. Click to pick location, "
+        "then press \"<<\" to paste coordinates.\r\n");
+}
+
+/**
+ * @brief Read "lat,lon" from the clipboard and populate the Lat/Lon edit controls.
+ */
+static void OnMapPaste(HWND hwnd, AppState *state)
+{
+    if (!OpenClipboard(hwnd)) {
+        MessageBox(hwnd, "Cannot open clipboard.",
+                   APP_TITLE, MB_ICONWARNING | MB_OK);
+        return;
+    }
+
+    HANDLE hData = GetClipboardData(CF_TEXT);
+    if (!hData) {
+        CloseClipboard();
+        MessageBox(hwnd,
+            "No text data on clipboard.\n\n"
+            "Click \"Map\" first, pick a location on the map,\n"
+            "then press \"<<\" to paste coordinates.",
+            APP_TITLE, MB_ICONINFORMATION | MB_OK);
+        return;
+    }
+
+    char *clipText = (char *)GlobalLock(hData);
+    if (!clipText) {
+        CloseClipboard();
+        return;
+    }
+
+    /* Parse "lat,lon" — allow optional whitespace around comma */
+    double lat = 0.0, lon = 0.0;
+    int parsed = sscanf(clipText, "%lf , %lf", &lat, &lon);
+    if (parsed != 2)
+        parsed = sscanf(clipText, "%lf %lf", &lat, &lon);
+
+    GlobalUnlock(hData);
+    CloseClipboard();
+
+    if (parsed != 2) {
+        MessageBox(hwnd,
+            "Clipboard does not contain valid coordinates.\n\n"
+            "Expected format: \"lat,lon\" (e.g. \"52.123456,4.567890\")\n\n"
+            "Click \"Map\" first, pick a location on the map,\n"
+            "then press \"<<\" to paste coordinates.",
+            APP_TITLE, MB_ICONWARNING | MB_OK);
+        return;
+    }
+
+    if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0) {
+        MessageBox(hwnd,
+            "Coordinates out of range.\n"
+            "Latitude must be -90 to 90, Longitude must be -180 to 180.",
+            APP_TITLE, MB_ICONWARNING | MB_OK);
+        return;
+    }
+
+    /* Populate the edit controls */
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%.6f", lat);
+    SetWindowText(state->hEditLatitude, buf);
+
+    snprintf(buf, sizeof(buf), "%.6f", lon);
+    SetWindowText(state->hEditLongitude, buf);
+
+    char logmsg[128];
+    snprintf(logmsg, sizeof(logmsg),
+             "[INFO] Pasted coordinates: %.6f, %.6f\r\n", lat, lon);
+    AppendLog(state->hEditLog, logmsg);
 }
 
 /* ── RTCM message type description lookup ─────────────────── */
@@ -943,6 +1283,23 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             /* Columns 8 (Lat), 9 (Lon), 10 (Distance) are numeric; rest is text */
             SortListView(state->hLvMountpoints, col, (col >= 8));
         }
+
+        /* Keyboard shortcuts for mountpoint ListView: Ctrl+A, Ctrl+C */
+        if (nmh->idFrom == IDC_LV_MOUNTPOINTS && nmh->code == LVN_KEYDOWN) {
+            NMLVKEYDOWN *kd = (NMLVKEYDOWN *)lParam;
+            BOOL ctrl = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+            if (ctrl && kd->wVKey == 'A') {
+                LvSelectAll(state->hLvMountpoints);
+            } else if (ctrl && kd->wVKey == 'C') {
+                LvCopySelection(state->hLvMountpoints);
+            }
+        }
+
+        /* Right-click context menu on mountpoint ListView */
+        if (nmh->idFrom == IDC_LV_MOUNTPOINTS && nmh->code == NM_RCLICK) {
+            LvShowContextMenu(hwnd, state->hLvMountpoints);
+        }
+
         return 0;
     }
 
@@ -987,6 +1344,15 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case IDM_CONN_CLOSE_STREAM:
         case IDC_BTN_CLOSE_STREAM:
             OnCloseStream(hwnd, state);
+            return 0;
+
+        /* ── Map picker ─────────────────────────────────────── */
+        case IDC_BTN_MAP_PICK:
+            OnMapPick(hwnd, state);
+            return 0;
+
+        case IDC_BTN_MAP_PASTE:
+            OnMapPaste(hwnd, state);
             return 0;
 
         /* ── Help menu ──────────────────────────────────────── */
@@ -1067,10 +1433,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         LONG fmt = InterlockedCompareExchange(&state->streamFormat, 0, 0);
         const char *fmtStr;
         switch (fmt) {
-        case 1:  fmtStr = "RTCM 3.x"; break;
-        case 2:  fmtStr = "UBX";       break;
-        case 3:  fmtStr = "Unknown";    break;
-        default: fmtStr = "";           break;
+        case 1:  fmtStr = "RTCM 3.x";           break;
+        case 2:  fmtStr = "UBX";                 break;
+        case 3:  fmtStr = "Septentrio SBF";      break;
+        case 4:  fmtStr = "RAW Trimble RT27";    break;
+        case 5:  fmtStr = "RAW Leica LB2";       break;
+        case 6:  fmtStr = "Unknown";              break;
+        default: fmtStr = "";                     break;
         }
         SendMessage(state->hStatusBar, SB_SETTEXT, 1, (LPARAM)fmtStr);
         return 0;

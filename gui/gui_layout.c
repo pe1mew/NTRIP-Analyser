@@ -159,6 +159,12 @@ void CreateControls(HWND hwnd, AppState *state)
     state->hLblLongitude = CreateLabel(hwnd, IDC_LBL_LONGITUDE, "Lon:", x, y + 2, wLon, eh);
     x += wLon + lg;
     state->hEditLongitude = CreateEdit(hwnd, IDC_EDIT_LONGITUDE, "0.0", x, y, 75, eh, 0);
+    x += 75 + sp;
+
+    /* Map picker: "Map" opens browser-based map, "<<" pastes coords from clipboard */
+    state->hBtnMapPick  = CreateBtn(hwnd, IDC_BTN_MAP_PICK,  "Map", x, y, 36, eh);
+    x += 36 + 2;
+    state->hBtnMapPaste = CreateBtn(hwnd, IDC_BTN_MAP_PASTE, "<<",  x, y, 26, eh);
 
     /* Row C: Config buttons */
     y += eh + 8;
@@ -190,7 +196,7 @@ void CreateControls(HWND hwnd, AppState *state)
     y += bh + 14;
     state->hLvMountpoints = CreateWindowEx(WS_EX_CLIENTEDGE,
         WC_LISTVIEW, "",
-        WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+        WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_SHOWSELALWAYS,
         m, y, 700, 140, hwnd, (HMENU)(intptr_t)IDC_LV_MOUNTPOINTS, hInst, NULL);
     ListView_SetExtendedListViewStyle(state->hLvMountpoints,
         LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);

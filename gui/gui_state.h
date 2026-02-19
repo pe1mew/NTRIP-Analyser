@@ -105,6 +105,8 @@ typedef struct {
     HWND hBtnGetMounts;
     HWND hBtnOpenStream;
     HWND hBtnCloseStream;
+    HWND hBtnMapPick;       /* "Map" button: open browser map */
+    HWND hBtnMapPaste;      /* "<<" button: paste coords from clipboard */
 
     /* ── Mountpoint ListView ──────────────────────────────── */
     HWND hLvMountpoints;
@@ -152,7 +154,9 @@ typedef struct {
 
     /* ── Stream info (set by worker, read by UI) ─────────── */
     volatile LONG  streamBytes;       /* total data bytes received */
-    volatile LONG  streamFormat;      /* 0=unknown, 1=RTCM3, 2=UBX, 3=other */
+    volatile LONG  streamFormat;      /* 0=none, 1=RTCM3, 2=UBX, 3=SBF, 4=RT27, 5=LB2, 6=Unknown */
+    char           sourceFormat[32];  /* Format string from sourcetable (e.g. "RTCM 3.2", "RT27") */
+    char           sourceDetails[128]; /* Details string from sourcetable */
     LONG           streamBytesLast;   /* snapshot for rate calc (UI side) */
     double         streamRateTime;    /* timestamp of last rate calc */
 

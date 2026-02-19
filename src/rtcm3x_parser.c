@@ -976,6 +976,13 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             }
         }
 
+        /* Only return a valid msg_type when CRC passes.
+         * This ensures callers (GUI stats, detail windows) only process
+         * frames with verified integrity. */
+        if (length >= (size_t)frame_len && crc_calc != crc_extracted) {
+            return 0;
+        }
+
         return msg_type;
     } else {
         if (!suppress_output) {
