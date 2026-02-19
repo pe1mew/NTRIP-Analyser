@@ -105,7 +105,16 @@ uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len) {
     return result;
 }
 
-// Helper for extracting signed 38-bit values (two's complement)
+/**
+ * @brief Helper for extracting signed 38-bit values (two's complement).
+ * 
+ * Extracts a 38-bit signed integer value from the buffer and properly handles
+ * two's complement negative numbers.
+ * 
+ * @param buf        Pointer to the buffer.
+ * @param start_bit  Start bit index (0 = first bit of buf[0]).
+ * @return Extracted signed 38-bit integer as int64_t.
+ */
 int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     uint64_t raw = get_bits(buf, start_bit, 38);
     if ((raw >> 37) & 1) {
@@ -116,7 +125,17 @@ int64_t extract_signed38(const unsigned char *buf, int start_bit) {
     }
 }
 
-// Helper to extract signed N-bit values
+/**
+ * @brief Helper to extract signed N-bit values.
+ * 
+ * Generic function to extract signed integers of any bit length from the buffer,
+ * with automatic sign extension for negative values.
+ * 
+ * @param buf        Pointer to the buffer.
+ * @param start_bit  Start bit index (0 = first bit of buf[0]).
+ * @param bit_len    Number of bits to extract.
+ * @return Extracted signed integer as int64_t.
+ */
 int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
     uint64_t val = get_bits(buf, start_bit, bit_len);
     // Sign-extend if needed
@@ -361,41 +380,23 @@ static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
         }
     }
 
-    /* ── Print header ────────────────────────────────────────── */
-    rtcm_printf("RTCM %d MSM7 (%s Full Pseudorange and PhaseRange plus CNR (high resolution))\n", msg_type, gnss_name);
-    rtcm_printf("============================================================\n");
-    rtcm_printf("\n");
-    rtcm_printf("  Reference Station ID  : %u\n", ref_station_id);
-    rtcm_printf("  Epoch Time            : %u ms (%.3f s)\n", epoch_time, epoch_time / 1000.0);
-    rtcm_printf("  Multiple Message Flag : %u\n", mm_flag);
-    rtcm_printf("  IODS                  : %u\n", iods);
-    rtcm_printf("  Clock Steering        : %u\n", clk_steering);
-    rtcm_printf("  External Clock        : %u\n", ext_clk);
-    rtcm_printf("  Div-free Smoothing    : %u\n", df_smoothing);
-    rtcm_printf("  Smoothing Interval    : %u\n", smoothing_int);
-    rtcm_printf("  Satellites            : %d\n", num_sats);
-    rtcm_printf("  Signals               : %d\n", num_sigs);
-    rtcm_printf("  Cells                 : %d\n", num_cells);
-
-    /* ── Satellite data block ────────────────────────────────── */
-    int    rough_range_int[64];
-    int    ext_info[64];
-    int    rough_range_mod[64];
-    int    rough_phrate[64];
-
-    for (int s = 0; s < num_sats; s++) {
-        rough_range_int[s] = (int)get_bits(payload, bit, 8); bit += 8;
-    }
-    for (int s = 0; s < num_sats; s++) {
-        ext_info[s] = (int)get_bits(payload, bit, 4); bit += 4;
-    }
-    for (int s = 0; s < num_sats; s++) {
-        rough_range_mod[s] = (int)get_bits(payload, bit, 10); bit += 10;
-    }
-    for (int s = 0; s < num_sats; s++) {
-        int raw = (int)get_bits(payload, bit, 14); bit += 14;
-        if (raw & (1 << 13)) raw -= (1 << 14);
-        rough_phrate[s] = raw;
+/**
+ * @brief Internal helper function to decode MSM7 messages for any GNSS constellation.
+ * 
+ * This function provides the core MSM7 decoding logic used by constellation-specific
+ * wrappers (1077, 1087, 1097, 1117, 1127, 1137). MSM7 provides the highest resolution
+ * observations including pseudorange, carrier phase, Doppler, and signal strength.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ * @param gnss_name   Name of the GNSS constellation (e.g., "GPS", "GLONASS", "Galileo").
+ * @param msg_type    RTCM message type number for display purposes.
+ */
+static void decode_rtcm_msm7(const unsigned char *payload, int payload_len, const char *gnss_name, int msg_type) {
+    int bit = 0;
+    if (payload_len < 20) {
+        printf("Type %d: Payload too short!\n", msg_type);
+        return;
     }
 
     /* Print satellite summary */
@@ -603,72 +604,55 @@ void decode_rtcm_1008(const unsigned char *payload, int payload_len) {
 
 void decode_rtcm_1013(const unsigned char *payload, int payload_len) {
     int bit = 0;
-
-    /* Header: 12+12+16+17+5 = 62 bits = 8 bytes minimum */
-    if (payload_len < 8) {
-        rtcm_printf("Type 1013: Payload too short (%d bytes)!\n", payload_len);
+    if (payload_len < 8) { // Minimum size check (12+12+16+17+5+8 = 70 bits = 9 bytes minimum)
+        printf("Type 1013: Payload too short!\n");
         return;
     }
 
-    uint16_t msg_number      = (uint16_t)get_bits(payload, bit, 12); bit += 12;
-    uint16_t ref_station_id  = (uint16_t)get_bits(payload, bit, 12); bit += 12;
-    uint16_t mjd             = (uint16_t)get_bits(payload, bit, 16); bit += 16;
-    uint32_t seconds_of_day  = (uint32_t)get_bits(payload, bit, 17); bit += 17;
-    uint8_t  n_announcements = (uint8_t) get_bits(payload, bit,  5); bit += 5;
+    // DF002: Message Number (12 bits)
+    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    
+    // DF003: Station ID (12 bits)
+    uint16_t station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    
+    // DF051: Modified Julian Day Number (16 bits)
+    uint16_t mjd = (uint16_t)get_bits(payload, bit, 16); bit += 16;
+    
+    // DF052: Seconds of Day (17 bits)
+    uint32_t seconds_of_day = (uint32_t)get_bits(payload, bit, 17); bit += 17;
+    
+    // DF053: Number of Messages (5 bits)
+    uint8_t num_messages = (uint8_t)get_bits(payload, bit, 5); bit += 5;
+    
+    // DF054: Leap Seconds (8 bits)
+    uint8_t leap_seconds = (uint8_t)get_bits(payload, bit, 8); bit += 8;
 
-    /* Convert MJD + seconds to human-readable date/time */
-    /* MJD epoch: November 17, 1858 (Julian day 2400000.5) */
-    /* Convert MJD to calendar date using standard algorithm */
-    long jd = (long)mjd + 2400001L;
-    long l = jd + 68569L;
-    long n_val = 4L * l / 146097L;
-    l = l - (146097L * n_val + 3L) / 4L;
-    long i_val = 4000L * (l + 1L) / 1461001L;
-    l = l - 1461L * i_val / 4L + 31L;
-    long j_val = 80L * l / 2447L;
-    int day   = (int)(l - 2447L * j_val / 80L);
-    l = j_val / 11L;
-    int month = (int)(j_val + 2L - 12L * l);
-    int year  = (int)(100L * (n_val - 49L) + i_val + l);
+    printf("RTCM 1013 (System Parameters):\n");
+    printf("  Message Number: %u\n", msg_number);
+    printf("  Station ID: %u\n", station_id);
+    printf("  Modified Julian Day (MJD): %u\n", mjd);
+    printf("  Seconds of Day: %u (%.2f hours)\n", seconds_of_day, seconds_of_day / 3600.0);
+    printf("  Leap Seconds: %u\n", leap_seconds);
+    printf("  Number of Sync Messages: %u\n", num_messages);
 
-    int hours   = (int)(seconds_of_day / 3600);
-    int minutes = (int)((seconds_of_day % 3600) / 60);
-    int secs    = (int)(seconds_of_day % 60);
-
-    rtcm_printf("=== RTCM 1013 — System Parameters ===\n\n");
-    rtcm_printf("  Message Number      : %u\n", msg_number);
-    rtcm_printf("  Reference Station ID: %u\n", ref_station_id);
-    rtcm_printf("  Modified Julian Day : %u  (%04d-%02d-%02d)\n",
-                mjd, year, month, day);
-    rtcm_printf("  Seconds of Day      : %u  (%02d:%02d:%02d UTC)\n",
-                seconds_of_day, hours, minutes, secs);
-    rtcm_printf("  Message Announcements : %u\n\n", n_announcements);
-
-    if (n_announcements > 0) {
-        /* Each announcement: 12+1+16 = 29 bits */
-        int bits_needed = bit + n_announcements * 29;
-        if (bits_needed > payload_len * 8) {
-            rtcm_printf("  [WARNING] Payload too short for %u announcements\n",
-                        n_announcements);
-            n_announcements = (uint8_t)((payload_len * 8 - bit) / 29);
+    // Decode each message sync info
+    for (int i = 0; i < num_messages; ++i) {
+        if ((bit + 29) / 8 > payload_len) {
+            printf("    Warning: Insufficient data for message %d\n", i + 1);
+            break;
         }
-
-        rtcm_printf("  %-8s  %-6s  %s\n", "Msg ID", "Sync", "Interval (s)");
-        rtcm_printf("  %-8s  %-6s  %s\n", "------", "----", "------------");
-
-        for (int i = 0; i < n_announcements; i++) {
-            uint16_t announced_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
-            uint8_t  sync_flag    = (uint8_t) get_bits(payload, bit,  1); bit += 1;
-            uint16_t interval_raw = (uint16_t)get_bits(payload, bit, 16); bit += 16;
-
-            /* Interval is in 0.1 second units */
-            double interval_sec = interval_raw * 0.1;
-
-            rtcm_printf("  %-8u  %-6s  %.1f\n",
-                        announced_id,
-                        sync_flag ? "Yes" : "No",
-                        interval_sec);
-        }
+        
+        // DF055: Message Number (12 bits)
+        uint16_t sync_msg_num = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+        
+        // DF056: Sync Flag (1 bit)
+        uint8_t sync_flag = (uint8_t)get_bits(payload, bit, 1); bit += 1;
+        
+        // DF057: Transmission Interval (16 bits)
+        uint16_t interval = (uint16_t)get_bits(payload, bit, 16); bit += 16;
+        
+        printf("    Message %d: Type=%u, Sync=%s, Interval=%u\n", 
+               i + 1, sync_msg_num, sync_flag ? "Yes" : "No", interval);
     }
 }
 
