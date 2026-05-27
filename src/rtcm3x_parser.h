@@ -92,6 +92,45 @@ void rtcm_strbuf_clear(RtcmStrBuf *sb);
 void rtcm_set_output_buffer(RtcmStrBuf *sb);
 
 /**
+ * @brief Retrieve the most recently decoded reference-station ARP.
+ *
+ * Returns the ECEF coordinates published in the latest RTCM 1005 or 1006
+ * message processed by @ref analyze_rtcm_message, along with the equivalent
+ * WGS-84 geodetic position.  Used by the GUI worker thread to compute
+ * satellite az/el for the Sky Plot.
+ *
+ * @param valid   [out] true if a 1005/1006 has been seen this session, may be NULL.
+ * @param x,y,z   [out] ECEF metres, may be NULL.
+ * @param lat_deg [out] WGS-84 latitude in degrees, may be NULL.
+ * @param lon_deg [out] WGS-84 longitude in degrees, may be NULL.
+ * @param alt_m   [out] WGS-84 altitude in metres, may be NULL.
+ */
+void rtcm_get_station_arp(bool *valid,
+                          double *x, double *y, double *z,
+                          double *lat_deg, double *lon_deg, double *alt_m);
+
+/**
+ * @brief Extract the list of satellites tracked in a single MSM4/5/6/7 frame.
+ *
+ * Reads the 64-bit satellite mask at the correct RTCM 10403.3 offset
+ * (bit 73 of the payload) and emits PRN numbers (1-based) for every set
+ * bit.  Unlike @ref extract_satellites in ntrip_handler.c, this does
+ * not aggregate across frames — each call returns the PRNs visible
+ * in this single epoch.
+ *
+ * @param payload     RTCM payload (starting at message-number bit).
+ * @param payload_len Length of the payload in bytes.
+ * @param msg_type    RTCM MSM message type (1074..1137).
+ * @param prns_out    Output array, will be filled with PRNs.
+ * @param max_prns    Capacity of @p prns_out.
+ * @param gnss_id_out [out, optional] GNSS ID (1=GPS, 3=Galileo, ...).
+ * @return Number of PRNs written to @p prns_out, or 0 on error.
+ */
+int msm_extract_prns(const unsigned char *payload, int payload_len,
+                     int msg_type, int *prns_out, int max_prns,
+                     int *gnss_id_out);
+
+/**
  * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.
  * @param x ECEF X (meters)
  * @param y ECEF Y (meters)
@@ -102,6 +141,70 @@ void rtcm_set_output_buffer(RtcmStrBuf *sb);
  * @param alt [out] Altitude in meters
  */
 void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, double *lon_deg, double *alt);
+
+/**
+ * @brief Convert WGS-84 geodetic (lat, lon, alt) coordinates to ECEF.
+ *
+ * The inverse of @ref ecef_to_geodetic.  Used by the Sky Plot when no
+ * RTCM 1005/1006 has been received and we need to fall back to a
+ * user-supplied position (e.g. the rover's lat/lon from the config).
+ *
+ * @param lat_deg Latitude (degrees, WGS-84).
+ * @param lon_deg Longitude (degrees, WGS-84).
+ * @param alt_m   Altitude above the ellipsoid (metres).  Pass 0 if unknown.
+ * @param x,y,z   [out] ECEF coordinates (metres), may be NULL.
+ */
+void geodetic_to_ecef(double lat_deg, double lon_deg, double alt_m,
+                      double *x, double *y, double *z);
+
+/**
+ * @brief Rotate an ECEF delta vector into the local ENU (East/North/Up) frame.
+ *
+ * Used together with @ref enu_to_azel to compute satellite azimuth/elevation
+ * relative to a reference station whose geodetic position is known.
+ *
+ * @param lat_deg Station latitude  (degrees, WGS84).
+ * @param lon_deg Station longitude (degrees, WGS84).
+ * @param dx      X component of (sv - station) ECEF vector, in meters.
+ * @param dy      Y component of (sv - station) ECEF vector, in meters.
+ * @param dz      Z component of (sv - station) ECEF vector, in meters.
+ * @param e       [out] East  component (meters), may be NULL.
+ * @param n       [out] North component (meters), may be NULL.
+ * @param u       [out] Up    component (meters), may be NULL.
+ */
+void ecef_to_enu(double lat_deg, double lon_deg,
+                 double dx, double dy, double dz,
+                 double *e, double *n, double *u);
+
+/**
+ * @brief Convert a local ENU vector to azimuth (clockwise from N) and elevation.
+ *
+ * @param e       East  component (meters).
+ * @param n       North component (meters).
+ * @param u       Up    component (meters).
+ * @param az_deg  [out] Azimuth in degrees, 0..360 (0 = north, 90 = east), may be NULL.
+ * @param el_deg  [out] Elevation in degrees, -90..+90, may be NULL.
+ */
+void enu_to_azel(double e, double n, double u,
+                 double *az_deg, double *el_deg);
+
+/**
+ * @brief Convenience wrapper: compute satellite azimuth/elevation from raw ECEF.
+ *
+ * Combines @ref ecef_to_geodetic, @ref ecef_to_enu, and @ref enu_to_azel.
+ *
+ * @param sta_x   Station ECEF X (meters).
+ * @param sta_y   Station ECEF Y (meters).
+ * @param sta_z   Station ECEF Z (meters).
+ * @param sv_x    Satellite ECEF X (meters).
+ * @param sv_y    Satellite ECEF Y (meters).
+ * @param sv_z    Satellite ECEF Z (meters).
+ * @param az_deg  [out] Azimuth in degrees, 0..360, may be NULL.
+ * @param el_deg  [out] Elevation in degrees, -90..+90, may be NULL.
+ */
+void azel_from_ecef(double sta_x, double sta_y, double sta_z,
+                    double sv_x,  double sv_y,  double sv_z,
+                    double *az_deg, double *el_deg);
 
 /**
  * @brief Extract bits from a buffer (big-endian, MSB first).
@@ -433,15 +536,31 @@ void decode_rtcm_1029(const unsigned char *payload, int payload_len);
 void decode_rtcm_1033(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1045 message (Galileo Ephemeris).
- * 
- * Provides Galileo satellite ephemeris data including orbital parameters,
- * satellite health status, and clock correction information.
- * 
+ * @brief Decode and print an RTCM 3.x Type 1045 message (Galileo F/NAV Ephemeris).
+ *
+ * Galileo F/NAV (Free Navigation) ephemerides broadcast on E5a-I.  Contains
+ * the same Keplerian orbital block as RTCM 1046 (I/NAV) plus a single BGD
+ * (E1-E5a) and E5a signal/data validity flags.  On a valid frame the
+ * decoded ephemeris is also written to the per-SV cache for use by
+ * sv_orbit.c::kepler_to_ecef.
+ *
  * @param payload     Pointer to the message payload (after header).
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1045(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print an RTCM 3.x Type 1046 message (Galileo I/NAV Ephemeris).
+ *
+ * Galileo I/NAV (Integrity Navigation) ephemerides broadcast on E1-B and
+ * E5b-I.  Same Keplerian orbital block as RTCM 1045, with two BGDs
+ * (E1-E5a and E1-E5b) and per-signal SHS/DVS health flags for E5b and E1-B.
+ * Populates the per-SV ephemeris cache.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1046(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1230 message (GLONASS Code-Phase Biases).

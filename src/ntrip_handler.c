@@ -880,8 +880,10 @@ void analyze_message_types(const NTRIP_Config *config, int analysis_time) {
 }
 
 void extract_satellites(const unsigned char *data, int len, int msg_type, SatStatsSummary *summary) {
-    int gnss_id = get_gnss_id_from_rtcm(msg_type);
-    if (!gnss_id) return;
+    int prns[MAX_SATS_PER_GNSS];
+    int gnss_id = 0;
+    int n = msm_extract_prns(data, len, msg_type, prns, MAX_SATS_PER_GNSS, &gnss_id);
+    if (n <= 0 || !gnss_id) return;
 
     int idx = -1;
     for (int i = 0; i < summary->gnss_count; ++i) {
@@ -898,18 +900,13 @@ void extract_satellites(const unsigned char *data, int len, int msg_type, SatSta
     }
     if (idx == -1) return;
 
-    int bit = 24;
-    /* int n_sat = (int)get_bits(data, bit, 6); */ bit += 6; // Remove unused variable warning
-    bit += 1 + 3; // skip other MSM header fields
-
-    for (int s = 1; s <= 64 && s <= MAX_SATS_PER_GNSS; ++s) {
-        if (get_bits(data, bit, 1)) {
-            if (!summary->gnss[idx].sat_seen[s-1]) {
-                summary->gnss[idx].sat_seen[s-1] = 1;
-                summary->gnss[idx].count++;
-            }
+    for (int i = 0; i < n; ++i) {
+        int prn = prns[i];
+        if (prn < 1 || prn > MAX_SATS_PER_GNSS) continue;
+        if (!summary->gnss[idx].sat_seen[prn - 1]) {
+            summary->gnss[idx].sat_seen[prn - 1] = 1;
+            summary->gnss[idx].count++;
         }
-        bit++;
     }
 }
 

@@ -17,8 +17,10 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include "rtcm3x_parser.h"
+#include "sv_ephemeris.h"
 
 /* ── Redirectable output buffer for decode functions ──────── */
 
@@ -133,6 +135,78 @@ int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
     return (int64_t)val;
 }
 
+int msm_extract_prns(const unsigned char *payload, int payload_len,
+                     int msg_type, int *prns_out, int max_prns,
+                     int *gnss_id_out)
+{
+    if (!payload || payload_len < 14 || !prns_out || max_prns <= 0) return 0;
+
+    /* MSM4/5/6/7 only — message numbers ending in 4..7 of any GNSS range */
+    int subtype = msg_type % 10;
+    if (msg_type < 1070 || msg_type > 1139 || subtype < 4 || subtype > 7) return 0;
+
+    /* Map RTCM range to GNSS ID, matching get_gnss_id_from_rtcm() */
+    int gnss_id;
+    if      (msg_type >= 1070 && msg_type <  1080) gnss_id = 1;   /* GPS */
+    else if (msg_type >= 1080 && msg_type <  1090) gnss_id = 2;   /* GLONASS */
+    else if (msg_type >= 1090 && msg_type < 1100)  gnss_id = 3;   /* Galileo */
+    else if (msg_type >= 1100 && msg_type < 1110)  gnss_id = 6;   /* SBAS */
+    else if (msg_type >= 1110 && msg_type < 1120)  gnss_id = 4;   /* QZSS */
+    else if (msg_type >= 1120 && msg_type < 1130)  gnss_id = 5;   /* BeiDou */
+    else if (msg_type >= 1130 && msg_type < 1140)  gnss_id = 7;   /* NavIC */
+    else return 0;
+    if (gnss_id_out) *gnss_id_out = gnss_id;
+
+    /* MSM header layout (RTCM 10403.3, fixed 169-bit header):
+     *   12 msg_number, 12 ref_station_id, 30 epoch_time, 1 MM, 3 IODS,
+     *    7 reserved, 2 clk_steering, 2 ext_clk, 1 smoothing, 3 smoothing_interval,
+     *   64 satellite_mask, 32 signal_mask, ...cell_mask follows
+     * Total before satellite_mask = 12+12+30+1+3+7+2+2+1+3 = 73 bits.
+     */
+    int bit = 73;
+    if ((bit + 64) > payload_len * 8) return 0;
+
+    uint64_t sat_mask = get_bits(payload, bit, 64);
+
+    int count = 0;
+    for (int i = 0; i < 64 && count < max_prns; i++) {
+        /* MSB-first: bit (63-i) corresponds to satellite (i+1). */
+        if ((sat_mask >> (63 - i)) & 1ULL) {
+            prns_out[count++] = i + 1;
+        }
+    }
+    return count;
+}
+
+/* ── Reference-station ARP cache ──────────────────────────────────────────
+ * Populated by decode_rtcm_1005 / 1006 every time the station broadcasts
+ * its antenna reference point.  Read by the GUI worker thread when
+ * computing satellite az/el for the Sky Plot window.
+ *
+ * Single-threaded by convention: written and read on the worker.  The UI
+ * thread's re-decode-for-display path also writes to it, but a torn read
+ * is harmless for our purposes. */
+static struct {
+    bool   valid;
+    double x, y, z;        /* ECEF metres */
+    double lat_deg;
+    double lon_deg;
+    double alt_m;
+} g_station_arp = { false, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+
+void rtcm_get_station_arp(bool *valid,
+                          double *x, double *y, double *z,
+                          double *lat_deg, double *lon_deg, double *alt_m)
+{
+    if (valid)   *valid   = g_station_arp.valid;
+    if (x)       *x       = g_station_arp.x;
+    if (y)       *y       = g_station_arp.y;
+    if (z)       *z       = g_station_arp.z;
+    if (lat_deg) *lat_deg = g_station_arp.lat_deg;
+    if (lon_deg) *lon_deg = g_station_arp.lon_deg;
+    if (alt_m)   *alt_m   = g_station_arp.alt_m;
+}
+
 void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, double *lon_deg, double *alt) {
     double a = 6378137.0;
     double e2 = 6.69437999014e-3;
@@ -150,6 +224,63 @@ void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, d
     if (alt) *alt = p / cos(lat) - N + h;
     if (lat_deg) *lat_deg = lat * 180.0 / M_PI;
     if (lon_deg) *lon_deg = lon * 180.0 / M_PI;
+}
+
+void geodetic_to_ecef(double lat_deg, double lon_deg, double alt_m,
+                      double *x, double *y, double *z)
+{
+    const double a  = 6378137.0;
+    const double e2 = 6.69437999014e-3;
+    double lat = lat_deg * M_PI / 180.0;
+    double lon = lon_deg * M_PI / 180.0;
+    double sl  = sin(lat), cl  = cos(lat);
+    double slo = sin(lon), clo = cos(lon);
+    double N   = a / sqrt(1.0 - e2 * sl * sl);
+    if (x) *x = (N + alt_m) * cl * clo;
+    if (y) *y = (N + alt_m) * cl * slo;
+    if (z) *z = (N * (1.0 - e2) + alt_m) * sl;
+}
+
+void ecef_to_enu(double lat_deg, double lon_deg,
+                 double dx, double dy, double dz,
+                 double *e, double *n, double *u)
+{
+    double lat = lat_deg * M_PI / 180.0;
+    double lon = lon_deg * M_PI / 180.0;
+    double sl  = sin(lat), cl  = cos(lat);
+    double slo = sin(lon), clo = cos(lon);
+
+    /* Rotation of an ECEF delta into the local ENU frame at (lat, lon). */
+    if (e) *e = -slo * dx + clo * dy;
+    if (n) *n = -sl * clo * dx - sl * slo * dy + cl * dz;
+    if (u) *u =  cl * clo * dx + cl * slo * dy + sl * dz;
+}
+
+void enu_to_azel(double e, double n, double u,
+                 double *az_deg, double *el_deg)
+{
+    double horiz = sqrt(e * e + n * n);
+    double el = atan2(u, horiz);             /* -pi/2 .. +pi/2 */
+    double az = atan2(e, n);                  /* -pi .. +pi, 0 = north, +E */
+    if (az < 0) az += 2.0 * M_PI;             /* wrap to 0 .. 2*pi (clockwise from N) */
+
+    if (el_deg) *el_deg = el * 180.0 / M_PI;
+    if (az_deg) *az_deg = az * 180.0 / M_PI;
+}
+
+void azel_from_ecef(double sta_x, double sta_y, double sta_z,
+                    double sv_x,  double sv_y,  double sv_z,
+                    double *az_deg, double *el_deg)
+{
+    double lat, lon, alt;
+    ecef_to_geodetic(sta_x, sta_y, sta_z, 0.0, &lat, &lon, &alt);
+
+    double e, n, u;
+    ecef_to_enu(lat, lon,
+                sv_x - sta_x, sv_y - sta_y, sv_z - sta_z,
+                &e, &n, &u);
+
+    enu_to_azel(e, n, u, az_deg, el_deg);
 }
 
 void calc_distance_heading(double lat1, double lon1, double lat2, double lon2, double *distance_km, double *heading_deg) {
@@ -213,6 +344,15 @@ void decode_rtcm_1005(const unsigned char *payload, int payload_len, const NTRIP
     double lat_deg, lon_deg, alt;
     ecef_to_geodetic(x, y, z, h, &lat_deg, &lon_deg, &alt);
 
+    /* Cache station ARP for the Sky Plot az/el computation */
+    g_station_arp.valid   = true;
+    g_station_arp.x       = x;
+    g_station_arp.y       = y;
+    g_station_arp.z       = z;
+    g_station_arp.lat_deg = lat_deg;
+    g_station_arp.lon_deg = lon_deg;
+    g_station_arp.alt_m   = alt;
+
     rtcm_printf("RTCM 1005:\n");
     rtcm_printf("  Message Number: %u\n", msg_number);
     rtcm_printf("  Reference Station ID: %u\n", ref_station_id);
@@ -275,6 +415,15 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP
 
     double lat_deg, lon_deg, alt;
     ecef_to_geodetic(x, y, z, h, &lat_deg, &lon_deg, &alt);
+
+    /* Cache station ARP for the Sky Plot az/el computation */
+    g_station_arp.valid   = true;
+    g_station_arp.x       = x;
+    g_station_arp.y       = y;
+    g_station_arp.z       = z;
+    g_station_arp.lat_deg = lat_deg;
+    g_station_arp.lon_deg = lon_deg;
+    g_station_arp.alt_m   = alt;
 
     rtcm_printf("RTCM 1006:\n");
     rtcm_printf("  Message Number: %u\n", msg_number);
@@ -740,82 +889,193 @@ void decode_rtcm_1033(const unsigned char *payload, int payload_len) {
     rtcm_printf("  Receiver Serial Number: %.*s\n", recv_serial_len, recv_serial);
 }
 
+/**
+ * @brief Read the common Galileo orbital block from an RTCM 1045/1046 payload.
+ *
+ * Both message types share the same 24 orbital + clock fields in the same
+ * order; only the trailing BGD / health bits differ.  This helper:
+ *   - extracts every field with the correct signedness,
+ *   - applies the scaling factors specified in RTCM 10403.3 Table 3.5-22/23,
+ *   - populates the orbital part of @p eph (gnss_id, prn, week, toe, toc,
+ *     orbital elements, harmonic corrections, clock polynomial),
+ *   - advances @p *bit by the consumed bit count.
+ *
+ * Caller sets eph->health afterwards based on the per-message trailing bits.
+ *
+ * @param p           Raw RTCM payload.
+ * @param bit         [in/out] Bit cursor.
+ * @param eph         [out] SvEphemeris to populate.
+ * @param out_iodnav  [out, may be NULL] Raw IODnav for printing.
+ * @param out_sisa    [out, may be NULL] Raw SISA index for printing.
+ */
+static void galileo_read_orbit_block(const unsigned char *p, int *bit,
+                                     SvEphemeris *eph,
+                                     uint32_t *out_iodnav, uint32_t *out_sisa)
+{
+    int b = *bit;
+    uint32_t svid    = (uint32_t)get_bits(p, b, 6);          b += 6;
+    uint32_t week    = (uint32_t)get_bits(p, b, 12);         b += 12;
+    uint32_t iodnav  = (uint32_t)get_bits(p, b, 10);         b += 10;
+    uint32_t sisa    = (uint32_t)get_bits(p, b, 8);          b += 8;
+    int32_t  idot    = (int32_t) extract_signed(p, b, 14);   b += 14;
+    uint32_t toc_raw = (uint32_t)get_bits(p, b, 14);         b += 14;
+    int32_t  af2     = (int32_t) extract_signed(p, b, 6);    b += 6;
+    int32_t  af1     = (int32_t) extract_signed(p, b, 21);   b += 21;
+    int32_t  af0     = (int32_t) extract_signed(p, b, 31);   b += 31;
+    int32_t  crs     = (int32_t) extract_signed(p, b, 16);   b += 16;
+    int32_t  delta_n = (int32_t) extract_signed(p, b, 16);   b += 16;
+    int32_t  m0      = (int32_t) extract_signed(p, b, 32);   b += 32;
+    int32_t  cuc     = (int32_t) extract_signed(p, b, 16);   b += 16;
+    uint64_t e_raw   =          get_bits(p, b, 32);          b += 32;
+    int32_t  cus     = (int32_t) extract_signed(p, b, 16);   b += 16;
+    uint64_t sqrtA   =          get_bits(p, b, 32);          b += 32;
+    uint32_t toe_raw = (uint32_t)get_bits(p, b, 14);         b += 14;
+    int32_t  cic     = (int32_t) extract_signed(p, b, 16);   b += 16;
+    int32_t  omega0  = (int32_t) extract_signed(p, b, 32);   b += 32;
+    int32_t  cis     = (int32_t) extract_signed(p, b, 16);   b += 16;
+    int32_t  i0      = (int32_t) extract_signed(p, b, 32);   b += 32;
+    int32_t  crc     = (int32_t) extract_signed(p, b, 16);   b += 16;
+    int32_t  omega   = (int32_t) extract_signed(p, b, 32);   b += 32;
+    int32_t  om_dot  = (int32_t) extract_signed(p, b, 24);   b += 24;
+    *bit = b;
+
+    memset(eph, 0, sizeof(*eph));
+    eph->gnss_id      = 3;             /* Galileo */
+    eph->prn          = (int)svid;
+    eph->iode_iodnav  = (int)iodnav;
+    eph->week         = (int)week;
+    eph->toe          = (double)toe_raw * 60.0;
+    eph->toc          = (double)toc_raw * 60.0;
+    eph->sqrt_a       = (double)sqrtA   * pow(2.0, -19);
+    eph->e            = (double)e_raw   * pow(2.0, -33);
+    eph->i0           = (double)i0      * pow(2.0, -31) * M_PI;
+    eph->omega0       = (double)omega0  * pow(2.0, -31) * M_PI;
+    eph->omega        = (double)omega   * pow(2.0, -31) * M_PI;
+    eph->m0           = (double)m0      * pow(2.0, -31) * M_PI;
+    eph->delta_n      = (double)delta_n * pow(2.0, -43) * M_PI;
+    eph->idot         = (double)idot    * pow(2.0, -43) * M_PI;
+    eph->omega_dot    = (double)om_dot  * pow(2.0, -43) * M_PI;
+    eph->cuc          = (double)cuc * pow(2.0, -29);
+    eph->cus          = (double)cus * pow(2.0, -29);
+    eph->crc          = (double)crc * pow(2.0, -5);
+    eph->crs          = (double)crs * pow(2.0, -5);
+    eph->cic          = (double)cic * pow(2.0, -29);
+    eph->cis          = (double)cis * pow(2.0, -29);
+    eph->af0          = (double)af0 * pow(2.0, -34);
+    eph->af1          = (double)af1 * pow(2.0, -46);
+    eph->af2          = (double)af2 * pow(2.0, -59);
+
+    if (out_iodnav) *out_iodnav = iodnav;
+    if (out_sisa)   *out_sisa   = sisa;
+}
+
+/**
+ * @brief Print the shared orbital fields of a populated Galileo ephemeris.
+ *
+ * Used by both decode_rtcm_1045 and decode_rtcm_1046 to keep the output
+ * consistent.  Per-message header / health lines are printed separately.
+ */
+static void galileo_print_orbit_block(const SvEphemeris *eph,
+                                      uint32_t iodnav, uint32_t sisa)
+{
+    rtcm_printf("  SV: E%02d   Galileo Week: %d   IODnav: %u   SISA: %u\n",
+                eph->prn, eph->week, iodnav, sisa);
+    rtcm_printf("  toc: %.0f s of week   toe: %.0f s of week\n",
+                eph->toc, eph->toe);
+    rtcm_printf("  Clock: af0=%.6e s  af1=%.6e s/s  af2=%.6e s/s^2\n",
+                eph->af0, eph->af1, eph->af2);
+    rtcm_printf("  sqrt(A) = %.6f m^0.5    e = %.10g\n", eph->sqrt_a, eph->e);
+    rtcm_printf("  i0      = %+.6f rad     OMEGA0 = %+.6f rad\n",
+                eph->i0, eph->omega0);
+    rtcm_printf("  omega   = %+.6f rad     M0     = %+.6f rad\n",
+                eph->omega, eph->m0);
+    rtcm_printf("  delta_n = %+.6e rad/s   idot   = %+.6e rad/s\n",
+                eph->delta_n, eph->idot);
+    rtcm_printf("  OMEGADOT = %+.6e rad/s\n", eph->omega_dot);
+    rtcm_printf("  Harmonic: Cuc=%+.6e Cus=%+.6e Crc=%+.3f m Crs=%+.3f m\n",
+                eph->cuc, eph->cus, eph->crc, eph->crs);
+    rtcm_printf("            Cic=%+.6e Cis=%+.6e\n", eph->cic, eph->cis);
+}
+
 void decode_rtcm_1045(const unsigned char *payload, int payload_len) {
-    int bit = 0;
-    if (payload_len < 48) { // Minimum length for RTCM 1045 (Galileo Ephemeris) is 48 bytes
-        rtcm_printf("Type 1045: Payload too short!\n");
+    /* RTCM 10403.3 Table 3.5-22 — Galileo F/NAV, 496 bits = 62 bytes. */
+    if (!payload || payload_len < 62) {
+        rtcm_printf("RTCM 1045: Payload too short (need 62 bytes, got %d)\n", payload_len);
         return;
     }
 
-    uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1045
-    uint8_t svid = (uint8_t)get_bits(payload, bit, 6); bit += 6;
-    uint16_t week = (uint16_t)get_bits(payload, bit, 12); bit += 12;
-    uint16_t iodnav = (uint16_t)get_bits(payload, bit, 10); bit += 10;
-    uint8_t sisa = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-    int16_t idot = (int16_t)get_bits(payload, bit, 14); bit += 14;
+    int bit = 0;
+    uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1045) {
+        rtcm_printf("[1045] Not a 1045 message (got %u)\n", msg_type);
+        return;
+    }
 
-    // Delta n (Mean Motion Difference)
-    int16_t delta_n = (int16_t)get_bits(payload, bit, 16); bit += 16;
-    // M0 (Mean Anomaly at Reference Time)
-    int32_t m0 = (int32_t)get_bits(payload, bit, 32); bit += 32;
-    // Eccentricity (e)
-    uint32_t e = (uint32_t)get_bits(payload, bit, 32); bit += 32;
-    // sqrtA (Square Root of Semi-major Axis)
-    uint32_t sqrtA = (uint32_t)get_bits(payload, bit, 32); bit += 32;
-    // Omega0 (Longitude of Ascending Node)
-    int32_t omega0 = (int32_t)get_bits(payload, bit, 32); bit += 32;
-    // i0 (Inclination Angle at Reference Time)
-    int32_t i0 = (int32_t)get_bits(payload, bit, 32); bit += 32;
-    // omega (Argument of Perigee)
-    int32_t omega = (int32_t)get_bits(payload, bit, 32); bit += 32;
-    // OmegaDot (Rate of Right Ascension)
-    int16_t omega_dot = (int16_t)get_bits(payload, bit, 24); bit += 24;
-    // Cuc
-    int16_t cuc = (int16_t)get_bits(payload, bit, 16); bit += 16;
-    // Cus
-    int16_t cus = (int16_t)get_bits(payload, bit, 16); bit += 16;
-    // Crc
-    int16_t crc = (int16_t)get_bits(payload, bit, 16); bit += 16;
-    // Crs
-    int16_t crs = (int16_t)get_bits(payload, bit, 16); bit += 16;
-    // Cic
-    int16_t cic = (int16_t)get_bits(payload, bit, 16); bit += 16;
-    // Cis
-    int16_t cis = (int16_t)get_bits(payload, bit, 16); bit += 16;
-    // Toe (Time of Ephemeris)
-    uint16_t toe = (uint16_t)get_bits(payload, bit, 14); bit += 14;
-    // BGD E5a/E1
-    int16_t bgd_e5a_e1 = (int16_t)get_bits(payload, bit, 10); bit += 10;
-    // BGD E5b/E1
-    int16_t bgd_e5b_e1 = (int16_t)get_bits(payload, bit, 10); bit += 10;
-    // Health/Status flags
-    uint8_t health = (uint8_t)get_bits(payload, bit, 6); bit += 6;
+    SvEphemeris eph;
+    uint32_t iodnav, sisa;
+    galileo_read_orbit_block(payload, &bit, &eph, &iodnav, &sisa);
+
+    /* Trailing F/NAV-specific fields */
+    int32_t  bgd_e1_e5a = (int32_t) extract_signed(payload, bit, 10); bit += 10;
+    uint32_t e5a_oshs   = (uint32_t)get_bits(payload, bit, 2);        bit += 2;
+    uint32_t e5a_osdvs  = (uint32_t)get_bits(payload, bit, 1);        bit += 1;
+    /* 7-bit reserved */
+
+    double bgd_e1_e5a_s = (double)bgd_e1_e5a * pow(2.0, -32);
+
+    /* Health: combine 2-bit OSHS and 1-bit OSDVS into a single field.
+     * Bit 0 = OSHS LSB, bit 1 = OSHS MSB, bit 2 = OSDVS.  0 = nominal. */
+    eph.health = (int)((e5a_osdvs << 2) | (e5a_oshs & 0x3));
+    sv_eph_store(&eph);
 
     rtcm_printf("RTCM 1045 (Galileo F/NAV Ephemeris):\n");
-    rtcm_printf("  Message Number: %u\n", msg_number);
-    rtcm_printf("  Satellite ID (SVID): %u\n", svid);
-    rtcm_printf("  Week Number: %u\n", week);
-    rtcm_printf("  IODnav: %u\n", iodnav);
-    rtcm_printf("  SISA: %u\n", sisa);
-    rtcm_printf("  IDOT: %d\n", idot);
-    rtcm_printf("  Delta n: %d\n", delta_n);
-    rtcm_printf("  M0: %d\n", m0);
-    rtcm_printf("  Eccentricity: %u\n", e);
-    rtcm_printf("  sqrtA: %u\n", sqrtA);
-    rtcm_printf("  Omega0: %d\n", omega0);
-    rtcm_printf("  i0: %d\n", i0);
-    rtcm_printf("  omega: %d\n", omega);
-    rtcm_printf("  OmegaDot: %d\n", omega_dot);
-    rtcm_printf("  Cuc: %d\n", cuc);
-    rtcm_printf("  Cus: %d\n", cus);
-    rtcm_printf("  Crc: %d\n", crc);
-    rtcm_printf("  Crs: %d\n", crs);
-    rtcm_printf("  Cic: %d\n", cic);
-    rtcm_printf("  Cis: %d\n", cis);
-    rtcm_printf("  Toe: %u\n", toe);
-    rtcm_printf("  BGD E5a/E1: %d\n", bgd_e5a_e1);
-    rtcm_printf("  BGD E5b/E1: %d\n", bgd_e5b_e1);
-    rtcm_printf("  Health/Status: %u\n", health);
+    galileo_print_orbit_block(&eph, iodnav, sisa);
+    rtcm_printf("  BGD E1-E5a = %.6e s   E5a OSHS=%u   E5a OSDVS=%u\n",
+                bgd_e1_e5a_s, e5a_oshs, e5a_osdvs);
+}
+
+void decode_rtcm_1046(const unsigned char *payload, int payload_len) {
+    /* RTCM 10403.3 Table 3.5-23 — Galileo I/NAV, 504 bits = 63 bytes. */
+    if (!payload || payload_len < 63) {
+        rtcm_printf("RTCM 1046: Payload too short (need 63 bytes, got %d)\n", payload_len);
+        return;
+    }
+
+    int bit = 0;
+    uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1046) {
+        rtcm_printf("[1046] Not a 1046 message (got %u)\n", msg_type);
+        return;
+    }
+
+    SvEphemeris eph;
+    uint32_t iodnav, sisa;
+    galileo_read_orbit_block(payload, &bit, &eph, &iodnav, &sisa);
+
+    /* Trailing I/NAV-specific fields */
+    int32_t  bgd_e1_e5a = (int32_t) extract_signed(payload, bit, 10); bit += 10;
+    int32_t  bgd_e1_e5b = (int32_t) extract_signed(payload, bit, 10); bit += 10;
+    uint32_t e5b_shs    = (uint32_t)get_bits(payload, bit, 2);        bit += 2;
+    uint32_t e5b_dvs    = (uint32_t)get_bits(payload, bit, 1);        bit += 1;
+    uint32_t e1b_shs    = (uint32_t)get_bits(payload, bit, 2);        bit += 2;
+    uint32_t e1b_dvs    = (uint32_t)get_bits(payload, bit, 1);        bit += 1;
+    /* 2-bit reserved */
+
+    double bgd_e1_e5a_s = (double)bgd_e1_e5a * pow(2.0, -32);
+    double bgd_e1_e5b_s = (double)bgd_e1_e5b * pow(2.0, -32);
+
+    /* Combine SHS/DVS bits into a single int — 0 = nominal.  Layout:
+     * bits 0-1 = E5b SHS, bit 2 = E5b DVS, bits 3-4 = E1B SHS, bit 5 = E1B DVS. */
+    eph.health = (int)((e1b_dvs << 5) | (e1b_shs << 3) |
+                       (e5b_dvs << 2) | (e5b_shs & 0x3));
+    sv_eph_store(&eph);
+
+    rtcm_printf("RTCM 1046 (Galileo I/NAV Ephemeris):\n");
+    galileo_print_orbit_block(&eph, iodnav, sisa);
+    rtcm_printf("  BGD E1-E5a = %.6e s   BGD E1-E5b = %.6e s\n",
+                bgd_e1_e5a_s, bgd_e1_e5b_s);
+    rtcm_printf("  E5b SHS=%u DVS=%u   E1-B SHS=%u DVS=%u\n",
+                e5b_shs, e5b_dvs, e1b_shs, e1b_dvs);
 }
 
 void decode_rtcm_1230(const unsigned char *payload, int payload_len) {
@@ -979,6 +1239,9 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1045) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1045 detected)\n", msg_type, msg_length);
                 decode_rtcm_1045(&data[3], msg_length);
+            } else if (msg_type == 1046) {
+                rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1046 detected)\n", msg_type, msg_length);
+                decode_rtcm_1046(&data[3], msg_length);
             } else if (msg_type == 1230) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1230 detected)\n", msg_type, msg_length);
                 decode_rtcm_1230(&data[3], msg_length);
@@ -1021,99 +1284,123 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
 }
 
 void decode_rtcm_1019(const unsigned char *payload, int payload_len) {
-    if (!payload || payload_len < 51) {
-        rtcm_printf("RTCM 1019: Payload too short\n");
+    /* RTCM 10403.3 Table 3.5-21 — GPS Ephemerides, 488 bits = 61 bytes. */
+    if (!payload || payload_len < 61) {
+        rtcm_printf("RTCM 1019: Payload too short (need 61 bytes, got %d)\n", payload_len);
         return;
     }
 
     int bit = 0;
     uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
     if (msg_type != 1019) {
-        rtcm_printf("[1019] Not a 1019 message (got %d)\n", msg_type);
+        rtcm_printf("[1019] Not a 1019 message (got %u)\n", msg_type);
         return;
     }
 
-    uint32_t prn = (uint32_t)get_bits(payload, bit, 6); bit += 6;
-    uint32_t gps_week = (uint32_t)get_bits(payload, bit, 10); bit += 10;
-    uint32_t sv_accuracy = (uint32_t)get_bits(payload, bit, 4); bit += 4;
-    uint32_t code_on_l2 = (uint32_t)get_bits(payload, bit, 2); bit += 2;
-    int16_t idot = (int16_t)extract_signed(payload, bit, 14); bit += 14;
-    uint32_t iode = (uint32_t)get_bits(payload, bit, 8); bit += 8;
-    uint32_t toc = (uint32_t)get_bits(payload, bit, 16); bit += 16;
-    int8_t af2 = (int8_t)extract_signed(payload, bit, 8); bit += 8;
-    int16_t af1 = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int32_t af0 = (int32_t)extract_signed(payload, bit, 22); bit += 22;
-    uint32_t iodc = (uint32_t)get_bits(payload, bit, 10); bit += 10;
-    int16_t crs = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int16_t delta_n = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int32_t m0 = (int32_t)extract_signed(payload, bit, 32); bit += 32;
-    int16_t cuc = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int16_t cus = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int16_t crc = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int16_t crs2 = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int16_t cic = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    int16_t cis = (int16_t)extract_signed(payload, bit, 16); bit += 16;
-    uint32_t e = (uint32_t)get_bits(payload, bit, 32); bit += 32;
-    uint32_t sqrtA = (uint32_t)get_bits(payload, bit, 32); bit += 32;
-    uint32_t toe = (uint32_t)get_bits(payload, bit, 16); bit += 16;
-    uint8_t fit_flag = (uint8_t)get_bits(payload, bit, 1); bit += 1;
-    uint8_t aodo = (uint8_t)get_bits(payload, bit, 5); bit += 5;
-    uint8_t health = (uint8_t)get_bits(payload, bit, 6); bit += 6;
-    int8_t tgd = (int8_t)extract_signed(payload, bit, 8); bit += 8;
-    uint32_t tx_time = (uint32_t)get_bits(payload, bit, 16); bit += 16;
-    uint8_t reserved = (uint8_t)get_bits(payload, bit, 2); bit += 2;
+    /* ── Field extraction, in the order defined by the RTCM spec ── */
+    uint32_t prn       = (uint32_t)get_bits(payload, bit, 6);          bit += 6;
+    uint32_t gps_week  = (uint32_t)get_bits(payload, bit, 10);         bit += 10;
+    uint32_t sv_acc    = (uint32_t)get_bits(payload, bit, 4);          bit += 4;
+    uint32_t code_l2   = (uint32_t)get_bits(payload, bit, 2);          bit += 2;
+    int32_t  idot      = (int32_t) extract_signed(payload, bit, 14);   bit += 14;
+    uint32_t iode      = (uint32_t)get_bits(payload, bit, 8);          bit += 8;
+    uint32_t toc_raw   = (uint32_t)get_bits(payload, bit, 16);         bit += 16;
+    int32_t  af2       = (int32_t) extract_signed(payload, bit, 8);    bit += 8;
+    int32_t  af1       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  af0       = (int32_t) extract_signed(payload, bit, 22);   bit += 22;
+    uint32_t iodc      = (uint32_t)get_bits(payload, bit, 10);         bit += 10;
+    int32_t  crs       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  delta_n   = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  m0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  cuc       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    uint64_t e_raw     =          get_bits(payload, bit, 32);          bit += 32;
+    int32_t  cus       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    uint64_t sqrtA_raw =          get_bits(payload, bit, 32);          bit += 32;
+    uint32_t toe_raw   = (uint32_t)get_bits(payload, bit, 16);         bit += 16;
+    int32_t  cic       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  omega0    = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  cis       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  i0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  crc       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  omega     = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  omega_dot = (int32_t) extract_signed(payload, bit, 24);   bit += 24;
+    int32_t  tgd       = (int32_t) extract_signed(payload, bit, 8);    bit += 8;
+    uint32_t health    = (uint32_t)get_bits(payload, bit, 6);          bit += 6;
+    uint32_t l2p_flag  = (uint32_t)get_bits(payload, bit, 1);          bit += 1;
+    uint32_t fit_flag  = (uint32_t)get_bits(payload, bit, 1);          bit += 1;
 
-    // Apply scaling
-    double idot_s = idot * pow(2, -43) * M_PI; // semi-circles/sec to rad/sec
-    double toc_s = toc * pow(2, 4);
-    double af2_s = af2 * pow(2, -55);
-    double af1_s = af1 * pow(2, -43);
-    double af0_s = af0 * pow(2, -31);
-    double crs_s = crs * pow(2, -5);
-    double delta_n_s = delta_n * pow(2, -43) * M_PI; // semi-circles/sec to rad/sec
-    double m0_s = m0 * pow(2, -31) * M_PI; // semi-circles to radians
-    double cuc_s = cuc * pow(2, -29);
-    double cus_s = cus * pow(2, -29);
-    double crc_s = crc * pow(2, -5);
-    double crs2_s = crs2 * pow(2, -5);
-    double cic_s = cic * pow(2, -29);
-    double cis_s = cis * pow(2, -29);
-    double e_s = e * pow(2, -33);
-    double sqrtA_s = sqrtA * pow(2, -19);
-    double toe_s = toe * pow(2, 4);
-    double tgd_s = tgd * pow(2, -31);
-    double tx_time_s = tx_time * pow(2, 4);
+    /* ── Scaling.  "semi-circle" units (DF079, 087, 088, 095, 097, 099, 100)
+     *    are converted to radians by multiplying the LSB by pi. ── */
+    double idot_s      = (double)idot      * pow(2.0, -43) * M_PI;
+    double toc_s       = (double)toc_raw   * 16.0;
+    double af2_s       = (double)af2       * pow(2.0, -55);
+    double af1_s       = (double)af1       * pow(2.0, -43);
+    double af0_s       = (double)af0       * pow(2.0, -31);
+    double crs_s       = (double)crs       * pow(2.0, -5);
+    double delta_n_s   = (double)delta_n   * pow(2.0, -43) * M_PI;
+    double m0_s        = (double)m0        * pow(2.0, -31) * M_PI;
+    double cuc_s       = (double)cuc       * pow(2.0, -29);
+    double e_s         = (double)e_raw     * pow(2.0, -33);
+    double cus_s       = (double)cus       * pow(2.0, -29);
+    double sqrtA_s     = (double)sqrtA_raw * pow(2.0, -19);
+    double toe_s       = (double)toe_raw   * 16.0;
+    double cic_s       = (double)cic       * pow(2.0, -29);
+    double omega0_s    = (double)omega0    * pow(2.0, -31) * M_PI;
+    double cis_s       = (double)cis       * pow(2.0, -29);
+    double i0_s        = (double)i0        * pow(2.0, -31) * M_PI;
+    double crc_s       = (double)crc       * pow(2.0, -5);
+    double omega_s     = (double)omega     * pow(2.0, -31) * M_PI;
+    double omega_dot_s = (double)omega_dot * pow(2.0, -43) * M_PI;
+    double tgd_s       = (double)tgd       * pow(2.0, -31);
 
+    /* ── Populate the central ephemeris cache used by the Sky Plot ── */
+    SvEphemeris eph;
+    memset(&eph, 0, sizeof(eph));
+    eph.gnss_id      = 1;             /* GPS */
+    eph.prn          = (int)prn;
+    eph.iode_iodnav  = (int)iode;
+    eph.week         = (int)gps_week; /* TODO: handle 10-bit rollover */
+    eph.toe          = toe_s;
+    eph.toc          = toc_s;
+    eph.sqrt_a       = sqrtA_s;
+    eph.e            = e_s;
+    eph.i0           = i0_s;
+    eph.omega0       = omega0_s;
+    eph.omega        = omega_s;
+    eph.m0           = m0_s;
+    eph.delta_n      = delta_n_s;
+    eph.idot         = idot_s;
+    eph.omega_dot    = omega_dot_s;
+    eph.cuc          = cuc_s;
+    eph.cus          = cus_s;
+    eph.crc          = crc_s;
+    eph.crs          = crs_s;
+    eph.cic          = cic_s;
+    eph.cis          = cis_s;
+    eph.af0          = af0_s;
+    eph.af1          = af1_s;
+    eph.af2          = af2_s;
+    eph.health       = (int)health;
+    sv_eph_store(&eph);
+
+    /* ── Print summary ── */
     rtcm_printf("RTCM 1019 (GPS Ephemeris):\n");
-    rtcm_printf("  PRN: %u\n", prn);
-    rtcm_printf("  GPS Week: %u\n", gps_week);
-    rtcm_printf("  SV Accuracy: %u\n", sv_accuracy);
-    rtcm_printf("  Code on L2: %u\n", code_on_l2);
-    rtcm_printf("  IDOT: %g rad/s\n", idot_s);
-    rtcm_printf("  IODE: %u\n", iode);
-    rtcm_printf("  toc: %.0f s\n", toc_s);
-    rtcm_printf("  af2: %.12g s/s^2\n", af2_s);
-    rtcm_printf("  af1: %.12g s/s\n", af1_s);
-    rtcm_printf("  af0: %.12g s\n", af0_s);
-    rtcm_printf("  IODC: %u\n", iodc);
-    rtcm_printf("  crs: %.3f m\n", crs_s);
-    rtcm_printf("  delta n: %.12g rad/s\n", delta_n_s);
-    rtcm_printf("  M0: %.12g rad\n", m0_s);
-    rtcm_printf("  cuc: %.12g rad\n", cuc_s);
-    rtcm_printf("  cus: %.12g rad\n", cus_s);
-    rtcm_printf("  crc: %.3f m\n", crc_s);
-    rtcm_printf("  crs (2): %.3f m\n", crs2_s);
-    rtcm_printf("  cic: %.12g rad\n", cic_s);
-    rtcm_printf("  cis: %.12g rad\n", cis_s);
-    rtcm_printf("  e: %.15g\n", e_s);
-    rtcm_printf("  sqrtA: %.8f m^0.5\n", sqrtA_s);
-    rtcm_printf("  toe: %.0f s\n", toe_s);
-    rtcm_printf("  fit interval flag: %u\n", fit_flag);
-    rtcm_printf("  AODO: %u\n", aodo);
-    rtcm_printf("  GNSS health: %u\n", health);
-    rtcm_printf("  TGD: %.12g s\n", tgd_s);
-    rtcm_printf("  Transmission time: %.0f s\n", tx_time_s);
-    rtcm_printf("  Reserved: %u\n", reserved);
+    rtcm_printf("  SV: G%02u   GPS Week: %u (10-bit, no rollover)\n", prn, gps_week);
+    rtcm_printf("  Health: %u   SV Accuracy (URA idx): %u   Code-on-L2: %u\n",
+                health, sv_acc, code_l2);
+    rtcm_printf("  IODE: %u   IODC: %u   L2P-flag: %u   Fit-flag: %u\n",
+                iode, iodc, l2p_flag, fit_flag);
+    rtcm_printf("  toc: %.0f s of week   toe: %.0f s of week\n", toc_s, toe_s);
+    rtcm_printf("  Clock: af0=%.6e s  af1=%.6e s/s  af2=%.6e s/s^2  TGD=%.6e s\n",
+                af0_s, af1_s, af2_s, tgd_s);
+    rtcm_printf("  sqrt(A) = %.6f m^0.5    e = %.10g\n", sqrtA_s, e_s);
+    rtcm_printf("  i0      = %+.6f rad     OMEGA0 = %+.6f rad\n", i0_s, omega0_s);
+    rtcm_printf("  omega   = %+.6f rad     M0     = %+.6f rad\n", omega_s, m0_s);
+    rtcm_printf("  delta_n = %+.6e rad/s   idot   = %+.6e rad/s\n", delta_n_s, idot_s);
+    rtcm_printf("  OMEGADOT = %+.6e rad/s\n", omega_dot_s);
+    rtcm_printf("  Harmonic: Cuc=%+.6e Cus=%+.6e Crc=%+.3f m Crs=%+.3f m\n",
+                cuc_s, cus_s, crc_s, crs_s);
+    rtcm_printf("            Cic=%+.6e Cis=%+.6e\n", cic_s, cis_s);
 }
 
 void decode_rtcm_1094(const unsigned char *payload, int payload_len) {

@@ -12,6 +12,7 @@
 
 #include "resource.h"
 #include "gui_state.h"
+#include "gui_sky_window.h"
 #include "rtcm3x_parser.h"
 #include "config.h"
 #include "cJSON.h"
@@ -1378,6 +1379,23 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             OnMapPaste(hwnd, state);
             return 0;
 
+        /* ── View menu ──────────────────────────────────────── */
+        case IDM_VIEW_SKY_PLOT:
+            if (state->hSkyWnd) {
+                /* Already open — focus it */
+                if (IsIconic(state->hSkyWnd))
+                    ShowWindow(state->hSkyWnd, SW_RESTORE);
+                SetForegroundWindow(state->hSkyWnd);
+            } else {
+                HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+                state->hSkyWnd = CreateSkyWindow(hInst, hwnd, state);
+                if (!state->hSkyWnd) {
+                    MessageBox(hwnd, "Failed to create sky plot window.",
+                               APP_TITLE, MB_ICONERROR | MB_OK);
+                }
+            }
+            return 0;
+
         /* ── Help menu ──────────────────────────────────────── */
         case IDM_HELP_ABOUT:
             MessageBox(hwnd,
@@ -1535,6 +1553,37 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         int msg_type = (int)wParam;
         if (msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES)
             state->hDetailWnds[msg_type] = NULL;
+        return 0;
+    }
+
+    case WM_APP_SKY_UPDATE: {
+        state = GetAppState(hwnd);
+        if (!state) break;
+
+        int count = (int)wParam;
+        SkySatUpdate *upd = (SkySatUpdate *)lParam;
+
+        if (upd) {
+            double now = gui_get_time_seconds();
+            for (int i = 0; i < count; i++) {
+                int g = upd[i].gnss_id;
+                int p = upd[i].prn;
+                if (g < 0 || g >= SV_EPH_MAX_GNSS)         continue;
+                if (p < 1 || p > SV_EPH_MAX_SATS_PER_GNSS) continue;
+
+                SkySat *s = &state->skyState.sats[g][p - 1];
+                s->az_deg       = upd[i].az_deg;
+                s->el_deg       = upd[i].el_deg;
+                s->cnr_dbhz     = upd[i].cnr_dbhz;
+                s->last_seen_ts = now;
+                s->valid        = true;
+            }
+            HeapFree(GetProcessHeap(), 0, upd);
+        }
+        /* upd==NULL with count==0 is a status-refresh ping: just repaint
+         * so the status line picks up new ARP/ephemeris availability. */
+        if (state->hSkyWnd)
+            InvalidateRect(state->hSkyWnd, NULL, FALSE);
         return 0;
     }
 

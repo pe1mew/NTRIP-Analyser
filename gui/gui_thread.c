@@ -14,10 +14,30 @@
 #include "gui_state.h"
 #include "rtcm3x_parser.h"
 #include "nmea_parser.h"
+#include "sv_ephemeris.h"
+#include "sv_orbit.h"
 
 #include <stdio.h>
 #include <time.h>
 #include <ctype.h>
+
+/**
+ * @brief Coarse GPS time of day for sky-plot orbit propagation.
+ *
+ * The sky plot only needs second-level precision (an error of 10 s shifts
+ * an SV by ~37 km along its orbit, well below sky-plot pixel resolution),
+ * so we ignore leap seconds and simply derive GPS week + ToW from the
+ * system clock using the GPS epoch (1980-01-06 00:00:00 UTC).
+ */
+static void sky_get_gps_time(int *week, double *tow_s)
+{
+    const time_t GPS_EPOCH_UNIX = 315964800;   /* 1980-01-06 UTC */
+    time_t now = time(NULL);
+    double delta = (double)(now - GPS_EPOCH_UNIX);
+    int w = (int)(delta / 604800.0);
+    if (week)  *week  = w;
+    if (tow_s) *tow_s = delta - (double)w * 604800.0;
+}
 
 /**
  * @brief Case-insensitive substring search (like strstr but ignores case).
@@ -473,6 +493,90 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
 
                     /* Notify UI thread — satellite update */
                     PostMessage(state->hMain, WM_APP_SAT_UPDATE, 0, 0);
+
+                    /* ── Sky-plot update for MSM4/5/6/7 frames ──────────
+                     * Two inputs needed: a station ARP and a valid
+                     * ephemeris per SV.  Many casters (e.g. Onocoy
+                     * observation streams) omit 1005/1006/1019/1045/1046
+                     * entirely.  Fall back to the user-configured rover
+                     * lat/lon for the ARP when no 1005/1006 has arrived.
+                     * Ephemeris has no fallback — without 1019/1045/1046
+                     * we can't position SVs, but we still post an empty
+                     * update so the status line refreshes. */
+                    {
+                        bool   arp_valid = false;
+                        double sx = 0, sy = 0, sz = 0;
+                        rtcm_get_station_arp(&arp_valid, &sx, &sy, &sz,
+                                             NULL, NULL, NULL);
+
+                        if (!arp_valid &&
+                            (state->config.LATITUDE != 0.0 ||
+                             state->config.LONGITUDE != 0.0)) {
+                            geodetic_to_ecef(state->config.LATITUDE,
+                                             state->config.LONGITUDE,
+                                             0.0, &sx, &sy, &sz);
+                            arp_valid = true;
+                        }
+
+                        int prns[64];
+                        int gnss_id = 0;
+                        int n_prns = arp_valid
+                            ? msm_extract_prns(msg_buf + 3, msg_length,
+                                               msg_type, prns,
+                                               (int)(sizeof(prns) / sizeof(prns[0])),
+                                               &gnss_id)
+                            : 0;
+
+                        int upd_count = 0;
+                        SkySatUpdate *upd = NULL;
+
+                        /* Only GPS (1) and Galileo (3) are propagated today */
+                        if (n_prns > 0 && (gnss_id == 1 || gnss_id == 3)) {
+                            int    gps_week;
+                            double gps_tow;
+                            sky_get_gps_time(&gps_week, &gps_tow);
+
+                            upd = (SkySatUpdate *)HeapAlloc(
+                                GetProcessHeap(), 0,
+                                sizeof(SkySatUpdate) * (size_t)n_prns);
+                            if (upd) {
+                                for (int i = 0; i < n_prns; i++) {
+                                    const SvEphemeris *eph =
+                                        sv_eph_get(gnss_id, prns[i]);
+                                    if (!eph) continue;
+                                    if (!sv_eph_is_valid_at(eph, gps_week, gps_tow))
+                                        continue;
+
+                                    double svx, svy, svz;
+                                    if (!kepler_to_ecef(eph, gps_week, gps_tow,
+                                                        &svx, &svy, &svz))
+                                        continue;
+
+                                    double az_d, el_d;
+                                    azel_from_ecef(sx, sy, sz,
+                                                   svx, svy, svz,
+                                                   &az_d, &el_d);
+
+                                    if (el_d <= 0.0) continue;
+
+                                    upd[upd_count].gnss_id  = gnss_id;
+                                    upd[upd_count].prn      = prns[i];
+                                    upd[upd_count].az_deg   = (float)az_d;
+                                    upd[upd_count].el_deg   = (float)el_d;
+                                    upd[upd_count].cnr_dbhz = 0.0f;
+                                    upd_count++;
+                                }
+                            }
+                        }
+
+                        /* Post even when upd_count == 0 so the status line
+                         * in the sky window refreshes (shows "waiting for
+                         * ephemeris..." etc.).  UI handler frees @c upd. */
+                        if (!PostMessage(state->hMain, WM_APP_SKY_UPDATE,
+                                         (WPARAM)upd_count, (LPARAM)upd)) {
+                            if (upd) HeapFree(GetProcessHeap(), 0, upd);
+                        }
+                    }
 
                     /* Post raw RTCM frame to UI thread for decoding and
                      * caching.  The UI handler stores the decoded text so

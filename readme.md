@@ -47,7 +47,7 @@ The analyser can perform the following operations on NTRIP streams:
 
 **Windows CLI:**
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c -Ilib/cJSON -lws2_32 -Wall
+gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c -Ilib/cJSON -lws2_32 -Wall
 ```
 
 **Windows GUI:**

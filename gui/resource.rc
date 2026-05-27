@@ -24,6 +24,10 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "&Close Stream\tEsc",                 IDM_CONN_CLOSE_STREAM
     END
+    POPUP "&View"
+    BEGIN
+        MENUITEM "&Sky Plot...",                      IDM_VIEW_SKY_PLOT
+    END
     POPUP "&Help"
     BEGIN
         MENUITEM "&About NTRIP-Analyser",              IDM_HELP_ABOUT

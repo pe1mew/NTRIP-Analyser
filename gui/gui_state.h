@@ -18,6 +18,7 @@
 #include <commctrl.h>
 #include <stdbool.h>
 #include "ntrip_handler.h"
+#include "sv_ephemeris.h"
 
 /* ── Application constants ────────────────────────────────── */
 #define APP_TITLE       "NTRIP-Analyser"
@@ -80,6 +81,45 @@ static inline double gui_get_time_seconds(void) {
     QueryPerformanceCounter(&now);
     return (double)now.QuadPart / freq.QuadPart;
 }
+
+/**
+ * @struct SkySat
+ * @brief Last-known sky position of a single satellite.
+ *
+ * One slot per (gnss_id, prn) in @ref SkyPlotState.  Updated each MSM
+ * epoch by WM_APP_SKY_UPDATE from the worker thread.  Stale entries
+ * (last_seen_ts older than ~30 s) are filtered out at paint time.
+ */
+typedef struct {
+    double az_deg;        /**< 0..360, 0 = north, clockwise */
+    double el_deg;        /**< -90..+90, +90 = zenith */
+    double last_seen_ts;  /**< gui_get_time_seconds() at last update */
+    float  cnr_dbhz;      /**< best CNR this epoch (0 = unknown) */
+    bool   valid;
+} SkySat;
+
+/**
+ * @struct SkyPlotState
+ * @brief Sky-plot model held by the UI thread and rendered by gui_sky_window.c.
+ */
+typedef struct {
+    SkySat sats[SV_EPH_MAX_GNSS][SV_EPH_MAX_SATS_PER_GNSS];
+} SkyPlotState;
+
+/**
+ * @struct SkySatUpdate
+ * @brief One-shot update payload posted from the worker thread per MSM epoch.
+ *
+ * Allocated with HeapAlloc(GetProcessHeap(), 0, count*sizeof(SkySatUpdate)).
+ * Worker passes pointer + count via WM_APP_SKY_UPDATE; UI handler frees it.
+ */
+typedef struct {
+    int   gnss_id;
+    int   prn;
+    float az_deg;
+    float el_deg;
+    float cnr_dbhz;
+} SkySatUpdate;
 
 /**
  * @struct AppState
@@ -176,6 +216,19 @@ typedef struct {
      * Only ever touched on the UI thread (message handlers),
      * so no locking is needed. */
     char *lastDecodedText[GUI_MAX_MSG_TYPES];
+
+    /* ── Sky-plot window (floating, optional) ────────────── */
+    /* hSkyWnd is NULL when closed; cleared by the sky window's
+     * WM_DESTROY.  When the sky window is destroyed it also stashes
+     * its un-minimised screen rect here so the next open restores
+     * the same size and position. */
+    HWND hSkyWnd;
+    RECT skyWndRect;
+    BOOL skyWndRectValid;
+
+    /* Live sky-plot model.  Written by WM_APP_SKY_UPDATE on the UI
+     * thread; read on the UI thread during WM_PAINT of hSkyWnd. */
+    SkyPlotState skyState;
 
 } AppState;
 

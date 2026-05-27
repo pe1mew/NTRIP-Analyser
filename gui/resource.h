@@ -23,6 +23,9 @@
 #define IDM_CONN_OPEN_STREAM    9011
 #define IDM_CONN_CLOSE_STREAM   9012
 
+/* ── Menu items: View ─────────────────────────────────────── */
+#define IDM_VIEW_SKY_PLOT       9020
+
 /* ── Menu items: Help ─────────────────────────────────────── */
 #define IDM_HELP_ABOUT          9030
 #define IDM_HELP_GITHUB         9031
@@ -81,6 +84,7 @@
 #define WM_APP_STREAM_INFO      (WM_APP + 9)
 #define WM_APP_MSG_RAW          (WM_APP + 10)   /* raw RTCM frame for detail window */
 #define WM_APP_DETAIL_CLOSED    (WM_APP + 11)   /* detail window closed: wParam=msg_type */
+#define WM_APP_SKY_UPDATE       (WM_APP + 12)   /* sky-plot SV update: wParam=count, lParam=SkySatUpdate* */
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700
