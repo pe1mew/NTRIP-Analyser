@@ -564,11 +564,17 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     state->bStopRequested = FALSE;
     EnableWindow(state->hBtnCloseStream, TRUE);
 
-    /* Clear previous stats and ListViews */
+    /* Clear previous stats, ListViews, and last-decoded-text cache */
     memset(state->msgStats, 0, sizeof(state->msgStats));
     memset(&state->satStats, 0, sizeof(state->satStats));
     ListView_DeleteAllItems(state->hLvMsgStats);
     ListView_DeleteAllItems(state->hLvSatellites);
+    for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
+        if (state->lastDecodedText[i]) {
+            HeapFree(GetProcessHeap(), 0, state->lastDecodedText[i]);
+            state->lastDecodedText[i] = NULL;
+        }
+    }
 
     /* Reset stream info */
     InterlockedExchange(&state->streamBytes, 0);
@@ -927,6 +933,7 @@ const char* RtcmMsgDescription(int msg_type)
     case 1013: return "System Parameters";
     case 1019: return "GPS Ephemeris";
     case 1020: return "GLONASS Ephemeris";
+    case 1029: return "Unicode Text String";
     case 1033: return "Receiver + Antenna Descriptor";
     case 1042: return "BeiDou Ephemeris";
     case 1044: return "QZSS Ephemeris";
@@ -1261,8 +1268,24 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(
                             hwnd, GWLP_HINSTANCE);
                         HWND hDet = CreateDetailWindow(hInst, hwnd, mt);
-                        if (hDet)
+                        if (hDet) {
                             state->hDetailWnds[mt] = hDet;
+
+                            /* Populate immediately with cached last message */
+                            if (state->lastDecodedText[mt]) {
+                                int tlen = (int)strlen(
+                                    state->lastDecodedText[mt]) + 1;
+                                char *dup = (char *)HeapAlloc(
+                                    GetProcessHeap(), 0, tlen);
+                                if (dup) {
+                                    memcpy(dup, state->lastDecodedText[mt],
+                                           tlen);
+                                    if (!PostMessage(hDet, WM_USER + 1,
+                                                     0, (LPARAM)dup))
+                                        HeapFree(GetProcessHeap(), 0, dup);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1452,9 +1475,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         int msg_type = (int)wParam;
         RtcmRawMsg *raw = (RtcmRawMsg *)lParam;
 
-        if (raw && msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES
-            && state->hDetailWnds[msg_type]) {
-            /* Decode to string buffer on UI thread */
+        if (raw && msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES) {
+            /* ── Decode on the UI thread ─────────────────────── */
             RtcmStrBuf sb;
             rtcm_strbuf_init(&sb, 4096);
             rtcm_set_output_buffer(&sb);
@@ -1462,15 +1484,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                                  false, &state->config);
             rtcm_set_output_buffer(NULL);
 
-            /* Convert \n → \r\n for Win32 EDIT control, then send */
             if (sb.len > 0) {
-                /* Count newlines to size the output buffer */
+                /* Convert \n → \r\n for the Win32 EDIT control */
                 int nlCount = 0;
                 for (int i = 0; i < sb.len; i++)
                     if (sb.buf[i] == '\n') nlCount++;
 
-                char *text = (char *)HeapAlloc(GetProcessHeap(),
-                                               0, sb.len + nlCount + 1);
+                int textLen = sb.len + nlCount + 1;
+                char *text = (char *)HeapAlloc(GetProcessHeap(), 0, textLen);
                 if (text) {
                     int j = 0;
                     for (int i = 0; i < sb.len; i++) {
@@ -1479,8 +1500,25 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         text[j++] = sb.buf[i];
                     }
                     text[j] = '\0';
-                    PostMessage(state->hDetailWnds[msg_type],
-                                WM_USER + 1, 0, (LPARAM)text);
+
+                    /* ── Cache: replace previous decoded text ── */
+                    if (state->lastDecodedText[msg_type])
+                        HeapFree(GetProcessHeap(), 0,
+                                 state->lastDecodedText[msg_type]);
+                    state->lastDecodedText[msg_type] = text;
+
+                    /* ── Forward to open detail window ──────── */
+                    if (state->hDetailWnds[msg_type] != NULL) {
+                        /* Detail window frees its copy; send a duplicate */
+                        char *dup = (char *)HeapAlloc(GetProcessHeap(),
+                                                      0, textLen);
+                        if (dup) {
+                            memcpy(dup, text, textLen);
+                            if (!PostMessage(state->hDetailWnds[msg_type],
+                                             WM_USER + 1, 0, (LPARAM)dup))
+                                HeapFree(GetProcessHeap(), 0, dup);
+                        }
+                    }
                 }
             }
             rtcm_strbuf_free(&sb);
@@ -1559,9 +1597,20 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
 
-    case WM_DESTROY:
+    case WM_DESTROY: {
+        /* Free the last-decoded-text cache */
+        state = GetAppState(hwnd);
+        if (state) {
+            for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
+                if (state->lastDecodedText[i]) {
+                    HeapFree(GetProcessHeap(), 0, state->lastDecodedText[i]);
+                    state->lastDecodedText[i] = NULL;
+                }
+            }
+        }
         PostQuitMessage(0);
         return 0;
+    }
     }
 
     return DefWindowProc(hwnd, msg, wParam, lParam);

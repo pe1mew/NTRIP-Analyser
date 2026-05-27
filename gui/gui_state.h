@@ -169,6 +169,14 @@ typedef struct {
     /* ── Detail windows (one per open message type) ──────── */
     HWND hDetailWnds[GUI_MAX_MSG_TYPES]; /* NULL if not open */
 
+    /* ── Last decoded text per message type ──────────────── */
+    /* HeapAlloc'd string with \r\n line endings, ready for the
+     * EDIT control.  Replaced on every new frame; freed when a
+     * new stream is started or the application exits.
+     * Only ever touched on the UI thread (message handlers),
+     * so no locking is needed. */
+    char *lastDecodedText[GUI_MAX_MSG_TYPES];
+
 } AppState;
 
 /**

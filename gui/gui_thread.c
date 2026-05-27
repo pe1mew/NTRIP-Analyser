@@ -13,8 +13,10 @@
 #include "resource.h"
 #include "gui_state.h"
 #include "rtcm3x_parser.h"
+#include "nmea_parser.h"
 
 #include <stdio.h>
+#include <time.h>
 #include <ctype.h>
 
 /**
@@ -124,6 +126,19 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
            state->config.MOUNTPOINT);
     fflush(stdout);
 
+    /* ── Prepare GGA sentence ───────────────────────────────── */
+    char gga[100];
+    create_gngga_sentence(state->config.LATITUDE, state->config.LONGITUDE, gga);
+    char gga_with_crlf[104];
+    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
+    time_t last_gga_time = time(NULL);
+
+    /* Send initial GGA immediately so the caster knows our position */
+    if (send(sock, gga_with_crlf, (int)strlen(gga_with_crlf), 0) > 0) {
+        printf("[GGA] Sent initial GGA: %s\n", gga);
+        fflush(stdout);
+    }
+
     /* ── Reset stream info counters ────────────────────────── */
     InterlockedExchange(&state->streamBytes, 0);
     InterlockedExchange(&state->streamFormat, 0);
@@ -203,6 +218,16 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     }
 
     while (!state->bStopRequested) {
+        /* ── Periodic GGA resend (every 5 seconds) ───────────── */
+        time_t now_t = time(NULL);
+        if (now_t - last_gga_time >= 5) {
+            if (send(sock, gga_with_crlf, (int)strlen(gga_with_crlf), 0) > 0) {
+                printf("[GGA] Sent GGA\n");
+                fflush(stdout);
+            }
+            last_gga_time = now_t;
+        }
+
         int n = recv(sock, (char *)recv_buf, sizeof(recv_buf), 0);
 
         if (n == 0) {
@@ -449,18 +474,18 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                     /* Notify UI thread — satellite update */
                     PostMessage(state->hMain, WM_APP_SAT_UPDATE, 0, 0);
 
-                    /* Post raw RTCM frame for detail window decode */
-                    if (state->hDetailWnds[msg_type] != NULL) {
-                        RtcmRawMsg *raw = (RtcmRawMsg *)HeapAlloc(
-                            GetProcessHeap(), 0, sizeof(RtcmRawMsg));
-                        if (raw) {
-                            raw->msg_type = msg_type;
-                            raw->length   = msg_target;
-                            memcpy(raw->data, msg_buf, msg_target);
-                            if (!PostMessage(state->hMain, WM_APP_MSG_RAW,
-                                             (WPARAM)msg_type, (LPARAM)raw)) {
-                                HeapFree(GetProcessHeap(), 0, raw);
-                            }
+                    /* Post raw RTCM frame to UI thread for decoding and
+                     * caching.  The UI handler stores the decoded text so
+                     * that detail windows opened later still show content. */
+                    RtcmRawMsg *raw = (RtcmRawMsg *)HeapAlloc(
+                        GetProcessHeap(), 0, sizeof(RtcmRawMsg));
+                    if (raw) {
+                        raw->msg_type = msg_type;
+                        raw->length   = msg_target;
+                        memcpy(raw->data, msg_buf, msg_target);
+                        if (!PostMessage(state->hMain, WM_APP_MSG_RAW,
+                                         (WPARAM)msg_type, (LPARAM)raw)) {
+                            HeapFree(GetProcessHeap(), 0, raw);
                         }
                     }
 

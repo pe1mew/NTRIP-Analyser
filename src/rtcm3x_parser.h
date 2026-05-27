@@ -18,6 +18,7 @@
  *   - 1012: GLONASS L1&L2 RTK Observables
  *   - 1013: System Parameters (GLONASS synchronization and message schedule)
  *   - 1019: GPS Ephemeris Data
+ *   - 1029: Unicode Text String
  *   - *1020: GLONASS L1&L2 RTK Observables*
  *   - 1033: Receiver & Antenna Descriptor
  *   - *1042: GPS Code-Phase Biases*
@@ -399,6 +400,22 @@ void decode_rtcm_1008(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1013(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print the contents of an RTCM 3.x Type 1029 message (Unicode Text String).
+ *
+ * Broadcasts a UTF-8 encoded free-text message from the reference station.
+ * Commonly used for station identification, operator notices, or service metadata.
+ * Contains:
+ * - Reference Station ID
+ * - MJD (date) and UTC seconds-of-day (time)
+ * - Byte count and Unicode character count
+ * - UTF-8 encoded text string (up to 127 bytes / 255 characters)
+ *
+ * @param payload     Pointer to the message payload (after RTCM header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1029(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1033 message (Receiver & Antenna Descriptor).

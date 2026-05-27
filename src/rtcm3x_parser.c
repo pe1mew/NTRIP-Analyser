@@ -970,6 +970,9 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1013) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1013 detected)\n", msg_type, msg_length);
                 decode_rtcm_1013(&data[3], msg_length);
+            } else if (msg_type == 1029) {
+                rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1029 detected)\n", msg_type, msg_length);
+                decode_rtcm_1029(&data[3], msg_length);
             } else if (msg_type == 1033) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1033 detected)\n", msg_type, msg_length);
                 decode_rtcm_1033(&data[3], msg_length);
@@ -1411,6 +1414,64 @@ void decode_rtcm_1124(const unsigned char *payload, int payload_len) {
         );
     }
     if (num_cells > 5) rtcm_printf("  ... (%d more cells not shown)\n", num_cells - 5);
+}
+
+/**
+ * @brief Decode RTCM 3.x Type 1029 — Unicode Text String.
+ *
+ * Fields (RTCM 10403.3):
+ *   DF002  Message Number        12 bits
+ *   DF003  Reference Station ID  12 bits
+ *   DF051  MJD Number            16 bits
+ *   DF052  UTC Seconds of Day    17 bits
+ *   DF138  Byte Count            7 bits  (N, number of UTF-8 encoded bytes)
+ *   DF029  Unicode Char Count    8 bits  (may differ from N for multibyte chars)
+ *   DF139  UTF-8 Text            N×8 bits
+ */
+void decode_rtcm_1029(const unsigned char *payload, int payload_len) {
+    /* Fixed header is 12+12+16+17+7+8 = 72 bits = 9 bytes */
+    if (payload_len < 9) {
+        rtcm_printf("RTCM 1029: Payload too short (%d bytes, need at least 9)!\n", payload_len);
+        return;
+    }
+
+    int bit = 0;
+    uint16_t msg_number      = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    uint16_t ref_station_id  = (uint16_t)get_bits(payload, bit, 12); bit += 12;
+    uint16_t mjd             = (uint16_t)get_bits(payload, bit, 16); bit += 16;
+    uint32_t sod             = (uint32_t)get_bits(payload, bit, 17); bit += 17;
+    uint8_t  n_bytes         = (uint8_t) get_bits(payload, bit,  7); bit +=  7;
+    uint8_t  n_chars         = (uint8_t) get_bits(payload, bit,  8); bit +=  8;
+    /* bit == 72 here */
+
+    if (payload_len < 9 + n_bytes) {
+        rtcm_printf("RTCM 1029: Payload too short for text "
+                    "(%d bytes available, need %d)!\n",
+                    payload_len, 9 + n_bytes);
+        return;
+    }
+
+    /* Extract UTF-8 string bytes */
+    char text[256] = {0};
+    int  copy_len  = (n_bytes < (int)sizeof(text) - 1) ? n_bytes : (int)sizeof(text) - 1;
+    for (int i = 0; i < copy_len; i++) {
+        text[i] = (char)get_bits(payload, bit, 8); bit += 8;
+    }
+    text[copy_len] = '\0';
+
+    /* Decompose seconds-of-day into HH:MM:SS */
+    uint32_t hh = sod / 3600u;
+    uint32_t mm = (sod % 3600u) / 60u;
+    uint32_t ss = sod % 60u;
+
+    rtcm_printf("RTCM 1029 (Unicode Text String):\n");
+    rtcm_printf("  Message Number    : %u\n", msg_number);
+    rtcm_printf("  Reference Station : %u\n", ref_station_id);
+    rtcm_printf("  MJD               : %u\n", mjd);
+    rtcm_printf("  UTC Time          : %02u:%02u:%02u\n", hh, mm, ss);
+    rtcm_printf("  Byte count        : %u\n", n_bytes);
+    rtcm_printf("  Unicode chars     : %u\n", n_chars);
+    rtcm_printf("  Text              : %s\n", text);
 }
 
 void decode_rtcm_msm4_generic(const unsigned char *payload, int payload_len,
