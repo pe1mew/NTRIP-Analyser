@@ -34,6 +34,24 @@ The analyser can perform the following operations on NTRIP streams:
    - Message statistics (count, minimum/average/maximum transmission intervals)
    - Filtered message decoding (show only specific message types)
    - Satellite analysis (count unique satellites per GNSS constellation)
+3. **Live polar sky plot** (GUI) — floating window showing every tracked
+   satellite at its azimuth / elevation as seen from the reference-station
+   ARP, with two render modes:
+   - **Markers** — per-GNSS coloured dots shaded by CNR, with a 120-point
+     trail of past positions and a left-click SV detail popup
+     (per-band CNR table, PRN, az/el)
+   - **Heatmap** — Onocoy-style observed-vs-expected sector coverage map
+     (150 sectors, red → yellow → green ramp)
+4. **Multi-GNSS ephemeris** (GPS / GLONASS / Galileo / QZSS / BeiDou) sourced
+   from one of:
+   - A second NTRIP connection that feeds RTCM 1019 / 1020 / 1042 / 1044 /
+     1045 / 1046 frames into the eph cache (e.g. BKG `BCEP00BKG0` or
+     Kadaster `BCEP00KAD0`), or
+   - A RINEX 3 multi-GNSS NAV file loaded from disk
+5. **RTCM capture and replay** (GUI) — save the live stream to a `.rtcm3`
+   file and feed it back through the same UI pipeline for offline analysis
+6. **PNG snapshot** of the sky plot, self-contained with ARP / mountpoint
+   / clock footer
 
 ## Documentation
 
