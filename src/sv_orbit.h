@@ -37,4 +37,39 @@ bool kepler_to_ecef(const SvEphemeris *eph,
                     int week, double tow_s,
                     double *x, double *y, double *z);
 
+/**
+ * @brief Propagate a GLONASS broadcast ephemeris to ECEF position.
+ *
+ * Numerical RK4 integration of the 6-state ODE (position + velocity in
+ * PZ-90) with two-body gravity, J2 zonal harmonic, and the broadcast
+ * luni-solar acceleration.  Final rotation by Earth's angular speed
+ * gives the position in the Earth-fixed frame at @p glo_tod_s.
+ *
+ * @param eph         Ephemeris snapshot (gnss_id must be 2).
+ * @param glo_tod_s   Target time in Moscow seconds-of-day (UTC+3, no leap
+ *                    seconds applied — same scale as @c eph->glo_tb_sod).
+ * @param x,y,z       [out] ECEF position in metres (PZ-90 ~= WGS-84 to
+ *                    ~0.5 m, well below sky-plot resolution).
+ * @return true on success.
+ */
+bool glonass_to_ecef(const SvEphemeris *eph, double glo_tod_s,
+                     double *x, double *y, double *z);
+
+/**
+ * @brief Polymorphic SV-to-ECEF dispatch.
+ *
+ * Routes to @ref kepler_to_ecef for GPS/Galileo/QZSS/BeiDou, and
+ * @ref glonass_to_ecef for GLONASS.  Callers should use this entry
+ * point so they don't need to special-case GNSS IDs.
+ *
+ * @param eph    Ephemeris snapshot.
+ * @param week   Full GPS week (used only by Keplerian propagator).
+ * @param tow_s  Seconds of week (or Moscow seconds-of-day for GLONASS).
+ * @param x,y,z  [out] ECEF position in metres.
+ * @return true on success.
+ */
+bool sv_to_ecef(const SvEphemeris *eph,
+                int week, double tow_s,
+                double *x, double *y, double *z);
+
 #endif /* SV_ORBIT_H */

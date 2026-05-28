@@ -15,6 +15,13 @@ BEGIN
         MENUITEM "&Save Configuration...\tCtrl+S",  IDM_FILE_SAVE_CONFIG
         MENUITEM "&Generate Template Config",        IDM_FILE_GENERATE
         MENUITEM SEPARATOR
+        MENUITEM "Load &Ephemerides (RINEX)...",     IDM_FILE_LOAD_EPH
+        MENUITEM "Save Sky &Plot as PNG...",         IDM_FILE_SAVE_SKYPLOT
+        MENUITEM SEPARATOR
+        MENUITEM "Start &RTCM Capture...",           IDM_FILE_RTCM_START
+        MENUITEM "Stop RTCM Capture",                IDM_FILE_RTCM_STOP
+        MENUITEM "Replay RTCM File...",              IDM_FILE_RTCM_REPLAY
+        MENUITEM SEPARATOR
         MENUITEM "E&xit\tAlt+F4",                   IDM_FILE_EXIT
     END
     POPUP "&Connection"

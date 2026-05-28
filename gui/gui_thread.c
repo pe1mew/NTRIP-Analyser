@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <time.h>
 #include <ctype.h>
 
@@ -38,6 +39,22 @@ static void sky_get_gps_time(int *week, double *tow_s)
     int w = (int)(delta / 604800.0);
     if (week)  *week  = w;
     if (tow_s) *tow_s = delta - (double)w * 604800.0;
+}
+
+/**
+ * @brief Moscow seconds-of-day for GLONASS orbit propagation.
+ *
+ * GLONASS time = UTC + 3 h (no leap-second offset vs UTC).  We use the
+ * system clock directly, add 10800 seconds, and wrap into [0, 86400).
+ */
+static double sky_get_glo_tod(void)
+{
+    time_t now = time(NULL);
+    double utc_sod = (double)(now % 86400);
+    double msk = utc_sod + 10800.0;
+    while (msk >= 86400.0) msk -= 86400.0;
+    while (msk <    0.0)   msk += 86400.0;
+    return msk;
 }
 
 /**
@@ -454,6 +471,20 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                                                      true, &state->config);
 
                 if (msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES) {
+                    /* RTCM stream capture: write the raw frame bytes to
+                     * disk if the user enabled capture from the File menu.
+                     * The critical section guards against the UI thread
+                     * closing the FILE* mid-write. */
+                    if (state->csRtcmDumpInit) {
+                        EnterCriticalSection(&state->csRtcmDump);
+                        if (state->hRtcmDump) {
+                            size_t w = fwrite(msg_buf, 1, (size_t)msg_target,
+                                              state->hRtcmDump);
+                            state->rtcmDumpBytes += (LONG)w;
+                        }
+                        LeaveCriticalSection(&state->csRtcmDump);
+                    }
+
                     /* Confirm RTCM 3.x format on first successful decode */
                     if (detected_format == FMT_NONE) {
                         detected_format = FMT_RTCM3;
@@ -520,6 +551,7 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                         }
 
                         int prns[64];
+                        float cnr_prns[64];
                         int gnss_id = 0;
                         int n_prns = arp_valid
                             ? msm_extract_prns(msg_buf + 3, msg_length,
@@ -528,29 +560,78 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                                                &gnss_id)
                             : 0;
 
+                        /* For MSM7, also pull per-SV best CNR.  Use the
+                         * PRN list from msm_extract_prns as authoritative;
+                         * the CNR extractor returns the same PRN order. */
+                        int   cnr_n = 0;
+                        int   cnr_prn_list[64];
+                        if (n_prns > 0 && (msg_type % 10) == 7) {
+                            cnr_n = msm7_extract_cnr(msg_buf + 3, msg_length,
+                                                     msg_type,
+                                                     cnr_prn_list, cnr_prns,
+                                                     64, NULL);
+                            /* Also populate the per-band CNR cache used by
+                             * the SV detail window. */
+                            msm7_update_per_band_cnr(msg_buf + 3, msg_length,
+                                                     msg_type);
+                        } else {
+                            for (int i = 0; i < 64; i++) cnr_prns[i] = 0.0f;
+                        }
+
+                        /* Build a PRN->CNR lookup for fast access below. */
+                        float cnr_by_prn[SV_EPH_MAX_SATS_PER_GNSS + 1];
+                        for (int i = 0; i <= SV_EPH_MAX_SATS_PER_GNSS; i++)
+                            cnr_by_prn[i] = 0.0f;
+                        for (int i = 0; i < cnr_n; i++) {
+                            int p = cnr_prn_list[i];
+                            if (p >= 1 && p <= SV_EPH_MAX_SATS_PER_GNSS)
+                                cnr_by_prn[p] = cnr_prns[i];
+                        }
+
                         int upd_count = 0;
                         SkySatUpdate *upd = NULL;
 
-                        /* Only GPS (1) and Galileo (3) are propagated today */
-                        if (n_prns > 0 && (gnss_id == 1 || gnss_id == 3)) {
+                        /* Per-MSM-frame sky update.  We emit one SkySatUpdate
+                         * for EVERY above-horizon SV that has a valid cached
+                         * ephemeris in the same GNSS as this MSM frame, not
+                         * only the SVs that the receiver tracked.  The flag
+                         * observed_flag=1 marks the ones in this frame's sat
+                         * mask; =0 means "expected by ephemeris but not in the
+                         * MSM".  The UI handler uses both flags to drive the
+                         * heatmap's observed/expected counters. */
+                        if (n_prns > 0 &&
+                            (gnss_id == 1 || gnss_id == 2 ||
+                             gnss_id == 3 || gnss_id == 4 || gnss_id == 5)) {
                             int    gps_week;
                             double gps_tow;
                             sky_get_gps_time(&gps_week, &gps_tow);
+                            double glo_tod = sky_get_glo_tod();
+                            double t_prop  = (gnss_id == 2) ? glo_tod : gps_tow;
 
+                            /* O(1) membership test for "was this PRN in the
+                             * MSM frame" -- build a bitset over PRN [1..64]. */
+                            uint64_t obs_mask = 0;
+                            for (int i = 0; i < n_prns; i++) {
+                                int p = prns[i];
+                                if (p >= 1 && p <= 64) obs_mask |= 1ULL << (p - 1);
+                            }
+
+                            /* Allocate worst-case (all PRNs in this GNSS). */
                             upd = (SkySatUpdate *)HeapAlloc(
                                 GetProcessHeap(), 0,
-                                sizeof(SkySatUpdate) * (size_t)n_prns);
+                                sizeof(SkySatUpdate) *
+                                (size_t)SV_EPH_MAX_SATS_PER_GNSS);
+
                             if (upd) {
-                                for (int i = 0; i < n_prns; i++) {
-                                    const SvEphemeris *eph =
-                                        sv_eph_get(gnss_id, prns[i]);
+                                for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++) {
+                                    const SvEphemeris *eph = sv_eph_get(gnss_id, p);
                                     if (!eph) continue;
-                                    if (!sv_eph_is_valid_at(eph, gps_week, gps_tow))
+                                    if (!sv_eph_is_valid_at(eph, gps_week, t_prop))
                                         continue;
 
                                     double svx, svy, svz;
-                                    if (!kepler_to_ecef(eph, gps_week, gps_tow,
-                                                        &svx, &svy, &svz))
+                                    if (!sv_to_ecef(eph, gps_week, t_prop,
+                                                    &svx, &svy, &svz))
                                         continue;
 
                                     double az_d, el_d;
@@ -560,11 +641,21 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
 
                                     if (el_d <= 0.0) continue;
 
-                                    upd[upd_count].gnss_id  = gnss_id;
-                                    upd[upd_count].prn      = prns[i];
-                                    upd[upd_count].az_deg   = (float)az_d;
-                                    upd[upd_count].el_deg   = (float)el_d;
-                                    upd[upd_count].cnr_dbhz = 0.0f;
+                                    int observed_flag = (p >= 1 && p <= 64)
+                                        ? ((obs_mask >> (p - 1)) & 1ULL) ? 1 : 0
+                                        : 0;
+
+                                    float cnr_dbhz = 0.0f;
+                                    if (observed_flag &&
+                                        p >= 1 && p <= SV_EPH_MAX_SATS_PER_GNSS)
+                                        cnr_dbhz = cnr_by_prn[p];
+
+                                    upd[upd_count].gnss_id       = gnss_id;
+                                    upd[upd_count].prn           = p;
+                                    upd[upd_count].az_deg        = (float)az_d;
+                                    upd[upd_count].el_deg        = (float)el_d;
+                                    upd[upd_count].cnr_dbhz      = cnr_dbhz;
+                                    upd[upd_count].observed_flag = observed_flag;
                                     upd_count++;
                                 }
                             }
@@ -820,6 +911,18 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
                     decode_rtcm_1019(&msg_buf[3], payload_len);
                     eph_count++;
                     break;
+                case 1020:
+                    decode_rtcm_1020(&msg_buf[3], payload_len);
+                    eph_count++;
+                    break;
+                case 1042:
+                    decode_rtcm_1042(&msg_buf[3], payload_len);
+                    eph_count++;
+                    break;
+                case 1044:
+                    decode_rtcm_1044(&msg_buf[3], payload_len);
+                    eph_count++;
+                    break;
                 case 1045:
                     decode_rtcm_1045(&msg_buf[3], payload_len);
                     eph_count++;
@@ -829,7 +932,7 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
                     eph_count++;
                     break;
                 default:
-                    /* Silently drop everything else — including 1005/1006
+                    /* Silently drop everything else -- including 1005/1006
                      * which we must not let overwrite the obs ARP. */
                     break;
                 }
@@ -844,5 +947,234 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
     eph_log(state, "[EPH] Stream worker finished (%d ephemerides processed)\r\n",
             eph_count);
 
+    return 0;
+}
+
+/* ── RTCM replay worker ───────────────────────────────────────────────────
+ *
+ * Reads a .rtcm3 capture file (raw RTCM frames concatenated) and feeds
+ * each frame through the same UI-update pipeline the obs worker uses --
+ * stats, satellites, raw-msg detail, sky-plot updates.  Pacing comes from
+ * the 30-bit GPS epoch_time field in MSM headers: between consecutive
+ * frames carrying a valid epoch_time we sleep by the diff, capped at 1 s
+ * to skip over recording gaps.  Non-MSM frames advance the cursor without
+ * sleeping.
+ *
+ * Lifetime is shared with WorkerOpenStream via hWorkerThread /
+ * bWorkerRunning / bStopRequested so Close Stream stops replay.  The eph
+ * worker and capture-to-disk are not started during replay.
+ */
+DWORD WINAPI WorkerReplayRtcm(LPVOID param)
+{
+    AppState *state = (AppState *)param;
+
+    printf("[INFO] Replay: opening %s\n", state->replayPath);
+    fflush(stdout);
+
+    FILE *f = fopen(state->replayPath, "rb");
+    if (!f) {
+        printf("[ERROR] Replay: cannot open file\n");
+        fflush(stdout);
+        PostMessage(state->hMain, WM_APP_STREAM_DONE, 0, 0);
+        return 1;
+    }
+
+    /* Tell the UI we're decoding "RTCM 3.x" so the status bar gets a sane
+     * label even though no caster is involved. */
+    InterlockedExchange(&state->streamFormat, 1 /* FMT_RTCM3 */);
+    PostMessage(state->hMain, WM_APP_STREAM_INFO, 0, 0);
+
+    unsigned char msg_buf[GUI_BUFFER_SIZE];
+    int  frames_decoded = 0;
+    long total_bytes    = 0;
+
+    while (!state->bStopRequested) {
+        /* Find the next 0xD3 preamble.  Re-sync if the file ends or has
+         * stray bytes between frames. */
+        int b;
+        do {
+            b = fgetc(f);
+            if (b == EOF) goto eof;
+        } while (b != 0xD3);
+
+        msg_buf[0] = (unsigned char)b;
+        int got = (int)fread(msg_buf + 1, 1, 2, f);   /* length bytes */
+        if (got < 2) break;
+
+        int msg_length = ((msg_buf[1] & 0x03) << 8) | msg_buf[2];
+        int frame_len  = msg_length + 6;              /* preamble + len + crc */
+        if (frame_len > GUI_BUFFER_SIZE) {
+            /* Bogus length -- try to resync from next byte. */
+            continue;
+        }
+
+        got = (int)fread(msg_buf + 3, 1, frame_len - 3, f);
+        if (got < frame_len - 3) break;
+
+        /* ── Process the frame ── */
+        int msg_type = analyze_rtcm_message(msg_buf, frame_len, true,
+                                            &state->config);
+        if (msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES) {
+            frames_decoded++;
+            total_bytes += frame_len;
+            InterlockedExchangeAdd(&state->streamBytes, (LONG)frame_len);
+
+            /* Per-MSM-type stats */
+            double now = gui_get_time_seconds();
+            GuiMsgStat *s = &state->msgStats[msg_type];
+            if (!s->seen) {
+                s->seen = true;
+                s->last_time = now;
+                s->min_dt = s->max_dt = s->sum_dt = 0.0;
+            } else {
+                double dt = now - s->last_time;
+                s->last_time = now;
+                s->sum_dt += dt;
+                if (dt < s->min_dt || s->min_dt == 0.0) s->min_dt = dt;
+                if (dt > s->max_dt) s->max_dt = dt;
+            }
+            s->count++;
+            PostMessage(state->hMain, WM_APP_STAT_UPDATE,
+                        (WPARAM)msg_type, (LPARAM)s->count);
+
+            /* Satellite stats + sky-plot update (same logic as obs worker) */
+            int payload_len_inner = msg_length;
+            extract_satellites(msg_buf + 3, payload_len_inner,
+                               msg_type, &state->satStats);
+            PostMessage(state->hMain, WM_APP_SAT_UPDATE, 0, 0);
+
+            /* Update per-band CNR cache for MSM7 frames so SV detail
+             * windows show live per-signal values from the replay. */
+            if ((msg_type % 10) == 7)
+                msm7_update_per_band_cnr(msg_buf + 3, payload_len_inner, msg_type);
+
+            /* Sky-plot pipeline: same gate as the obs worker. */
+            {
+                bool   arp_valid = false;
+                double sx = 0, sy = 0, sz = 0;
+                rtcm_get_station_arp(&arp_valid, &sx, &sy, &sz,
+                                     NULL, NULL, NULL);
+                if (!arp_valid &&
+                    (state->config.LATITUDE != 0.0 ||
+                     state->config.LONGITUDE != 0.0)) {
+                    geodetic_to_ecef(state->config.LATITUDE,
+                                     state->config.LONGITUDE,
+                                     0.0, &sx, &sy, &sz);
+                    arp_valid = true;
+                }
+
+                int prns[64];
+                int gnss_id = 0;
+                int n_prns = arp_valid
+                    ? msm_extract_prns(msg_buf + 3, payload_len_inner,
+                                       msg_type, prns, 64, &gnss_id)
+                    : 0;
+
+                int   cnr_n = 0, cnr_prn_list[64];
+                float cnr_prns[64];
+                if (n_prns > 0 && (msg_type % 10) == 7)
+                    cnr_n = msm7_extract_cnr(msg_buf + 3, payload_len_inner,
+                                             msg_type,
+                                             cnr_prn_list, cnr_prns, 64, NULL);
+                else
+                    for (int i = 0; i < 64; i++) cnr_prns[i] = 0.0f;
+
+                float cnr_by_prn[SV_EPH_MAX_SATS_PER_GNSS + 1];
+                for (int i = 0; i <= SV_EPH_MAX_SATS_PER_GNSS; i++)
+                    cnr_by_prn[i] = 0.0f;
+                for (int i = 0; i < cnr_n; i++) {
+                    int p = cnr_prn_list[i];
+                    if (p >= 1 && p <= SV_EPH_MAX_SATS_PER_GNSS)
+                        cnr_by_prn[p] = cnr_prns[i];
+                }
+
+                int upd_count = 0;
+                SkySatUpdate *upd = NULL;
+
+                if (n_prns > 0 &&
+                    (gnss_id == 1 || gnss_id == 2 ||
+                     gnss_id == 3 || gnss_id == 4 || gnss_id == 5)) {
+                    int    gps_week;
+                    double gps_tow;
+                    sky_get_gps_time(&gps_week, &gps_tow);
+                    double glo_tod = sky_get_glo_tod();
+                    double t_prop  = (gnss_id == 2) ? glo_tod : gps_tow;
+
+                    uint64_t obs_mask = 0;
+                    for (int i = 0; i < n_prns; i++) {
+                        int p = prns[i];
+                        if (p >= 1 && p <= 64) obs_mask |= 1ULL << (p - 1);
+                    }
+
+                    upd = (SkySatUpdate *)HeapAlloc(GetProcessHeap(), 0,
+                        sizeof(SkySatUpdate) * SV_EPH_MAX_SATS_PER_GNSS);
+                    if (upd) {
+                        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++) {
+                            const SvEphemeris *eph = sv_eph_get(gnss_id, p);
+                            if (!eph) continue;
+                            if (!sv_eph_is_valid_at(eph, gps_week, t_prop))
+                                continue;
+                            double svx, svy, svz;
+                            if (!sv_to_ecef(eph, gps_week, t_prop,
+                                            &svx, &svy, &svz))
+                                continue;
+                            double az_d, el_d;
+                            azel_from_ecef(sx, sy, sz,
+                                           svx, svy, svz, &az_d, &el_d);
+                            if (el_d <= 0.0) continue;
+
+                            int observed_flag = (p >= 1 && p <= 64)
+                                ? ((obs_mask >> (p - 1)) & 1ULL) ? 1 : 0
+                                : 0;
+                            float cnr_dbhz = 0.0f;
+                            if (observed_flag &&
+                                p <= SV_EPH_MAX_SATS_PER_GNSS)
+                                cnr_dbhz = cnr_by_prn[p];
+
+                            upd[upd_count].gnss_id       = gnss_id;
+                            upd[upd_count].prn           = p;
+                            upd[upd_count].az_deg        = (float)az_d;
+                            upd[upd_count].el_deg        = (float)el_d;
+                            upd[upd_count].cnr_dbhz      = cnr_dbhz;
+                            upd[upd_count].observed_flag = observed_flag;
+                            upd_count++;
+                        }
+                    }
+                }
+
+                if (!PostMessage(state->hMain, WM_APP_SKY_UPDATE,
+                                 (WPARAM)upd_count, (LPARAM)upd)) {
+                    if (upd) HeapFree(GetProcessHeap(), 0, upd);
+                }
+            }
+
+            /* Raw-frame post for the detail window pipeline. */
+            RtcmRawMsg *raw = (RtcmRawMsg *)HeapAlloc(
+                GetProcessHeap(), 0, sizeof(RtcmRawMsg));
+            if (raw) {
+                raw->msg_type = msg_type;
+                raw->length   = frame_len;
+                memcpy(raw->data, msg_buf, frame_len);
+                if (!PostMessage(state->hMain, WM_APP_MSG_RAW,
+                                 (WPARAM)msg_type, (LPARAM)raw)) {
+                    HeapFree(GetProcessHeap(), 0, raw);
+                }
+            }
+
+            /* No pacing: replay parses frames as fast as the disk + CPU
+             * allow.  Real-time playback is only useful when the file
+             * has gaps we want to honour; for analysis we want to get
+             * the full picture into the UI immediately. */
+        }
+    }
+
+eof:
+    fclose(f);
+
+    printf("\n[INFO] Replay finished: %d frames, %ld bytes from %s\n",
+           frames_decoded, total_bytes, state->replayPath);
+    fflush(stdout);
+
+    PostMessage(state->hMain, WM_APP_STREAM_DONE, 0, 0);
     return 0;
 }

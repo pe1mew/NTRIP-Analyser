@@ -176,57 +176,67 @@ void CreateControls(HWND hwnd, AppState *state)
     x += 110 + sp;
     state->hBtnGenerate   = CreateBtn(hwnd, IDC_BTN_GENERATE,    "Generate Template", x, y, 160, bh);
 
-    /* ── Row 1b: Ephemeris stream (optional, pre-populated) ── */
+    /* ── Row 1b: Ephemeris stream (optional, pre-populated) ────────────
+     * Mirrors the Connection Settings layout so the two groups read the
+     * same way: label names, field widths and row arrangement match. */
     y += bh + 14;
     x = m;
 
     state->hGroupEph = CreateWindowEx(0, "BUTTON",
         "Ephemeris Stream (optional, leave blank to disable)",
         WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        m, y, 700, 50, hwnd, (HMENU)(intptr_t)IDC_GROUP_EPH, hInst, NULL);
+        m, y, 700, 80, hwnd, (HMENU)(intptr_t)IDC_GROUP_EPH, hInst, NULL);
 
     y += 20;  /* inside eph group box */
     x = inX;
 
-    int wEphCaster = MeasureTextWidth(hwnd, hGuiFont, "Eph Caster:", 4);
-    int wEphPort   = MeasureTextWidth(hwnd, hGuiFont, "Port:",       4);
-    int wEphMp     = MeasureTextWidth(hwnd, hGuiFont, "Mp:",         4);
-    int wEphUser   = MeasureTextWidth(hwnd, hGuiFont, "User:",       4);
-    int wEphPwd    = MeasureTextWidth(hwnd, hGuiFont, "Pwd:",        4);
+    /* Same label widths as Connection so the two columns of edits line up */
+    int wEphCaster     = wCaster;
+    int wEphPort       = wPort;
+    int wEphMountpoint = wMountpoint;
+    int wEphUser       = wUser;
+    int wEphPassword   = wPassword;
 
-    state->hLblEphCaster = CreateLabel(hwnd, IDC_LBL_EPH_CASTER, "Eph Caster:",
+    /* Row A: Caster / Port / Mountpoint (mirrors Connection Row A).
+     * Fields start empty so the eph worker stays disabled until the user
+     * loads a config that populates them (or types values manually). */
+    state->hLblEphCaster = CreateLabel(hwnd, IDC_LBL_EPH_CASTER, "Caster:",
                                        x, y + 2, wEphCaster, eh);
     x += wEphCaster + lg;
     state->hEditEphCaster = CreateEdit(hwnd, IDC_EDIT_EPH_CASTER,
-                                       "products.igs-ip.net", x, y, 150, eh, 0);
-    x += 150 + sp;
+                                       "", x, y, 180, eh, 0);
+    x += 180 + sp;
 
     state->hLblEphPort = CreateLabel(hwnd, IDC_LBL_EPH_PORT, "Port:",
                                      x, y + 2, wEphPort, eh);
     x += wEphPort + lg;
-    state->hEditEphPort = CreateEdit(hwnd, IDC_EDIT_EPH_PORT, "2101",
-                                     x, y, 50, eh, ES_NUMBER);
-    x += 50 + sp;
+    state->hEditEphPort = CreateEdit(hwnd, IDC_EDIT_EPH_PORT, "",
+                                     x, y, 55, eh, ES_NUMBER);
+    x += 55 + sp;
 
-    state->hLblEphMountpoint = CreateLabel(hwnd, IDC_LBL_EPH_MOUNTPOINT, "Mp:",
-                                           x, y + 2, wEphMp, eh);
-    x += wEphMp + lg;
+    state->hLblEphMountpoint = CreateLabel(hwnd, IDC_LBL_EPH_MOUNTPOINT,
+                                           "Mountpoint:",
+                                           x, y + 2, wEphMountpoint, eh);
+    x += wEphMountpoint + lg;
     state->hEditEphMountpoint = CreateEdit(hwnd, IDC_EDIT_EPH_MOUNTPOINT,
-                                           "BCEP00BKG0", x, y, 80, eh, 0);
-    x += 80 + sp;
+                                           "", x, y, 160, eh, 0);
+
+    /* Row B: User / Password (mirrors Connection Row B's first two fields) */
+    y += eh + 6;
+    x = inX;
 
     state->hLblEphUsername = CreateLabel(hwnd, IDC_LBL_EPH_USERNAME, "User:",
                                          x, y + 2, wEphUser, eh);
     x += wEphUser + lg;
     state->hEditEphUsername = CreateEdit(hwnd, IDC_EDIT_EPH_USERNAME, "",
-                                         x, y, 95, eh, 0);
-    x += 95 + sp;
+                                         x, y, 140, eh, 0);
+    x += 140 + sp;
 
-    state->hLblEphPassword = CreateLabel(hwnd, IDC_LBL_EPH_PASSWORD, "Pwd:",
-                                         x, y + 2, wEphPwd, eh);
-    x += wEphPwd + lg;
+    state->hLblEphPassword = CreateLabel(hwnd, IDC_LBL_EPH_PASSWORD, "Password:",
+                                         x, y + 2, wEphPassword, eh);
+    x += wEphPassword + lg;
     state->hEditEphPassword = CreateEdit(hwnd, IDC_EDIT_EPH_PASSWORD, "",
-                                         x, y, 80, eh, ES_PASSWORD);
+                                         x, y, 120, eh, ES_PASSWORD);
 
     /* ── Row 2: Action buttons ──────────────────────────────── */
     y += eh + 18;
@@ -373,12 +383,13 @@ void ResizeControls(HWND hwnd, AppState *state, int width, int height)
     /* Connection group: starts at y=m, height fixed 110 */
     MoveWindow(state->hGroupConnection, m, m, usableW, 110, TRUE);
 
-    /* Ephemeris group: starts below connection group */
+    /* Ephemeris group: starts below connection group (two rows like
+     * Connection Settings, so height matches the 80-px footprint). */
     int ephY = m + 110 + 6;
-    MoveWindow(state->hGroupEph, m, ephY, usableW, 50, TRUE);
+    MoveWindow(state->hGroupEph, m, ephY, usableW, 80, TRUE);
 
     /* Actions group: starts below ephemeris group */
-    int actY = ephY + 50 + 6;
+    int actY = ephY + 80 + 6;
     MoveWindow(state->hGroupActions, m, actY, usableW, 55, TRUE);
 
     /* Mountpoint ListView: below actions group (height set by splitter) */

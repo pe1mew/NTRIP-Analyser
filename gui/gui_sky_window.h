@@ -39,4 +39,15 @@ BOOL RegisterSkyWindowClass(HINSTANCE hInst);
  */
 HWND CreateSkyWindow(HINSTANCE hInst, HWND hOwner, AppState *state);
 
+/**
+ * @brief Prompt for a PNG filename and save the sky window's snapshot.
+ *
+ * Used by both the sky window's 'S' key and the main window's
+ * "File -> Save Sky Plot..." menu item.  Returns TRUE on success.
+ *
+ * @param hSky  The sky window to capture.
+ * @param state AppState for log routing (may be NULL to skip logging).
+ */
+BOOL SkySavePngWithPrompt(HWND hSky, AppState *state);
+
 #endif /* GUI_SKY_WINDOW_H */

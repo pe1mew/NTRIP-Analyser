@@ -24,7 +24,11 @@
 
 /* ── Redirectable output buffer for decode functions ──────── */
 
-static RtcmStrBuf *g_rtcm_strbuf = NULL;
+/* Thread-local so the UI thread's detail-window string-capture doesn't
+ * race with the worker threads that decode in parallel (they would
+ * otherwise share the same buffer, racing on its realloc and length).
+ * Workers never set this -- their decoder output goes to stdout. */
+static __thread RtcmStrBuf *g_rtcm_strbuf = NULL;
 
 void rtcm_strbuf_init(RtcmStrBuf *sb, int initial_cap) {
     sb->buf = (char *)malloc(initial_cap);
@@ -176,6 +180,252 @@ int msm_extract_prns(const unsigned char *payload, int payload_len,
         }
     }
     return count;
+}
+
+/* ── Per-band CNR cache ───────────────────────────────────────────────────
+ * Updated by msm7_update_per_band_cnr each time an MSM7 frame arrives;
+ * read by the SV detail window to show one CNR value per signal-mask
+ * bit position.  Indexed by [gnss_id][prn-1][sig_idx (0-based, MSB-first)].
+ * Values in dB-Hz; 0.0 means "no observation for that signal". */
+#define CNR_MAX_GNSS    8
+#define CNR_MAX_PRN     64
+#define CNR_MAX_SIGS    32
+static float g_msm7_per_band_cnr[CNR_MAX_GNSS][CNR_MAX_PRN][CNR_MAX_SIGS];
+
+void get_sv_per_band_cnr(int gnss_id, int prn, float out_cnr[CNR_MAX_SIGS])
+{
+    if (!out_cnr) return;
+    for (int i = 0; i < CNR_MAX_SIGS; i++) out_cnr[i] = 0.0f;
+    if (gnss_id < 0 || gnss_id >= CNR_MAX_GNSS) return;
+    if (prn < 1 || prn > CNR_MAX_PRN)           return;
+    for (int i = 0; i < CNR_MAX_SIGS; i++)
+        out_cnr[i] = g_msm7_per_band_cnr[gnss_id][prn - 1][i];
+}
+
+/* ── MSM signal-mask label tables (RTCM 10403.3 Tables 3.5-91 .. 3.5-96) ─
+ * Tables are indexed by 0-based MSB-first bit position (sig_idx).  An
+ * empty string ("") means RTCM marks that bit as Reserved for the GNSS. */
+static const char *MSM_SIG_LABELS_GPS[CNR_MAX_SIGS] = {
+    "",   "L1C","L1P","L1W","",   "",   "",   "",      /*  0.. 7 */
+    "L2C","L2P","L2W","",   "",   "",   "L2S","L2L",   /*  8..15 */
+    "L2X","",   "",   "",   "",   "L5I","L5Q","L5X",   /* 16..23 */
+    "",   "",   "",   "",   "",   "L1S","L1L","L1X"    /* 24..31 */
+};
+static const char *MSM_SIG_LABELS_GLO[CNR_MAX_SIGS] = {
+    "",   "G1C","G1P","",   "",   "",   "",   "",      /*  0.. 7 */
+    "G2C","G2P","",   "",   "",   "",   "",   "",      /*  8..15 */
+    "",   "",   "",   "",   "",   "",   "",   "",
+    "",   "",   "",   "",   "",   "",   "",   ""
+};
+static const char *MSM_SIG_LABELS_GAL[CNR_MAX_SIGS] = {
+    "",   "E1C","E1A","E1B","E1X","E1Z","",   "",      /*  0.. 7 */
+    "E6C","E6A","E6B","E6X","E6Z","",   "E7I","E7Q",   /*  8..15 */
+    "E7X","",   "E8I","E8Q","E8X","E5I","E5Q","E5X",   /* 16..23 */
+    "",   "",   "",   "",   "",   "",   "",   ""
+};
+static const char *MSM_SIG_LABELS_QZS[CNR_MAX_SIGS] = {
+    "",   "L1C","",   "",   "",   "L6S","L6L","L6X",   /*  0.. 7 */
+    "",   "",   "",   "",   "",   "L2S","L2L","L2X",   /*  8..15 */
+    "",   "",   "",   "",   "",   "L5I","L5Q","L5X",   /* 16..23 */
+    "",   "",   "",   "",   "",   "L1S","L1L","L1X"    /* 24..31 */
+};
+static const char *MSM_SIG_LABELS_BDS[CNR_MAX_SIGS] = {
+    "",   "B1I","B1Q","B1X","",   "",   "",   "",      /*  0.. 7 */
+    "B3I","B3Q","B3X","",   "",   "B2I","B2Q","B2X",   /*  8..15 */
+    "",   "",   "",   "",   "",   "B5D","B5P","B5X",   /* 16..23 */
+    "B7D","B7P","B7Z","B8D","B8P","B1D","B1P","B1X"    /* 24..31 */
+};
+
+const char *msm_signal_label(int gnss_id, int sig_idx)
+{
+    static char fallback[8];
+    if (sig_idx < 0 || sig_idx >= CNR_MAX_SIGS) return "?";
+
+    const char *lbl = "";
+    switch (gnss_id) {
+    case 1: lbl = MSM_SIG_LABELS_GPS[sig_idx]; break;
+    case 2: lbl = MSM_SIG_LABELS_GLO[sig_idx]; break;
+    case 3: lbl = MSM_SIG_LABELS_GAL[sig_idx]; break;
+    case 4: lbl = MSM_SIG_LABELS_QZS[sig_idx]; break;
+    case 5: lbl = MSM_SIG_LABELS_BDS[sig_idx]; break;
+    default: break;
+    }
+    if (lbl && lbl[0]) return lbl;
+
+    /* Fallback for reserved / unmapped bits: RTCM 1-based Signal ID. */
+    snprintf(fallback, sizeof(fallback), "S%02d", sig_idx + 1);
+    return fallback;
+}
+
+void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
+                              int msg_type)
+{
+    if (!payload) return;
+    if (msg_type < 1070 || msg_type > 1139 || msg_type % 10 != 7) return;
+
+    int gnss_id;
+    if      (msg_type >= 1070 && msg_type <  1080) gnss_id = 1;
+    else if (msg_type >= 1080 && msg_type <  1090) gnss_id = 2;
+    else if (msg_type >= 1090 && msg_type <  1100) gnss_id = 3;
+    else if (msg_type >= 1100 && msg_type <  1110) gnss_id = 6;
+    else if (msg_type >= 1110 && msg_type <  1120) gnss_id = 4;
+    else if (msg_type >= 1120 && msg_type <  1130) gnss_id = 5;
+    else if (msg_type >= 1130 && msg_type <  1140) gnss_id = 7;
+    else return;
+    if (gnss_id >= CNR_MAX_GNSS) return;
+
+    const int total_bits = payload_len * 8;
+    if (total_bits < 169) return;
+
+    uint64_t sat_mask = get_bits(payload, 73, 64);
+    uint32_t sig_mask = (uint32_t)get_bits(payload, 137, 32);
+
+    /* sat list (PRN per index) and sig list (0-based bit position per
+     * index, MSB-first so it matches RTCM "Signal N" ordering). */
+    int sat_prns[64];
+    int num_sats = 0;
+    for (int i = 0; i < 64; i++) {
+        if ((sat_mask >> (63 - i)) & 1ULL) {
+            if (num_sats < 64) sat_prns[num_sats] = i + 1;
+            num_sats++;
+        }
+    }
+    if (num_sats == 0 || num_sats > 64) return;
+
+    int sig_idx_list[32];
+    int num_sigs = 0;
+    for (int i = 0; i < 32; i++) {
+        if ((sig_mask >> (31 - i)) & 1U) {
+            if (num_sigs < 32) sig_idx_list[num_sigs] = i;
+            num_sigs++;
+        }
+    }
+    if (num_sigs == 0) return;
+
+    /* Zero out the rows we're about to touch so stale signals from the
+     * previous frame don't linger (a satellite may drop a band). */
+    for (int s = 0; s < num_sats; s++) {
+        int prn = sat_prns[s];
+        if (prn < 1 || prn > CNR_MAX_PRN) continue;
+        for (int i = 0; i < CNR_MAX_SIGS; i++)
+            g_msm7_per_band_cnr[gnss_id][prn - 1][i] = 0.0f;
+    }
+
+    const int cell_mask_start  = 169;
+    const int cell_block_start = cell_mask_start
+                                 + num_sats * num_sigs
+                                 + 36 * num_sats;
+    const int cnr_offset_in_cell = 55;
+    const int cell_stride = 80;
+
+    int cell_index = 0;
+    for (int s = 0; s < num_sats; s++) {
+        int prn = sat_prns[s];
+        for (int sg = 0; sg < num_sigs; sg++) {
+            int cell_mask_bit = cell_mask_start + s * num_sigs + sg;
+            if (cell_mask_bit + 1 > total_bits) break;
+            if (!get_bits(payload, cell_mask_bit, 1)) continue;
+
+            int cnr_bit = cell_block_start + cell_index * cell_stride
+                          + cnr_offset_in_cell;
+            cell_index++;
+            if (cnr_bit + 10 > total_bits) continue;
+
+            uint32_t cnr_raw = (uint32_t)get_bits(payload, cnr_bit, 10);
+            float cnr_dbhz = (float)cnr_raw * 0.0625f;
+
+            int sig_idx = sig_idx_list[sg];   /* 0-based bit position, MSB-first */
+            if (prn >= 1 && prn <= CNR_MAX_PRN && sig_idx >= 0 && sig_idx < CNR_MAX_SIGS)
+                g_msm7_per_band_cnr[gnss_id][prn - 1][sig_idx] = cnr_dbhz;
+        }
+    }
+}
+
+int msm7_extract_cnr(const unsigned char *payload, int payload_len,
+                     int msg_type,
+                     int *prns_out, float *cnr_out, int max_prns,
+                     int *gnss_id_out)
+{
+    if (!payload || !prns_out || !cnr_out || max_prns <= 0) return 0;
+
+    /* MSM7 only: 1077 / 1087 / 1097 / 1117 / 1127 / 1137.  MSM4/5/6 have
+     * different per-cell block sizes and CNR widths; out of scope for v1. */
+    if (msg_type < 1070 || msg_type > 1139 || msg_type % 10 != 7) return 0;
+
+    int gnss_id;
+    if      (msg_type >= 1070 && msg_type <  1080) gnss_id = 1;
+    else if (msg_type >= 1080 && msg_type <  1090) gnss_id = 2;
+    else if (msg_type >= 1090 && msg_type <  1100) gnss_id = 3;
+    else if (msg_type >= 1100 && msg_type <  1110) gnss_id = 6;
+    else if (msg_type >= 1110 && msg_type <  1120) gnss_id = 4;
+    else if (msg_type >= 1120 && msg_type <  1130) gnss_id = 5;
+    else if (msg_type >= 1130 && msg_type <  1140) gnss_id = 7;
+    else return 0;
+    if (gnss_id_out) *gnss_id_out = gnss_id;
+
+    const int total_bits = payload_len * 8;
+    if (total_bits < 169) return 0;
+
+    /* Read sat mask (bit 73, 64 bits) and sig mask (bit 137, 32 bits). */
+    uint64_t sat_mask = get_bits(payload, 73, 64);
+    uint32_t sig_mask = (uint32_t)get_bits(payload, 137, 32);
+
+    /* Sat list */
+    int sat_prns[64];
+    int num_sats = 0;
+    for (int i = 0; i < 64; i++) {
+        if ((sat_mask >> (63 - i)) & 1ULL) {
+            if (num_sats < 64) sat_prns[num_sats] = i + 1;
+            num_sats++;
+        }
+    }
+    if (num_sats == 0) return 0;
+    if (num_sats > 64) num_sats = 64;
+
+    /* Sig count */
+    int num_sigs = 0;
+    for (int i = 0; i < 32; i++)
+        if ((sig_mask >> (31 - i)) & 1U) num_sigs++;
+    if (num_sigs == 0) return 0;
+
+    const int cell_mask_start  = 169;
+    const int cell_block_start = cell_mask_start
+                                 + num_sats * num_sigs
+                                 + 36 * num_sats;
+    /* Per-cell CNR offset (after PR 20 + PH 24 + lock 10 + half 1) */
+    const int cnr_offset = 55;
+    const int cell_stride = 80;
+
+    /* Best CNR per satellite-index */
+    float best_cnr[64];
+    for (int i = 0; i < num_sats; i++) best_cnr[i] = 0.0f;
+
+    int cell_index = 0;
+    for (int s = 0; s < num_sats; s++) {
+        for (int sg = 0; sg < num_sigs; sg++) {
+            int cell_mask_bit = cell_mask_start + s * num_sigs + sg;
+            if (cell_mask_bit + 1 > total_bits) break;
+            if (!get_bits(payload, cell_mask_bit, 1)) continue;
+
+            int cnr_bit = cell_block_start + cell_index * cell_stride + cnr_offset;
+            if (cnr_bit + 10 > total_bits) {
+                cell_index++;
+                continue;
+            }
+            uint32_t cnr_raw = (uint32_t)get_bits(payload, cnr_bit, 10);
+            float cnr_dbhz = (float)cnr_raw * 0.0625f;
+            if (cnr_dbhz > best_cnr[s]) best_cnr[s] = cnr_dbhz;
+
+            cell_index++;
+        }
+    }
+
+    int out_count = (num_sats < max_prns) ? num_sats : max_prns;
+    for (int i = 0; i < out_count; i++) {
+        prns_out[i] = sat_prns[i];
+        cnr_out[i]  = best_cnr[i];
+    }
+    return out_count;
 }
 
 /* ── Reference-station ARP cache ──────────────────────────────────────────
@@ -489,6 +739,31 @@ void decode_rtcm_1006(const unsigned char *payload, int payload_len, const NTRIP
  * @param gnss_name   Name of the GNSS constellation (e.g., "GPS", "GLONASS", "Galileo").
  * @param msg_type    RTCM message type number (e.g., 1077, 1087, 1097, etc.) for display purposes.
  */
+/* Per-GNSS PRN-prefix letter (RINEX-style) from a 1077..1137 message type. */
+static char msm_gnss_letter(int msg_type)
+{
+    if (msg_type >= 1070 && msg_type < 1080) return 'G';   /* GPS */
+    if (msg_type >= 1080 && msg_type < 1090) return 'R';   /* GLONASS */
+    if (msg_type >= 1090 && msg_type < 1100) return 'E';   /* Galileo */
+    if (msg_type >= 1100 && msg_type < 1110) return 'S';   /* SBAS */
+    if (msg_type >= 1110 && msg_type < 1120) return 'J';   /* QZSS */
+    if (msg_type >= 1120 && msg_type < 1130) return 'C';   /* BeiDou */
+    if (msg_type >= 1130 && msg_type < 1140) return 'I';   /* NavIC */
+    return '?';
+}
+/* gnss_id mapping for msm_signal_label() lookups. */
+static int msm_gnss_id_from_msg(int msg_type)
+{
+    if (msg_type >= 1070 && msg_type < 1080) return 1;
+    if (msg_type >= 1080 && msg_type < 1090) return 2;
+    if (msg_type >= 1090 && msg_type < 1100) return 3;
+    if (msg_type >= 1100 && msg_type < 1110) return 6;
+    if (msg_type >= 1110 && msg_type < 1120) return 4;
+    if (msg_type >= 1120 && msg_type < 1130) return 5;
+    if (msg_type >= 1130 && msg_type < 1140) return 7;
+    return 0;
+}
+
 static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
                                    const char *gnss_name, int msg_type)
 {
@@ -497,8 +772,19 @@ static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
         rtcm_printf("Type %d: Payload too short!\n", msg_type);
         return;
     }
+    (void)gnss_name;   /* PRN letter and signal labels are now keyed on msg_type. */
+    char  sys_letter = msm_gnss_letter(msg_type);
+    int   sys_gnss_id = msm_gnss_id_from_msg(msg_type);
 
-    /* ── MSM header ──────────────────────────────────────────── */
+    /* ── MSM header ──────────────────────────────────────────────
+     * Per RTCM 10403.3 Table 3.5-78 the header starts with the 12-bit
+     * message number, followed by a 12-bit reference-station ID.  This
+     * decoder previously skipped the message number, which shifted every
+     * subsequent field by 12 bits and corrupted the entire decode -- the
+     * "ref_station_id" actually carried the message number, "epoch_time"
+     * was station-ID+top-of-epoch, and so on through the sat-mask.       */
+    uint32_t header_msg_num = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    (void)header_msg_num;   /* msg_type from caller is canonical */
     uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
     uint32_t epoch_time     = (uint32_t)get_bits(payload, bit, 30); bit += 30;
     uint8_t  mm_flag        = (uint8_t)get_bits(payload, bit, 1);  bit += 1;
@@ -581,7 +867,7 @@ static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
         double range_ms = rough_range_int[s] + rough_range_mod[s] / 1024.0;
         double phrate_ms = rough_phrate[s] * 1.0;
         rtcm_printf("  %c%02d   %10.4f     %2d       %8.1f\n",
-                     gnss_name[0], sat_prns[s], range_ms, ext_info[s], phrate_ms);
+                     sys_letter, sat_prns[s], range_ms, ext_info[s], phrate_ms);
     }
 
     /* ── Signal / cell data block ────────────────────────────── */
@@ -663,8 +949,12 @@ static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
                 double cnr_dbhz  = cnr_raw[c]     * 0.0625;
                 double phrate_ms = fine_phrate[c]  * 0.0001;
 
-                rtcm_printf("  %c%02d   S%02d  %+10.4f   %+11.4f   %4u   %u   %7.2f     %+8.4f\n",
-                             gnss_name[0], sat_prns[s], sig_ids[g],
+                /* sig_idx is 0-based bit position; msm_signal_label maps to
+                 * a short name like "E1C" / "L2W" / "B2I" or "S<N>" fallback. */
+                const char *sig_lbl =
+                    msm_signal_label(sys_gnss_id, sig_ids[g] - 1);
+                rtcm_printf("  %c%02d  %-4s  %+10.4f   %+11.4f   %4u   %u   %7.2f     %+8.4f\n",
+                             sys_letter, sat_prns[s], sig_lbl,
                              pr_m, ph_m, lock_ind[c], half_cyc[c],
                              cnr_dbhz, phrate_ms);
                 c++;
@@ -1034,6 +1324,369 @@ void decode_rtcm_1045(const unsigned char *payload, int payload_len) {
                 bgd_e1_e5a_s, e5a_oshs, e5a_osdvs);
 }
 
+/**
+ * @brief Extract a GLONASS sign-magnitude integer.
+ *
+ * GLONASS broadcast values use a 1-bit sign followed by (bits-1) bits of
+ * magnitude — NOT two's complement as in GPS / Galileo / BeiDou.
+ * @param p     RTCM payload.
+ * @param bit   Starting bit position.
+ * @param bits  Total field width (sign + magnitude).
+ */
+static int64_t glo_sign_mag(const unsigned char *p, int bit, int bits)
+{
+    int     sign = (int)get_bits(p, bit, 1);
+    uint64_t mag = get_bits(p, bit + 1, bits - 1);
+    return sign ? -(int64_t)mag : (int64_t)mag;
+}
+
+void decode_rtcm_1020(const unsigned char *payload, int payload_len) {
+    /* RTCM 10403.3 -- GLONASS Ephemerides, 360 bits = 45 bytes.
+     * Position/velocity/acceleration are stored in PZ-90 frame, in km units,
+     * with sign-magnitude encoding.  Difference from GPS/Galileo style:
+     *   - sign bit FIRST, then magnitude (not two's complement).
+     *   - propagation is via numerical integration, not Kepler. */
+    if (!payload || payload_len < 45) {
+        rtcm_printf("RTCM 1020: Payload too short (need 45 bytes, got %d)\n", payload_len);
+        return;
+    }
+
+    int bit = 0;
+    uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1020) {
+        rtcm_printf("[1020] Not a 1020 message (got %u)\n", msg_type);
+        return;
+    }
+
+    uint32_t prn       = (uint32_t)get_bits(payload, bit, 6);  bit += 6;
+    uint32_t freq_raw  = (uint32_t)get_bits(payload, bit, 5);  bit += 5;
+    uint32_t alm_hlt   = (uint32_t)get_bits(payload, bit, 1);  bit += 1;
+    uint32_t alm_hlt_v = (uint32_t)get_bits(payload, bit, 1);  bit += 1;
+    uint32_t p1        = (uint32_t)get_bits(payload, bit, 2);  bit += 2;
+    uint32_t tk        = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    uint32_t bn_msb    = (uint32_t)get_bits(payload, bit, 1);  bit += 1;
+    uint32_t p2        = (uint32_t)get_bits(payload, bit, 1);  bit += 1;
+    uint32_t tb_raw    = (uint32_t)get_bits(payload, bit, 7);  bit += 7;
+
+    /* X-axis state vector */
+    int64_t  vx_raw    = glo_sign_mag(payload, bit, 24);  bit += 24;
+    int64_t  x_raw     = glo_sign_mag(payload, bit, 27);  bit += 27;
+    int64_t  ax_raw    = glo_sign_mag(payload, bit, 5);   bit += 5;
+
+    /* Y-axis state vector */
+    int64_t  vy_raw    = glo_sign_mag(payload, bit, 24);  bit += 24;
+    int64_t  y_raw     = glo_sign_mag(payload, bit, 27);  bit += 27;
+    int64_t  ay_raw    = glo_sign_mag(payload, bit, 5);   bit += 5;
+
+    /* Z-axis state vector */
+    int64_t  vz_raw    = glo_sign_mag(payload, bit, 24);  bit += 24;
+    int64_t  z_raw     = glo_sign_mag(payload, bit, 27);  bit += 27;
+    int64_t  az_raw    = glo_sign_mag(payload, bit, 5);   bit += 5;
+
+    uint32_t p3        = (uint32_t)get_bits(payload, bit, 1);  bit += 1;
+    int64_t  gamma_raw = glo_sign_mag(payload, bit, 11);  bit += 11;
+    uint32_t m_p       = (uint32_t)get_bits(payload, bit, 2);  bit += 2;
+    uint32_t m_ln3     = (uint32_t)get_bits(payload, bit, 1);  bit += 1;
+    int64_t  tau_raw   = glo_sign_mag(payload, bit, 22);  bit += 22;
+    uint32_t m_dtau    = (uint32_t)get_bits(payload, bit, 5);  bit += 5;
+    uint32_t en        = (uint32_t)get_bits(payload, bit, 5);  bit += 5;
+    /* Remaining trailing fields (M_P4, M_F_t, M_N_t, etc.) are not needed
+     * for orbit propagation; ignore for the sky-plot use case. */
+
+    /* Scale into SI / metric units.
+     *   Position:     2^-11 km LSB -> metres (* 1000)
+     *   Velocity:     2^-20 km/s   -> m/s
+     *   Acceleration: 2^-30 km/s^2 -> m/s^2 */
+    double xm  = (double)x_raw  * pow(2.0, -11) * 1000.0;
+    double ym  = (double)y_raw  * pow(2.0, -11) * 1000.0;
+    double zm  = (double)z_raw  * pow(2.0, -11) * 1000.0;
+    double vxm = (double)vx_raw * pow(2.0, -20) * 1000.0;
+    double vym = (double)vy_raw * pow(2.0, -20) * 1000.0;
+    double vzm = (double)vz_raw * pow(2.0, -20) * 1000.0;
+    double axm = (double)ax_raw * pow(2.0, -30) * 1000.0;
+    double aym = (double)ay_raw * pow(2.0, -30) * 1000.0;
+    double azm = (double)az_raw * pow(2.0, -30) * 1000.0;
+
+    double tb_sod = (double)tb_raw * 900.0;       /* 15-min intervals */
+    int    freq   = (int)freq_raw - 7;             /* K channel: -7..+13 */
+    int    health = (int)bn_msb;                   /* MSB of Bn; 0=healthy */
+
+    /* Populate cache */
+    SvEphemeris eph;
+    memset(&eph, 0, sizeof(eph));
+    eph.gnss_id        = 2;          /* GLONASS */
+    eph.prn            = (int)prn;
+    eph.iode_iodnav    = (int)tb_raw;
+    eph.week           = 0;          /* unused for GLONASS */
+    eph.toe            = tb_sod;     /* reuse the field for ToD comparison */
+    eph.toc            = tb_sod;
+    eph.health         = health;
+    eph.glo_pos[0]     = xm;
+    eph.glo_pos[1]     = ym;
+    eph.glo_pos[2]     = zm;
+    eph.glo_vel[0]     = vxm;
+    eph.glo_vel[1]     = vym;
+    eph.glo_vel[2]     = vzm;
+    eph.glo_acc[0]     = axm;
+    eph.glo_acc[1]     = aym;
+    eph.glo_acc[2]     = azm;
+    eph.glo_tb_sod     = tb_sod;
+    eph.glo_freq_chan  = freq;
+    sv_eph_store(&eph);
+
+    rtcm_printf("RTCM 1020 (GLONASS Ephemeris):\n");
+    rtcm_printf("  SV: R%02u   FDMA chan K: %+d   tb: %.0f s of day (Moscow)\n",
+                prn, freq, tb_sod);
+    rtcm_printf("  Health (Bn MSB): %u   alm_health: %u (valid=%u)   En: %u days\n",
+                health, alm_hlt, alm_hlt_v, en);
+    rtcm_printf("  Flags: P1=%u P2=%u P3=%u M_P=%u M_dtau=%u M_l3=%u  tk=%u\n",
+                p1, p2, p3, m_p, m_dtau, m_ln3, tk);
+    rtcm_printf("  Position (PZ-90, m):  X=%+.3f  Y=%+.3f  Z=%+.3f\n", xm, ym, zm);
+    rtcm_printf("  Velocity     (m/s):   Vx=%+.6f Vy=%+.6f Vz=%+.6f\n", vxm, vym, vzm);
+    rtcm_printf("  Luni-solar acc (m/s2): Lx=%+.3e Ly=%+.3e Lz=%+.3e\n", axm, aym, azm);
+    rtcm_printf("  Clock: tau_n=%lld  gamma_n=%lld (raw counts)\n",
+                (long long)tau_raw, (long long)gamma_raw);
+}
+
+void decode_rtcm_1044(const unsigned char *payload, int payload_len) {
+    /* RTCM 10403.3 Table 3.5-32 -- QZSS Ephemerides, 485 bits = 61 bytes.
+     * QZSS is GPS-compatible (same orbital model, same scale factors,
+     * same time scale) -- but the field ORDER differs from 1019: SVID is
+     * 4 bits (not 6), toc comes immediately after SVID (no week/URA/Code-L2
+     * up front), and Week/URA/Code-on-L2 appear at the tail. */
+    if (!payload || payload_len < 61) {
+        rtcm_printf("RTCM 1044: Payload too short (need 61 bytes, got %d)\n", payload_len);
+        return;
+    }
+
+    int bit = 0;
+    uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1044) {
+        rtcm_printf("[1044] Not a 1044 message (got %u)\n", msg_type);
+        return;
+    }
+
+    uint32_t prn       = (uint32_t)get_bits(payload, bit, 4);          bit += 4;
+    uint32_t toc_raw   = (uint32_t)get_bits(payload, bit, 16);         bit += 16;
+    int32_t  af2       = (int32_t) extract_signed(payload, bit, 8);    bit += 8;
+    int32_t  af1       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  af0       = (int32_t) extract_signed(payload, bit, 22);   bit += 22;
+    uint32_t iode      = (uint32_t)get_bits(payload, bit, 8);          bit += 8;
+    int32_t  crs       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  delta_n   = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  m0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  cuc       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    uint64_t e_raw     =          get_bits(payload, bit, 32);          bit += 32;
+    int32_t  cus       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    uint64_t sqrtA_raw =          get_bits(payload, bit, 32);          bit += 32;
+    uint32_t toe_raw   = (uint32_t)get_bits(payload, bit, 16);         bit += 16;
+    int32_t  cic       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  omega0    = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  cis       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  i0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  crc       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  omega     = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  omega_dot = (int32_t) extract_signed(payload, bit, 24);   bit += 24;
+    int32_t  idot      = (int32_t) extract_signed(payload, bit, 14);   bit += 14;
+    uint32_t code_l2   = (uint32_t)get_bits(payload, bit, 2);          bit += 2;
+    uint32_t week      = (uint32_t)get_bits(payload, bit, 10);         bit += 10;
+    uint32_t sv_acc    = (uint32_t)get_bits(payload, bit, 4);          bit += 4;
+    uint32_t health    = (uint32_t)get_bits(payload, bit, 6);          bit += 6;
+    int32_t  tgd       = (int32_t) extract_signed(payload, bit, 8);    bit += 8;
+    uint32_t iodc      = (uint32_t)get_bits(payload, bit, 10);         bit += 10;
+    uint32_t fit_flag  = (uint32_t)get_bits(payload, bit, 1);          bit += 1;
+
+    /* QZSS uses GPS-identical scaling */
+    double idot_s      = (double)idot      * pow(2.0, -43) * M_PI;
+    double toc_s       = (double)toc_raw   * 16.0;
+    double af2_s       = (double)af2       * pow(2.0, -55);
+    double af1_s       = (double)af1       * pow(2.0, -43);
+    double af0_s       = (double)af0       * pow(2.0, -31);
+    double crs_s       = (double)crs       * pow(2.0, -5);
+    double delta_n_s   = (double)delta_n   * pow(2.0, -43) * M_PI;
+    double m0_s        = (double)m0        * pow(2.0, -31) * M_PI;
+    double cuc_s       = (double)cuc       * pow(2.0, -29);
+    double e_s         = (double)e_raw     * pow(2.0, -33);
+    double cus_s       = (double)cus       * pow(2.0, -29);
+    double sqrtA_s     = (double)sqrtA_raw * pow(2.0, -19);
+    double toe_s       = (double)toe_raw   * 16.0;
+    double cic_s       = (double)cic       * pow(2.0, -29);
+    double omega0_s    = (double)omega0    * pow(2.0, -31) * M_PI;
+    double cis_s       = (double)cis       * pow(2.0, -29);
+    double i0_s        = (double)i0        * pow(2.0, -31) * M_PI;
+    double crc_s       = (double)crc       * pow(2.0, -5);
+    double omega_s     = (double)omega     * pow(2.0, -31) * M_PI;
+    double omega_dot_s = (double)omega_dot * pow(2.0, -43) * M_PI;
+    double tgd_s       = (double)tgd       * pow(2.0, -31);
+
+    SvEphemeris eph;
+    memset(&eph, 0, sizeof(eph));
+    eph.gnss_id     = 4;             /* QZSS */
+    eph.prn         = (int)prn;
+    eph.iode_iodnav = (int)iode;
+    eph.week        = (int)week;
+    eph.toe         = toe_s;
+    eph.toc         = toc_s;
+    eph.sqrt_a      = sqrtA_s;
+    eph.e           = e_s;
+    eph.i0          = i0_s;
+    eph.omega0      = omega0_s;
+    eph.omega       = omega_s;
+    eph.m0          = m0_s;
+    eph.delta_n     = delta_n_s;
+    eph.idot        = idot_s;
+    eph.omega_dot   = omega_dot_s;
+    eph.cuc         = cuc_s;
+    eph.cus         = cus_s;
+    eph.crc         = crc_s;
+    eph.crs         = crs_s;
+    eph.cic         = cic_s;
+    eph.cis         = cis_s;
+    eph.af0         = af0_s;
+    eph.af1         = af1_s;
+    eph.af2         = af2_s;
+    eph.health      = (int)health;
+    sv_eph_store(&eph);
+
+    rtcm_printf("RTCM 1044 (QZSS Ephemeris):\n");
+    rtcm_printf("  SV: J%02u   Week: %u (10-bit, no rollover)   URA: %u\n",
+                prn, week, sv_acc);
+    rtcm_printf("  Health: %u   Code-on-L2: %u   IODE: %u   IODC: %u   Fit-flag: %u\n",
+                health, code_l2, iode, iodc, fit_flag);
+    rtcm_printf("  toc: %.0f s of week   toe: %.0f s of week\n", toc_s, toe_s);
+    rtcm_printf("  Clock: af0=%.6e s  af1=%.6e s/s  af2=%.6e s/s^2  TGD=%.6e s\n",
+                af0_s, af1_s, af2_s, tgd_s);
+    rtcm_printf("  sqrt(A) = %.6f m^0.5    e = %.10g\n", sqrtA_s, e_s);
+    rtcm_printf("  i0      = %+.6f rad     OMEGA0 = %+.6f rad\n", i0_s, omega0_s);
+    rtcm_printf("  omega   = %+.6f rad     M0     = %+.6f rad\n", omega_s, m0_s);
+    rtcm_printf("  delta_n = %+.6e rad/s   idot   = %+.6e rad/s\n", delta_n_s, idot_s);
+    rtcm_printf("  OMEGADOT = %+.6e rad/s\n", omega_dot_s);
+    rtcm_printf("  Harmonic: Cuc=%+.6e Cus=%+.6e Crc=%+.3f m Crs=%+.3f m\n",
+                cuc_s, cus_s, crc_s, crs_s);
+    rtcm_printf("            Cic=%+.6e Cis=%+.6e\n", cic_s, cis_s);
+}
+
+void decode_rtcm_1042(const unsigned char *payload, int payload_len) {
+    /* RTCM 10403.3 Table 3.5-31 — BeiDou D1 Ephemerides, 511 bits = 64 bytes.
+     * Note the per-field scaling differs from GPS:
+     *   - toc/toe use 2^3 s LSB (not 2^4)
+     *   - Crs/Crc use 2^-6 m (not 2^-5)
+     *   - Cuc/Cus/Cic/Cis use 2^-31 rad (not 2^-29)
+     * BDT time is offset from GPS by 14 s + 1356 weeks, but we propagate
+     * in TOW-only mode (week ignored) so the 14 s offset shifts SV
+     * position by ~50 km along orbit -- ~0.1 deg on a sky plot.  Fine. */
+    if (!payload || payload_len < 64) {
+        rtcm_printf("RTCM 1042: Payload too short (need 64 bytes, got %d)\n", payload_len);
+        return;
+    }
+
+    int bit = 0;
+    uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1042) {
+        rtcm_printf("[1042] Not a 1042 message (got %u)\n", msg_type);
+        return;
+    }
+
+    uint32_t prn       = (uint32_t)get_bits(payload, bit, 6);          bit += 6;
+    uint32_t week      = (uint32_t)get_bits(payload, bit, 13);         bit += 13;
+    uint32_t urai      = (uint32_t)get_bits(payload, bit, 4);          bit += 4;
+    int32_t  idot      = (int32_t) extract_signed(payload, bit, 14);   bit += 14;
+    uint32_t aode      = (uint32_t)get_bits(payload, bit, 5);          bit += 5;
+    uint32_t toc_raw   = (uint32_t)get_bits(payload, bit, 17);         bit += 17;
+    int32_t  a2        = (int32_t) extract_signed(payload, bit, 11);   bit += 11;
+    int32_t  a1        = (int32_t) extract_signed(payload, bit, 22);   bit += 22;
+    int32_t  a0        = (int32_t) extract_signed(payload, bit, 24);   bit += 24;
+    uint32_t aodc      = (uint32_t)get_bits(payload, bit, 5);          bit += 5;
+    int32_t  crs       = (int32_t) extract_signed(payload, bit, 18);   bit += 18;
+    int32_t  delta_n   = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  m0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  cuc       = (int32_t) extract_signed(payload, bit, 18);   bit += 18;
+    uint64_t e_raw     =          get_bits(payload, bit, 32);          bit += 32;
+    int32_t  cus       = (int32_t) extract_signed(payload, bit, 18);   bit += 18;
+    uint64_t sqrtA_raw =          get_bits(payload, bit, 32);          bit += 32;
+    uint32_t toe_raw   = (uint32_t)get_bits(payload, bit, 17);         bit += 17;
+    int32_t  cic       = (int32_t) extract_signed(payload, bit, 18);   bit += 18;
+    int32_t  omega0    = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  cis       = (int32_t) extract_signed(payload, bit, 18);   bit += 18;
+    int32_t  i0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  crc       = (int32_t) extract_signed(payload, bit, 18);   bit += 18;
+    int32_t  omega     = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  omega_dot = (int32_t) extract_signed(payload, bit, 24);   bit += 24;
+    int32_t  tgd1      = (int32_t) extract_signed(payload, bit, 10);   bit += 10;
+    int32_t  tgd2      = (int32_t) extract_signed(payload, bit, 10);   bit += 10;
+    uint32_t health    = (uint32_t)get_bits(payload, bit, 1);          bit += 1;
+
+    /* Apply BeiDou-specific scaling */
+    double idot_s      = (double)idot      * pow(2.0, -43) * M_PI;
+    double toc_s       = (double)toc_raw   * 8.0;       /* 2^3 */
+    double a2_s        = (double)a2        * pow(2.0, -66);
+    double a1_s        = (double)a1        * pow(2.0, -50);
+    double a0_s        = (double)a0        * pow(2.0, -33);
+    double crs_s       = (double)crs       * pow(2.0, -6);
+    double delta_n_s   = (double)delta_n   * pow(2.0, -43) * M_PI;
+    double m0_s        = (double)m0        * pow(2.0, -31) * M_PI;
+    double cuc_s       = (double)cuc       * pow(2.0, -31);
+    double e_s         = (double)e_raw     * pow(2.0, -33);
+    double cus_s       = (double)cus       * pow(2.0, -31);
+    double sqrtA_s     = (double)sqrtA_raw * pow(2.0, -19);
+    double toe_s       = (double)toe_raw   * 8.0;       /* 2^3 */
+    double cic_s       = (double)cic       * pow(2.0, -31);
+    double omega0_s    = (double)omega0    * pow(2.0, -31) * M_PI;
+    double cis_s       = (double)cis       * pow(2.0, -31);
+    double i0_s        = (double)i0        * pow(2.0, -31) * M_PI;
+    double crc_s       = (double)crc       * pow(2.0, -6);
+    double omega_s     = (double)omega     * pow(2.0, -31) * M_PI;
+    double omega_dot_s = (double)omega_dot * pow(2.0, -43) * M_PI;
+    double tgd1_s      = (double)tgd1      * 1e-10;     /* 0.1 ns */
+    double tgd2_s      = (double)tgd2      * 1e-10;
+
+    /* Populate ephemeris cache */
+    SvEphemeris eph;
+    memset(&eph, 0, sizeof(eph));
+    eph.gnss_id     = 5;             /* BeiDou */
+    eph.prn         = (int)prn;
+    eph.iode_iodnav = (int)aode;
+    eph.week        = (int)week;
+    eph.toe         = toe_s;
+    eph.toc         = toc_s;
+    eph.sqrt_a      = sqrtA_s;
+    eph.e           = e_s;
+    eph.i0          = i0_s;
+    eph.omega0      = omega0_s;
+    eph.omega       = omega_s;
+    eph.m0          = m0_s;
+    eph.delta_n     = delta_n_s;
+    eph.idot        = idot_s;
+    eph.omega_dot   = omega_dot_s;
+    eph.cuc         = cuc_s;
+    eph.cus         = cus_s;
+    eph.crc         = crc_s;
+    eph.crs         = crs_s;
+    eph.cic         = cic_s;
+    eph.cis         = cis_s;
+    eph.af0         = a0_s;
+    eph.af1         = a1_s;
+    eph.af2         = a2_s;
+    eph.health      = (int)health;
+    sv_eph_store(&eph);
+
+    rtcm_printf("RTCM 1042 (BeiDou D1 Ephemeris):\n");
+    rtcm_printf("  SV: C%02u   BDT Week: %u (13-bit)   URAI: %u\n", prn, week, urai);
+    rtcm_printf("  Health: %u   AODE: %u   AODC: %u\n", health, aode, aodc);
+    rtcm_printf("  toc: %.0f s of week   toe: %.0f s of week\n", toc_s, toe_s);
+    rtcm_printf("  Clock: a0=%.6e s  a1=%.6e s/s  a2=%.6e s/s^2\n",
+                a0_s, a1_s, a2_s);
+    rtcm_printf("  TGD1 (B1-B3) = %.6e s   TGD2 (B2-B3) = %.6e s\n", tgd1_s, tgd2_s);
+    rtcm_printf("  sqrt(A) = %.6f m^0.5    e = %.10g\n", sqrtA_s, e_s);
+    rtcm_printf("  i0      = %+.6f rad     OMEGA0 = %+.6f rad\n", i0_s, omega0_s);
+    rtcm_printf("  omega   = %+.6f rad     M0     = %+.6f rad\n", omega_s, m0_s);
+    rtcm_printf("  delta_n = %+.6e rad/s   idot   = %+.6e rad/s\n", delta_n_s, idot_s);
+    rtcm_printf("  OMEGADOT = %+.6e rad/s\n", omega_dot_s);
+    rtcm_printf("  Harmonic: Cuc=%+.6e Cus=%+.6e Crc=%+.3f m Crs=%+.3f m\n",
+                cuc_s, cus_s, crc_s, crs_s);
+    rtcm_printf("            Cic=%+.6e Cis=%+.6e\n", cic_s, cis_s);
+}
+
 void decode_rtcm_1046(const unsigned char *payload, int payload_len) {
     /* RTCM 10403.3 Table 3.5-23 — Galileo I/NAV, 504 bits = 63 bytes. */
     if (!payload || payload_len < 63) {
@@ -1236,6 +1889,15 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1033) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1033 detected)\n", msg_type, msg_length);
                 decode_rtcm_1033(&data[3], msg_length);
+            } else if (msg_type == 1020) {
+                rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1020 detected)\n", msg_type, msg_length);
+                decode_rtcm_1020(&data[3], msg_length);
+            } else if (msg_type == 1042) {
+                rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1042 detected)\n", msg_type, msg_length);
+                decode_rtcm_1042(&data[3], msg_length);
+            } else if (msg_type == 1044) {
+                rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1044 detected)\n", msg_type, msg_length);
+                decode_rtcm_1044(&data[3], msg_length);
             } else if (msg_type == 1045) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1045 detected)\n", msg_type, msg_length);
                 decode_rtcm_1045(&data[3], msg_length);

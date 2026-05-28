@@ -17,6 +17,11 @@
 #define IDM_FILE_SAVE_CONFIG    9002
 #define IDM_FILE_GENERATE       9003
 #define IDM_FILE_EXIT           9004
+#define IDM_FILE_SAVE_SKYPLOT   9005
+#define IDM_FILE_LOAD_EPH       9006
+#define IDM_FILE_RTCM_START     9007
+#define IDM_FILE_RTCM_STOP      9008
+#define IDM_FILE_RTCM_REPLAY    9009
 
 /* ── Menu items: Connection ───────────────────────────────── */
 #define IDM_CONN_MOUNTPOINTS    9010
@@ -103,6 +108,7 @@
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700
+#define IDC_DETAIL_COPY         1701
 
 /* ── Context menu IDs ────────────────────────────────────── */
 #define IDM_CTX_SELECT_ALL      3001
@@ -111,5 +117,6 @@
 /* ── Timer IDs ────────────────────────────────────────────── */
 #define IDT_LOG_PUMP            2001
 #define IDT_STATUS_UPDATE       2002
+#define IDT_SKY_CLOCK           2003
 
 #endif /* RESOURCE_H */

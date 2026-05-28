@@ -44,6 +44,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
         return 1;
     }
 
+    /* Critical section guarding the RTCM-dump FILE* between the UI thread
+     * (open/close) and the worker thread (per-frame fwrite). */
+    InitializeCriticalSection(&state->csRtcmDump);
+    state->csRtcmDumpInit = TRUE;
+
     /* ── Register window class ────────────────────────────────── */
     WNDCLASSEX wc;
     ZeroMemory(&wc, sizeof(wc));
@@ -103,6 +108,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     }
 
     /* ── Cleanup ──────────────────────────────────────────────── */
+    if (state->csRtcmDumpInit) {
+        EnterCriticalSection(&state->csRtcmDump);
+        if (state->hRtcmDump) {
+            fclose(state->hRtcmDump);
+            state->hRtcmDump = NULL;
+        }
+        LeaveCriticalSection(&state->csRtcmDump);
+        DeleteCriticalSection(&state->csRtcmDump);
+    }
     free(state);
     WSACleanup();
 

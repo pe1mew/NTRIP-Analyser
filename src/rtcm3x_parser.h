@@ -131,6 +131,63 @@ int msm_extract_prns(const unsigned char *payload, int payload_len,
                      int *gnss_id_out);
 
 /**
+ * @brief Extract per-SV best CNR from an MSM7 frame.
+ *
+ * Walks the per-cell block of an MSM7 payload and emits one (PRN, CNR)
+ * pair per tracked satellite, where CNR is the maximum across the
+ * satellite's signal cells.  CNR units are dB-Hz (10-bit field with
+ * 0.0625 dB-Hz LSB).  Returns 0 for non-MSM7 message types.
+ *
+ * @param payload     RTCM payload (starting at message-number bit).
+ * @param payload_len Payload length in bytes.
+ * @param msg_type    RTCM MSM7 message type (1077/1087/1097/1117/1127/1137).
+ * @param prns_out    Output PRNs.
+ * @param cnr_out     Output CNRs (dB-Hz), parallel to @p prns_out.
+ * @param max_prns    Capacity of both arrays.
+ * @param gnss_id_out [out, optional] GNSS ID (1=GPS, 2=GLONASS, etc.).
+ * @return Number of (PRN, CNR) pairs written, or 0 on error / non-MSM7.
+ */
+int msm7_extract_cnr(const unsigned char *payload, int payload_len,
+                     int msg_type,
+                     int *prns_out, float *cnr_out, int max_prns,
+                     int *gnss_id_out);
+
+/**
+ * @brief Update the per-(GNSS, PRN, signal) CNR cache from an MSM7 frame.
+ *
+ * Walks the per-cell block and writes each cell's CNR into the cache slot
+ * indexed by the satellite's PRN and the signal's bit position in the
+ * signal mask.  Rows for satellites in this frame are first zeroed so
+ * dropped signals don't linger between frames.
+ *
+ * @param payload     MSM7 RTCM payload (starting at message-number bit).
+ * @param payload_len Length in bytes.
+ * @param msg_type    1077 / 1087 / 1097 / 1117 / 1127 / 1137.
+ */
+void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
+                              int msg_type);
+
+/**
+ * @brief Read per-band CNR for one SV from the cache.
+ *
+ * @param gnss_id  GNSS ID (1=GPS, 2=GLONASS, 3=Galileo, 4=QZSS, 5=BeiDou, ...).
+ * @param prn      PRN within the constellation, 1-based.
+ * @param out_cnr  Output array of 32 floats in dB-Hz; 0.0 means "no obs
+ *                 for that signal index".  Index is the 0-based MSB-first
+ *                 position in the RTCM signal mask.
+ */
+void get_sv_per_band_cnr(int gnss_id, int prn, float out_cnr[32]);
+
+/**
+ * @brief Return a short label for a signal-mask bit position.
+ *
+ * Uses RTCM 10403.3 signal mask tables per GNSS to map sig_idx
+ * (0-based, MSB-first) to a short string like "L1C" / "E5I" / "B2I".
+ * Returns "S<N>" for reserved or unmapped bits (N = RTCM 1-based ID).
+ */
+const char *msm_signal_label(int gnss_id, int sig_idx);
+
+/**
  * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.
  * @param x ECEF X (meters)
  * @param y ECEF Y (meters)
@@ -534,6 +591,47 @@ void decode_rtcm_1029(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1033(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print an RTCM 3.x Type 1020 message (GLONASS Ephemeris).
+ *
+ * Per RTCM 10403.3.  GLONASS ephemeris is a position + velocity state
+ * vector in PZ-90 (~WGS-84) at the reference epoch tb (Moscow seconds-
+ * of-day), with a broadcast luni-solar acceleration.  Stored in the
+ * cache with gnss_id = 2 and propagated by glonass_to_ecef() via
+ * numerical integration -- NOT Kepler.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1020(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print an RTCM 3.x Type 1042 message (BeiDou D1 Ephemeris).
+ *
+ * Per RTCM 10403.3 Table 3.5-31.  Uses BeiDou-specific scale factors
+ * (2^3 s for toc/toe; 2^-6 m for Crs/Crc; 2^-31 rad for the C-harmonics)
+ * and TGDs in 0.1 ns LSB.  Populates the per-SV ephemeris cache with
+ * gnss_id = 5.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1042(const unsigned char *payload, int payload_len);
+
+/**
+ * @brief Decode and print an RTCM 3.x Type 1044 message (QZSS Ephemeris).
+ *
+ * Per RTCM 10403.3 Table 3.5-32.  QZSS is GPS-compatible (Keplerian model,
+ * GPS-identical scale factors and time scale), but the RTCM field ORDER
+ * differs from 1019: SVID is 4 bits, toc immediately follows it, and
+ * Week / URA / Code-on-L2 / Health / TGD / IODC / Fit Interval appear at
+ * the tail.  Populates the cache with gnss_id = 4.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1044(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print an RTCM 3.x Type 1045 message (Galileo F/NAV Ephemeris).

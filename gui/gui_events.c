@@ -14,12 +14,14 @@
 #include "gui_state.h"
 #include "gui_sky_window.h"
 #include "rtcm3x_parser.h"
+#include "rinex_nav.h"
 #include "config.h"
 #include "cJSON.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <shellapi.h>
 #include <commdlg.h>
 
@@ -34,6 +36,7 @@ static void OnCloseStream(HWND hwnd, AppState *state);
 static void OnStreamDone(HWND hwnd, AppState *state);
 static void OnStatUpdate(AppState *state, int msg_type, int count);
 static void OnSatUpdate(AppState *state);
+static void close_rtcm_capture_if_active(AppState *state);
 
 /* ── Generic ListView sort state ──────────────────────────── */
 static int  g_sortColumn    = -1;   /* currently sorted column (-1 = none) */
@@ -329,7 +332,11 @@ void GuiToConfig(AppState *state)
 
     GetWindowText(state->hEditEphPort, buf, sizeof(buf));
     state->config.EPH_PORT = atoi(buf);
-    if (state->config.EPH_PORT <= 0) state->config.EPH_PORT = 2101;
+    /* Only force the default port when the caster is configured but the
+     * user left the port blank.  Empty caster keeps port = 0 so the eph
+     * worker stays cleanly disabled. */
+    if (state->config.EPH_PORT <= 0 && state->config.EPH_CASTER[0] != '\0')
+        state->config.EPH_PORT = 2101;
 
     GetWindowText(state->hEditEphMountpoint, state->config.EPH_MOUNTPOINT,
                   sizeof(state->config.EPH_MOUNTPOINT));
@@ -369,8 +376,14 @@ void ConfigToGui(AppState *state)
     /* ── Ephemeris stream fields ─────────────────────────── */
     SetWindowText(state->hEditEphCaster, state->config.EPH_CASTER);
 
-    snprintf(buf, sizeof(buf), "%d", state->config.EPH_PORT);
-    SetWindowText(state->hEditEphPort, buf);
+    /* Show empty port when the loaded config has no port (=0) instead
+     * of a confusing "0" string. */
+    if (state->config.EPH_PORT > 0) {
+        snprintf(buf, sizeof(buf), "%d", state->config.EPH_PORT);
+        SetWindowText(state->hEditEphPort, buf);
+    } else {
+        SetWindowText(state->hEditEphPort, "");
+    }
 
     SetWindowText(state->hEditEphMountpoint, state->config.EPH_MOUNTPOINT);
     SetWindowText(state->hEditEphUsername,   state->config.EPH_USERNAME);
@@ -608,6 +621,10 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     /* Clear previous stats, ListViews, and last-decoded-text cache */
     memset(state->msgStats, 0, sizeof(state->msgStats));
     memset(&state->satStats, 0, sizeof(state->satStats));
+    /* Reset the heatmap accumulator and per-SV track buffers -- both
+     * are "since connect" data so any prior session must be cleared. */
+    memset(state->skyState.sectors, 0, sizeof(state->skyState.sectors));
+    memset(state->skyState.sats,    0, sizeof(state->skyState.sats));
     ListView_DeleteAllItems(state->hLvMsgStats);
     ListView_DeleteAllItems(state->hLvSatellites);
     for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
@@ -700,20 +717,17 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     }
 
     /* ── Optional ephemeris worker — runs in parallel ──────── */
-    {
-        char ephDiag[256];
-        snprintf(ephDiag, sizeof(ephDiag),
-                 "[INFO] Eph branch: caster=\"%s\" mp=\"%s\" running=%d\r\n",
-                 state->config.EPH_CASTER,
-                 state->config.EPH_MOUNTPOINT,
-                 (int)state->bWorkerRunningEph);
-        AppendLog(state->hEditLog, ephDiag);
-    }
     if (state->config.EPH_MOUNTPOINT[0] != '\0' &&
         state->config.EPH_CASTER[0]     != '\0' &&
         !state->bWorkerRunningEph) {
-        AppendLog(state->hEditLog,
-            "[INFO] Starting ephemeris stream worker...\r\n");
+        char ephMsg[2 * sizeof(state->config.EPH_CASTER) + 64];
+        snprintf(ephMsg, sizeof(ephMsg),
+                 "[INFO] Starting ephemeris stream %s:%d/%s\r\n",
+                 state->config.EPH_CASTER,
+                 state->config.EPH_PORT,
+                 state->config.EPH_MOUNTPOINT);
+        AppendLog(state->hEditLog, ephMsg);
+
         state->bWorkerRunningEph = TRUE;
         state->bStopRequestedEph = FALSE;
         state->hWorkerThreadEph = CreateThread(NULL, 0, WorkerOpenEphStream,
@@ -722,13 +736,7 @@ static void OnOpenStream(HWND hwnd, AppState *state)
             state->bWorkerRunningEph = FALSE;
             AppendLog(state->hEditLog,
                 "[WARN] Failed to create ephemeris worker thread.\r\n");
-        } else {
-            AppendLog(state->hEditLog,
-                "[INFO] Ephemeris worker thread handle obtained.\r\n");
         }
-    } else {
-        AppendLog(state->hEditLog,
-            "[INFO] Ephemeris worker not started (one of the gate conditions was false).\r\n");
     }
 }
 
@@ -752,6 +760,9 @@ static void OnCloseStream(HWND hwnd, AppState *state)
     state->bStopRequestedEph = TRUE;
     AppendLog(state->hEditLog, "\r\n[INFO] Closing stream...\r\n");
     SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Closing...");
+
+    /* Flush any active RTCM capture before the worker stops writing. */
+    close_rtcm_capture_if_active(state);
 
     /* Wait for both workers to notice their stop flags via SO_RCVTIMEO */
     if (state->hWorkerThread) {
@@ -782,6 +793,31 @@ static void OnCloseStream(HWND hwnd, AppState *state)
 
 /* ── Stream Done (worker finished naturally) ──────────────── */
 
+/* Close any active RTCM capture (called from OnCloseStream / OnStreamDone). */
+static void close_rtcm_capture_if_active(AppState *state)
+{
+    FILE *f_to_close = NULL;
+    LONG  total = 0;
+    char  path[MAX_PATH] = "";
+    EnterCriticalSection(&state->csRtcmDump);
+    if (state->hRtcmDump) {
+        f_to_close = state->hRtcmDump;
+        total = state->rtcmDumpBytes;
+        strncpy(path, state->rtcmDumpPath, sizeof(path) - 1);
+        path[sizeof(path) - 1] = '\0';
+        state->hRtcmDump = NULL;
+    }
+    LeaveCriticalSection(&state->csRtcmDump);
+    if (f_to_close) {
+        fclose(f_to_close);
+        char msg[MAX_PATH + 96];
+        snprintf(msg, sizeof(msg),
+            "[INFO] RTCM capture auto-stopped on stream close: %ld bytes -> %s\r\n",
+            (long)total, path);
+        AppendLog(state->hEditLog, msg);
+    }
+}
+
 static void OnStreamDone(HWND hwnd, AppState *state)
 {
     /* Close all open detail windows */
@@ -809,6 +845,9 @@ static void OnStreamDone(HWND hwnd, AppState *state)
         CloseHandle(state->hWorkerThread);
         state->hWorkerThread = NULL;
     }
+
+    /* Flush any active RTCM capture so the file is complete. */
+    close_rtcm_capture_if_active(state);
 
     /* Tear down the eph worker too — obs stream is the master lifecycle */
     if (state->bWorkerRunningEph) {
@@ -1293,8 +1332,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             int sbH = sbRect.bottom - sbRect.top;
 
             /* Calculate top of mountpoint list: connection(110) +
-             * eph(50) + actions(55), each with a 6-px gap. */
-            int lvTop = GUI_MARGIN + 110 + 6 + 50 + 6 + 55 + 6;
+             * eph(80) + actions(55), each with a 6-px gap. */
+            int lvTop = GUI_MARGIN + 110 + 6 + 80 + 6 + 55 + 6;
             int maxH  = (clientRC.bottom - sbH) - lvTop - 5 - 80;
             if (newH < 60)   newH = 60;
             if (newH > maxH) newH = maxH;
@@ -1445,6 +1484,225 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case IDC_BTN_GENERATE:
             OnGenerateConfig(hwnd, state);
             return 0;
+
+        case IDM_FILE_SAVE_SKYPLOT:
+            if (state->hSkyWnd) {
+                SkySavePngWithPrompt(state->hSkyWnd, state);
+            } else {
+                MessageBox(hwnd,
+                    "Open the Sky Plot window first (View > Sky Plot...),\n"
+                    "then choose File > Save Sky Plot as PNG.",
+                    APP_TITLE, MB_OK | MB_ICONINFORMATION);
+            }
+            return 0;
+
+        case IDM_FILE_RTCM_START: {
+            if (state->hRtcmDump) {
+                AppendLog(state->hEditLog,
+                    "[INFO] RTCM capture already running.\r\n");
+                return 0;
+            }
+            if (!state->bWorkerRunning) {
+                MessageBox(hwnd,
+                    "Open an NTRIP stream first, then start RTCM capture.",
+                    APP_TITLE, MB_OK | MB_ICONINFORMATION);
+                return 0;
+            }
+            char filename[512] = "";
+            /* Default filename: YYYYMMDDHHmmss_<mountpoint>.rtcm3.  The
+             * buffer is generous so a 255-char mountpoint doesn't trigger
+             * a snprintf truncation warning. */
+            {
+                time_t now_t = time(NULL);
+                struct tm *lt = localtime(&now_t);
+                char ts[16] = "00000000000000";
+                if (lt) strftime(ts, sizeof(ts), "%Y%m%d%H%M%S", lt);
+                snprintf(filename, sizeof(filename), "%s_%s.rtcm3", ts,
+                         state->config.MOUNTPOINT[0]
+                             ? state->config.MOUNTPOINT : "capture");
+            }
+            OPENFILENAME ofn;
+            ZeroMemory(&ofn, sizeof(ofn));
+            ofn.lStructSize  = sizeof(ofn);
+            ofn.hwndOwner    = hwnd;
+            ofn.lpstrFilter  =
+                "RTCM 3 capture (*.rtcm3)\0*.rtcm3\0All Files (*.*)\0*.*\0";
+            ofn.lpstrFile    = filename;
+            ofn.nMaxFile     = MAX_PATH;
+            ofn.lpstrTitle   = "Start RTCM Capture";
+            ofn.Flags        = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
+            ofn.lpstrDefExt  = "rtcm3";
+            if (!GetSaveFileName(&ofn)) return 0;
+
+            FILE *f = fopen(filename, "wb");
+            if (!f) {
+                char err[600];
+                snprintf(err, sizeof(err),
+                    "[ERROR] Failed to open RTCM dump for writing:\r\n  %s\r\n",
+                    filename);
+                AppendLog(state->hEditLog, err);
+                return 0;
+            }
+            EnterCriticalSection(&state->csRtcmDump);
+            state->hRtcmDump      = f;
+            state->rtcmDumpBytes  = 0;
+            strncpy(state->rtcmDumpPath, filename,
+                    sizeof(state->rtcmDumpPath) - 1);
+            state->rtcmDumpPath[sizeof(state->rtcmDumpPath) - 1] = '\0';
+            LeaveCriticalSection(&state->csRtcmDump);
+
+            char msg[600];
+            snprintf(msg, sizeof(msg),
+                "[INFO] RTCM capture started -> %s\r\n", filename);
+            AppendLog(state->hEditLog, msg);
+            return 0;
+        }
+
+        case IDM_FILE_RTCM_REPLAY: {
+            if (state->bWorkerRunning) {
+                MessageBox(hwnd,
+                    "A stream or replay is already running.\n"
+                    "Close it first, then choose Replay RTCM File...",
+                    APP_TITLE, MB_OK | MB_ICONWARNING);
+                return 0;
+            }
+            char filename[MAX_PATH] = "";
+            OPENFILENAME ofn;
+            ZeroMemory(&ofn, sizeof(ofn));
+            ofn.lStructSize  = sizeof(ofn);
+            ofn.hwndOwner    = hwnd;
+            ofn.lpstrFilter  =
+                "RTCM 3 capture (*.rtcm3)\0*.rtcm3\0All Files (*.*)\0*.*\0";
+            ofn.lpstrFile    = filename;
+            ofn.nMaxFile     = MAX_PATH;
+            ofn.lpstrTitle   = "Replay RTCM File";
+            ofn.Flags        = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            ofn.lpstrDefExt  = "rtcm3";
+            if (!GetOpenFileName(&ofn)) return 0;
+
+            /* Mirror the OnOpenStream stat-reset block so replay starts
+             * with a clean slate (same as a fresh connection). */
+            memset(state->msgStats, 0, sizeof(state->msgStats));
+            memset(&state->satStats, 0, sizeof(state->satStats));
+            memset(state->skyState.sectors, 0, sizeof(state->skyState.sectors));
+            memset(state->skyState.sats,    0, sizeof(state->skyState.sats));
+            ListView_DeleteAllItems(state->hLvMsgStats);
+            ListView_DeleteAllItems(state->hLvSatellites);
+            for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
+                if (state->lastDecodedText[i]) {
+                    HeapFree(GetProcessHeap(), 0, state->lastDecodedText[i]);
+                    state->lastDecodedText[i] = NULL;
+                }
+            }
+            InterlockedExchange(&state->streamBytes, 0);
+            InterlockedExchange(&state->streamFormat, 0);
+            state->streamBytesLast = 0;
+            state->streamRateTime  = gui_get_time_seconds();
+
+            strncpy(state->replayPath, filename,
+                    sizeof(state->replayPath) - 1);
+            state->replayPath[sizeof(state->replayPath) - 1] = '\0';
+
+            state->bWorkerRunning = TRUE;
+            state->bStopRequested = FALSE;
+            EnableWindow(state->hBtnCloseStream, TRUE);
+
+            char m[MAX_PATH + 64];
+            snprintf(m, sizeof(m),
+                "[INFO] Replaying RTCM file: %s\r\n", filename);
+            AppendLog(state->hEditLog, m);
+            SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Replaying...");
+
+            TabCtrl_SetCurSel(state->hTabOutput, 1);
+            OnTabSelChange(state);
+
+            LogRedirectStart(state);
+            SetTimer(hwnd, IDT_LOG_PUMP,      100,  NULL);
+            SetTimer(hwnd, IDT_STATUS_UPDATE, 1000, NULL);
+
+            state->hWorkerThread = CreateThread(NULL, 0, WorkerReplayRtcm,
+                                                state, 0, NULL);
+            if (!state->hWorkerThread) {
+                KillTimer(hwnd, IDT_LOG_PUMP);
+                KillTimer(hwnd, IDT_STATUS_UPDATE);
+                LogRedirectStop(state);
+                state->bWorkerRunning = FALSE;
+                EnableWindow(state->hBtnCloseStream, FALSE);
+                AppendLog(state->hEditLog,
+                    "[ERROR] Failed to create replay worker thread.\r\n");
+            }
+            return 0;
+        }
+
+        case IDM_FILE_RTCM_STOP: {
+            FILE *f_to_close = NULL;
+            LONG  total_bytes = 0;
+            char  path[MAX_PATH] = "";
+
+            EnterCriticalSection(&state->csRtcmDump);
+            if (state->hRtcmDump) {
+                f_to_close = state->hRtcmDump;
+                total_bytes = state->rtcmDumpBytes;
+                strncpy(path, state->rtcmDumpPath, sizeof(path) - 1);
+                path[sizeof(path) - 1] = '\0';
+                state->hRtcmDump = NULL;
+            }
+            LeaveCriticalSection(&state->csRtcmDump);
+
+            if (!f_to_close) {
+                AppendLog(state->hEditLog,
+                    "[INFO] No RTCM capture is running.\r\n");
+                return 0;
+            }
+            fclose(f_to_close);
+            char msg[MAX_PATH + 96];
+            snprintf(msg, sizeof(msg),
+                "[INFO] RTCM capture stopped: %ld bytes -> %s\r\n",
+                (long)total_bytes, path);
+            AppendLog(state->hEditLog, msg);
+            return 0;
+        }
+
+        case IDM_FILE_LOAD_EPH: {
+            char filename[MAX_PATH] = "";
+            OPENFILENAME ofn;
+            ZeroMemory(&ofn, sizeof(ofn));
+            ofn.lStructSize  = sizeof(ofn);
+            ofn.hwndOwner    = hwnd;
+            ofn.lpstrFilter  =
+                "RINEX nav (*.rnx;*.nav;*.??n)\0*.rnx;*.nav;*.??n\0"
+                "All Files (*.*)\0*.*\0";
+            ofn.lpstrFile    = filename;
+            ofn.nMaxFile     = MAX_PATH;
+            ofn.lpstrTitle   = "Load Ephemerides (RINEX 3 NAV file)";
+            ofn.Flags        = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            ofn.lpstrDefExt  = "rnx";
+            if (!GetOpenFileName(&ofn)) return 0;
+
+            int counts[RINEX_NAV_MAX_GNSS] = { 0 };
+            int total = rinex_nav_load(filename, counts);
+            char msg[MAX_PATH + 256];
+            if (total < 0) {
+                snprintf(msg, sizeof(msg),
+                    "[ERROR] Failed to open RINEX nav file:\r\n  %s\r\n",
+                    filename);
+            } else {
+                snprintf(msg, sizeof(msg),
+                    "[INFO] Loaded %d ephemerides from %s\r\n"
+                    "       (GPS:%d  GLONASS:%d  Galileo:%d  QZSS:%d  BeiDou:%d)\r\n",
+                    total, filename,
+                    counts[1], counts[2], counts[3], counts[4], counts[5]);
+            }
+            int len = GetWindowTextLength(state->hEditLog);
+            SendMessage(state->hEditLog, EM_SETSEL, (WPARAM)len, (LPARAM)len);
+            SendMessage(state->hEditLog, EM_REPLACESEL, FALSE, (LPARAM)msg);
+
+            /* Nudge any open Sky Plot window so its status line picks
+             * up the new cache contents. */
+            if (state->hSkyWnd)
+                InvalidateRect(state->hSkyWnd, NULL, FALSE);
+            return 0;
+        }
 
         /* ── Connection menu / buttons ──────────────────────── */
         case IDM_CONN_MOUNTPOINTS:
@@ -1663,12 +1921,54 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 if (g < 0 || g >= SV_EPH_MAX_GNSS)         continue;
                 if (p < 1 || p > SV_EPH_MAX_SATS_PER_GNSS) continue;
 
-                SkySat *s = &state->skyState.sats[g][p - 1];
-                s->az_deg       = upd[i].az_deg;
-                s->el_deg       = upd[i].el_deg;
-                s->cnr_dbhz     = upd[i].cnr_dbhz;
-                s->last_seen_ts = now;
-                s->valid        = true;
+                /* Markers: only update SkySat when the SV was actually
+                 * observed in this MSM frame.  Expected-only entries keep
+                 * their last observed timestamp -- so an SV that drops out
+                 * of the receiver's tracking will dim and then disappear
+                 * from the marker view per the existing stale logic. */
+                if (upd[i].observed_flag) {
+                    SkySat *s = &state->skyState.sats[g][p - 1];
+                    s->az_deg       = upd[i].az_deg;
+                    s->el_deg       = upd[i].el_deg;
+                    s->cnr_dbhz     = upd[i].cnr_dbhz;
+                    s->last_seen_ts = now;
+                    s->valid        = true;
+
+                    /* Append a track point if 30+ s elapsed since the last
+                     * one.  GNSS SVs only move ~0.1 deg per 30 s, so this
+                     * interval gives visibly-spaced dots while a 120-point
+                     * ring buffer captures ~1 h of motion. */
+                    SkyTrackBuffer *tb = &s->track;
+                    double last_ts = 0.0;
+                    if (tb->count > 0) {
+                        int last_idx = (tb->head + SKY_TRACK_CAP - 1)
+                                       % SKY_TRACK_CAP;
+                        last_ts = tb->pts[last_idx].ts;
+                    }
+                    if (tb->count == 0 || (now - last_ts) >= 30.0) {
+                        tb->pts[tb->head].az_deg = upd[i].az_deg;
+                        tb->pts[tb->head].el_deg = upd[i].el_deg;
+                        tb->pts[tb->head].ts     = now;
+                        tb->head = (tb->head + 1) % SKY_TRACK_CAP;
+                        if (tb->count < SKY_TRACK_CAP) tb->count++;
+                    }
+                }
+
+                /* Heatmap: index sector from (az, el) and bump counters.
+                 * Every entry contributes to expected; observed_flag=1
+                 * also bumps observed. */
+                int el_band = (int)(upd[i].el_deg / 10.0);
+                if (el_band < 0) el_band = 0;
+                if (el_band >= SKY_N_EL_BANDS) el_band = SKY_N_EL_BANDS - 1;
+                int n_az = sky_az_bins_per_band[el_band];
+                if (n_az < 1) n_az = 1;
+                int az_bin = (int)((upd[i].az_deg / 360.0) * n_az);
+                if (az_bin < 0) az_bin = 0;
+                if (az_bin >= n_az) az_bin = n_az - 1;
+
+                state->skyState.sectors[el_band][az_bin].expected++;
+                if (upd[i].observed_flag)
+                    state->skyState.sectors[el_band][az_bin].observed++;
             }
             HeapFree(GetProcessHeap(), 0, upd);
         }

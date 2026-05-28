@@ -17,6 +17,7 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "ntrip_handler.h"
 #include "sv_ephemeris.h"
 
@@ -24,9 +25,9 @@
 #define APP_TITLE       "NTRIP-Analyser"
 #define APP_CLASS_NAME  "NtripAnalyserGuiClass"
 #define APP_MIN_WIDTH   800
-#define APP_MIN_HEIGHT  660
+#define APP_MIN_HEIGHT  690
 #define APP_INIT_WIDTH  1024
-#define APP_INIT_HEIGHT 820
+#define APP_INIT_HEIGHT 850
 
 /* ── Margins and spacing ──────────────────────────────────── */
 #define GUI_MARGIN      8
@@ -42,7 +43,10 @@
 #define GUI_BUFFER_SIZE    4096
 
 /* ── Detail window class ────────────────────────────────── */
-#define DETAIL_CLASS_NAME  "NtripDetailClass"
+#define DETAIL_CLASS_NAME       "NtripDetailClass"
+
+/* ── Sky-SV detail window class ─────────────────────────── */
+#define SV_DETAIL_CLASS_NAME    "NtripSkySvDetailClass"
 
 /**
  * @struct RtcmRawMsg
@@ -82,9 +86,24 @@ static inline double gui_get_time_seconds(void) {
     return (double)now.QuadPart / freq.QuadPart;
 }
 
+/** @brief A single past (az, el) sample for a satellite's track trail. */
+typedef struct {
+    float  az_deg;
+    float  el_deg;
+    double ts;            /**< gui_get_time_seconds() when the point was added */
+} SkyTrackPoint;
+
+/** @brief Ring buffer of past positions for one satellite (since stream open). */
+#define SKY_TRACK_CAP   120     /* ~10 minutes at 5 s/point */
+typedef struct {
+    SkyTrackPoint pts[SKY_TRACK_CAP];
+    int           head;   /**< next write index */
+    int           count;  /**< 0..SKY_TRACK_CAP */
+} SkyTrackBuffer;
+
 /**
  * @struct SkySat
- * @brief Last-known sky position of a single satellite.
+ * @brief Last-known sky position of a single satellite + its track trail.
  *
  * One slot per (gnss_id, prn) in @ref SkyPlotState.  Updated each MSM
  * epoch by WM_APP_SKY_UPDATE from the worker thread.  Stale entries
@@ -96,7 +115,37 @@ typedef struct {
     double last_seen_ts;  /**< gui_get_time_seconds() at last update */
     float  cnr_dbhz;      /**< best CNR this epoch (0 = unknown) */
     bool   valid;
+    SkyTrackBuffer track; /**< history of observed positions since stream open */
 } SkySat;
+
+/* ── Sky-plot sector grid (Onocoy-style observed-vs-expected heatmap) ─────
+ * 9 elevation bands of 10° each.  Per-band azimuth bin counts roughly
+ * proportional to cos(mean elevation) so each sector covers a comparable
+ * solid angle.  Total: 1+5+8+11+16+21+25+30+33 = 150 sectors (close to
+ * Onocoy's documented 149). */
+#define SKY_N_EL_BANDS   9
+#define SKY_MAX_AZ_BINS  33   /* widest band */
+
+/**
+ * @struct SkySector
+ * @brief Per-sector observation accumulator.
+ *
+ * observed: count of (epoch, SV) pairs where the SV was actually tracked
+ *           by the obs receiver in this sector.
+ * expected: count of (epoch, SV) pairs where any cached ephemeris placed
+ *           an SV in this sector, regardless of whether the receiver
+ *           tracked it.  Ratio observed/expected drives the colour ramp.
+ */
+typedef struct {
+    int observed;
+    int expected;
+} SkySector;
+
+/** Sky-plot rendering mode (toggle via 'M' key on the sky window). */
+typedef enum {
+    SKY_MODE_MARKERS = 0,   /* live SV dots (default) */
+    SKY_MODE_HEATMAP = 1,   /* sector observed/expected heatmap */
+} SkyPlotMode;
 
 /**
  * @struct SkyPlotState
@@ -104,7 +153,17 @@ typedef struct {
  */
 typedef struct {
     SkySat sats[SV_EPH_MAX_GNSS][SV_EPH_MAX_SATS_PER_GNSS];
+
+    /* Sector grid for heatmap mode.  Filled by WM_APP_SKY_UPDATE handler
+     * as SkySatUpdate entries arrive (observed_flag picks observed++ vs
+     * expected++).  Reset to zero when a new stream is opened. */
+    SkySector sectors[SKY_N_EL_BANDS][SKY_MAX_AZ_BINS];
+
+    SkyPlotMode mode;
 } SkyPlotState;
+
+/** @brief Azimuth-bin count per elevation band.  Defined in gui_sky_window.c. */
+extern const int sky_az_bins_per_band[SKY_N_EL_BANDS];
 
 /**
  * @struct SkySatUpdate
@@ -119,6 +178,7 @@ typedef struct {
     float az_deg;
     float el_deg;
     float cnr_dbhz;
+    int   observed_flag;   /* 1 = was in this MSM frame's sat-mask; 0 = expected via eph only */
 } SkySatUpdate;
 
 /**
@@ -242,6 +302,24 @@ typedef struct {
      * thread; read on the UI thread during WM_PAINT of hSkyWnd. */
     SkyPlotState skyState;
 
+    /* Open SV-detail popups, indexed by (gnss_id, prn-1).  Slot is set
+     * when a window opens, cleared by the window's WM_CLOSE handler. */
+    HWND hSvDetailWnds[SV_EPH_MAX_GNSS][SV_EPH_MAX_SATS_PER_GNSS];
+
+    /* RTCM stream capture.  When @ref hRtcmDump is non-NULL the worker
+     * thread writes each raw frame to the file.  Access serialised
+     * through @ref csRtcmDump so the UI thread can fclose() safely
+     * even while a write is in flight. */
+    FILE             *hRtcmDump;
+    CRITICAL_SECTION  csRtcmDump;
+    BOOL              csRtcmDumpInit;       /* TRUE after InitializeCS */
+    char              rtcmDumpPath[MAX_PATH];
+    LONG              rtcmDumpBytes;        /* updated under the CS */
+
+    /* RTCM file replay.  Set by the File menu before launching
+     * WorkerReplayRtcm; the worker reads frames from this path. */
+    char              replayPath[MAX_PATH];
+
 } AppState;
 
 /**
@@ -264,6 +342,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 DWORD WINAPI WorkerGetMountpoints(LPVOID param);
 DWORD WINAPI WorkerOpenStream(LPVOID param);
 DWORD WINAPI WorkerOpenEphStream(LPVOID param);
+DWORD WINAPI WorkerReplayRtcm(LPVOID param);
 
 /* gui_log.c */
 void LogRedirectStart(AppState *state);

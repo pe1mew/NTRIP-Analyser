@@ -20,6 +20,14 @@
 /* ── Private message for the detail window ─────────────────── */
 #define WM_DETAIL_UPDATE  (WM_USER + 1)   /* lParam = heap-allocated char* */
 
+/* Top-strip dimensions reserved for the Copy button.
+ * Strip is taller than the button so it sits centred vertically. */
+#define DETAIL_BTN_H    26
+#define DETAIL_BTN_W    90
+#define DETAIL_BTN_PAD   6
+#define DETAIL_STRIP_H  (DETAIL_BTN_H + 2 * DETAIL_BTN_PAD)
+#define DETAIL_BTN_Y    DETAIL_BTN_PAD
+
 static BOOL g_detailClassRegistered = FALSE;
 
 /* ── Detail window procedure ──────────────────────────────── */
@@ -34,14 +42,24 @@ static LRESULT CALLBACK DetailWndProc(HWND hwnd, UINT msg,
         int msg_type = (int)(intptr_t)cs->lpCreateParams;
         SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)msg_type);
 
-        /* Create a read-only multiline EDIT control (fills the window) */
+        HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+        HFONT hGui = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+
+        /* Copy button at top-left */
+        HWND hCopy = CreateWindowEx(
+            0, "BUTTON", "Copy",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+            8, DETAIL_BTN_Y, DETAIL_BTN_W, DETAIL_BTN_H, hwnd,
+            (HMENU)(intptr_t)IDC_DETAIL_COPY, hInst, NULL);
+        if (hCopy) SendMessage(hCopy, WM_SETFONT, (WPARAM)hGui, TRUE);
+
+        /* Create a read-only multiline EDIT control below the button strip */
         HWND hEdit = CreateWindowEx(
             WS_EX_CLIENTEDGE, "EDIT", "",
             WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL |
             ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY,
-            0, 0, 100, 100, hwnd,
-            (HMENU)(intptr_t)IDC_DETAIL_EDIT,
-            (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
+            0, DETAIL_STRIP_H, 100, 100, hwnd,
+            (HMENU)(intptr_t)IDC_DETAIL_EDIT, hInst, NULL);
 
         /* Allow large text (256 KB) */
         SendMessage(hEdit, EM_SETLIMITTEXT, 0x40000, 0);
@@ -58,10 +76,24 @@ static LRESULT CALLBACK DetailWndProc(HWND hwnd, UINT msg,
     }
 
     case WM_SIZE: {
+        int w = LOWORD(lParam), h = HIWORD(lParam);
         HWND hEdit = GetDlgItem(hwnd, IDC_DETAIL_EDIT);
         if (hEdit)
-            MoveWindow(hEdit, 0, 0, LOWORD(lParam), HIWORD(lParam), TRUE);
+            MoveWindow(hEdit, 0, DETAIL_STRIP_H, w, h - DETAIL_STRIP_H, TRUE);
         return 0;
+    }
+
+    case WM_COMMAND: {
+        if (LOWORD(wParam) == IDC_DETAIL_COPY) {
+            HWND hEdit = GetDlgItem(hwnd, IDC_DETAIL_EDIT);
+            if (hEdit) {
+                int len = GetWindowTextLength(hEdit);
+                SendMessage(hEdit, EM_SETSEL, 0, len);
+                SendMessage(hEdit, WM_COPY, 0, 0);
+            }
+            return 0;
+        }
+        break;
     }
 
     case WM_DETAIL_UPDATE: {

@@ -50,19 +50,33 @@ bool sv_eph_is_valid_at(const SvEphemeris *eph, int week, double tow_s)
      *     1024-week offset.
      *   - Galileo's 12-bit week is fine but mixing conventions is fragile.
      *
-     * Since broadcast ephemerides are valid for <4 h — much less than half
-     * a week (302400 s) — we can ignore @p week entirely and compute the
-     * offset modulo one week with a half-week wrap. */
+     * Since broadcast ephemerides are valid for <4 h -- much less than half
+     * a week (302400 s) -- we can ignore @p week entirely and compute the
+     * offset modulo one week with a half-week wrap.
+     *
+     * GLONASS is the exception: @c eph->toe holds Moscow seconds-of-day
+     * (0..86400), so we wrap on the half-day boundary instead. */
     (void)week;
+    double wrap, half_wrap;
+    if (eph->gnss_id == 2) {
+        wrap      = 86400.0;
+        half_wrap = 43200.0;
+    } else {
+        wrap      = 604800.0;
+        half_wrap = 302400.0;
+    }
     double dt = tow_s - eph->toe;
-    if (dt >  302400.0) dt -= 604800.0;
-    if (dt < -302400.0) dt += 604800.0;
+    if (dt >  half_wrap) dt -= wrap;
+    if (dt < -half_wrap) dt += wrap;
     double abs_dt = fabs(dt);
 
     double max_dt;
     switch (eph->gnss_id) {
     case 1:  max_dt = 4.0 * 3600.0; break;  /* GPS:     2 h nominal, 4 h grace */
+    case 2:  max_dt = 1.0 * 3600.0; break;  /* GLONASS: 30 min nominal, 1 h grace */
     case 3:  max_dt = 30.0 * 60.0;  break;  /* Galileo: 10 min nominal, 30 min grace */
+    case 4:  max_dt = 4.0 * 3600.0; break;  /* QZSS:    2 h nominal, 4 h grace (GPS-like) */
+    case 5:  max_dt = 6.0 * 3600.0; break;  /* BeiDou:  ~1 h nominal, 6 h grace */
     default: max_dt = 2.0 * 3600.0;
     }
     return abs_dt <= max_dt;

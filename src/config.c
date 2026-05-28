@@ -57,33 +57,29 @@ int load_config(const char *filename, NTRIP_Config *config) {
     config->LONGITUDE = (lon && cJSON_IsNumber(lon)) ? lon->valuedouble : 0.0;
 
     /* ── Optional secondary ephemeris stream ──────────────────────────
-     * Missing or blank fields disable the eph stream cleanly; defaults
-     * point at Onocoy's public EPH mountpoint so the user only needs
-     * to add their credentials. */
+     * Missing fields stay empty so the eph worker stays disabled by
+     * default; the user enables it by entering values manually or by
+     * loading a config that includes EPH_* keys.  The template-config
+     * writer (OnGenerateConfig / initialize_config) still emits BKG
+     * defaults so first-time users have a starting point to edit. */
     cJSON *eph_caster = cJSON_GetObjectItem(json, "EPH_CASTER");
     cJSON *eph_port   = cJSON_GetObjectItem(json, "EPH_PORT");
     cJSON *eph_mp     = cJSON_GetObjectItem(json, "EPH_MOUNTPOINT");
     cJSON *eph_user   = cJSON_GetObjectItem(json, "EPH_USERNAME");
     cJSON *eph_pwd    = cJSON_GetObjectItem(json, "EPH_PASSWORD");
 
-    /* Default to BKG IGS-IP: a free, public ephemeris broadcaster that
-     * explicitly supports multiple concurrent subscribers — unlike
-     * Onocoy, which enforces one connection per account.  Register at
-     * https://register.rtcm-ntrip.org/cgi-bin/registration.cgi to
-     * obtain credentials (one account covers products.igs-ip.net,
-     * euref-ip.net, and mgex.igs-ip.net). */
     strncpy(config->EPH_CASTER,
             (eph_caster && cJSON_IsString(eph_caster))
-                ? eph_caster->valuestring : "products.igs-ip.net",
+                ? eph_caster->valuestring : "",
             sizeof(config->EPH_CASTER) - 1);
     config->EPH_CASTER[sizeof(config->EPH_CASTER) - 1] = '\0';
 
     config->EPH_PORT = (eph_port && cJSON_IsNumber(eph_port))
-                       ? eph_port->valueint : 2101;
+                       ? eph_port->valueint : 0;
 
     strncpy(config->EPH_MOUNTPOINT,
             (eph_mp && cJSON_IsString(eph_mp))
-                ? eph_mp->valuestring : "BCEP00BKG0",
+                ? eph_mp->valuestring : "",
             sizeof(config->EPH_MOUNTPOINT) - 1);
     config->EPH_MOUNTPOINT[sizeof(config->EPH_MOUNTPOINT) - 1] = '\0';
 

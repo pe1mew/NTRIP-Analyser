@@ -55,6 +55,17 @@ typedef struct {
     double   af0, af1, af2;  /**< SV clock correction polynomial */
     int      health;         /**< 0 = healthy */
     bool     valid;          /**< true once populated */
+
+    /* ── GLONASS-only state-vector form (gnss_id == 2) ──────────────── */
+    /* GLONASS broadcasts position + velocity in PZ-90 (~WGS-84) at the
+     * reference epoch tb, plus luni-solar perturbation acceleration.
+     * Propagation is by numerical integration of the 6-state ODE — see
+     * glonass_to_ecef() in sv_orbit.c. */
+    double   glo_pos[3];     /**< X, Y, Z in metres at tb (PZ-90) */
+    double   glo_vel[3];     /**< Vx, Vy, Vz in m/s at tb */
+    double   glo_acc[3];     /**< Luni-solar accel in m/s^2 (constants per eph) */
+    double   glo_tb_sod;     /**< Reference time in Moscow seconds-of-day */
+    int      glo_freq_chan;  /**< FDMA channel number, -7 .. +13 */
 } SvEphemeris;
 
 /** @brief Zero the entire cache.  Optional — static storage is already zeroed. */
