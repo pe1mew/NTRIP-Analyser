@@ -18,6 +18,7 @@
 #include "sv_orbit.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <time.h>
 #include <ctype.h>
 
@@ -613,3 +614,235 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     return 0;
 }
 
+/**
+ * @brief Post a log line to the UI thread, bypassing the stdout pipe.
+ *
+ * The stdout->pipe->LogPumpTimer chain depends on WM_TIMER (low priority).
+ * Worker threads can post lines directly into the UI's message queue so
+ * they show up reliably even when the queue is busy with WM_APP_* updates.
+ */
+static void eph_log(AppState *state, const char *fmt, ...)
+{
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    if (n <= 0) return;
+    if (n >= (int)sizeof(buf)) n = (int)sizeof(buf) - 1;
+
+    size_t copy_sz = (size_t)n + 1;
+    char *dup = (char *)HeapAlloc(GetProcessHeap(), 0, copy_sz);
+    if (!dup) return;
+    memcpy(dup, buf, copy_sz);
+
+    if (!PostMessage(state->hMain, WM_APP_LOG_LINE, 0, (LPARAM)dup)) {
+        HeapFree(GetProcessHeap(), 0, dup);
+    }
+}
+
+/* ── Ephemeris-only stream worker ─────────────────────────────────────────
+ *
+ * Runs in parallel with WorkerOpenStream when EPH_MOUNTPOINT is configured.
+ * Connects to a separate caster (typically a public ephemeris service such
+ * as Onocoy EPH or BKG BCEP00BKG0), parses RTCM frames, and feeds only
+ * the ephemeris cache by calling decode_rtcm_1019 / 1045 / 1046 directly.
+ *
+ * Deliberately does NOT:
+ *   - send GGA (eph streams don't need a rover position),
+ *   - process 1005/1006 (would overwrite the obs caster's ARP),
+ *   - update msgStats / satStats / Msg Stats ListView,
+ *   - post WM_APP_MSG_RAW (detail-window machinery is for the obs stream),
+ *   - touch the byte-rate / status-bar counters.
+ *
+ * Lifetime is controlled via state->bStopRequestedEph; cleanup is via
+ * WM_APP_STREAM_DONE from the obs worker tearing both down at once.
+ */
+DWORD WINAPI WorkerOpenEphStream(LPVOID param)
+{
+    AppState *state = (AppState *)param;
+
+    /* Beacon: first thing every worker invocation does, even before the
+     * gate check.  Posted via WM_APP_LOG_LINE (not printf) because the
+     * stdout pipe pump can be starved by high message-queue traffic. */
+    eph_log(state,
+            "[EPH] Worker entered: caster=\"%s\" port=%d mp=\"%s\"\r\n",
+            state->config.EPH_CASTER,
+            state->config.EPH_PORT,
+            state->config.EPH_MOUNTPOINT);
+
+    /* Refuse to start if no mountpoint is configured */
+    if (state->config.EPH_MOUNTPOINT[0] == '\0' ||
+        state->config.EPH_CASTER[0]     == '\0') {
+        eph_log(state, "[EPH] Disabled (no caster/mountpoint configured)\r\n");
+        return 0;
+    }
+
+    /* ── DNS resolve ─────────────────────────────────────── */
+    struct addrinfo hints, *result = NULL;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if (getaddrinfo(state->config.EPH_CASTER, NULL, &hints, &result) != 0) {
+        eph_log(state, "[EPH] DNS resolution failed for %s\r\n",
+                state->config.EPH_CASTER);
+        return 1;
+    }
+
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (sock == INVALID_SOCKET) {
+        eph_log(state, "[EPH] Failed to create socket\r\n");
+        freeaddrinfo(result);
+        return 1;
+    }
+
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_port   = htons(state->config.EPH_PORT);
+    server.sin_addr   = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
+    memset(&server.sin_zero, 0, 8);
+    freeaddrinfo(result);
+
+    if (connect(sock, (struct sockaddr *)&server, sizeof(server)) == SOCKET_ERROR) {
+        eph_log(state, "[EPH] Connection failed to %s:%d\r\n",
+                state->config.EPH_CASTER, state->config.EPH_PORT);
+        closesocket(sock);
+        return 1;
+    }
+
+    DWORD timeout_ms = 200;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+               (const char *)&timeout_ms, sizeof(timeout_ms));
+
+    /* ── NTRIP GET ───────────────────────────────────────── */
+    char request[1024];
+    snprintf(request, sizeof(request),
+             "GET /%s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "Ntrip-Version: Ntrip/2.0\r\n"
+             "User-Agent: NTRIP CClient/1.0\r\n"
+             "Authorization: Basic %s\r\n"
+             "\r\n",
+             state->config.EPH_MOUNTPOINT,
+             state->config.EPH_CASTER,
+             state->config.EPH_AUTH_BASIC);
+
+    if (send(sock, request, (int)strlen(request), 0) <= 0) {
+        eph_log(state, "[EPH] Failed to send NTRIP request\r\n");
+        closesocket(sock);
+        return 1;
+    }
+
+    eph_log(state, "[EPH] HTTP GET sent to %s:%d/%s; awaiting response...\r\n",
+            state->config.EPH_CASTER, state->config.EPH_PORT,
+            state->config.EPH_MOUNTPOINT);
+
+    /* ── Receive loop (RTCM 3.x framing only) ────────────── */
+    unsigned char recv_buf[GUI_BUFFER_SIZE];
+    unsigned char msg_buf[GUI_BUFFER_SIZE];
+    int  msg_pos    = 0;
+    int  msg_target = 0;
+    bool header_done = false;
+    char header_buf[4096];
+    int  header_pos = 0;
+    int  eph_count = 0;   /* total ephemerides cached so far */
+
+    while (!state->bStopRequestedEph) {
+        int n = recv(sock, (char *)recv_buf, sizeof(recv_buf), 0);
+        if (n == 0) {
+            eph_log(state, "[EPH] Server closed connection\r\n");
+            break;
+        }
+        if (n < 0) {
+            int err = WSAGetLastError();
+            if (err == WSAETIMEDOUT) continue;
+            eph_log(state, "[EPH] recv error %d\r\n", err);
+            break;
+        }
+
+        int start = 0;
+        if (!header_done) {
+            for (int i = 0; i < n && !header_done; i++) {
+                if (header_pos < (int)sizeof(header_buf) - 1)
+                    header_buf[header_pos++] = recv_buf[i];
+                if (header_pos >= 4 &&
+                    header_buf[header_pos - 4] == '\r' &&
+                    header_buf[header_pos - 3] == '\n' &&
+                    header_buf[header_pos - 2] == '\r' &&
+                    header_buf[header_pos - 1] == '\n') {
+                    header_done = true;
+                    start = i + 1;
+                    header_buf[header_pos] = '\0';
+                    if (!strstr(header_buf, "200") &&
+                        !strstr(header_buf, "ICY")) {
+                        eph_log(state, "[EPH] Server response:\r\n%s\r\n",
+                                header_buf);
+                        closesocket(sock);
+                        return 1;
+                    }
+                    eph_log(state,
+                            "[EPH] Stream accepted by %s/%s -- decoding ephemerides\r\n",
+                            state->config.EPH_CASTER,
+                            state->config.EPH_MOUNTPOINT);
+                }
+            }
+            if (!header_done) continue;
+        }
+
+        for (int i = start; i < n; i++) {
+            unsigned char b = recv_buf[i];
+
+            if (msg_pos == 0) {
+                if (b == 0xD3) msg_buf[msg_pos++] = b;
+                continue;
+            }
+            msg_buf[msg_pos++] = b;
+
+            if (msg_pos == 3) {
+                int msg_length = ((msg_buf[1] & 0x03) << 8) | msg_buf[2];
+                msg_target = msg_length + 6;
+                if (msg_target > GUI_BUFFER_SIZE) {
+                    msg_pos = 0; msg_target = 0;
+                    continue;
+                }
+            }
+
+            if (msg_target > 0 && msg_pos >= msg_target) {
+                /* Peek message number (first 12 bits of payload, which
+                 * starts at byte index 3 of the frame).  RTCM packs the
+                 * 12-bit field across bytes 3 and 4. */
+                int payload_len = msg_target - 6;
+                int mt = ((int)msg_buf[3] << 4) | ((int)msg_buf[4] >> 4);
+
+                switch (mt) {
+                case 1019:
+                    decode_rtcm_1019(&msg_buf[3], payload_len);
+                    eph_count++;
+                    break;
+                case 1045:
+                    decode_rtcm_1045(&msg_buf[3], payload_len);
+                    eph_count++;
+                    break;
+                case 1046:
+                    decode_rtcm_1046(&msg_buf[3], payload_len);
+                    eph_count++;
+                    break;
+                default:
+                    /* Silently drop everything else — including 1005/1006
+                     * which we must not let overwrite the obs ARP. */
+                    break;
+                }
+
+                msg_pos = 0; msg_target = 0;
+            }
+        }
+    }
+
+    closesocket(sock);
+
+    eph_log(state, "[EPH] Stream worker finished (%d ephemerides processed)\r\n",
+            eph_count);
+
+    return 0;
+}

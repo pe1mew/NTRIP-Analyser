@@ -58,6 +58,18 @@ typedef struct {
     char AUTH_BASIC[256];     /**< Base64 encoded "username:password" for HTTP Basic Auth */
     double LATITUDE;          /**< Latitude for NTRIP connection (optional) */
     double LONGITUDE;         /**< Longitude for NTRIP connection (optional) */
+
+    /* ── Optional secondary ephemeris stream ─────────────────────────── */
+    /* Used by the GUI Sky Plot when the primary observation mountpoint
+     * does not broadcast 1019/1045/1046.  Connects to a separate NTRIP
+     * caster (e.g. Onocoy EPH, BKG BCEP00BKG0) in parallel with the
+     * main stream and feeds only the sv_ephemeris cache. */
+    char EPH_CASTER[256];     /**< Ephemeris-caster hostname; empty disables */
+    int  EPH_PORT;            /**< Ephemeris-caster TCP port */
+    char EPH_MOUNTPOINT[256]; /**< Ephemeris mountpoint name */
+    char EPH_USERNAME[128];   /**< Ephemeris-caster username */
+    char EPH_PASSWORD[128];   /**< Ephemeris-caster password */
+    char EPH_AUTH_BASIC[256]; /**< Base64 of "user:pass" for the eph caster */
 } NTRIP_Config;
 
 /**

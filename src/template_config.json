@@ -5,5 +5,10 @@
     "USERNAME": "userName",
     "PASSWORD": "passWord",
     "LATITUDE": 0.0,
-    "LONGITUDE": 0.0
+    "LONGITUDE": 0.0,
+    "EPH_CASTER": "products.igs-ip.net",
+    "EPH_PORT": 2101,
+    "EPH_MOUNTPOINT": "BCEP00BKG0",
+    "EPH_USERNAME": "",
+    "EPH_PASSWORD": ""
 }

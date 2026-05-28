@@ -24,9 +24,9 @@
 #define APP_TITLE       "NTRIP-Analyser"
 #define APP_CLASS_NAME  "NtripAnalyserGuiClass"
 #define APP_MIN_WIDTH   800
-#define APP_MIN_HEIGHT  600
+#define APP_MIN_HEIGHT  660
 #define APP_INIT_WIDTH  1024
-#define APP_INIT_HEIGHT 768
+#define APP_INIT_HEIGHT 820
 
 /* ── Margins and spacing ──────────────────────────────────── */
 #define GUI_MARGIN      8
@@ -163,6 +163,7 @@ typedef struct {
     /* ── Group boxes ──────────────────────────────────────── */
     HWND hGroupConnection;
     HWND hGroupActions;
+    HWND hGroupEph;
 
     /* ── Labels (STATIC controls) ─────────────────────────── */
     HWND hLblCaster;
@@ -173,10 +174,21 @@ typedef struct {
     HWND hLblLatitude;
     HWND hLblLongitude;
 
+    /* ── Ephemeris stream controls ───────────────────────── */
+    HWND hLblEphCaster, hLblEphPort, hLblEphMountpoint;
+    HWND hLblEphUsername, hLblEphPassword;
+    HWND hEditEphCaster, hEditEphPort, hEditEphMountpoint;
+    HWND hEditEphUsername, hEditEphPassword;
+
     /* ── Worker thread state ──────────────────────────────── */
     HANDLE hWorkerThread;
     volatile BOOL bStopRequested;
     volatile BOOL bWorkerRunning;
+
+    /* ── Ephemeris worker thread (optional secondary stream) */
+    HANDLE hWorkerThreadEph;
+    volatile BOOL bStopRequestedEph;
+    volatile BOOL bWorkerRunningEph;
 
     /* ── Configuration snapshot (used by worker) ──────────── */
     NTRIP_Config config;
@@ -251,6 +263,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 /* gui_thread.c */
 DWORD WINAPI WorkerGetMountpoints(LPVOID param);
 DWORD WINAPI WorkerOpenStream(LPVOID param);
+DWORD WINAPI WorkerOpenEphStream(LPVOID param);
 
 /* gui_log.c */
 void LogRedirectStart(AppState *state);

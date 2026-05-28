@@ -73,6 +73,21 @@
 /* ── Group boxes ──────────────────────────────────────────── */
 #define IDC_GROUP_CONNECTION    1601
 #define IDC_GROUP_ACTIONS       1602
+#define IDC_GROUP_EPH           1603
+
+/* ── Ephemeris stream: Edit controls ──────────────────────── */
+#define IDC_EDIT_EPH_CASTER     1201
+#define IDC_EDIT_EPH_PORT       1202
+#define IDC_EDIT_EPH_MOUNTPOINT 1203
+#define IDC_EDIT_EPH_USERNAME   1204
+#define IDC_EDIT_EPH_PASSWORD   1205
+
+/* ── Ephemeris stream: Labels (static) ────────────────────── */
+#define IDC_LBL_EPH_CASTER      1250
+#define IDC_LBL_EPH_PORT        1251
+#define IDC_LBL_EPH_MOUNTPOINT  1252
+#define IDC_LBL_EPH_USERNAME    1253
+#define IDC_LBL_EPH_PASSWORD    1254
 
 /* ── Custom window messages ───────────────────────────────── */
 #define WM_APP_MOUNT_RESULT     (WM_APP + 1)

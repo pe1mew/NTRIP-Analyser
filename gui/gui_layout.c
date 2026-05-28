@@ -176,8 +176,60 @@ void CreateControls(HWND hwnd, AppState *state)
     x += 110 + sp;
     state->hBtnGenerate   = CreateBtn(hwnd, IDC_BTN_GENERATE,    "Generate Template", x, y, 160, bh);
 
-    /* ── Row 2: Action buttons ──────────────────────────────── */
+    /* ── Row 1b: Ephemeris stream (optional, pre-populated) ── */
     y += bh + 14;
+    x = m;
+
+    state->hGroupEph = CreateWindowEx(0, "BUTTON",
+        "Ephemeris Stream (optional, leave blank to disable)",
+        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+        m, y, 700, 50, hwnd, (HMENU)(intptr_t)IDC_GROUP_EPH, hInst, NULL);
+
+    y += 20;  /* inside eph group box */
+    x = inX;
+
+    int wEphCaster = MeasureTextWidth(hwnd, hGuiFont, "Eph Caster:", 4);
+    int wEphPort   = MeasureTextWidth(hwnd, hGuiFont, "Port:",       4);
+    int wEphMp     = MeasureTextWidth(hwnd, hGuiFont, "Mp:",         4);
+    int wEphUser   = MeasureTextWidth(hwnd, hGuiFont, "User:",       4);
+    int wEphPwd    = MeasureTextWidth(hwnd, hGuiFont, "Pwd:",        4);
+
+    state->hLblEphCaster = CreateLabel(hwnd, IDC_LBL_EPH_CASTER, "Eph Caster:",
+                                       x, y + 2, wEphCaster, eh);
+    x += wEphCaster + lg;
+    state->hEditEphCaster = CreateEdit(hwnd, IDC_EDIT_EPH_CASTER,
+                                       "products.igs-ip.net", x, y, 150, eh, 0);
+    x += 150 + sp;
+
+    state->hLblEphPort = CreateLabel(hwnd, IDC_LBL_EPH_PORT, "Port:",
+                                     x, y + 2, wEphPort, eh);
+    x += wEphPort + lg;
+    state->hEditEphPort = CreateEdit(hwnd, IDC_EDIT_EPH_PORT, "2101",
+                                     x, y, 50, eh, ES_NUMBER);
+    x += 50 + sp;
+
+    state->hLblEphMountpoint = CreateLabel(hwnd, IDC_LBL_EPH_MOUNTPOINT, "Mp:",
+                                           x, y + 2, wEphMp, eh);
+    x += wEphMp + lg;
+    state->hEditEphMountpoint = CreateEdit(hwnd, IDC_EDIT_EPH_MOUNTPOINT,
+                                           "BCEP00BKG0", x, y, 80, eh, 0);
+    x += 80 + sp;
+
+    state->hLblEphUsername = CreateLabel(hwnd, IDC_LBL_EPH_USERNAME, "User:",
+                                         x, y + 2, wEphUser, eh);
+    x += wEphUser + lg;
+    state->hEditEphUsername = CreateEdit(hwnd, IDC_EDIT_EPH_USERNAME, "",
+                                         x, y, 95, eh, 0);
+    x += 95 + sp;
+
+    state->hLblEphPassword = CreateLabel(hwnd, IDC_LBL_EPH_PASSWORD, "Pwd:",
+                                         x, y + 2, wEphPwd, eh);
+    x += wEphPwd + lg;
+    state->hEditEphPassword = CreateEdit(hwnd, IDC_EDIT_EPH_PASSWORD, "",
+                                         x, y, 80, eh, ES_PASSWORD);
+
+    /* ── Row 2: Action buttons ──────────────────────────────── */
+    y += eh + 18;
     x = m;
 
     state->hGroupActions = CreateWindowEx(0, "BUTTON", "Actions",
@@ -321,8 +373,12 @@ void ResizeControls(HWND hwnd, AppState *state, int width, int height)
     /* Connection group: starts at y=m, height fixed 110 */
     MoveWindow(state->hGroupConnection, m, m, usableW, 110, TRUE);
 
-    /* Actions group: starts below connection group */
-    int actY = m + 110 + 6;
+    /* Ephemeris group: starts below connection group */
+    int ephY = m + 110 + 6;
+    MoveWindow(state->hGroupEph, m, ephY, usableW, 50, TRUE);
+
+    /* Actions group: starts below ephemeris group */
+    int actY = ephY + 50 + 6;
     MoveWindow(state->hGroupActions, m, actY, usableW, 55, TRUE);
 
     /* Mountpoint ListView: below actions group (height set by splitter) */

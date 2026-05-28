@@ -322,6 +322,26 @@ void GuiToConfig(AppState *state)
     snprintf(auth, sizeof(auth), "%s:%s",
              state->config.USERNAME, state->config.PASSWORD);
     base64_encode(auth, state->config.AUTH_BASIC);
+
+    /* ── Ephemeris stream fields ─────────────────────────── */
+    GetWindowText(state->hEditEphCaster, state->config.EPH_CASTER,
+                  sizeof(state->config.EPH_CASTER));
+
+    GetWindowText(state->hEditEphPort, buf, sizeof(buf));
+    state->config.EPH_PORT = atoi(buf);
+    if (state->config.EPH_PORT <= 0) state->config.EPH_PORT = 2101;
+
+    GetWindowText(state->hEditEphMountpoint, state->config.EPH_MOUNTPOINT,
+                  sizeof(state->config.EPH_MOUNTPOINT));
+    GetWindowText(state->hEditEphUsername, state->config.EPH_USERNAME,
+                  sizeof(state->config.EPH_USERNAME));
+    GetWindowText(state->hEditEphPassword, state->config.EPH_PASSWORD,
+                  sizeof(state->config.EPH_PASSWORD));
+
+    /* Recompute EPH_AUTH_BASIC */
+    snprintf(auth, sizeof(auth), "%s:%s",
+             state->config.EPH_USERNAME, state->config.EPH_PASSWORD);
+    base64_encode(auth, state->config.EPH_AUTH_BASIC);
 }
 
 /**
@@ -345,6 +365,16 @@ void ConfigToGui(AppState *state)
 
     snprintf(buf, sizeof(buf), "%.6f", state->config.LONGITUDE);
     SetWindowText(state->hEditLongitude, buf);
+
+    /* ── Ephemeris stream fields ─────────────────────────── */
+    SetWindowText(state->hEditEphCaster, state->config.EPH_CASTER);
+
+    snprintf(buf, sizeof(buf), "%d", state->config.EPH_PORT);
+    SetWindowText(state->hEditEphPort, buf);
+
+    SetWindowText(state->hEditEphMountpoint, state->config.EPH_MOUNTPOINT);
+    SetWindowText(state->hEditEphUsername,   state->config.EPH_USERNAME);
+    SetWindowText(state->hEditEphPassword,   state->config.EPH_PASSWORD);
 }
 
 /* ── Load Config ──────────────────────────────────────────── */
@@ -413,13 +443,18 @@ static void OnSaveConfig(HWND hwnd, AppState *state)
 
     /* Build JSON using cJSON */
     cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "NTRIP_CASTER", state->config.NTRIP_CASTER);
-    cJSON_AddNumberToObject(json, "NTRIP_PORT",   state->config.NTRIP_PORT);
-    cJSON_AddStringToObject(json, "MOUNTPOINT",   state->config.MOUNTPOINT);
-    cJSON_AddStringToObject(json, "USERNAME",      state->config.USERNAME);
-    cJSON_AddStringToObject(json, "PASSWORD",      state->config.PASSWORD);
-    cJSON_AddNumberToObject(json, "LATITUDE",      state->config.LATITUDE);
-    cJSON_AddNumberToObject(json, "LONGITUDE",     state->config.LONGITUDE);
+    cJSON_AddStringToObject(json, "NTRIP_CASTER",   state->config.NTRIP_CASTER);
+    cJSON_AddNumberToObject(json, "NTRIP_PORT",     state->config.NTRIP_PORT);
+    cJSON_AddStringToObject(json, "MOUNTPOINT",     state->config.MOUNTPOINT);
+    cJSON_AddStringToObject(json, "USERNAME",       state->config.USERNAME);
+    cJSON_AddStringToObject(json, "PASSWORD",       state->config.PASSWORD);
+    cJSON_AddNumberToObject(json, "LATITUDE",       state->config.LATITUDE);
+    cJSON_AddNumberToObject(json, "LONGITUDE",      state->config.LONGITUDE);
+    cJSON_AddStringToObject(json, "EPH_CASTER",     state->config.EPH_CASTER);
+    cJSON_AddNumberToObject(json, "EPH_PORT",       state->config.EPH_PORT);
+    cJSON_AddStringToObject(json, "EPH_MOUNTPOINT", state->config.EPH_MOUNTPOINT);
+    cJSON_AddStringToObject(json, "EPH_USERNAME",   state->config.EPH_USERNAME);
+    cJSON_AddStringToObject(json, "EPH_PASSWORD",   state->config.EPH_PASSWORD);
 
     char *jsonStr = cJSON_Print(json);
     cJSON_Delete(json);
@@ -487,7 +522,12 @@ static void OnGenerateConfig(HWND hwnd, AppState *state)
         "    \"USERNAME\": \"your_username\",\n"
         "    \"PASSWORD\": \"your_password\",\n"
         "    \"LATITUDE\": 0.0,\n"
-        "    \"LONGITUDE\": 0.0\n"
+        "    \"LONGITUDE\": 0.0,\n"
+        "    \"EPH_CASTER\": \"products.igs-ip.net\",\n"
+        "    \"EPH_PORT\": 2101,\n"
+        "    \"EPH_MOUNTPOINT\": \"BCEP00BKG0\",\n"
+        "    \"EPH_USERNAME\": \"\",\n"
+        "    \"EPH_PASSWORD\": \"\"\n"
         "}\n");
     fclose(f);
 
@@ -656,6 +696,39 @@ static void OnOpenStream(HWND hwnd, AppState *state)
         EnableWindow(state->hBtnCloseStream, FALSE);
         AppendLog(state->hEditLog, "[ERROR] Failed to create worker thread.\r\n");
         SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Error");
+        return;
+    }
+
+    /* ── Optional ephemeris worker — runs in parallel ──────── */
+    {
+        char ephDiag[256];
+        snprintf(ephDiag, sizeof(ephDiag),
+                 "[INFO] Eph branch: caster=\"%s\" mp=\"%s\" running=%d\r\n",
+                 state->config.EPH_CASTER,
+                 state->config.EPH_MOUNTPOINT,
+                 (int)state->bWorkerRunningEph);
+        AppendLog(state->hEditLog, ephDiag);
+    }
+    if (state->config.EPH_MOUNTPOINT[0] != '\0' &&
+        state->config.EPH_CASTER[0]     != '\0' &&
+        !state->bWorkerRunningEph) {
+        AppendLog(state->hEditLog,
+            "[INFO] Starting ephemeris stream worker...\r\n");
+        state->bWorkerRunningEph = TRUE;
+        state->bStopRequestedEph = FALSE;
+        state->hWorkerThreadEph = CreateThread(NULL, 0, WorkerOpenEphStream,
+                                               state, 0, NULL);
+        if (!state->hWorkerThreadEph) {
+            state->bWorkerRunningEph = FALSE;
+            AppendLog(state->hEditLog,
+                "[WARN] Failed to create ephemeris worker thread.\r\n");
+        } else {
+            AppendLog(state->hEditLog,
+                "[INFO] Ephemeris worker thread handle obtained.\r\n");
+        }
+    } else {
+        AppendLog(state->hEditLog,
+            "[INFO] Ephemeris worker not started (one of the gate conditions was false).\r\n");
     }
 }
 
@@ -675,16 +748,23 @@ static void OnCloseStream(HWND hwnd, AppState *state)
         }
     }
 
-    state->bStopRequested = TRUE;
+    state->bStopRequested    = TRUE;
+    state->bStopRequestedEph = TRUE;
     AppendLog(state->hEditLog, "\r\n[INFO] Closing stream...\r\n");
     SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Closing...");
 
-    /* Wait for the worker to notice bStopRequested via SO_RCVTIMEO */
+    /* Wait for both workers to notice their stop flags via SO_RCVTIMEO */
     if (state->hWorkerThread) {
         WaitForSingleObject(state->hWorkerThread, 3000);
         CloseHandle(state->hWorkerThread);
         state->hWorkerThread = NULL;
     }
+    if (state->hWorkerThreadEph) {
+        WaitForSingleObject(state->hWorkerThreadEph, 3000);
+        CloseHandle(state->hWorkerThreadEph);
+        state->hWorkerThreadEph = NULL;
+    }
+    state->bWorkerRunningEph = FALSE;
 
     /* Clean up — stop timers, restore stdout/stderr */
     KillTimer(hwnd, IDT_LOG_PUMP);
@@ -728,6 +808,17 @@ static void OnStreamDone(HWND hwnd, AppState *state)
     if (state->hWorkerThread) {
         CloseHandle(state->hWorkerThread);
         state->hWorkerThread = NULL;
+    }
+
+    /* Tear down the eph worker too — obs stream is the master lifecycle */
+    if (state->bWorkerRunningEph) {
+        state->bStopRequestedEph = TRUE;
+        if (state->hWorkerThreadEph) {
+            WaitForSingleObject(state->hWorkerThreadEph, 3000);
+            CloseHandle(state->hWorkerThreadEph);
+            state->hWorkerThreadEph = NULL;
+        }
+        state->bWorkerRunningEph = FALSE;
     }
 
     AppendLog(state->hEditLog, "\r\n[INFO] Stream ended.\r\n");
@@ -1201,8 +1292,9 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             GetWindowRect(state->hStatusBar, &sbRect);
             int sbH = sbRect.bottom - sbRect.top;
 
-            /* Calculate top of mountpoint list */
-            int lvTop = GUI_MARGIN + 110 + 6 + 55 + 6;
+            /* Calculate top of mountpoint list: connection(110) +
+             * eph(50) + actions(55), each with a 6-px gap. */
+            int lvTop = GUI_MARGIN + 110 + 6 + 50 + 6 + 55 + 6;
             int maxH  = (clientRC.bottom - sbH) - lvTop - 5 - 80;
             if (newH < 60)   newH = 60;
             if (newH > maxH) newH = maxH;
@@ -1595,7 +1687,27 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     case WM_APP_STAT_UPDATE: {
         state = GetAppState(hwnd);
-        if (state) OnStatUpdate(state, (int)wParam, (int)lParam);
+        if (state) {
+            OnStatUpdate(state, (int)wParam, (int)lParam);
+            /* WM_TIMER (IDT_LOG_PUMP) is low priority — Windows only posts
+             * it when the queue is otherwise empty.  At high MSM rates the
+             * queue is never empty long enough, so worker-thread printf
+             * output sits in the pipe indefinitely.  Pump it here too so
+             * log lines surface as fast as messages arrive. */
+            LogPumpTimer(state);
+        }
+        return 0;
+    }
+
+    case WM_APP_LOG_LINE: {
+        /* Worker thread posted a log line bypassing the stdout pipe.
+         * lParam is a HeapAlloc'd null-terminated string; we own it. */
+        state = GetAppState(hwnd);
+        char *line = (char *)lParam;
+        if (state && line) {
+            AppendLog(state->hEditLog, line);
+        }
+        if (line) HeapFree(GetProcessHeap(), 0, line);
         return 0;
     }
 
