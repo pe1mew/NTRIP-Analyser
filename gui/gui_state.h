@@ -93,8 +93,36 @@ typedef struct {
     double ts;            /**< gui_get_time_seconds() when the point was added */
 } SkyTrackPoint;
 
+/** @brief Sampling interval (seconds) between track-buffer points.
+ *
+ * Tighter = denser dots / smoother line; coarser = longer history per SV.
+ * Window per SV = SKY_TRACK_CAP * SKY_TRACK_INTERVAL_S seconds.
+ * Default 60 s × 1440 = 86400 s = 24 hours of trail per SV -- enough
+ * for a typical long-running session to keep the trail for the whole
+ * capture.  The polyline renderer in gui_sky_window.c connects
+ * consecutive samples into a smooth arc regardless of the dot
+ * spacing; at GLONASS orbital speed (~4 km/s) 60-s dots land ~7
+ * pixels apart on an 800-px plot, which reads as continuous.  Runs
+ * are split where consecutive samples are more than
+ * SKY_TRACK_GAP_BREAK_S apart in time, so a satellite that sets and
+ * later rises again is drawn as two separate arcs rather than a
+ * straight chord across the plot.
+ *
+ * Memory cost: SKY_TRACK_CAP * sizeof(SkyTrackPoint) per SV slot
+ *            = SKY_TRACK_CAP * 24 B * 8 GNSS * 64 PRN
+ *            = 17.7 MB at the default 1440 entries.  Lower
+ * SKY_TRACK_CAP if you want a tighter memory footprint at the cost
+ * of shorter trails.
+ */
+#define SKY_TRACK_INTERVAL_S    60.0
+
+/** @brief Break the polyline if two consecutive samples are this many
+ * seconds apart -- protects against drawing a straight chord across
+ * the plot when an SV sets and rises hours later. */
+#define SKY_TRACK_GAP_BREAK_S   300.0
+
 /** @brief Ring buffer of past positions for one satellite (since stream open). */
-#define SKY_TRACK_CAP   120     /* ~10 minutes at 5 s/point */
+#define SKY_TRACK_CAP   1440    /* 24 hours at SKY_TRACK_INTERVAL_S = 60 s/point */
 typedef struct {
     SkyTrackPoint pts[SKY_TRACK_CAP];
     int           head;   /**< next write index */

@@ -539,29 +539,77 @@ static int DrawSkyMarkers(HDC hdc, const AppState *state,
             if (age > SKY_DROP_S) continue;
 
             /* ── Track trail (since stream open / last reset) ──
-             * Walk oldest->newest, draw a 3x3 dot at each historical (az,el)
-             * in a desaturated GNSS colour so it doesn't compete with the
-             * live marker. */
+             * Walk oldest->newest, project each (az, el) sample to pixels,
+             * then draw a connected polyline so the trail reads as a
+             * continuous arc.  Az-wrap (e.g. 359° -> 1° across north) is
+             * detected and the polyline is split so we don't draw a long
+             * chord across the plot.  A small 3x3 dot is overlaid at each
+             * sample point too, so genuine eph-update steps show up as a
+             * straight line linking two visibly-spaced dots. */
             if (s->track.count > 0) {
-                HBRUSH brTrail = CreateSolidBrush(trail_color);
-                HBRUSH oldB = (HBRUSH)SelectObject(hdc, brTrail);
-                HPEN   penNull = (HPEN)GetStockObject(NULL_PEN);
-                HPEN   oldP = (HPEN)SelectObject(hdc, penNull);
-
                 int start_idx = (s->track.count < SKY_TRACK_CAP)
                                 ? 0
                                 : s->track.head;
+
+                /* Project all sample points into a local POINT[] array,
+                 * tagged with their (az, el) for wrap detection and ts
+                 * for gap detection.  At the 24-hour default cap these
+                 * arrays sum to ~33 KB on the stack -- well within the
+                 * UI thread's 1 MB. */
+                POINT  pts[SKY_TRACK_CAP];
+                double azs[SKY_TRACK_CAP];
+                double tss[SKY_TRACK_CAP];
                 for (int i = 0; i < s->track.count; i++) {
                     int idx = (start_idx + i) % SKY_TRACK_CAP;
                     const SkyTrackPoint *tp = &s->track.pts[idx];
                     double az_r = tp->az_deg * M_PI / 180.0;
                     double r_t  = (90.0 - tp->el_deg) / 90.0 * (double)radius;
-                    int tx = cx + (int)(r_t * sin(az_r) + 0.5);
-                    int ty = cy - (int)(r_t * cos(az_r) + 0.5);
-                    /* 5x5 px dot for clear visibility */
-                    Ellipse(hdc, tx - 2, ty - 2, tx + 3, ty + 3);
+                    pts[i].x = cx + (int)(r_t * sin(az_r) + 0.5);
+                    pts[i].y = cy - (int)(r_t * cos(az_r) + 0.5);
+                    azs[i]   = tp->az_deg;
+                    tss[i]   = tp->ts;
                 }
+
+                /* Polyline pass: 1-px line in the desaturated GNSS hue.
+                 * Walk runs of consecutive samples.  Split the run at:
+                 *   (a) az-wrap   -- |dAz| > 180° (crossing N/S axis)
+                 *   (b) time gap  -- consecutive samples more than
+                 *                    SKY_TRACK_GAP_BREAK_S apart, which
+                 *                    means the SV had set or otherwise
+                 *                    dropped out of tracking, and the
+                 *                    correct visual is two arcs separated
+                 *                    by empty space, not a straight chord
+                 *                    across the plot. */
+                HPEN penTrail = CreatePen(PS_SOLID, 1, trail_color);
+                HPEN oldP     = (HPEN)SelectObject(hdc, penTrail);
+                int run_start = 0;
+                for (int i = 1; i < s->track.count; i++) {
+                    bool wrap = fabs(azs[i] - azs[i - 1]) > 180.0;
+                    bool gap  = (tss[i] - tss[i - 1]) > SKY_TRACK_GAP_BREAK_S;
+                    if (wrap || gap) {
+                        int run_len = i - run_start;
+                        if (run_len >= 2)
+                            Polyline(hdc, &pts[run_start], run_len);
+                        run_start = i;
+                    }
+                }
+                int tail_len = s->track.count - run_start;
+                if (tail_len >= 2)
+                    Polyline(hdc, &pts[run_start], tail_len);
                 SelectObject(hdc, oldP);
+                DeleteObject(penTrail);
+
+                /* Sample-point dots: 3x3 px in the same hue so individual
+                 * snapshots are still discernible against the line. */
+                HBRUSH brTrail = CreateSolidBrush(trail_color);
+                HBRUSH oldB    = (HBRUSH)SelectObject(hdc, brTrail);
+                HPEN   penNull = (HPEN)GetStockObject(NULL_PEN);
+                HPEN   oldP2   = (HPEN)SelectObject(hdc, penNull);
+                for (int i = 0; i < s->track.count; i++) {
+                    Ellipse(hdc, pts[i].x - 1, pts[i].y - 1,
+                                 pts[i].x + 2, pts[i].y + 2);
+                }
+                SelectObject(hdc, oldP2);
                 SelectObject(hdc, oldB);
                 DeleteObject(brTrail);
             }

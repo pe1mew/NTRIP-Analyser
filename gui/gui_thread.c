@@ -344,17 +344,46 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
          *  to avoid false positives inside RTCM payload data.
          * ═══════════════════════════════════════════════════════ */
         if (detected_format == FMT_NONE && dataBytes > 0) {
-            /* Scan for distinctive 2-byte sync patterns anywhere */
-            for (int j = start; j < n - 1; j++) {
-                /* Septentrio SBF: sync "$@" (0x24 0x40) */
-                if (recv_buf[j] == 0x24 && recv_buf[j + 1] == 0x40) {
-                    detected_format = FMT_SBF;
-                    break;
+            /* RTCM 3.x first.  Scan for the 0xD3 preamble at any position
+             * and verify the next two bytes encode a plausible length
+             * (RTCM 10403.3 message length is 10 bits, range 0..1023; the
+             * top 6 bits of byte 1 must be zero).  This is a much stronger
+             * signal than the 2-byte SBF/UBX syncs, and pre-empts the
+             * false-positive case where an RTCM payload happens to
+             * contain `$@` (0x24 0x40) or another sync sequence. */
+            int rtcm_pos = -1;
+            for (int j = start; j + 2 < n; j++) {
+                if (recv_buf[j] == 0xD3 &&
+                    (recv_buf[j + 1] & 0xFC) == 0x00) {
+                    int rtcm_len = ((recv_buf[j + 1] & 0x03) << 8) |
+                                    recv_buf[j + 2];
+                    if (rtcm_len >= 2 && rtcm_len <= 1023) {
+                        rtcm_pos = j;
+                        break;
+                    }
                 }
-                /* UBX (u-blox): sync 0xB5 0x62 */
-                if (recv_buf[j] == 0xB5 && recv_buf[j + 1] == 0x62) {
-                    detected_format = FMT_UBX;
-                    break;
+            }
+            if (rtcm_pos >= 0) {
+                detected_format = FMT_RTCM3;
+                /* Leave the slower in-loop framer to confirm via CRC --
+                 * we've already pinned the format so the rest of the
+                 * receive path goes straight to RTCM decoding. */
+            }
+            /* Only fall back to SBF/UBX 2-byte heuristic when RTCM didn't
+             * latch.  This prevents `$@` or `0xB5 0x62` appearing inside
+             * a perfectly valid RTCM payload from hijacking the stream. */
+            if (detected_format == FMT_NONE) {
+                for (int j = start; j < n - 1; j++) {
+                    /* Septentrio SBF: sync "$@" (0x24 0x40) */
+                    if (recv_buf[j] == 0x24 && recv_buf[j + 1] == 0x40) {
+                        detected_format = FMT_SBF;
+                        break;
+                    }
+                    /* UBX (u-blox): sync 0xB5 0x62 */
+                    if (recv_buf[j] == 0xB5 && recv_buf[j + 1] == 0x62) {
+                        detected_format = FMT_UBX;
+                        break;
+                    }
                 }
             }
 

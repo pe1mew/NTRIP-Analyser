@@ -413,23 +413,23 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
         if (show_progress && now != last_tick) {
             long bytes_in_window = bytes_total - bytes_at_tick;
             bytes_at_tick = bytes_total;
-            double kbps = (double)bytes_in_window * 8.0 / 1000.0;
+            double kBps = (double)bytes_in_window / 1024.0;
             if (json_output) {
                 fprintf(stderr,
                     "{\"event\":\"tick\",\"t\":%ld,\"frames\":%ld,\"msm\":%ld,"
-                    "\"upd\":%ld,\"kbps\":%.2f,\"total_kb\":%ld,\"source\":\"stdin\"}\n",
+                    "\"upd\":%ld,\"kBps\":%.2f,\"total_kb\":%ld,\"source\":\"stdin\"}\n",
                     (long)now, frame_total, msm_total, obs_total,
-                    kbps, bytes_total / 1024);
+                    kBps, bytes_total / 1024);
             } else if (stderr_is_tty) {
                 fprintf(stderr,
-                    "\r [%c] stdin frames=%ld  MSM=%ld  upd=%ld  rate=%6.1f kbit/s  total=%ld KB    ",
+                    "\r [%c] stdin frames=%ld  MSM=%ld  upd=%ld  rate=%5.1f kB/s  total=%ld KB    ",
                     spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kbps, bytes_total / 1024);
+                    kBps, bytes_total / 1024);
             } else {
                 fprintf(stderr,
-                    "[%c] stdin frames=%ld  MSM=%ld  upd=%ld  rate=%6.1f kbit/s  total=%ld KB\n",
+                    "[%c] stdin frames=%ld  MSM=%ld  upd=%ld  rate=%5.1f kB/s  total=%ld KB\n",
                     spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kbps, bytes_total / 1024);
+                    kBps, bytes_total / 1024);
             }
             fflush(stderr);
             spin_i++;
@@ -702,26 +702,25 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
             long bytes_in_window = bytes_total - bytes_at_tick;
             bytes_at_tick = bytes_total;
 
-            double kbps = (double)bytes_in_window * 8.0 / 1000.0;
-            /* Status goes to stderr so stdout stays clean for data
-             * (the saved PNG filename).  --json switches to one JSON
-             * object per tick (newline-delimited, parseable). */
+            /* kB/s = bytes / 1024 -- matches the GUI status-bar display
+             * (gui_events.c "Streaming  X.X kB/s") so the two UIs agree. */
+            double kBps = (double)bytes_in_window / 1024.0;
             if (json_output) {
                 fprintf(stderr,
                     "{\"event\":\"tick\",\"t\":%ld,\"frames\":%ld,\"msm\":%ld,"
-                    "\"upd\":%ld,\"kbps\":%.2f,\"total_kb\":%ld}\n",
+                    "\"upd\":%ld,\"kBps\":%.2f,\"total_kb\":%ld}\n",
                     (long)now, frame_total, msm_total, obs_total,
-                    kbps, bytes_total / 1024);
+                    kBps, bytes_total / 1024);
             } else if (stderr_is_tty) {
                 fprintf(stderr,
-                    "\r [%c] frames=%ld  MSM=%ld  obs+exp updates=%ld  rate=%6.1f kbit/s  total=%ld KB    ",
+                    "\r [%c] frames=%ld  MSM=%ld  obs+exp updates=%ld  rate=%5.1f kB/s  total=%ld KB    ",
                     spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kbps, bytes_total / 1024);
+                    kBps, bytes_total / 1024);
             } else {
                 fprintf(stderr,
-                    "[%c] frames=%ld  MSM=%ld  obs+exp updates=%ld  rate=%6.1f kbit/s  total=%ld KB\n",
+                    "[%c] frames=%ld  MSM=%ld  obs+exp updates=%ld  rate=%5.1f kB/s  total=%ld KB\n",
                     spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kbps, bytes_total / 1024);
+                    kBps, bytes_total / 1024);
             }
             fflush(stderr);
             spin_i++;

@@ -117,10 +117,33 @@ bool glonass_to_ecef(const SvEphemeris *eph, double glo_tod_s,
     if (dt >  43200.0) dt -= 86400.0;
     if (dt < -43200.0) dt += 86400.0;
 
-    /* Initial state at tb */
+    /* Initial state at tb.
+     *
+     * GLONASS broadcasts (pos, vel, acc) in PZ-90 -- the Earth-FIXED
+     * rotating frame.  Our orbit ODE integrates in an INERTIAL frame
+     * (gravity + J2 + luni-solar, no Coriolis / centrifugal).  At the
+     * reference instant tb the two frames are spatially co-aligned, so
+     * the position vector is identical; but the velocity differs by the
+     * rotational term  v_inertial = v_pz90 + omega x r:
+     *
+     *     v_inertial_x = v_pz90_x - omega_e * y_pz90
+     *     v_inertial_y = v_pz90_y + omega_e * x_pz90
+     *     v_inertial_z = v_pz90_z
+     *
+     * Skipping this conversion (treating v_pz90 as inertial) used to give
+     * an r(tb)-dependent error that, combined with the double-buffer
+     * cache alternating between consecutive rebroadcasts (each with a
+     * slightly different r(tb)), showed up as the per-tick zig-zag in
+     * the GLONASS sky-plot trails.  With the cross product applied,
+     * propagating eph_A and eph_B from the same orbit gives the same
+     * result and the trails are smooth. */
     double s[6];
-    s[0] = eph->glo_pos[0]; s[1] = eph->glo_pos[1]; s[2] = eph->glo_pos[2];
-    s[3] = eph->glo_vel[0]; s[4] = eph->glo_vel[1]; s[5] = eph->glo_vel[2];
+    s[0] = eph->glo_pos[0];
+    s[1] = eph->glo_pos[1];
+    s[2] = eph->glo_pos[2];
+    s[3] = eph->glo_vel[0] - GLO_OMEGA_E * eph->glo_pos[1];
+    s[4] = eph->glo_vel[1] + GLO_OMEGA_E * eph->glo_pos[0];
+    s[5] = eph->glo_vel[2];
 
     /* RK4 integration with adaptive last step.  Step direction follows
      * sign(dt). */

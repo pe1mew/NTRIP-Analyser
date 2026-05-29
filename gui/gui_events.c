@@ -1946,10 +1946,12 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     s->last_seen_ts = now;
                     s->valid        = true;
 
-                    /* Append a track point if 30+ s elapsed since the last
-                     * one.  GNSS SVs only move ~0.1 deg per 30 s, so this
-                     * interval gives visibly-spaced dots while a 120-point
-                     * ring buffer captures ~1 h of motion. */
+                    /* Append a track point if SKY_TRACK_INTERVAL_S has
+                     * elapsed since the last sample.  With the polyline
+                     * renderer in gui_sky_window.c, a tighter interval
+                     * makes any ephemeris-update step show up as a long
+                     * straight line between two close-in-time samples --
+                     * which is exactly the kind of glitch we want to see. */
                     SkyTrackBuffer *tb = &s->track;
                     double last_ts = 0.0;
                     if (tb->count > 0) {
@@ -1957,7 +1959,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                                        % SKY_TRACK_CAP;
                         last_ts = tb->pts[last_idx].ts;
                     }
-                    if (tb->count == 0 || (now - last_ts) >= 30.0) {
+                    if (tb->count == 0 || (now - last_ts) >= SKY_TRACK_INTERVAL_S) {
                         tb->pts[tb->head].az_deg = upd[i].az_deg;
                         tb->pts[tb->head].el_deg = upd[i].el_deg;
                         tb->pts[tb->head].ts     = now;

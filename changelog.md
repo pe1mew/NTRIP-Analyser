@@ -6,6 +6,92 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — GLONASS sky-plot jumps (two distinct causes)
+
+Two separate bugs hit GLONASS sky-plot trails; both are now fixed.
+
+**1. Lock-free ephemeris cache (eliminated the giant jumps)**
+
+The `sv_ephemeris` cache previously did a non-atomic 268-byte struct
+copy on writes from the eph worker thread, with concurrent non-atomic
+reads from the obs worker.  Readers could observe a *torn*
+`SvEphemeris` -- e.g. position from the new ephemeris glued to
+velocity from the old.  Keplerian propagators (GPS / Galileo / QZSS
+/ BeiDou / NavIC) shrugged this off because tearing a Kepler element
+yields a sub-pixel shift on an 800-px plot, but GLONASS uses a
+position+velocity state vector at a reference time and amplified the
+inconsistency into 100-500 km errors visible as hard "jumps" between
+consecutive 5 s track samples.
+
+Each `(gnss_id, prn)` slot now holds two `SvEphemeris` buffers plus
+an atomic `active` index.  Writers fill the inactive buffer in
+place, then `__atomic_store_n(..., __ATOMIC_RELEASE)` the new index.
+Readers do `__atomic_load_n(..., __ATOMIC_ACQUIRE)` and read the
+published buffer.  Lock-free; the GLONASS state vector is never
+observed half-written.
+
+**4. Ephemeris-validity grace periods relaxed**
+
+Galileo's grace period was the shortest of any constellation in the
+cache (30 min vs 4 h for GPS / QZSS / NavIC, 6 h for BeiDou).  Any
+brief gap in the upstream Galileo broadcast caused the eph to flip
+invalid, the obs worker to skip that PRN in its sky-update loop,
+and the track to fragment when valid eph returned >5 min later
+(SKY_TRACK_GAP_BREAK_S).  Other constellations rarely hit their
+graces and didn't show the same fragmentation.
+
+Bumped:
+  - Galileo:  30 min -> 4 h  (matches GPS now)
+  - GLONASS:   1 h   -> 2 h  (for symmetry; broadcasts every 30 min
+                              so 2 h gives 4× nominal headroom)
+
+Orbit-propagation error after a few hours past `toe` is still
+sub-pixel on an 800-px sky plot (~20 km for Galileo at 4 h = ~1 px
+at 23 000 km), so the looser grace doesn't cost visible accuracy.
+
+**3. Track buffer extended to 24 hours**
+
+The per-SV `SkyTrackBuffer` ring buffer was sized for a 1-hour
+window at the old 30 s sampling interval (`SKY_TRACK_CAP = 120`).
+When the sampling interval was tightened to 5 s during the GLONASS
+zig-zag diagnostic, the visible trail collapsed to the most recent
+10 minutes -- shorter than typical capture sessions.
+
+Bumped to `SKY_TRACK_CAP = 1440` at `SKY_TRACK_INTERVAL_S = 60 s`:
+**24 hours of trail** per SV, ~17 MB total for all 8 GNSS × 64 PRN
+slots.  The polyline renderer makes 60-s dots look continuous at
+GLONASS orbital speed (~7 px apart on an 800-px plot).  Added
+`SKY_TRACK_GAP_BREAK_S = 300 s`: the polyline runner splits the run
+when consecutive samples are more than 5 minutes apart, so an SV
+that sets and rises hours later draws as two separate arcs rather
+than a straight chord across the plot.  Lower `SKY_TRACK_CAP` if
+you want a smaller memory footprint at the cost of shorter trails.
+
+**2. PZ-90 -> inertial velocity conversion (eliminated the residual
+zig-zag)**
+
+`glonass_to_ecef()` was integrating the orbital ODE in an inertial
+frame (gravity + J2 + luni-solar, no Coriolis / centrifugal terms)
+but using the broadcast velocity *as if it were inertial*.  Per the
+GLONASS ICD § A.3.1, the broadcast `(pos, vel, acc)` triple is in
+PZ-90 (Earth-fixed rotating).  Position is identical at the
+reference instant `tb` (the two frames are spatially co-aligned
+there), but velocity differs by the rotational term:
+
+```
+v_inertial = v_pz90 + omega_e x r
+  v_inertial_x = v_pz90_x - omega_e * y_pz90
+  v_inertial_y = v_pz90_y + omega_e * x_pz90
+  v_inertial_z = v_pz90_z
+```
+
+Missing this conversion produced an `r(tb)`-dependent position error
+on the order of tens of km.  Combined with the now-correctly-
+working double-buffer cache alternating between two consecutive
+GLONASS rebroadcasts at slightly different `tb`, the error magnitude
+oscillated visibly tick-to-tick.  Adding the cross-product
+straightens the trails.
+
 ### Added — CLI sky-heatmap mode
 
 - **`-S` / `--sky`** — new CLI mode that opens both the observation
@@ -19,8 +105,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   ```
   [/] frames=21  MSM=21  obs+exp updates=0  rate=  9.6 kbit/s  total=12 KB
   ```
-  showing spinner, frame counters, current NTRIP rate, and total
-  bytes received.  **Ctrl-A** aborts immediately without writing a
+  showing spinner, frame counters, current NTRIP rate (`kB/s`,
+  matching the GUI status bar), and total bytes received.  **Ctrl-A** aborts immediately without writing a
   PNG (uses raw-mode `_kbhit`/`_getch` on Windows and termios
   ICANON-off + `select()` on POSIX so the keystroke needs no Enter).
   All RTCM decoder chatter (per-frame ephemeris blocks, station
