@@ -911,7 +911,8 @@ void extract_satellites(const unsigned char *data, int len, int msg_type, SatSta
 }
 
 const char* rinex_id_from_gnss(int gnss_id, int prn, char *buf, size_t buflen) {
-    // RINEX 3: G = GPS, R = GLONASS, E = Galileo, J = QZSS, C = BeiDou, S = SBAS
+    // RINEX 3: G = GPS, R = GLONASS, E = Galileo, J = QZSS,
+    //         C = BeiDou, S = SBAS, I = NavIC / IRNSS
     char sys = '?';
     switch (gnss_id) {
         case 1: sys = 'G'; break; // GPS
@@ -920,6 +921,7 @@ const char* rinex_id_from_gnss(int gnss_id, int prn, char *buf, size_t buflen) {
         case 4: sys = 'J'; break; // QZSS
         case 5: sys = 'C'; break; // BeiDou
         case 6: sys = 'S'; break; // SBAS
+        case 7: sys = 'I'; break; // NavIC / IRNSS
         default: sys = '?'; break;
     }
     snprintf(buf, buflen, "%c%02d", sys, prn);
@@ -1144,16 +1146,21 @@ const char* gnss_name_from_id(int gnss_id) {
         case 4: return "QZSS";
         case 5: return "BeiDou";
         case 6: return "SBAS";
+        case 7: return "NavIC";
         default: return "Unknown";
     }
 }
 
+/* Note: this mapping must agree with msm_extract_prns() in rtcm3x_parser.c,
+ * which is what actually drives the Satellites tab today.  Previously this
+ * function had SBAS mis-mapped to the 1130 range and lacked a NavIC entry. */
 int get_gnss_id_from_rtcm(int msg_type) {
     if (msg_type >= 1070 && msg_type < 1080) return 1; // GPS
     if (msg_type >= 1080 && msg_type < 1090) return 2; // GLONASS
     if (msg_type >= 1090 && msg_type < 1100) return 3; // Galileo
+    if (msg_type >= 1100 && msg_type < 1110) return 6; // SBAS
     if (msg_type >= 1110 && msg_type < 1120) return 4; // QZSS
     if (msg_type >= 1120 && msg_type < 1130) return 5; // BeiDou
-    if (msg_type >= 1130 && msg_type < 1140) return 6; // SBAS
+    if (msg_type >= 1130 && msg_type < 1140) return 7; // NavIC / IRNSS
     return 0;
 }

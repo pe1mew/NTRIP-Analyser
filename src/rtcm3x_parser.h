@@ -607,6 +607,25 @@ void decode_rtcm_1033(const unsigned char *payload, int payload_len);
 void decode_rtcm_1020(const unsigned char *payload, int payload_len);
 
 /**
+ * @brief Decode and print an RTCM 3.x Type 1041 message (NavIC / IRNSS Ephemeris).
+ *
+ * Per RTCM 10403.3 Amendment 2 (Jan 2018), Table 3.5-104.  NavIC uses
+ * GPS-style Keplerian elements with the same gravitational parameter and
+ * Earth-rotation rate as GPS, but a distinct field layout and a couple of
+ * scale-factor differences:
+ *   - Cuc/Cus/Cic/Cis are 15 bits  signed at LSB = 2^-28 rad (vs 16 bits at 2^-29 for GPS)
+ *   - Crc/Crs are 15 bits signed at LSB = 2^-4 m (vs 16 bits at 2^-5 for GPS)
+ *   - IDOT and Delta_n share a 14- / 22-bit signed encoding at 2^-43 / 2^-41 semi-circles/s
+ *   - 10-bit NavIC week (since 1999-08-22 UTC), TGD is 8 bits at 2^-31 s
+ * Stores the result in the per-SV cache with gnss_id = 7, where the
+ * existing kepler_to_ecef() propagator uses it without modification.
+ *
+ * @param payload     Pointer to the message payload (after header).
+ * @param payload_len Length of the payload in bytes.
+ */
+void decode_rtcm_1041(const unsigned char *payload, int payload_len);
+
+/**
  * @brief Decode and print an RTCM 3.x Type 1042 message (BeiDou D1 Ephemeris).
  *
  * Per RTCM 10403.3 Table 3.5-31.  Uses BeiDou-specific scale factors

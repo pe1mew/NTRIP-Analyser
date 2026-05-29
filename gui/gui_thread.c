@@ -601,7 +601,8 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                          * heatmap's observed/expected counters. */
                         if (n_prns > 0 &&
                             (gnss_id == 1 || gnss_id == 2 ||
-                             gnss_id == 3 || gnss_id == 4 || gnss_id == 5)) {
+                             gnss_id == 3 || gnss_id == 4 || gnss_id == 5 ||
+                             gnss_id == 7)) {
                             int    gps_week;
                             double gps_tow;
                             sky_get_gps_time(&gps_week, &gps_tow);
@@ -915,6 +916,10 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
                     decode_rtcm_1020(&msg_buf[3], payload_len);
                     eph_count++;
                     break;
+                case 1041:
+                    decode_rtcm_1041(&msg_buf[3], payload_len);
+                    eph_count++;
+                    break;
                 case 1042:
                     decode_rtcm_1042(&msg_buf[3], payload_len);
                     eph_count++;
@@ -1093,7 +1098,8 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
 
                 if (n_prns > 0 &&
                     (gnss_id == 1 || gnss_id == 2 ||
-                     gnss_id == 3 || gnss_id == 4 || gnss_id == 5)) {
+                     gnss_id == 3 || gnss_id == 4 || gnss_id == 5 ||
+                     gnss_id == 7)) {
                     int    gps_week;
                     double gps_tow;
                     sky_get_gps_time(&gps_week, &gps_tow);

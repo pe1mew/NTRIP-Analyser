@@ -77,6 +77,7 @@ bool sv_eph_is_valid_at(const SvEphemeris *eph, int week, double tow_s)
     case 3:  max_dt = 30.0 * 60.0;  break;  /* Galileo: 10 min nominal, 30 min grace */
     case 4:  max_dt = 4.0 * 3600.0; break;  /* QZSS:    2 h nominal, 4 h grace (GPS-like) */
     case 5:  max_dt = 6.0 * 3600.0; break;  /* BeiDou:  ~1 h nominal, 6 h grace */
+    case 7:  max_dt = 4.0 * 3600.0; break;  /* NavIC:   2 h nominal, 4 h grace (GPS-like) */
     default: max_dt = 2.0 * 3600.0;
     }
     return abs_dt <= max_dt;

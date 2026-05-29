@@ -235,6 +235,22 @@ static const char *MSM_SIG_LABELS_BDS[CNR_MAX_SIGS] = {
     "",   "",   "",   "",   "",   "B5D","B5P","B5X",   /* 16..23 */
     "B7D","B7P","B7Z","B8D","B8P","B1D","B1P","B1X"    /* 24..31 */
 };
+/* SBAS (RTCM 10403.3 Table 3.5-93).  Only L1 C/A and the three L5 codes
+ * are defined; the rest is reserved. */
+static const char *MSM_SIG_LABELS_SBAS[CNR_MAX_SIGS] = {
+    "",   "L1C","",   "",   "",   "",   "",   "",      /*  0.. 7 */
+    "",   "",   "",   "",   "",   "",   "",   "",      /*  8..15 */
+    "",   "",   "",   "",   "",   "L5I","L5Q","L5X",   /* 16..23 */
+    "",   "",   "",   "",   "",   "",   "",   ""       /* 24..31 */
+};
+/* NavIC / IRNSS (RTCM 10403.3 Amendment 1, Table 3.5-96).  Only the L5
+ * SPS signal ("5A") is currently defined at signal-mask bit 22. */
+static const char *MSM_SIG_LABELS_NAVIC[CNR_MAX_SIGS] = {
+    "",   "",   "",   "",   "",   "",   "",   "",      /*  0.. 7 */
+    "",   "",   "",   "",   "",   "",   "",   "",      /*  8..15 */
+    "",   "",   "",   "",   "",   "5A", "",   "",      /* 16..23 */
+    "",   "",   "",   "",   "",   "",   "",   ""       /* 24..31 */
+};
 
 const char *msm_signal_label(int gnss_id, int sig_idx)
 {
@@ -243,11 +259,13 @@ const char *msm_signal_label(int gnss_id, int sig_idx)
 
     const char *lbl = "";
     switch (gnss_id) {
-    case 1: lbl = MSM_SIG_LABELS_GPS[sig_idx]; break;
-    case 2: lbl = MSM_SIG_LABELS_GLO[sig_idx]; break;
-    case 3: lbl = MSM_SIG_LABELS_GAL[sig_idx]; break;
-    case 4: lbl = MSM_SIG_LABELS_QZS[sig_idx]; break;
-    case 5: lbl = MSM_SIG_LABELS_BDS[sig_idx]; break;
+    case 1: lbl = MSM_SIG_LABELS_GPS[sig_idx];   break;
+    case 2: lbl = MSM_SIG_LABELS_GLO[sig_idx];   break;
+    case 3: lbl = MSM_SIG_LABELS_GAL[sig_idx];   break;
+    case 4: lbl = MSM_SIG_LABELS_QZS[sig_idx];   break;
+    case 5: lbl = MSM_SIG_LABELS_BDS[sig_idx];   break;
+    case 6: lbl = MSM_SIG_LABELS_SBAS[sig_idx];  break;
+    case 7: lbl = MSM_SIG_LABELS_NAVIC[sig_idx]; break;
     default: break;
     }
     if (lbl && lbl[0]) return lbl;
@@ -1003,7 +1021,10 @@ void decode_rtcm_1127(const unsigned char *payload, int payload_len) {
 }
 
 void decode_rtcm_1137(const unsigned char *payload, int payload_len) {
-    decode_rtcm_msm7(payload, payload_len, "SBAS", 1137);
+    /* gnss_name is unused by decode_rtcm_msm7_full (PRN letters and signal
+     * labels are keyed on msg_type) but is reported in the file/line trail,
+     * so use the correct constellation name. */
+    decode_rtcm_msm7(payload, payload_len, "NavIC", 1137);
 }
 
 void decode_rtcm_1007(const unsigned char *payload, int payload_len) {
@@ -1566,6 +1587,166 @@ void decode_rtcm_1044(const unsigned char *payload, int payload_len) {
     rtcm_printf("            Cic=%+.6e Cis=%+.6e\n", cic_s, cis_s);
 }
 
+void decode_rtcm_1041(const unsigned char *payload, int payload_len) {
+    /* RTCM 10403.3 Amendment 2 (Jan 2018), Table 3.5-104 -- NavIC/IRNSS
+     * Satellite Ephemeris Data.  Total 482 bits = 61 bytes (with trailing
+     * spare padding to a byte boundary).  Field layout follows the IRNSS
+     * L5/S Navigation Message, IS-IRNSS-ICD-SPS-1.1:
+     *
+     *   DF002 msg_num             12  (1041)
+     *   DF516 SatID                6
+     *   DF517 NavIC Week          10
+     *   DF518 af0                 22  signed  2^-31 s
+     *   DF519 af1                 16  signed  2^-43 s/s
+     *   DF520 af2                  8  signed  2^-55 s/s^2
+     *   DF521 URA / SISA           4  unsigned
+     *   DF522 toc                 16  unsigned  16 s
+     *   DF523 TGD                  8  signed  2^-31 s
+     *   DF524 delta_n             22  signed  2^-41 semi-circles/s
+     *   DF525 IODEC                8  unsigned
+     *   DF526 reserved            10
+     *   DF527 L5 flag              1
+     *   DF528 S  flag              1
+     *   DF529 Cuc                 15  signed  2^-28 rad
+     *   DF530 Cus                 15  signed  2^-28 rad
+     *   DF531 Cic                 15  signed  2^-28 rad
+     *   DF532 Cis                 15  signed  2^-28 rad
+     *   DF533 Crc                 15  signed  2^-4  m  (LSB = 0.0625 m)
+     *   DF534 Crs                 15  signed  2^-4  m
+     *   DF535 IDOT                14  signed  2^-43 semi-circles/s
+     *   DF536 M0                  32  signed  2^-31 semi-circles
+     *   DF537 toe                 16  unsigned  16 s
+     *   DF538 e                   32  unsigned  2^-33
+     *   DF539 sqrtA               32  unsigned  2^-19 m^0.5
+     *   DF540 OMEGA0              32  signed  2^-31 semi-circles
+     *   DF541 omega               32  signed  2^-31 semi-circles
+     *   DF542 OMEGADOT            22  signed  2^-41 semi-circles/s
+     *   DF543 i0                  32  signed  2^-31 semi-circles
+     *
+     * The IRNSS L5/S nav message and RTCM 1041 follow the same Keplerian
+     * conventions as GPS (mu = 3.986005e14, omega_e = 7.2921151467e-5),
+     * so the existing kepler_to_ecef() works without changes. */
+    if (!payload || payload_len < 61) {
+        rtcm_printf("RTCM 1041: Payload too short (need 61 bytes, got %d)\n", payload_len);
+        return;
+    }
+
+    int bit = 0;
+    uint32_t msg_type = (uint32_t)get_bits(payload, bit, 12); bit += 12;
+    if (msg_type != 1041) {
+        rtcm_printf("[1041] Not a 1041 message (got %u)\n", msg_type);
+        return;
+    }
+
+    uint32_t prn       = (uint32_t)get_bits(payload, bit, 6);          bit += 6;
+    uint32_t week      = (uint32_t)get_bits(payload, bit, 10);         bit += 10;
+    int32_t  af0       = (int32_t) extract_signed(payload, bit, 22);   bit += 22;
+    int32_t  af1       = (int32_t) extract_signed(payload, bit, 16);   bit += 16;
+    int32_t  af2       = (int32_t) extract_signed(payload, bit, 8);    bit += 8;
+    uint32_t ura       = (uint32_t)get_bits(payload, bit, 4);          bit += 4;
+    uint32_t toc_raw   = (uint32_t)get_bits(payload, bit, 16);         bit += 16;
+    int32_t  tgd       = (int32_t) extract_signed(payload, bit, 8);    bit += 8;
+    int32_t  delta_n   = (int32_t) extract_signed(payload, bit, 22);   bit += 22;
+    uint32_t iodec     = (uint32_t)get_bits(payload, bit, 8);          bit += 8;
+    bit += 10;   /* reserved */
+    uint32_t l5_flag   = (uint32_t)get_bits(payload, bit, 1);          bit += 1;
+    uint32_t s_flag    = (uint32_t)get_bits(payload, bit, 1);          bit += 1;
+    int32_t  cuc       = (int32_t) extract_signed(payload, bit, 15);   bit += 15;
+    int32_t  cus       = (int32_t) extract_signed(payload, bit, 15);   bit += 15;
+    int32_t  cic       = (int32_t) extract_signed(payload, bit, 15);   bit += 15;
+    int32_t  cis       = (int32_t) extract_signed(payload, bit, 15);   bit += 15;
+    int32_t  crc       = (int32_t) extract_signed(payload, bit, 15);   bit += 15;
+    int32_t  crs       = (int32_t) extract_signed(payload, bit, 15);   bit += 15;
+    int32_t  idot      = (int32_t) extract_signed(payload, bit, 14);   bit += 14;
+    int32_t  m0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    uint32_t toe_raw   = (uint32_t)get_bits(payload, bit, 16);         bit += 16;
+    uint64_t e_raw     =          get_bits(payload, bit, 32);          bit += 32;
+    uint64_t sqrtA_raw =          get_bits(payload, bit, 32);          bit += 32;
+    int32_t  omega0    = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  omega     = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+    int32_t  omega_dot = (int32_t) extract_signed(payload, bit, 22);   bit += 22;
+    int32_t  i0        = (int32_t) extract_signed(payload, bit, 32);   bit += 32;
+
+    /* ── Scaling.  Angular fields stored in semi-circles use the
+     *    factor pi (1 semi-circle = pi radians). ── */
+    double af0_s       = (double)af0       * pow(2.0, -31);
+    double af1_s       = (double)af1       * pow(2.0, -43);
+    double af2_s       = (double)af2       * pow(2.0, -55);
+    double toc_s       = (double)toc_raw   * 16.0;
+    double tgd_s       = (double)tgd       * pow(2.0, -31);
+    double delta_n_s   = (double)delta_n   * pow(2.0, -41) * M_PI;
+    double cuc_s       = (double)cuc       * pow(2.0, -28);
+    double cus_s       = (double)cus       * pow(2.0, -28);
+    double cic_s       = (double)cic       * pow(2.0, -28);
+    double cis_s       = (double)cis       * pow(2.0, -28);
+    double crc_s       = (double)crc       * pow(2.0, -4);
+    double crs_s       = (double)crs       * pow(2.0, -4);
+    double idot_s      = (double)idot      * pow(2.0, -43) * M_PI;
+    double m0_s        = (double)m0        * pow(2.0, -31) * M_PI;
+    double toe_s       = (double)toe_raw   * 16.0;
+    double e_s         = (double)e_raw     * pow(2.0, -33);
+    double sqrtA_s     = (double)sqrtA_raw * pow(2.0, -19);
+    double omega0_s    = (double)omega0    * pow(2.0, -31) * M_PI;
+    double omega_s     = (double)omega     * pow(2.0, -31) * M_PI;
+    double omega_dot_s = (double)omega_dot * pow(2.0, -41) * M_PI;
+    double i0_s        = (double)i0        * pow(2.0, -31) * M_PI;
+
+    /* ── Sanity check.  NavIC operates on a mix of GEO (~42164 km radius)
+     *    and IGSO orbits, so sqrt(A) should sit in ~6450..6520 m^0.5 and
+     *    eccentricity should be small (< 0.05).  Reject obviously bad
+     *    decodes before they corrupt the cache. */
+    bool plausible = (sqrtA_s > 6000.0 && sqrtA_s < 7000.0) &&
+                     (e_s >= 0.0 && e_s < 0.1);
+
+    if (plausible) {
+        SvEphemeris eph;
+        memset(&eph, 0, sizeof(eph));
+        eph.gnss_id      = 7;             /* NavIC / IRNSS */
+        eph.prn          = (int)prn;
+        eph.iode_iodnav  = (int)iodec;
+        eph.week         = (int)week;
+        eph.toe          = toe_s;
+        eph.toc          = toc_s;
+        eph.sqrt_a       = sqrtA_s;
+        eph.e            = e_s;
+        eph.i0           = i0_s;
+        eph.omega0       = omega0_s;
+        eph.omega        = omega_s;
+        eph.m0           = m0_s;
+        eph.delta_n      = delta_n_s;
+        eph.idot         = idot_s;
+        eph.omega_dot    = omega_dot_s;
+        eph.cuc          = cuc_s;
+        eph.cus          = cus_s;
+        eph.crc          = crc_s;
+        eph.crs          = crs_s;
+        eph.cic          = cic_s;
+        eph.cis          = cis_s;
+        eph.af0          = af0_s;
+        eph.af1          = af1_s;
+        eph.af2          = af2_s;
+        eph.health       = 0;             /* RTCM 1041 carries no explicit health flag */
+        sv_eph_store(&eph);
+    }
+
+    rtcm_printf("RTCM 1041 (NavIC Ephemeris):\n");
+    rtcm_printf("  SV: I%02u   NavIC Week: %u (10-bit)   URA: %u\n", prn, week, ura);
+    rtcm_printf("  IODEC: %u   L5 flag: %u   S flag: %u\n", iodec, l5_flag, s_flag);
+    rtcm_printf("  toc: %.0f s of week   toe: %.0f s of week   TGD: %.6e s\n",
+                toc_s, toe_s, tgd_s);
+    rtcm_printf("  Clock: af0=%.6e s  af1=%.6e s/s  af2=%.6e s/s^2\n",
+                af0_s, af1_s, af2_s);
+    rtcm_printf("  sqrt(A) = %.6f m^0.5    e = %.10g%s\n",
+                sqrtA_s, e_s, plausible ? "" : "  <-- IMPLAUSIBLE, rejected");
+    rtcm_printf("  i0      = %+.6f rad     OMEGA0 = %+.6f rad\n", i0_s, omega0_s);
+    rtcm_printf("  omega   = %+.6f rad     M0     = %+.6f rad\n", omega_s, m0_s);
+    rtcm_printf("  delta_n = %+.6e rad/s   idot   = %+.6e rad/s\n", delta_n_s, idot_s);
+    rtcm_printf("  OMEGADOT = %+.6e rad/s\n", omega_dot_s);
+    rtcm_printf("  Harmonic: Cuc=%+.6e Cus=%+.6e Crc=%+.3f m Crs=%+.3f m\n",
+                cuc_s, cus_s, crc_s, crs_s);
+    rtcm_printf("            Cic=%+.6e Cis=%+.6e\n", cic_s, cis_s);
+}
+
 void decode_rtcm_1042(const unsigned char *payload, int payload_len) {
     /* RTCM 10403.3 Table 3.5-31 — BeiDou D1 Ephemerides, 511 bits = 64 bytes.
      * Note the per-field scaling differs from GPS:
@@ -1892,6 +2073,9 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
             } else if (msg_type == 1020) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1020 detected)\n", msg_type, msg_length);
                 decode_rtcm_1020(&data[3], msg_length);
+            } else if (msg_type == 1041) {
+                rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1041 detected)\n", msg_type, msg_length);
+                decode_rtcm_1041(&data[3], msg_length);
             } else if (msg_type == 1042) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1042 detected)\n", msg_type, msg_length);
                 decode_rtcm_1042(&data[3], msg_length);

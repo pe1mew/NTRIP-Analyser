@@ -109,11 +109,19 @@ static LRESULT CALLBACK DetailWndProc(HWND hwnd, UINT msg,
     }
 
     case WM_CLOSE: {
-        /* Notify parent to clear the slot in hDetailWnds[] */
+        /* Notify the owning main window to clear our slot in hDetailWnds[]
+         * BEFORE we destroy ourselves.  Use GetWindow(GW_OWNER) -- GetParent
+         * is unreliable for owned overlapped windows (it can return NULL on
+         * some configs) which would leak the slot, making the next
+         * double-click look like the window is still open and silently
+         * call SetForegroundWindow on a destroyed HWND.  SendMessage runs
+         * the handler synchronously so the slot is cleared before any
+         * subsequent UI events can be processed. */
         int msg_type = (int)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        HWND hParent = GetParent(hwnd);
-        if (hParent)
-            PostMessage(hParent, WM_APP_DETAIL_CLOSED,
+        HWND hOwner = GetWindow(hwnd, GW_OWNER);
+        if (!hOwner) hOwner = GetParent(hwnd);   /* fallback */
+        if (hOwner)
+            SendMessage(hOwner, WM_APP_DETAIL_CLOSED,
                         (WPARAM)msg_type, 0);
         DestroyWindow(hwnd);
         return 0;

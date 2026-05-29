@@ -160,6 +160,12 @@ typedef struct {
     SkySector sectors[SKY_N_EL_BANDS][SKY_MAX_AZ_BINS];
 
     SkyPlotMode mode;
+
+    /* Per-GNSS filter for marker mode.  0 = show all constellations;
+     * 1..7 = show only that gnss_id (G=1, R=2, E=3, J=4, C=5, S=6, I=7).
+     * Toggled by clicking a legend chip in gui_sky_window.c.  Tracks for
+     * hidden SVs stay in memory and reappear when the filter is cleared. */
+    int filter_gnss_id;
 } SkyPlotState;
 
 /** @brief Azimuth-bin count per elevation band.  Defined in gui_sky_window.c. */

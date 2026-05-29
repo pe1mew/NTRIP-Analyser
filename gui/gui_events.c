@@ -622,9 +622,12 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     memset(state->msgStats, 0, sizeof(state->msgStats));
     memset(&state->satStats, 0, sizeof(state->satStats));
     /* Reset the heatmap accumulator and per-SV track buffers -- both
-     * are "since connect" data so any prior session must be cleared. */
+     * are "since connect" data so any prior session must be cleared.
+     * Also clear the per-GNSS legend filter so a new mountpoint starts
+     * with all constellations visible. */
     memset(state->skyState.sectors, 0, sizeof(state->skyState.sectors));
     memset(state->skyState.sats,    0, sizeof(state->skyState.sats));
+    state->skyState.filter_gnss_id = 0;
     ListView_DeleteAllItems(state->hLvMsgStats);
     ListView_DeleteAllItems(state->hLvSatellites);
     for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
@@ -1392,6 +1395,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                                      typeBuf, sizeof(typeBuf));
                 int mt = atoi(typeBuf);
                 if (mt > 0 && mt < GUI_MAX_MSG_TYPES) {
+                    /* Belt-and-braces: if the cached HWND points at a
+                     * destroyed window (e.g. WM_APP_DETAIL_CLOSED was lost
+                     * for some reason), treat the slot as empty so we
+                     * recreate the window instead of calling
+                     * SetForegroundWindow on a dead HWND. */
+                    if (state->hDetailWnds[mt] && !IsWindow(state->hDetailWnds[mt]))
+                        state->hDetailWnds[mt] = NULL;
+
                     if (state->hDetailWnds[mt]) {
                         /* Already open — bring to front */
                         SetForegroundWindow(state->hDetailWnds[mt]);
@@ -1586,6 +1597,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             memset(&state->satStats, 0, sizeof(state->satStats));
             memset(state->skyState.sectors, 0, sizeof(state->skyState.sectors));
             memset(state->skyState.sats,    0, sizeof(state->skyState.sats));
+            state->skyState.filter_gnss_id = 0;
             ListView_DeleteAllItems(state->hLvMsgStats);
             ListView_DeleteAllItems(state->hLvSatellites);
             for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {

@@ -70,6 +70,7 @@ const int sky_az_bins_per_band[SKY_N_EL_BANDS] = {
 #define SKY_GAL_COLOR    RGB( 30,  80, 200)   /* E -- blue    */
 #define SKY_QZS_COLOR    RGB(180,  40, 160)   /* J -- magenta */
 #define SKY_BDS_COLOR    RGB(220, 130,  20)   /* C -- orange  */
+#define SKY_NAVIC_COLOR  RGB( 30, 170, 180)   /* I -- teal    */
 #define SKY_DIM_COLOR    RGB(180, 180, 180)   /* stale marker */
 #define SKY_MARKER_OUTLINE RGB(40, 40, 40)
 
@@ -217,14 +218,33 @@ static void draw_swatch(HDC hdc, int x, int y, int w, int h, COLORREF color)
     DeleteObject(ob);
 }
 
+/* ── Legend hit cache ─────────────────────────────────────────────────
+ * DrawSkyLegend populates this each paint with the screen rect of every
+ * clickable constellation chip; WM_LBUTTONDOWN reads it to dispatch.
+ * Only meaningful in marker mode. */
+#define SKY_LEGEND_MAX_HITS 8
+typedef struct {
+    RECT rc;          /* combined rect covering swatch + label */
+    int  gnss_id;     /* 1..7 */
+} SkyLegendHit;
+static SkyLegendHit g_legend_hits[SKY_LEGEND_MAX_HITS];
+static int          g_legend_hit_count = 0;
+
 /**
  * @brief Render the mode-appropriate legend as a horizontal strip.
  *
  * Marker mode: colour swatches paired with their GNSS abbreviations.
+ * Each chip (swatch + label) is clickable; a black outline marks the
+ * currently-selected filter, and non-selected chips are drawn dim while
+ * a filter is active.  Hit rects are stashed in g_legend_hits for the
+ * WM_LBUTTONDOWN dispatcher.
+ *
  * Heatmap mode: a red->yellow->green gradient bar with percentage scale
- * and a swatch for "no expected" (polar hole / below horizon).
+ * and a swatch for "no expected" (polar hole / below horizon).  No hit
+ * cache is populated.
  */
-static void DrawSkyLegend(HDC hdc, int x, int y, SkyPlotMode mode)
+static void DrawSkyLegend(HDC hdc, int x, int y, SkyPlotMode mode,
+                          int filter_gnss_id)
 {
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, SKY_LABEL_COLOR);
@@ -233,21 +253,75 @@ static void DrawSkyLegend(HDC hdc, int x, int y, SkyPlotMode mode)
     const int sw = 12, sh = 10;
     const int gap_after_label = 44;     /* spacing between GNSS entries */
 
+    /* Reset the click-target cache; we'll refill it below in marker mode. */
+    g_legend_hit_count = 0;
+
     if (mode == SKY_MODE_MARKERS) {
-        const struct { COLORREF c; const char *lbl; } items[] = {
-            { SKY_GPS_COLOR, "GPS"  },
-            { SKY_GLO_COLOR, "GLO"  },
-            { SKY_GAL_COLOR, "GAL"  },
-            { SKY_QZS_COLOR, "QZS"  },
-            { SKY_BDS_COLOR, "BDS"  },
+        const struct { COLORREF c; const char *lbl; int gnss_id; } items[] = {
+            { SKY_GPS_COLOR,   "GPS",   1 },
+            { SKY_GLO_COLOR,   "GLO",   2 },
+            { SKY_GAL_COLOR,   "GAL",   3 },
+            { SKY_QZS_COLOR,   "QZS",   4 },
+            { SKY_BDS_COLOR,   "BDS",   5 },
+            { SKY_NAVIC_COLOR, "NAVIC", 7 },
         };
+        const int n_items = (int)(sizeof(items) / sizeof(items[0]));
         int xx = x;
-        for (int i = 0; i < 5; i++) {
-            draw_swatch(hdc, xx, y + 2, sw, sh, items[i].c);
-            xx += sw + 4;
-            TextOut(hdc, xx, y, items[i].lbl, (int)strlen(items[i].lbl));
-            xx += gap_after_label;
+        for (int i = 0; i < n_items; i++) {
+            const BOOL is_selected = (filter_gnss_id == items[i].gnss_id);
+            const BOOL is_dimmed   = (filter_gnss_id != 0 && !is_selected);
+
+            /* Dim non-selected chips by lightening the swatch toward white so
+             * the active constellation visually pops out.  Selected and the
+             * "no filter" case both render at full saturation. */
+            COLORREF swatch_c = items[i].c;
+            if (is_dimmed) {
+                int rr = (GetRValue(swatch_c) + 3 * 255) / 4;
+                int gg = (GetGValue(swatch_c) + 3 * 255) / 4;
+                int bb = (GetBValue(swatch_c) + 3 * 255) / 4;
+                swatch_c = RGB(rr, gg, bb);
+            }
+            draw_swatch(hdc, xx, y + 2, sw, sh, swatch_c);
+
+            int sx = xx + sw + 4;
+            SetTextColor(hdc, is_dimmed ? SKY_DIM_COLOR : SKY_LABEL_COLOR);
+            TextOut(hdc, sx, y, items[i].lbl, (int)strlen(items[i].lbl));
+
+            /* Measure label so the click hit-rect covers the full chip. */
+            SIZE sz = {0, 0};
+            GetTextExtentPoint32(hdc, items[i].lbl,
+                                 (int)strlen(items[i].lbl), &sz);
+            int chip_right = sx + sz.cx;
+
+            /* Selection outline: a 1-px box around swatch+label so the active
+             * filter is unmistakable. */
+            if (is_selected) {
+                HPEN pen = CreatePen(PS_SOLID, 1, SKY_LABEL_COLOR);
+                HPEN oldP = (HPEN)SelectObject(hdc, pen);
+                HBRUSH oldB = (HBRUSH)SelectObject(hdc,
+                                                   GetStockObject(NULL_BRUSH));
+                Rectangle(hdc, xx - 3, y - 2,
+                          chip_right + 4, y + sh + 6);
+                SelectObject(hdc, oldB);
+                SelectObject(hdc, oldP);
+                DeleteObject(pen);
+            }
+
+            /* Record the chip's hit rect.  Pad a little so a click that just
+             * misses the label still counts. */
+            if (g_legend_hit_count < SKY_LEGEND_MAX_HITS) {
+                g_legend_hits[g_legend_hit_count].rc.left   = xx - 3;
+                g_legend_hits[g_legend_hit_count].rc.top    = y - 2;
+                g_legend_hits[g_legend_hit_count].rc.right  = chip_right + 4;
+                g_legend_hits[g_legend_hit_count].rc.bottom = y + sh + 6;
+                g_legend_hits[g_legend_hit_count].gnss_id   = items[i].gnss_id;
+                g_legend_hit_count++;
+            }
+
+            xx = chip_right + gap_after_label - sz.cx;  /* preserve old visual spacing */
         }
+        /* Restore default text colour for subsequent draws. */
+        SetTextColor(hdc, SKY_LABEL_COLOR);
     } else {
         /* "Coverage:" + gradient bar + "0% / 50% / 100%" + polar-hole swatch */
         const char *hdr = "Coverage:";
@@ -429,17 +503,25 @@ static int DrawSkyMarkers(HDC hdc, const AppState *state,
     SetBkMode(hdc, TRANSPARENT);
     SetTextAlign(hdc, TA_LEFT | TA_TOP);
 
+    /* Single-constellation filter set by clicking a legend chip; 0 = all. */
+    const int filter = state ? state->skyState.filter_gnss_id : 0;
+
     for (int g = 0; g < SV_EPH_MAX_GNSS; g++) {
         char sys;
         COLORREF color_fresh;
         switch (g) {
-        case 1: sys = 'G'; color_fresh = SKY_GPS_COLOR; break;
-        case 2: sys = 'R'; color_fresh = SKY_GLO_COLOR; break;
-        case 3: sys = 'E'; color_fresh = SKY_GAL_COLOR; break;
-        case 4: sys = 'J'; color_fresh = SKY_QZS_COLOR; break;
-        case 5: sys = 'C'; color_fresh = SKY_BDS_COLOR; break;
+        case 1: sys = 'G'; color_fresh = SKY_GPS_COLOR;   break;
+        case 2: sys = 'R'; color_fresh = SKY_GLO_COLOR;   break;
+        case 3: sys = 'E'; color_fresh = SKY_GAL_COLOR;   break;
+        case 4: sys = 'J'; color_fresh = SKY_QZS_COLOR;   break;
+        case 5: sys = 'C'; color_fresh = SKY_BDS_COLOR;   break;
+        case 7: sys = 'I'; color_fresh = SKY_NAVIC_COLOR; break;
         default: continue;
         }
+
+        /* Apply per-GNSS legend filter.  Tracks remain in state->skyState
+         * so deselecting the filter restores the full history immediately. */
+        if (filter != 0 && filter != g) continue;
 
         /* Trail dots: keep the GNSS hue but lighten ~30% toward white so
          * they read as "history" without competing visually with the live
@@ -541,8 +623,13 @@ static BOOL sky_hit_test(const AppState *state, int w, int h,
     double best_dist2 = tol_px * tol_px;
     int    best_g = 0, best_p = 0;
 
+    const int filter = state->skyState.filter_gnss_id;
+
     for (int g = 0; g < SV_EPH_MAX_GNSS; g++) {
-        if (g != 1 && g != 2 && g != 3 && g != 4 && g != 5) continue;
+        if (g != 1 && g != 2 && g != 3 && g != 4 && g != 5 && g != 7) continue;
+        /* If a constellation filter is active, ignore SVs from other GNSS so
+         * the user can't accidentally open a popup for a hidden marker. */
+        if (filter != 0 && filter != g) continue;
         for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++) {
             const SkySat *s = &state->skyState.sats[g][p - 1];
             if (!s->valid) continue;
@@ -722,17 +809,42 @@ static LRESULT CALLBACK SkyWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         }
         TextOut(hdcMem, 8, 6, line1, (int)strlen(line1));
 
-        /* Second line: mode + hint + keyboard / mouse shortcuts */
-        const char *mode_label =
-            (state && state->skyState.mode == SKY_MODE_HEATMAP)
-                ? "Mode: Heatmap (observed/expected per sector)  [M=toggle  S=save]"
-                : "Mode: Live SVs (brightness ~ CNR; click SV for detail)  [M=toggle  S=save]";
+        /* Second line: mode + hint + keyboard / mouse shortcuts.  In marker
+         * mode we also surface the per-GNSS legend filter when active so it
+         * is obvious why some constellations are hidden. */
+        char mode_label[160];
+        if (state && state->skyState.mode == SKY_MODE_HEATMAP) {
+            snprintf(mode_label, sizeof(mode_label),
+                     "Mode: Heatmap (observed/expected per sector)  [M=toggle  S=save]");
+        } else {
+            int f = state ? state->skyState.filter_gnss_id : 0;
+            const char *fname = "";
+            switch (f) {
+            case 1: fname = "GPS";   break;
+            case 2: fname = "GLO";   break;
+            case 3: fname = "GAL";   break;
+            case 4: fname = "QZS";   break;
+            case 5: fname = "BDS";   break;
+            case 6: fname = "SBAS";  break;
+            case 7: fname = "NAVIC"; break;
+            default: break;
+            }
+            if (f && fname[0]) {
+                snprintf(mode_label, sizeof(mode_label),
+                         "Mode: Live SVs  [Filter: %s only -- click chip to clear  |  M=toggle  S=save]",
+                         fname);
+            } else {
+                snprintf(mode_label, sizeof(mode_label),
+                         "Mode: Live SVs (brightness ~ CNR; click SV for detail, click legend chip to filter)  [M=toggle  S=save]");
+            }
+        }
         TextOut(hdcMem, 8, 22, mode_label, (int)strlen(mode_label));
 
         /* Third line: mode-specific colour legend */
         SkyPlotMode legend_mode =
             (state) ? state->skyState.mode : SKY_MODE_MARKERS;
-        DrawSkyLegend(hdcMem, 8, 38, legend_mode);
+        int legend_filter = (state) ? state->skyState.filter_gnss_id : 0;
+        DrawSkyLegend(hdcMem, 8, 38, legend_mode, legend_filter);
 
         /* Footer:  live local time on the left, station identity on the right.
          * The right side shows the mountpoint + ARP coords so PNG snapshots
@@ -800,9 +912,30 @@ static LRESULT CALLBACK SkyWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
         int mx = (short)LOWORD(lParam);
         int my = (short)HIWORD(lParam);
+
+        /* 1) Legend chip click (marker mode only).  Hit-test against the
+         *    rect cache populated by the last DrawSkyLegend.  Clicking the
+         *    currently-selected chip clears the filter (back to "show all");
+         *    clicking any other chip sets the filter to that GNSS. */
+        if (state->skyState.mode == SKY_MODE_MARKERS) {
+            for (int i = 0; i < g_legend_hit_count; i++) {
+                const RECT *lr = &g_legend_hits[i].rc;
+                if (mx >= lr->left && mx < lr->right &&
+                    my >= lr->top  && my < lr->bottom) {
+                    int new_filter = g_legend_hits[i].gnss_id;
+                    if (state->skyState.filter_gnss_id == new_filter)
+                        new_filter = 0;     /* toggle off */
+                    state->skyState.filter_gnss_id = new_filter;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    return 0;
+                }
+            }
+        }
+
+        /* 2) SV marker click — open the per-SV detail popup.  14 px tolerance
+         *    so clicks on the PRN label also count (label sits ~7-12 px from
+         *    the marker centre). */
         int g = 0, p = 0;
-        /* 14 px tolerance so clicks on the PRN label also count
-         * (label sits ~7-12 px from the marker centre). */
         if (sky_hit_test(state, rc.right - rc.left, rc.bottom - rc.top,
                          mx, my, 14.0, &g, &p)) {
             HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd,

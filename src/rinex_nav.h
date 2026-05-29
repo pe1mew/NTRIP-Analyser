@@ -5,8 +5,8 @@
  * Reads a RINEX 3.x mixed-GNSS navigation (".rnx" / ".nav" / "*MN.rnx")
  * file and populates the per-SV ephemeris cache (see sv_ephemeris.h)
  * the same way the dual-stream eph worker does.  Supports GPS, Galileo,
- * QZSS and BeiDou as Keplerian records, and GLONASS as state vectors.
- * Other GNSS records (SBAS, IRNSS) are recognised and skipped.
+ * QZSS, BeiDou and NavIC/IRNSS as Keplerian records, and GLONASS as state
+ * vectors.  SBAS records are recognised and skipped.
  *
  * Project: NTRIP-Analyser
  * Author: Remko Welling, PE1MEW

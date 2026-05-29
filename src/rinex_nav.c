@@ -7,9 +7,9 @@
  * propagate them without an NTRIP eph stream.
  *
  * Record format follows RINEX 3.x:
- *   - GPS / Galileo / QZSS / BeiDou (G, E, J, C): 8 lines, Keplerian.
- *   - GLONASS (R)                              : 4 lines, state vector.
- *   - SBAS (S), IRNSS (I)                       : ignored.
+ *   - GPS / Galileo / QZSS / BeiDou / NavIC (G, E, J, C, I): 8 lines, Keplerian.
+ *   - GLONASS (R)                                          : 4 lines, state vector.
+ *   - SBAS (S)                                              : ignored.
  *
  * Each data line carries up to 4 floats in Fortran "1.234D+05" notation;
  * we substitute 'D' -> 'E' before calling atof.
@@ -270,8 +270,8 @@ int rinex_nav_load(const char *filename, int *out_counts)
 
         char sys = line[0];
         if (sys != 'G' && sys != 'R' && sys != 'E' &&
-            sys != 'J' && sys != 'C') {
-            /* Skip the entire record.  For S/I and friends we don't know
+            sys != 'J' && sys != 'C' && sys != 'I') {
+            /* Skip the entire record.  For S and friends we don't know
              * the line count without spec lookup, so consume a default 4
              * follow-up lines and resync.  Worst case: a small drift that
              * a later sat-id line corrects on its own. */
@@ -331,6 +331,7 @@ int rinex_nav_load(const char *filename, int *out_counts)
             case 'E': gnss_id = 3; break;
             case 'J': gnss_id = 4; break;
             case 'C': gnss_id = 5; break;
+            case 'I': gnss_id = 7; break;  /* NavIC / IRNSS — same 8-line Keplerian layout */
             default:  gnss_id = 0; break;
             }
             if (gnss_id > 0 &&

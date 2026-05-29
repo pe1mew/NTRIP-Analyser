@@ -48,6 +48,7 @@ static char gnss_letter(int g)
     switch (g) {
     case 1: return 'G'; case 2: return 'R'; case 3: return 'E';
     case 4: return 'J'; case 5: return 'C';
+    case 6: return 'S'; case 7: return 'I';
     default: return '?';
     }
 }
@@ -56,6 +57,7 @@ static const char *gnss_name(int g)
     switch (g) {
     case 1: return "GPS";     case 2: return "GLONASS"; case 3: return "Galileo";
     case 4: return "QZSS";    case 5: return "BeiDou";
+    case 6: return "SBAS";    case 7: return "NavIC";
     default: return "Unknown";
     }
 }
