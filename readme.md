@@ -65,7 +65,7 @@ The analyser can perform the following operations on NTRIP streams:
 
 **Windows CLI:**
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c -Ilib/cJSON -lws2_32 -Wall
+gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 **Windows GUI:**
@@ -76,7 +76,7 @@ build-gui.bat
 **Linux CLI:**
 ```bash
 mkdir -p bin
-gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm
+gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm -lpthread
 ```
 
 See [compilation guide](docs/compile.md) for complete build instructions.

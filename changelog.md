@@ -6,6 +6,131 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — CLI sky-heatmap mode
+
+- **`-S` / `--sky`** — new CLI mode that opens both the observation
+  NTRIP stream and (in parallel) an ephemeris NTRIP stream, accumulates
+  observed/expected per-sector counts on the same 150-sector grid the
+  GUI uses, and on **Ctrl-C** saves a heatmap PNG named
+  `YYYYMMDDHHmmss_ARP-EPG.png` — the same convention as the GUI
+  snapshot.  Prints "Collecting heatmap data: Ctrl-C to save PNG and
+  exit, Ctrl-A to abort without saving" at start and a per-second
+  status line (always visible) of the form:
+  ```
+  [/] frames=21  MSM=21  obs+exp updates=0  rate=  9.6 kbit/s  total=12 KB
+  ```
+  showing spinner, frame counters, current NTRIP rate, and total
+  bytes received.  **Ctrl-A** aborts immediately without writing a
+  PNG (uses raw-mode `_kbhit`/`_getch` on Windows and termios
+  ICANON-off + `select()` on POSIX so the keystroke needs no Enter).
+  All RTCM decoder chatter (per-frame ephemeris blocks, station
+  1005/1006 ARP info) is suppressed by default to keep the console
+  clean; pass `-v` to also dump the full `decode_rtcm_*()` output of
+  each frame.  Pre-flight rejects the mode if neither an EPH stream
+  is configured nor a RINEX file is provided.
+- **`-R` / `--RINEX <file>`** — RINEX 3 NAV file to preload the
+  ephemeris cache before the live EPH stream takes over.  Useful for
+  offline analysis of a captured stream, or as a fallback when no
+  parallel eph NTRIP source is available.
+- **New CLI module `src/sky_collect.{c,h}`** — distilled per-MSM
+  sector accumulator (mirrors `gui_thread.c` obs-worker logic but
+  threadless / GUI-less).
+- **New CLI module `src/sky_render.{c,h}`** — portable polar
+  heatmap renderer with an embedded PNG encoder (CRC32 + Adler32 +
+  zlib stored-deflate).  No GDI+, no libpng, no zlib dependency.
+- **New helper `run_eph_stream()`** in `ntrip_handler.{c,h}` — the
+  CLI counterpart of the GUI's `WorkerOpenEphStream`.
+- The lowercase `-s` / `--sat` short option keeps its original meaning
+  (analyze unique satellites for N seconds); the new sky-heatmap mode
+  uses capital `-S` / `--sky` to avoid the collision.
+
+### Added — CLI scripting ergonomics
+
+- **`--duration N`** — auto-stop `--sky` collection after N seconds and
+  save the PNG normally.  Lets cron jobs / CI runs collect a fixed
+  window without a manual Ctrl-C.
+- **`-o <path>` / `--output <path>`** — write the `--sky` PNG to a
+  caller-specified path instead of the timestamped default name.
+  Scripts can pin the output location.
+- **`-q` / `--quiet`** — suppress all informational chatter
+  (`[OBS]` / `[EPH]` / `[RINEX]` / status line / `[SAVE]` lines).
+  Errors still go to stderr; the saved PNG path still prints to
+  stdout, so `OUTPUT=$(./ntripanalyse -S --duration 60 -q)` Just Works.
+- **`--no-progress`** — keep informational lines but suppress the
+  per-second status line specifically (useful for log files).
+- **TTY-aware status line** — when stdout is a pipe / file instead of
+  a terminal, the status line switches from carriage-return refresh
+  to one-line-per-tick so log captures stay readable.
+- **Final stdout line is the saved path** — `--sky` always prints the
+  PNG filename on its own line as the last stdout output (or only
+  stdout output under `-q`), making it trivially captureable.
+- **Documented exit codes**:
+  | Code | Meaning |
+  |---|---|
+  | 0 | Success |
+  | 1 | Generic / runtime / connect failure |
+  | 2 | Bad command-line arguments |
+  | 3 | Could not open or parse config file |
+  | 4 | `--sky` pre-flight: no ephemeris source configured |
+  | 5 | Aborted by user (Ctrl-A) |
+- **`--version`** — print `ntrip-analyser X.Y.Z` and exit.
+- **Stderr / stdout separation** — all informational chatter (`[OBS]`,
+  `[EPH]`, `[RINEX]`, `[SAVE]`, `[DEBUG]`, the status line) now goes
+  to **stderr**.  Stdout is reserved for **data**: the sourcetable
+  (`-m`), the decoded RTCM dumps (`-d`), stats tables (`-t`/`--sat`),
+  the `--check-config` field listing, and the saved `--sky` PNG path.
+  Scripts can do `OUTPUT=$(./ntripanalyse -S -q)` without filtering.
+- **Per-field config overrides** (precedence: CLI > env > file):
+  `--caster`, `--port`, `--mountpoint`, `--user`, `--password`,
+  `--eph-caster`, `--eph-port`, `--eph-mountpoint`, `--eph-user`,
+  `--eph-password`.  Same names as the `NTRIP_*` config keys, kebab-
+  cased.  Lets one config file serve many mountpoints.
+- **Env-var fallback** for every override flag above
+  (`NTRIP_CASTER`, `NTRIP_PORT`, ..., `NTRIP_EPH_CASTER`,
+  `NTRIP_EPH_PORT`, ...) — handy for CI secrets so credentials don't
+  live in the JSON file.
+- **`--check-config`** — dry-run mode that loads the config, applies
+  env-var + CLI overrides, prints every resolved field on stdout
+  (passwords masked as `(set)` / `(empty)`), does DNS lookups for
+  both casters, and exits 0 on success or 1 if any field is missing
+  / DNS fails.  Good for CI fail-fast checks.
+- **`-v` verbose config dump now shows every field** — split into an
+  `[Obs stream]` block (NTRIP_*, LATITUDE/LONGITUDE) and an
+  `[Eph stream]` block (EPH_*); the eph block clearly labels
+  itself `configured` vs `(not configured)`.  Passwords are masked as
+  `(set)` / `(empty)` matching `--check-config`.
+
+### Added — CLI Tier 3 ergonomics
+
+- **`--json`** — emit one JSON status object per second on stderr in
+  `--sky` mode instead of the human-readable line, plus a final
+  `{"event":"stop","reason":"sigint|abort|duration|eof|error","saved":...}`
+  summary.  Source-specific start event too:
+  `{"event":"start","source":"ntrip|stdin",...}`.  Drop-in for `jq`.
+- **`--rtcm-stdin`** — read obs RTCM bytes from stdin instead of
+  opening the obs NTRIP socket; auto-stops at EOF.  Enables offline
+  replay of captured `.rtcm3` files:
+  ```
+  ntripanalyse --sky --rtcm-stdin -R brdc.rnx -q -o out.png \
+      < capture.rtcm3
+  ```
+  Same parsing pipeline as the live socket; sets stdin to binary mode
+  on Windows to avoid CRLF mangling.
+- **Action-flag conflict detection** — combinations like `-d -S` or
+  `-m --sat` now error out with `[ERROR] Cannot combine action flags:
+  ... and ...` (exit 2) instead of silently letting the last verb win.
+- **Shell completion** — bash and zsh completion files under
+  `share/bash-completion/completions/ntripanalyse` and
+  `share/zsh/site-functions/_ntripanalyse`.  Covers all long/short
+  options, file-path args (`-c`, `-R`, `-o`), and field overrides.
+  See `docs/compile.md` for install paths.
+
+### Changed
+
+- **`src/rinex_nav.c` is no longer GUI-only** — it now compiles into
+  the CLI build as well, so the same RINEX 3 loader feeds both
+  applications.
+
 ### Added — Sky Plot and multi-GNSS
 
 - **Floating Sky Plot window** (View -> Sky Plot...) showing each

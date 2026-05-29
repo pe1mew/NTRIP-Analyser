@@ -12,6 +12,9 @@
 #ifndef CLI_HELP_H
 #define CLI_HELP_H
 
+/** Single-source-of-truth version string for the CLI. */
+#define NTRIP_ANALYSER_VERSION  "0.3.0-dev"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,7 +35,8 @@ typedef enum {
     OP_ANALYZE_SATS,           /**< Analyze satellite visibility and statistics */
     OP_SHOW_MOUNT_RAW,         /**< Display raw mountpoint source table from caster */
     OP_SHOW_MOUNT_FORMATTED,   /**< Display formatted mountpoint table from caster */
-    OP_DECODE_STREAM           /**< Decode and display detailed RTCM message contents */
+    OP_DECODE_STREAM,          /**< Decode and display detailed RTCM message contents */
+    OP_SKY_HEATMAP             /**< Collect sky-heatmap data until Ctrl-C, save PNG */
 } Operation;
 
 /**

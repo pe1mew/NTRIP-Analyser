@@ -1164,3 +1164,206 @@ int get_gnss_id_from_rtcm(int msg_type) {
     if (msg_type >= 1130 && msg_type < 1140) return 7; // NavIC / IRNSS
     return 0;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Ephemeris-only NTRIP worker used by CLI `-s --sky` mode.
+ *
+ * Mirrors gui_thread.c WorkerOpenEphStream but reduced to the bare CLI
+ * essentials: no UI messages, no log redirection -- just connect, parse
+ * RTCM frames, dispatch eph-bearing messages (1019/1020/1041/1042/
+ * 1044/1045/1046) into the per-SV ephemeris cache via the existing
+ * decode_rtcm_* functions.  Polls @p stop_flag every recv() iteration
+ * so it can exit promptly on Ctrl-C.
+ * ───────────────────────────────────────────────────────────────────── */
+int run_eph_stream(const NTRIP_Config *config,
+                   const volatile int *stop_flag, bool verbose)
+{
+    if (!config) return -1;
+    if (!config->EPH_CASTER[0] || config->EPH_PORT <= 0 ||
+        !config->EPH_MOUNTPOINT[0])
+        return -1;
+
+    SOCKET_TYPE sock;
+    struct sockaddr_in server;
+    struct addrinfo hints, *result;
+    char request[1024];
+    char buffer[BUFFER_SIZE];
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int gai_ret = getaddrinfo(config->EPH_CASTER, NULL, &hints, &result);
+    if (gai_ret != 0) {
+        fprintf(stderr, "[EPH] DNS lookup failed for %s\n", config->EPH_CASTER);
+        return -1;
+    }
+
+    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#ifdef _WIN32
+    if (sock == INVALID_SOCKET) {
+        fprintf(stderr, "[EPH] Socket creation failed\n");
+        freeaddrinfo(result);
+        return -1;
+    }
+#else
+    if (sock < 0) {
+        perror("[EPH] Socket creation failed");
+        freeaddrinfo(result);
+        return -1;
+    }
+#endif
+
+    server.sin_family = AF_INET;
+    server.sin_port   = htons(config->EPH_PORT);
+    server.sin_addr   = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
+    memset(&(server.sin_zero), 0, 8);
+    freeaddrinfo(result);
+
+    if (SOCK_CONN_ERR(connect(sock, (struct sockaddr *)&server,
+                              sizeof(struct sockaddr)))) {
+        fprintf(stderr, "[EPH] Connect failed to %s:%d\n",
+                config->EPH_CASTER, config->EPH_PORT);
+        CLOSESOCKET(sock);
+        return -1;
+    }
+
+    snprintf(request, sizeof(request),
+             "GET /%s HTTP/1.1\r\n"
+             "Host: %s\r\n"
+             "Ntrip-Version: Ntrip/2.0\r\n"
+             "User-Agent: NTRIP CClient/1.0\r\n"
+             "Authorization: Basic %s\r\n"
+             "\r\n",
+             config->EPH_MOUNTPOINT, config->EPH_CASTER,
+             config->EPH_AUTH_BASIC);
+    send(sock, request, strlen(request), 0);
+
+    fprintf(stderr, "[EPH] Connected to %s:%d /%s\n",
+            config->EPH_CASTER, config->EPH_PORT, config->EPH_MOUNTPOINT);
+
+    int header_skipped = 0;
+    unsigned char msg_buffer[BUFFER_SIZE];
+    int msg_buffer_len = 0;
+    int eph_count = 0;
+
+    /* Use a short recv timeout so the stop_flag is polled regularly. */
+#ifdef _WIN32
+    DWORD tv_ms = 500;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+               (const char *)&tv_ms, sizeof(tv_ms));
+#else
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 500000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+               (const char *)&tv, sizeof(tv));
+#endif
+
+    /* Mute the per-frame decode chatter unless the user asked for -v.
+     * decode_rtcm_*() writes to rtcm_printf, which routes to a __thread
+     * sink buffer when one is set.  We install a buffer here and clear
+     * it between frames so it never grows unbounded; the contents are
+     * discarded on close. */
+    RtcmStrBuf sink;
+    int        sink_used = 0;
+    if (!verbose) {
+        rtcm_strbuf_init(&sink, 8192);
+        rtcm_set_output_buffer(&sink);
+        sink_used = 1;
+    }
+
+    while (!stop_flag || !*stop_flag) {
+        int received = recv(sock, buffer, sizeof(buffer), 0);
+        if (received == 0) break;             /* EOF -- caster closed */
+        if (received < 0) {
+            /* Treat any error as "no data this tick" so the stop flag is
+             * polled; do not break on timeout. */
+#ifdef _WIN32
+            int err = WSAGetLastError();
+            if (err == WSAETIMEDOUT) continue;
+#else
+            if (errno == EAGAIN || errno == EWOULDBLOCK ||
+                errno == EINTR) continue;
+#endif
+            break;
+        }
+
+        if (!header_skipped) {
+            buffer[received] = '\0';
+            char *ptr = strstr(buffer, "\r\n\r\n");
+            if (ptr) {
+                int offset = (ptr - buffer) + 4;
+                memmove(buffer, buffer + offset, received - offset);
+                received -= offset;
+                header_skipped = 1;
+            } else {
+                continue;
+            }
+        }
+
+        int buf_pos = 0;
+        while (buf_pos < received) {
+            if (msg_buffer_len == 0) {
+                while (buf_pos < received &&
+                       (unsigned char)buffer[buf_pos] != 0xD3) buf_pos++;
+                if (buf_pos >= received) break;
+            }
+            int to_copy = received - buf_pos;
+            if (msg_buffer_len + to_copy > BUFFER_SIZE)
+                to_copy = BUFFER_SIZE - msg_buffer_len;
+            memcpy(msg_buffer + msg_buffer_len, buffer + buf_pos, to_copy);
+            msg_buffer_len += to_copy;
+            buf_pos += to_copy;
+
+            while (msg_buffer_len >= 3) {
+                if (msg_buffer[0] != 0xD3) {
+                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
+                    continue;
+                }
+                int msg_length = ((msg_buffer[1] & 0x03) << 8) | msg_buffer[2];
+                int frame_len  = 3 + msg_length + 3;
+                if (msg_buffer_len < frame_len) break;
+                if (msg_length < 2) {
+                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
+                    continue;
+                }
+                int mt = ((int)msg_buffer[3] << 4) | ((int)msg_buffer[4] >> 4);
+
+                /* Reset the discard sink between frames so it can't grow
+                 * unbounded if we're running for hours. */
+                if (sink_used) rtcm_strbuf_clear(&sink);
+
+                switch (mt) {
+                case 1019: decode_rtcm_1019(&msg_buffer[3], msg_length); eph_count++; break;
+                case 1020: decode_rtcm_1020(&msg_buffer[3], msg_length); eph_count++; break;
+                case 1041: decode_rtcm_1041(&msg_buffer[3], msg_length); eph_count++; break;
+                case 1042: decode_rtcm_1042(&msg_buffer[3], msg_length); eph_count++; break;
+                case 1044: decode_rtcm_1044(&msg_buffer[3], msg_length); eph_count++; break;
+                case 1045: decode_rtcm_1045(&msg_buffer[3], msg_length); eph_count++; break;
+                case 1046: decode_rtcm_1046(&msg_buffer[3], msg_length); eph_count++; break;
+                default: break;
+                }
+
+                if (verbose && mt >= 1019 && mt <= 1046) {
+                    fprintf(stderr, "[EPH] type=%d  (total cached: %d)\n", mt, eph_count);
+                    fflush(stderr);
+                }
+
+                memmove(msg_buffer, msg_buffer + frame_len,
+                        msg_buffer_len - frame_len);
+                msg_buffer_len -= frame_len;
+            }
+        }
+    }
+
+    CLOSESOCKET(sock);
+    if (sink_used) {
+        rtcm_set_output_buffer(NULL);
+        rtcm_strbuf_free(&sink);
+    }
+    fprintf(stderr, "[EPH] Stream closed (decoded %d ephemerides)\n", eph_count);
+    fflush(stderr);
+    return 0;
+}
+

@@ -212,6 +212,28 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time);
 const char* gnss_name_from_id(int gnss_id);
 
 /**
+ * @brief Run a secondary ephemeris-only NTRIP stream until @p stop_flag is set.
+ *
+ * Connects to the EPH_* mountpoint defined in @p config (a separate caster
+ * from the obs mountpoint -- for example BKG's BCEP00BKG0 or Kadaster's
+ * BCEP00KAD0) and decodes any RTCM 1019 / 1020 / 1041 / 1042 / 1044 /
+ * 1045 / 1046 frames it receives, populating the per-SV ephemeris cache
+ * used by sv_to_ecef().  No observation messages are touched.
+ *
+ * Intended to be called from a worker thread by the CLI `-s --sky` mode.
+ *
+ * @param config    NTRIP_Config with EPH_* fields populated and AUTH_BASIC
+ *                  already computed for the EPH credentials.
+ * @param stop_flag Volatile int pointer polled each iteration; the function
+ *                  returns cleanly when *stop_flag becomes non-zero.
+ * @param verbose   If true, log each ephemeris frame to stdout; otherwise
+ *                  only connection-level messages are printed.
+ * @return 0 on normal stop, -1 on connection / authentication failure.
+ */
+int run_eph_stream(const NTRIP_Config *config,
+                   const volatile int *stop_flag, bool verbose);
+
+/**
  * @brief Formats a RINEX satellite ID for a given GNSS and PRN.
  *
  * Converts the GNSS system ID and PRN number to a RINEX 3 satellite ID string (e.g., "G01", "R02").

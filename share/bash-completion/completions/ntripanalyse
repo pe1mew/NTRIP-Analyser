@@ -1,0 +1,60 @@
+# bash completion for ntripanalyse
+#
+# Install (system-wide):
+#   sudo cp share/bash-completion/completions/ntripanalyse \
+#     /usr/share/bash-completion/completions/
+#
+# Install (per-user, bash):
+#   mkdir -p ~/.local/share/bash-completion/completions
+#   cp share/bash-completion/completions/ntripanalyse \
+#     ~/.local/share/bash-completion/completions/
+#
+# Or source it directly: . share/bash-completion/completions/ntripanalyse
+#
+# Also works for the Windows binary name `ntripanalyse.exe` (handled below).
+
+_ntripanalyse_complete()
+{
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Long options
+    opts="--config --types --mounts --decode --sat --sky --RINEX --rinex --raw"
+    opts="$opts --latitude --lat --longitude --lon --verbose --quiet"
+    opts="$opts --output --duration --no-progress --json --rtcm-stdin"
+    opts="$opts --caster --port --mountpoint --user --password"
+    opts="$opts --eph-caster --eph-port --eph-mountpoint --eph-user --eph-password"
+    opts="$opts --check-config --generate --info --version --help"
+
+    # Args that take a file path
+    case "$prev" in
+        -c|--config|-R|--RINEX|--rinex|-o|--output)
+            COMPREPLY=( $(compgen -f -- "$cur") )
+            return 0
+            ;;
+        # Args that take an arbitrary string -- offer the env var as default hint
+        --caster|--mountpoint|--user|--password|--eph-caster|--eph-mountpoint|--eph-user|--eph-password)
+            COMPREPLY=()
+            return 0
+            ;;
+        # Numeric args
+        --port|--eph-port|--duration|-t|--types|-s|--sat)
+            COMPREPLY=()
+            return 0
+            ;;
+    esac
+
+    if [[ "$cur" == --* ]]; then
+        COMPREPLY=( $(compgen -W "$opts" -- "$cur") )
+    elif [[ "$cur" == -* ]]; then
+        # Short options
+        COMPREPLY=( $(compgen -W "-c -t -m -d -s -S -R -r -o -q -v -g -i -h" -- "$cur") )
+    fi
+    return 0
+}
+
+complete -F _ntripanalyse_complete ntripanalyse
+complete -F _ntripanalyse_complete ntripanalyser
+complete -F _ntripanalyse_complete ntripanalyse.exe

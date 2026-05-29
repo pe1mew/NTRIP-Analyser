@@ -8,17 +8,22 @@ The CLI executable links these `src/` modules:
 
 | Module | Purpose |
 |---|---|
-| `main.c` | Entry point, argument parsing |
-| `ntrip_handler.c` | NTRIP client + TCP socket I/O |
-| `rtcm3x_parser.c` | RTCM 3.x decoder (1005/1006/1019/1020/1042/1044/1045/1046/MSM4/MSM7, etc.) |
+| `main.c` | Entry point, argument parsing, sky-mode dispatcher |
+| `ntrip_handler.c` | NTRIP client + TCP socket I/O; `run_eph_stream()` worker |
+| `rtcm3x_parser.c` | RTCM 3.x decoder (1005/1006/1019/1020/1041/1042/1044/1045/1046/MSM4/MSM7, etc.) |
 | `sv_ephemeris.c` | Per-(GNSS,PRN) ephemeris cache, TOW-only validity |
 | `sv_orbit.c` | Keplerian + GLONASS RK4 orbit propagators |
+| `rinex_nav.c` | RINEX 3 multi-GNSS NAV loader (used by both CLI `-R` and GUI) |
+| `sky_collect.c` | Per-MSM sector accumulator for the heatmap (`-s --sky`) |
+| `sky_render.c` | Portable polar heatmap renderer + embedded PNG encoder |
 | `config.c` | JSON config load/save |
-| `cli_help.c` | Help text |
+| `cli_help.c` | Help text + verbose-config table |
 | `nmea_parser.c` | NMEA GGA sentence generation |
 
-`rinex_nav.c` is GUI-only (the RINEX 3 NAV loader feeds the same eph
-cache); the CLI does not need it.
+The CLI no longer has any "GUI-only" sources; `rinex_nav.c` is now
+shared, and the new `sky_*.c` modules together with the embedded PNG
+encoder in `sky_render.c` mean the CLI can generate the same
+heatmap-snapshot PNG as the GUI without GDI+ or libpng.
 
 ### Windows
 This code was originally developed on Windows using the Mingw compiler that comes with Code::Blocks. For this the primary compiler was configured in Visual Studio Code. See [tasks.json](.vscode/tasks.json).
@@ -27,7 +32,7 @@ For Windows: install Code::Blocks with Mingw compiler and Visual Studio Code. In
 
 Direct command line:
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c -Ilib/cJSON -lws2_32 -Wall
+gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 ### Linux
@@ -43,18 +48,19 @@ mkdir -p bin
 
 To compile, in the root of the repository execute: 
 ```bash
-gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm
+gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm -lpthread
 ```
 
 This command will:
 - Compile all C source files in the `src/` directory using wildcard (`src/*.c`)
-  — this automatically picks up `sv_ephemeris.c`, `sv_orbit.c`, and
-  `rinex_nav.c` even though the CLI itself does not call into the RINEX
-  loader (the symbols are unused and discarded at link time)
+  — automatically picks up `sv_ephemeris.c`, `sv_orbit.c`, `rinex_nav.c`,
+  `sky_collect.c`, and `sky_render.c`
 - Include the cJSON library from `lib/cjson/cJSON.c`
 - Add the cJSON headers to include path (`-Ilib/cjson`)
 - Enable debug symbols (`-g`) and all warnings (`-Wall`)
 - Link the math library (`-lm`)
+- Link POSIX threads (`-lpthread`) — required by the CLI `-s --sky`
+  mode, which spawns a parallel eph NTRIP worker
 - Output the executable to `bin/ntripanalyser`
 
 ## GUI Application (Windows Only)
@@ -87,5 +93,57 @@ For detailed GUI compilation instructions, build methods, and troubleshooting, s
 ```batch
 build-gui.bat
 ```
+
+## Shell Completion (CLI)
+
+Tab-completion files for bash and zsh ship under `share/`:
+
+```
+share/
+├── bash-completion/completions/ntripanalyse   # bash function _ntripanalyse_complete
+└── zsh/site-functions/_ntripanalyse           # zsh _arguments definition
+```
+
+### Bash
+
+System-wide:
+```bash
+sudo cp share/bash-completion/completions/ntripanalyse \
+    /usr/share/bash-completion/completions/
+```
+
+Per-user:
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+cp share/bash-completion/completions/ntripanalyse \
+    ~/.local/share/bash-completion/completions/
+```
+
+Or just source it directly in your `~/.bashrc`:
+```bash
+. /path/to/share/bash-completion/completions/ntripanalyse
+```
+
+The completion script triggers on `ntripanalyse`, `ntripanalyser`, and
+`ntripanalyse.exe` so it works for both Linux and Windows binary names.
+
+### Zsh
+
+System-wide:
+```bash
+sudo cp share/zsh/site-functions/_ntripanalyse /usr/share/zsh/site-functions/
+```
+
+Per-user (no root):
+```bash
+mkdir -p ~/.zsh/completions
+cp share/zsh/site-functions/_ntripanalyse ~/.zsh/completions/
+# Then in ~/.zshrc:
+#   fpath=(~/.zsh/completions $fpath)
+#   autoload -Uz compinit && compinit
+```
+
+Both files complete all long and short options, file-path arguments
+(`-c`, `-R`, `-o`), and config-field overrides.
 
 

@@ -1,0 +1,48 @@
+#compdef ntripanalyse ntripanalyser ntripanalyse.exe
+# zsh completion for ntripanalyse
+#
+# Install (system-wide):
+#   sudo cp share/zsh/site-functions/_ntripanalyse /usr/share/zsh/site-functions/
+#
+# Install (per-user):
+#   mkdir -p ~/.zsh/completions
+#   cp share/zsh/site-functions/_ntripanalyse ~/.zsh/completions/
+#   # Then add to ~/.zshrc:
+#   #   fpath=(~/.zsh/completions $fpath)
+#   #   autoload -Uz compinit && compinit
+
+_arguments -s -S \
+    '(-c --config)'{-c,--config}'[Specify config file]:config file:_files -g "*.json"' \
+    '(-m --mounts)'{-m,--mounts}'[Show mountpoint list]' \
+    '(-r --raw)'{-r,--raw}'[Show mountpoint list in raw format]' \
+    '(-d --decode)'{-d,--decode}'[Start NTRIP stream]:[types]:' \
+    '(-s --sat)'{-s,--sat}'[Analyze unique satellites for N seconds]:[seconds]:' \
+    '(-t --time --types)'{-t,--time,--types}'[Analyze message types for N seconds]:[seconds]:' \
+    '(-S --sky)'{-S,--sky}'[Sky-heatmap mode]' \
+    '(-R --RINEX --rinex)'{-R,--RINEX,--rinex}'[RINEX 3 NAV file]:RINEX file:_files -g "*.rnx *.nav"' \
+    '--duration[Auto-stop --sky mode after N seconds]:[seconds]:' \
+    '(-o --output)'{-o,--output}'[--sky PNG output path]:PNG file:_files -g "*.png"' \
+    '--no-progress[Suppress the per-second status line]' \
+    '--json[Emit JSON status objects on stderr]' \
+    '--rtcm-stdin[Read obs RTCM from stdin]' \
+    '(-q --quiet)'{-q,--quiet}'[Suppress informational chatter]' \
+    '(-v --verbose)'{-v,--verbose}'[Verbose output]' \
+    '--caster[Override NTRIP_CASTER]:hostname:' \
+    '--port[Override NTRIP_PORT]:port:' \
+    '--mountpoint[Override MOUNTPOINT]:mountpoint name:' \
+    '--user[Override USERNAME]:username:' \
+    '--password[Override PASSWORD]:password:' \
+    '--eph-caster[Override EPH_CASTER]:hostname:' \
+    '--eph-port[Override EPH_PORT]:port:' \
+    '--eph-mountpoint[Override EPH_MOUNTPOINT]:mountpoint name:' \
+    '--eph-user[Override EPH_USERNAME]:username:' \
+    '--eph-password[Override EPH_PASSWORD]:password:' \
+    '--check-config[Validate config + DNS resolve casters, then exit]' \
+    '--latitude[Latitude override]:latitude (degrees):' \
+    '--lat[Latitude override]:latitude (degrees):' \
+    '--longitude[Longitude override]:longitude (degrees):' \
+    '--lon[Longitude override]:longitude (degrees):' \
+    '(-g --generate)'{-g,--generate}'[Generate default config.json]' \
+    '(-i --info)'{-i,--info}'[Show program info]' \
+    '--version[Print version and exit]' \
+    '(-h --help)'{-h,--help}'[Show help message]'
