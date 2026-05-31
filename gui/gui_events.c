@@ -13,6 +13,7 @@
 #include "resource.h"
 #include "gui_state.h"
 #include "gui_sky_window.h"
+#include "gui_vrs_window.h"
 #include "rtcm3x_parser.h"
 #include "rinex_nav.h"
 #include "config.h"
@@ -22,8 +23,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #include <shellapi.h>
 #include <commdlg.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 /* ── Forward declarations for local helpers ───────────────── */
 static void OnTabSelChange(AppState *state);
@@ -628,6 +634,23 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     memset(state->skyState.sectors, 0, sizeof(state->skyState.sectors));
     memset(state->skyState.sats,    0, sizeof(state->skyState.sats));
     state->skyState.filter_gnss_id = 0;
+
+    /* Reset VRS analysis state too (distance, history, ARP cloud,
+     * GGA override / counters).  Auto-send GGA defaults back to ON. */
+    state->vrsDistanceValid = FALSE;
+    state->vrsDistanceKm    = 0.0;
+    state->vrsDistHistHead  = 0;
+    state->vrsDistHistCount = 0;
+    state->vrsArpHistCount  = 0;
+    state->ggaSendEnabled   = TRUE;
+    state->ggaOverrideValid = FALSE;
+    state->ggaOverrideLat   = 0.0;
+    state->ggaOverrideLon   = 0.0;
+    state->ggaCurrentLat    = 0.0;
+    state->ggaCurrentLon    = 0.0;
+    InterlockedExchange(&state->ggaSendCount,    0);
+    InterlockedExchange(&state->ggaLastSendUnix, 0);
+    InterlockedExchange(&state->ggaShiftRequestedAtCount, -1);
     ListView_DeleteAllItems(state->hLvMsgStats);
     ListView_DeleteAllItems(state->hLvSatellites);
     for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
@@ -863,10 +886,46 @@ static void OnStreamDone(HWND hwnd, AppState *state)
         state->bWorkerRunningEph = FALSE;
     }
 
+    /* If the stream ended within ~60 s of a VRS shift-button press,
+     * the most likely cause is the caster being a single-station /
+     * non-VRS mountpoint that rejects off-coverage GGA -- log it
+     * explicitly so the user sees the connection between the test
+     * action and the disconnect.  Always clear the override on
+     * disconnect so a subsequent manual reconnect uses the
+     * configured rover lat/lon, not the stale shifted one. */
+    if (state->ggaOverrideValid) {
+        LONG lastShift = InterlockedCompareExchange(
+                            (volatile LONG *)&state->ggaLastShiftUnix, 0, 0);
+        if (lastShift > 0) {
+            long age = (long)((LONG)time(NULL) - lastShift);
+            if (age >= 0 && age < 60) {
+                char buf[640];
+                snprintf(buf, sizeof(buf),
+                    "[VRS] Stream dropped %lds after a GGA shift -- "
+                    "the shifted position is likely outside the "
+                    "caster's coverage.  Single-station mountpoints "
+                    "drop the moment the GGA wanders out of their "
+                    "service radius; nearest-station / nearby-style "
+                    "services (e.g. Onocoy NRBY_ADV) drop when no "
+                    "contributing station is within range of the "
+                    "new GGA; only a true VRS will keep streaming.  "
+                    "Try a smaller shift, or test against a known "
+                    "VRS mountpoint.  The GGA override has been "
+                    "cleared; the next reconnect will use the "
+                    "configured rover position.\r\n", age);
+                AppendLog(state->hEditLog, buf);
+            }
+        }
+        state->ggaOverrideValid = FALSE;
+        InterlockedExchange(
+            (volatile LONG *)&state->ggaShiftRequestedAtCount, -1);
+    }
+
     AppendLog(state->hEditLog, "\r\n[INFO] Stream ended.\r\n");
     SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Disconnected");
     SendMessage(state->hStatusBar, SB_SETTEXT, 1, (LPARAM)"");
     SendMessage(state->hStatusBar, SB_SETTEXT, 2, (LPARAM)"");
+    SendMessage(state->hStatusBar, SB_SETTEXT, 3, (LPARAM)"");
 }
 
 /* ── Map picker helpers ─────────────────────────────────────── */
@@ -895,7 +954,10 @@ static void OnMapPick(HWND hwnd, AppState *state)
         lon = -0.09;
     }
 
-    int zoom = 6;
+    /* Zoom 13 = neighbourhood-scale (~1:35 000); close enough that an
+     * installer can see the actual reference-station mast and confirm
+     * which roof / pole the antenna sits on. */
+    int zoom = 13;
 
     /* Build HTML content with embedded Leaflet.js */
     char html[8192];
@@ -922,8 +984,16 @@ static void OnMapPick(HWND hwnd, AppState *state)
         "<div id=\"map\"></div>\n"
         "<script>\n"
         "var map=L.map('map').setView([%.6f,%.6f],%d);\n"
-        "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{\n"
-        "  maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);\n"
+        /* CartoDB Voyager: OSM data, hosted by Carto.  Drop-in
+         * replacement for the OSM Foundation tile server, which
+         * blocks third-party apps and replaces tiles with an
+         * 'access blocked' placeholder per their tile-usage policy
+         * (https://operations.osmfoundation.org/policies/tiles/).
+         * CartoDB has a more permissive free-tier policy and serves
+         * the same map content.  Subdomains a-d for parallel load. */
+        "L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',{\n"
+        "  maxZoom:19,subdomains:'abcd',\n"
+        "  attribution:'&copy; OpenStreetMap contributors &copy; CARTO'}).addTo(map);\n"
         "var marker=L.marker([%.6f,%.6f]).addTo(map);\n"
         "var st=document.getElementById('status');\n"
         "function copyText(t){\n"
@@ -1758,6 +1828,42 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             return 0;
 
+        case IDM_VIEW_VRS_MONITOR:
+            if (state->hVrsWnd) {
+                if (IsIconic(state->hVrsWnd))
+                    ShowWindow(state->hVrsWnd, SW_RESTORE);
+                SetForegroundWindow(state->hVrsWnd);
+            } else {
+                HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+                state->hVrsWnd = CreateVrsWindow(hInst, hwnd, state);
+                if (!state->hVrsWnd) {
+                    MessageBox(hwnd, "Failed to create VRS Monitor window.",
+                               APP_TITLE, MB_ICONERROR | MB_OK);
+                }
+            }
+            return 0;
+
+        /* ── Tools menu (VRS tests) ─────────────────────────── */
+        case IDM_TOOLS_VRS_GGA_TOGGLE: {
+            BOOL was = state->ggaSendEnabled;
+            state->ggaSendEnabled = !was;
+            char msg[320];
+            snprintf(msg, sizeof(msg),
+                "Auto-send GGA is now %s.\n\n"
+                "Most network-RTK / VRS casters require a periodic GGA "
+                "(typically every 5-30 s).  Turning it off lets you "
+                "verify whether the mountpoint is GGA-gated: with auto-"
+                "send off, a VRS stream should disconnect within ~30-60 "
+                "seconds.",
+                state->ggaSendEnabled ? "ON" : "OFF");
+            MessageBox(hwnd, msg, "VRS Test: GGA auto-send",
+                       MB_ICONINFORMATION | MB_OK);
+            return 0;
+        }
+
+        /* VRS position-shift / reset are now buttons inside the
+         * VRS Monitor window (see gui_vrs_window.c).  No menu items. */
+
         /* ── Help menu ──────────────────────────────────────── */
         case IDM_HELP_ABOUT:
             MessageBox(hwnd,
@@ -1824,6 +1930,89 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 snprintf(totalBuf, sizeof(totalBuf), "%ld B received",
                          (long)totalBytes);
             SendMessage(state->hStatusBar, SB_SETTEXT, 2, (LPARAM)totalBuf);
+
+            /* ── VRS distance (part 3) ───────────────────────
+             * Compute the great-circle distance between the GGA
+             * position currently being sent (rover / virtual rover)
+             * and the broadcast 1005/1006 ARP.  Both endpoints can
+             * be missing (no GGA configured, ARP not yet received);
+             * in those cases the chip is blanked. */
+            bool   arp_valid = false;
+            double arp_lat = 0, arp_lon = 0;
+            rtcm_get_station_arp(&arp_valid, NULL, NULL, NULL,
+                                 &arp_lat, &arp_lon, NULL);
+
+            double rover_lat = state->ggaCurrentLat;
+            double rover_lon = state->ggaCurrentLon;
+            bool   rover_valid = (rover_lat != 0.0 || rover_lon != 0.0);
+
+            char vrsBuf[64];
+            vrsBuf[0] = '\0';
+            if (arp_valid && rover_valid) {
+                /* Haversine formula on a sphere of radius 6371 km. */
+                const double R = 6371.0;
+                double phi1 = rover_lat * M_PI / 180.0;
+                double phi2 = arp_lat   * M_PI / 180.0;
+                double dphi = (arp_lat - rover_lat) * M_PI / 180.0;
+                double dlam = (arp_lon - rover_lon) * M_PI / 180.0;
+                double a = sin(dphi / 2.0) * sin(dphi / 2.0)
+                         + cos(phi1) * cos(phi2)
+                           * sin(dlam / 2.0) * sin(dlam / 2.0);
+                double c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a));
+                double dist_km = R * c;
+
+                state->vrsDistanceKm    = dist_km;
+                state->vrsDistanceValid = TRUE;
+
+                if (dist_km < 1.0)
+                    snprintf(vrsBuf, sizeof(vrsBuf),
+                             "VRS dist: %.0f m", dist_km * 1000.0);
+                else if (dist_km < 100.0)
+                    snprintf(vrsBuf, sizeof(vrsBuf),
+                             "VRS dist: %.2f km", dist_km);
+                else
+                    snprintf(vrsBuf, sizeof(vrsBuf),
+                             "VRS dist: %.0f km", dist_km);
+
+                /* Append to the rolling history ring buffer for the
+                 * VRS Monitor strip chart -- one sample per timer
+                 * tick, ~1 Hz, so the 300-slot ring covers 5 min. */
+                state->vrsDistHistKm[state->vrsDistHistHead] =
+                    (float)dist_km;
+                state->vrsDistHistHead =
+                    (state->vrsDistHistHead + 1) % VRS_DIST_BUFFER_N;
+                if (state->vrsDistHistCount < VRS_DIST_BUFFER_N)
+                    state->vrsDistHistCount++;
+
+                /* Track unique-ARP history: if this ARP differs from
+                 * the most recent stored one by more than ~10 m,
+                 * append it as a new entry (capped). */
+                bool append_arp = (state->vrsArpHistCount == 0);
+                if (!append_arp && state->vrsArpHistCount > 0) {
+                    int last = state->vrsArpHistCount - 1;
+                    double dlat = arp_lat - state->vrsArpHistLat[last];
+                    double dlon = arp_lon - state->vrsArpHistLon[last];
+                    /* ~111 km per degree latitude; convert to metres */
+                    double dlat_m = dlat * 111000.0;
+                    double dlon_m = dlon * 111000.0 * cos(phi1);
+                    double dm = sqrt(dlat_m * dlat_m + dlon_m * dlon_m);
+                    if (dm > 10.0) append_arp = true;
+                }
+                if (append_arp && state->vrsArpHistCount < VRS_ARP_HIST_N) {
+                    int i = state->vrsArpHistCount++;
+                    state->vrsArpHistLat[i] = arp_lat;
+                    state->vrsArpHistLon[i] = arp_lon;
+                }
+            } else {
+                state->vrsDistanceValid = FALSE;
+                /* Sentinel sample so the strip chart shows the gap. */
+                state->vrsDistHistKm[state->vrsDistHistHead] = -1.0f;
+                state->vrsDistHistHead =
+                    (state->vrsDistHistHead + 1) % VRS_DIST_BUFFER_N;
+                if (state->vrsDistHistCount < VRS_DIST_BUFFER_N)
+                    state->vrsDistHistCount++;
+            }
+            SendMessage(state->hStatusBar, SB_SETTEXT, 3, (LPARAM)vrsBuf);
         }
         return 0;
     }

@@ -345,12 +345,13 @@ void CreateControls(HWND hwnd, AppState *state)
         WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
         0, 0, 0, 0, hwnd, (HMENU)(intptr_t)IDC_STATUSBAR, hInst, NULL);
 
-    /* Three-part status bar */
-    int parts[3] = { 350, 500, -1 };
-    SendMessage(state->hStatusBar, SB_SETPARTS, 3, (LPARAM)parts);
+    /* Four-part status bar: streaming-rate, format, bytes, VRS distance */
+    int parts[4] = { 250, 380, 600, -1 };
+    SendMessage(state->hStatusBar, SB_SETPARTS, 4, (LPARAM)parts);
     SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Disconnected");
     SendMessage(state->hStatusBar, SB_SETTEXT, 1, (LPARAM)"");
     SendMessage(state->hStatusBar, SB_SETTEXT, 2, (LPARAM)"");
+    SendMessage(state->hStatusBar, SB_SETTEXT, 3, (LPARAM)"");
 
     /* ── Apply DEFAULT_GUI_FONT to ALL child controls ────────── */
     EnumChildWindows(hwnd, SetChildFont, (LPARAM)hGuiFont);
@@ -419,7 +420,8 @@ void ResizeControls(HWND hwnd, AppState *state, int width, int height)
     MoveWindow(state->hLvMsgStats,   tx, ty, tw, th, TRUE);
     MoveWindow(state->hLvSatellites, tx, ty, tw, th, TRUE);
 
-    /* Update status bar parts proportionally */
-    int parts[3] = { width / 3, width * 2 / 3, -1 };
-    SendMessage(state->hStatusBar, SB_SETPARTS, 3, (LPARAM)parts);
+    /* Update status bar parts proportionally (4 parts: rate, format,
+     * bytes, VRS distance). */
+    int parts[4] = { width / 4, width * 2 / 5, width * 7 / 10, -1 };
+    SendMessage(state->hStatusBar, SB_SETPARTS, 4, (LPARAM)parts);
 }

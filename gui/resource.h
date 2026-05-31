@@ -30,6 +30,13 @@
 
 /* ── Menu items: View ─────────────────────────────────────── */
 #define IDM_VIEW_SKY_PLOT       9020
+#define IDM_VIEW_VRS_MONITOR    9021
+
+/* ── Menu items: Tools ────────────────────────────────────── */
+#define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
+/* The VRS position-shift / reset controls were moved into the VRS
+ * Monitor window itself (in-plot N/E/S/W buttons + Reset top-left),
+ * see resource IDs IDC_VRS_BTN_* below. */
 
 /* ── Menu items: Help ─────────────────────────────────────── */
 #define IDM_HELP_ABOUT          9030
@@ -109,6 +116,13 @@
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700
 #define IDC_DETAIL_COPY         1701
+
+/* ── VRS Monitor window: in-plot shift buttons ───────────── */
+#define IDC_VRS_BTN_N           1800
+#define IDC_VRS_BTN_E           1801
+#define IDC_VRS_BTN_S           1802
+#define IDC_VRS_BTN_W           1803
+#define IDC_VRS_BTN_RESET       1804
 
 /* ── Context menu IDs ────────────────────────────────────── */
 #define IDM_CTX_SELECT_ALL      3001

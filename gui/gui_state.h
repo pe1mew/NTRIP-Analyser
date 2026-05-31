@@ -354,6 +354,71 @@ typedef struct {
      * WorkerReplayRtcm; the worker reads frames from this path. */
     char              replayPath[MAX_PATH];
 
+    /* ── VRS / nearby-service analysis ──────────────────────────────
+     * Distance is updated by the status-bar timer (haversine between
+     * the rover GGA position currently in use and the broadcast
+     * 1005/1006 ARP).  vrsDistanceValid stays FALSE until both ends
+     * are known. */
+    double vrsDistanceKm;
+    BOOL   vrsDistanceValid;
+
+    /* Rolling 5-minute distance history for the VRS Monitor strip
+     * chart.  Written by the status-bar timer once per second; read
+     * by gui_vrs_window.c during paint.  Simple ring buffer. */
+#define VRS_DIST_BUFFER_N 300
+    float  vrsDistHistKm[VRS_DIST_BUFFER_N];   /* km; NaN = no sample */
+    int    vrsDistHistHead;                    /* next write index */
+    int    vrsDistHistCount;                   /* 0..N */
+
+    /* Unique ARP positions seen this session.  Each entry is a (lat,
+     * lon) snapshot taken whenever 1005/1006 reports an ARP that
+     * differs from the previous one by more than VRS_ARP_DELTA_M.
+     * Drawn as small dots on the VRS Monitor polar plot to surface
+     * VRS hand-overs / nearest-station swaps. */
+#define VRS_ARP_HIST_N    32
+    double vrsArpHistLat[VRS_ARP_HIST_N];
+    double vrsArpHistLon[VRS_ARP_HIST_N];
+    int    vrsArpHistCount;
+
+    /* GGA send-control state.
+     *   ggaSendEnabled  -- master switch (Tools menu toggle).  When
+     *                      FALSE the obs worker suppresses periodic
+     *                      GGA, used to verify GGA-gated behaviour.
+     *   ggaOverrideValid -- set TRUE when the user has injected a
+     *                      test GGA position (Position-shift tests);
+     *                      the worker uses ggaOverrideLat/Lon
+     *                      instead of config.LATITUDE/LONGITUDE. */
+    volatile BOOL    ggaSendEnabled;
+    volatile BOOL    ggaOverrideValid;
+    volatile double  ggaOverrideLat;
+    volatile double  ggaOverrideLon;
+    volatile double  ggaCurrentLat;   /* lat actually being sent this tick */
+    volatile double  ggaCurrentLon;   /* lon actually being sent this tick */
+    volatile LONG    ggaSendCount;    /* total GGAs sent since stream open */
+    volatile LONG    ggaLastSendUnix; /* unix-time of last successful GGA send */
+
+    /* Throttle for the VRS position-shift buttons.  When the user
+     * clicks N/E/S/W in the VRS Monitor we stamp the current
+     * ggaSendCount here; the buttons stay disabled until ggaSendCount
+     * exceeds this value -- i.e. until the worker has actually
+     * transmitted a GGA with the new position to the caster.  -1
+     * means "no shift pending" (buttons free).  Reset button is
+     * always enabled. */
+    volatile LONG    ggaShiftRequestedAtCount;
+
+    /* Unix-time of the most recent shift-button click.  Used by
+     * OnStreamDone to decide whether the disconnect should be
+     * attributed to the GGA shift -- if it happened within 60 s of a
+     * shift the log line names the likely cause (single-station
+     * caster rejecting an out-of-coverage position).  0 = never. */
+    volatile LONG    ggaLastShiftUnix;
+
+    /* VRS Monitor window (floating, optional) -- same lifecycle
+     * convention as the Sky Plot window. */
+    HWND hVrsWnd;
+    RECT vrsWndRect;
+    BOOL vrsWndRectValid;
+
 } AppState;
 
 /**

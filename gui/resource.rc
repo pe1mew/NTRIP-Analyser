@@ -34,6 +34,11 @@ BEGIN
     POPUP "&View"
     BEGIN
         MENUITEM "&Sky Plot...",                      IDM_VIEW_SKY_PLOT
+        MENUITEM "&VRS Monitor...",                   IDM_VIEW_VRS_MONITOR
+    END
+    POPUP "&Tools"
+    BEGIN
+        MENUITEM "Toggle &auto-send GGA",             IDM_TOOLS_VRS_GGA_TOGGLE
     END
     POPUP "&Help"
     BEGIN

@@ -164,17 +164,36 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
            state->config.MOUNTPOINT);
     fflush(stdout);
 
-    /* ── Prepare GGA sentence ───────────────────────────────── */
+    /* ── Prepare initial GGA sentence ───────────────────────────
+     * The position used is taken from the AppState's ggaOverride*
+     * fields if a VRS position-shift test is active, otherwise from
+     * the configured rover lat/lon.  The chosen values are stamped
+     * back into state->ggaCurrentLat/Lon so the UI's distance chip
+     * uses the *actual* sent position, not a stale config one. */
+    double gga_lat = state->ggaOverrideValid
+                     ? state->ggaOverrideLat
+                     : state->config.LATITUDE;
+    double gga_lon = state->ggaOverrideValid
+                     ? state->ggaOverrideLon
+                     : state->config.LONGITUDE;
+    state->ggaCurrentLat = gga_lat;
+    state->ggaCurrentLon = gga_lon;
+
     char gga[100];
-    create_gngga_sentence(state->config.LATITUDE, state->config.LONGITUDE, gga);
+    create_gngga_sentence(gga_lat, gga_lon, gga);
     char gga_with_crlf[104];
     snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
     time_t last_gga_time = time(NULL);
 
-    /* Send initial GGA immediately so the caster knows our position */
-    if (send(sock, gga_with_crlf, (int)strlen(gga_with_crlf), 0) > 0) {
+    /* Send initial GGA immediately so the caster knows our position
+     * -- unless the user has explicitly disabled auto-send GGA via the
+     * Tools menu (used to verify GGA-gated VRS behaviour). */
+    if (state->ggaSendEnabled &&
+        send(sock, gga_with_crlf, (int)strlen(gga_with_crlf), 0) > 0) {
         printf("[GGA] Sent initial GGA: %s\n", gga);
         fflush(stdout);
+        InterlockedIncrement(&state->ggaSendCount);
+        InterlockedExchange(&state->ggaLastSendUnix, (LONG)time(NULL));
     }
 
     /* ── Reset stream info counters ────────────────────────── */
@@ -256,12 +275,37 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     }
 
     while (!state->bStopRequested) {
-        /* ── Periodic GGA resend (every 5 seconds) ───────────── */
+        /* ── Periodic GGA resend (every 5 seconds) ─────────────
+         * Re-reads the override / pause state each tick so the user
+         * can toggle auto-send GGA or push a Position-shift test
+         * mid-session and have it take effect on the next 5-s tick. */
         time_t now_t = time(NULL);
-        if (now_t - last_gga_time >= 5) {
-            if (send(sock, gga_with_crlf, (int)strlen(gga_with_crlf), 0) > 0) {
+        if (state->ggaSendEnabled && (now_t - last_gga_time >= 5)) {
+            double cur_lat = state->ggaOverrideValid
+                             ? state->ggaOverrideLat
+                             : state->config.LATITUDE;
+            double cur_lon = state->ggaOverrideValid
+                             ? state->ggaOverrideLon
+                             : state->config.LONGITUDE;
+            /* Rebuild the GGA string if the position has changed
+             * (override toggled, shift-test fired, etc.). */
+            if (cur_lat != state->ggaCurrentLat ||
+                cur_lon != state->ggaCurrentLon) {
+                state->ggaCurrentLat = cur_lat;
+                state->ggaCurrentLon = cur_lon;
+                create_gngga_sentence(cur_lat, cur_lon, gga);
+                snprintf(gga_with_crlf, sizeof(gga_with_crlf),
+                         "%s\r\n", gga);
+                printf("[GGA] Position changed -> %s\n", gga);
+                fflush(stdout);
+            }
+            if (send(sock, gga_with_crlf,
+                     (int)strlen(gga_with_crlf), 0) > 0) {
                 printf("[GGA] Sent GGA\n");
                 fflush(stdout);
+                InterlockedIncrement(&state->ggaSendCount);
+                InterlockedExchange(&state->ggaLastSendUnix,
+                                    (LONG)time(NULL));
             }
             last_gga_time = now_t;
         }
