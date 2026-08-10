@@ -15,6 +15,7 @@
 #include "gui_sky_window.h"
 #include "gui_vrs_window.h"
 #include "gui_signal_window.h"
+#include "gui_hist_window.h"
 #include "rtcm3x_parser.h"
 #include "rinex_nav.h"
 #include "config.h"
@@ -45,6 +46,7 @@ static void OnStatUpdate(AppState *state, int msg_type, int count);
 static void OnSatUpdate(AppState *state);
 static void RefreshStreamHealth(AppState *state);
 static void MsgStatsSeedAdvertised(AppState *state);
+static double geo_distance_m(double lat1, double lon1, double lat2, double lon2);
 static void close_rtcm_capture_if_active(AppState *state);
 
 /* ── Generic ListView sort state ──────────────────────────── */
@@ -322,6 +324,78 @@ static void HealthSetRow(HWND hLv, int row, const char *metric,
     }
     ListView_SetItemText(hLv, row, 1, (char *)value);
     ListView_SetItemText(hLv, row, 2, (char *)detail);
+}
+
+/**
+ * @brief Append one second of session history.
+ *
+ * Called from the 1 Hz status timer.  Records rates over the interval
+ * rather than running totals, so a dropout appears as a trough instead of
+ * a flat spot on a rising curve.
+ */
+static void HistorySample(AppState *state, double now)
+{
+    HistState *h = &state->hist;
+
+    if (h->t0 == 0.0) h->t0 = now;
+    double dt = now - h->lastSampleTime;
+    if (h->lastSampleTime != 0.0 && dt < HIST_INTERVAL_S) return;
+    if (dt <= 0.0 || dt > 60.0) dt = HIST_INTERVAL_S;   /* first tick or a stall */
+    h->lastSampleTime = now;
+
+    LONG bytes  = InterlockedCompareExchange(&state->streamBytes,     0, 0);
+    LONG frames = InterlockedCompareExchange(&state->healthFramesOk,  0, 0);
+    LONG crc    = InterlockedCompareExchange(&state->healthCrcErrors, 0, 0);
+
+    HistSample s;
+    memset(&s, 0, sizeof(s));
+    s.ts_rel       = (float)(now - h->t0);
+    s.bytes_per_s  = (float)((bytes  - h->lastBytes)  / dt);
+    s.frames_per_s = (float)((frames - h->lastFrames) / dt);
+    LONG dcrc      = crc - h->lastCrc;
+    s.crc_errors   = (uint16_t)(dcrc < 0 ? 0 : (dcrc > 65535 ? 65535 : dcrc));
+
+    h->lastBytes  = bytes;
+    h->lastFrames = frames;
+    h->lastCrc    = crc;
+
+    /* Satellites tracked and their mean C/N0, from the same per-SV data
+     * the Signal Quality window draws. */
+    int    nsat = 0;
+    double cnr_sum = 0.0;
+    int    cnr_n = 0;
+    for (int g = 0; g < SV_EPH_MAX_GNSS; g++) {
+        for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++) {
+            const SkySat *sv = &state->skyState.sats[g][p];
+            if (!sv->valid) continue;
+            if ((now - sv->last_seen_ts) > 5.0) continue;
+            nsat++;
+            if (sv->cnr_dbhz > 0.0f) { cnr_sum += sv->cnr_dbhz; cnr_n++; }
+        }
+    }
+    s.sats     = (uint8_t)(nsat > 255 ? 255 : nsat);
+    s.cnr_mean = cnr_n ? (float)(cnr_sum / cnr_n) : 0.0f;
+
+    /* Reference-point drift from the first ARP of the session.  The
+     * reference is latched once and never moved: re-centring on the
+     * current position would hide the drift entirely. */
+    bool   arp_valid = false;
+    double arp_lat = 0.0, arp_lon = 0.0;
+    rtcm_get_station_arp(&arp_valid, NULL, NULL, NULL, &arp_lat, &arp_lon, NULL);
+    if (arp_valid) {
+        if (!h->refValid) {
+            h->refValid = TRUE;
+            h->refLat   = arp_lat;
+            h->refLon   = arp_lon;
+        }
+        s.arp_delta_m = (float)geo_distance_m(h->refLat, h->refLon, arp_lat, arp_lon);
+    } else {
+        s.arp_delta_m = -1.0f;
+    }
+
+    h->pts[h->head] = s;
+    h->head = (h->head + 1) % HIST_CAP;
+    if (h->count < HIST_CAP) h->count++;
 }
 
 /**
@@ -1146,6 +1220,7 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     state->stationType    = STATION_UNKNOWN;
     state->stationWhy[0]  = '\0';
     memset(&state->handshake, 0, sizeof(state->handshake));
+    memset(&state->hist, 0, sizeof(state->hist));
 
     if (state->sourceDetails[0]) {
         state->advCount = ParseAdvertisedTypes(state->sourceDetails,
@@ -2508,6 +2583,21 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             return 0;
 
+        case IDM_VIEW_HISTORY:
+            if (state->hHistWnd) {
+                if (IsIconic(state->hHistWnd))
+                    ShowWindow(state->hHistWnd, SW_RESTORE);
+                SetForegroundWindow(state->hHistWnd);
+            } else {
+                HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+                state->hHistWnd = CreateHistWindow(hInst, hwnd, state);
+                if (!state->hHistWnd) {
+                    MessageBox(hwnd, "Failed to create Session History window.",
+                               APP_TITLE, MB_ICONERROR | MB_OK);
+                }
+            }
+            return 0;
+
         /* ── Tools menu (VRS tests) ─────────────────────────── */
         case IDM_TOOLS_VRS_GGA_TOGGLE: {
             BOOL was = state->ggaSendEnabled;
@@ -2565,6 +2655,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             double now = gui_get_time_seconds();
             double dt  = now - state->streamRateTime;
             LONG totalBytes = InterlockedCompareExchange(&state->streamBytes, 0, 0);
+
+            /* Session history: one sample per second, independent of the
+             * status-bar rate calculation below. */
+            HistorySample(state, now);
+            if (state->hHistWnd) InvalidateRect(state->hHistWnd, NULL, FALSE);
 
             if (dt > 0.5) {
                 LONG delta = totalBytes - state->streamBytesLast;

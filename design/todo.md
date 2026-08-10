@@ -107,6 +107,33 @@ Stream Health rows also gained severity colouring (`NM_CUSTOMDRAW`, severity in 
 matching the Msg Stats treatment: red for real faults, amber for advisories, blue for
 informational. The tab carries 14 rows now and problems need to stand out.
 
+### 2.1 Session history with time-series charts — **Shipped**  (subsumes 4.1)
+
+A floating Session History window (View → Session History, `gui/gui_hist_window.c`) with six
+stacked strip charts on one shared time axis: throughput, message rate, CRC errors, satellites
+tracked, mean C/N0 and reference drift. Sharing the axis is the point — a reconnect reads as a
+simultaneous trough in throughput and message rate, while a bad link shows CRC spikes with
+throughput unchanged. This is also item **4.1**'s message-rate graph, built once rather than twice.
+
+Three decisions that matter more than they look:
+
+- **1 s sampling, not the ESP32's 30 s.** A 30 s bucket averages a short dropout away, which is
+  precisely the failure the item exists to expose. `HIST_CAP` 14400 × 24 B = 337 KB for four hours.
+- **Pixel columns show the peak, not the mean.** Compressing 7200 samples into 700 columns by
+  averaging flattens a one-second CRC spike of 9 to 0.87 — invisible. Taking the column maximum
+  keeps it at full height. Both behaviours are covered by tests.
+- **The drift reference is latched on the first ARP and never moved**, since re-centring on the
+  current position would hide drift entirely.
+
+C/N0 uses a fixed 20–60 dB-Hz band rather than a zero-based axis: a tracked signal is never
+0 dB-Hz, so zero-basing squeezed the useful 35–55 range into the top tenth of the panel. The other
+five panels stay zero-based, where a trough to zero *is* the fault being looked for.
+
+The time axis draws vertical gridlines at the same instants in every panel so a feature can be
+traced across metrics, with labels once at the bottom. Tick spacing adapts to session length
+(seconds → m:ss → h:mm:ss), and ticks are positioned by sample index rather than interpolated time,
+so gridlines stay aligned with the traces even if sampling stutters.
+
 ### 2.2 Raw stream capture and offline replay — **Shipped**
 
 Capture writes raw frames to disk from the File menu (`gui/gui_thread.c:547`); the replay worker
@@ -216,7 +243,7 @@ it currently carries only `sat_seen[]` flags.
 
 ## 2. Tier 2 — High value, moderate effort
 
-### 2.1 Session history ring buffer with time-series charts — **Open**
+### 2.1 Session history ring buffer with time-series charts — **Shipped**, see §0
 
 Sample key metrics at a fixed interval into a ring buffer, and chart them over the session:
 message rate, throughput, CRC error rate, satellite count, mean C/N0, position delta.
@@ -303,7 +330,7 @@ All items in this section are tagged `[design.md]`.
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 4.1 | Real-time message rate graph (GDI+ / Direct2D) | Open | Subsumed by item 2.1 — one charting path, not two. GDI+ is already linked (`-lgdiplus`, used by `gui/gui_snapshot.c`) |
+| 4.1 | Real-time message rate graph | **Shipped** | Delivered as the Message rate panel of the item 2.1 Session History window — one charting path, not two |
 | 4.2 | Map widget showing base and rover positions | Partial | The browser-based map picker covers coordinate entry, and the VRS Monitor polar plot covers the base/rover relationship live. An in-window map remains unbuilt — reassess whether it is still wanted |
 | 4.3 | Multi-connection support | Partial | A second NTRIP connection exists but is purpose-built for ephemeris-only casters (`WorkerOpenEphStream`, `gui/gui_state.h:443`, commit `320f412`). Generalising it to N arbitrary streams for side-by-side base comparison is the remaining work |
 | 4.4 | Export analysis results to CSV / JSON | Open | `gui/gui_snapshot.c` exports the window as **PNG** only (`save_window_as_png`). Structured data export is untouched |

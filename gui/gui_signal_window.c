@@ -19,6 +19,7 @@
  */
 
 #include "gui_signal_window.h"
+#include "gui_snapshot.h"
 #include "resource.h"
 #include "ntrip_handler.h"
 
@@ -186,6 +187,13 @@ static void DrawHeader(HDC hdc, AppState *state, int w)
                  "this view.");
     }
     TextOut(hdc, SIG_PAD, 34, buf, (int)strlen(buf));
+
+    /* Keyboard hint, right-aligned: a shortcut nobody can see is a
+     * shortcut nobody uses. */
+    const char *hint = "Ctrl+S: save as PNG";
+    SIZE hs;
+    GetTextExtentPoint32(hdc, hint, (int)strlen(hint), &hs);
+    TextOut(hdc, w - SIG_PAD - hs.cx, 10, hint, (int)strlen(hint));
 }
 
 /**
@@ -564,6 +572,20 @@ static LRESULT CALLBACK SignalWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         g_mouse.y  = -1;
         InvalidateRect(hwnd, NULL, FALSE);
         return 0;
+
+    case WM_KEYDOWN: {
+        AppState *state = (AppState *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+        if (!state) break;
+        /* Ctrl+S or plain S saves the window as a PNG -- the sky plot
+         * uses plain S, so both are accepted here for consistency. */
+        if (wParam == 'S') {
+            SaveWindowPngWithPrompt(hwnd, state->hEditLog,
+                                    "Save Signal Quality as PNG",
+                                    "SignalQuality", "Signal Quality plot");
+            return 0;
+        }
+        break;
+    }
 
     case WM_ERASEBKGND:
         return 1;

@@ -149,6 +149,57 @@ typedef char sky_track_point_is_16_bytes[(sizeof(SkyTrackPoint) == 16) ? 1 : -1]
  * the plot when an SV sets and rises hours later. */
 #define SKY_TRACK_GAP_BREAK_S   300.0
 
+/* ── Session history ─────────────────────────────────────────────────────
+ * The Msg Stats min/max/avg figures actively hide the faults that matter:
+ * a 45-second dropout of one message type and a steady stream can produce
+ * similar averages.  Sampling the same numbers over time makes gaps,
+ * bursts and reconnects self-evident.
+ *
+ * Sampled once per second rather than the 30 s the ESP32 History.cpp uses,
+ * because the point is to see short dropouts -- a 30 s bucket would average
+ * a 5 s gap away, which is the very failure this is meant to expose.
+ */
+#define HIST_INTERVAL_S   1.0
+#define HIST_CAP          14400   /* 4 hours at 1 s; 345 KB */
+
+/**
+ * @struct HistSample
+ * @brief One second of session history.
+ *
+ * Rates are per second over the sampling interval, not cumulative, so a
+ * dropout reads as a visible trough rather than a flat spot in a rising
+ * total.
+ */
+typedef struct {
+    float    ts_rel;       /**< seconds since session start */
+    float    bytes_per_s;  /**< throughput this interval */
+    float    frames_per_s; /**< RTCM frames decoded this interval */
+    float    cnr_mean;     /**< mean C/N0 over tracked SVs, 0 = unknown */
+    float    arp_delta_m;  /**< metres from the session's first ARP, -1 = unknown */
+    uint16_t crc_errors;   /**< CRC failures in this interval */
+    uint8_t  sats;         /**< satellites tracked */
+    uint8_t  reserved;
+} HistSample;
+
+/** @brief Session-history ring plus the deltas needed to fill it. */
+typedef struct {
+    HistSample pts[HIST_CAP];
+    int    head;            /**< next write index */
+    int    count;           /**< 0..HIST_CAP */
+    double t0;              /**< gui_get_time_seconds() at session start */
+    double lastSampleTime;  /**< when the previous sample was taken */
+
+    /* Previous cumulative readings, for per-interval differencing. */
+    LONG   lastBytes;
+    LONG   lastFrames;
+    LONG   lastCrc;
+
+    /* Reference ARP, latched on the first 1005/1006 and never moved --
+     * self-centring would hide exactly the drift we want to see. */
+    BOOL   refValid;
+    double refLat, refLon;
+} HistState;
+
 /** @brief Severity of a Stream Health row, driving its row colour.
  *
  * Stored in the ListView item's lParam, same technique as the Msg Stats
@@ -607,6 +658,13 @@ typedef struct {
     RECT signalWndRect;
     BOOL signalWndRectValid;
     SigCnrState sigCnr;   /**< C/N0 vs elevation accumulator */
+
+    /* Session History window (floating, optional) -- same lifecycle
+     * convention as the other floating windows. */
+    HWND hHistWnd;
+    RECT histWndRect;
+    BOOL histWndRectValid;
+    HistState hist;       /**< session-history ring buffer */
 
 } AppState;
 

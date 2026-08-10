@@ -14,7 +14,9 @@
 #include "gui_snapshot.h"
 
 #include <objbase.h>    /* GUID / CLSID */
+#include <commdlg.h>    /* GetSaveFileNameA */
 #include <stdio.h>
+#include <time.h>
 
 /* ── GDI+ flat C API (gdiplus.dll exports) ───────────────────────────── */
 
@@ -132,4 +134,57 @@ BOOL save_window_as_png(HWND hwnd, const char *filename)
     DeleteObject(hbm);
 
     return (status == GDIP_OK);
+}
+
+/* ── Shared "save this window as PNG" flow ───────────────────────────────
+ * Every floating chart window offers the same thing, so the dialog, the
+ * timestamped default name and the log line live here rather than being
+ * re-implemented per window. */
+
+BOOL SaveWindowPngWithPrompt(HWND hwnd, HWND hLog,
+                             const char *dialogTitle,
+                             const char *suffix,
+                             const char *logLabel)
+{
+    if (!hwnd) return FALSE;
+
+    /* Default name "YYYYMMDDHHmmss_<suffix>.png" -- sorting by name then
+     * sorts by capture time, which is what you want in a folder full of
+     * these. */
+    char filename[MAX_PATH];
+    {
+        time_t now_t = time(NULL);
+        struct tm *lt = localtime(&now_t);
+        char ts[16] = "00000000000000";
+        if (lt) strftime(ts, sizeof(ts), "%Y%m%d%H%M%S", lt);
+        snprintf(filename, sizeof(filename), "%s_%s.png",
+                 ts, suffix ? suffix : "snapshot");
+    }
+
+    OPENFILENAMEA ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner   = hwnd;
+    ofn.lpstrFilter = "PNG Image (*.png)\0*.png\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile   = filename;
+    ofn.nMaxFile    = MAX_PATH;
+    ofn.lpstrTitle  = dialogTitle;
+    ofn.Flags       = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
+    ofn.lpstrDefExt = "png";
+    if (!GetSaveFileNameA(&ofn))
+        return FALSE;   /* user cancelled */
+
+    BOOL ok = save_window_as_png(hwnd, filename);
+
+    if (hLog) {
+        char msg[MAX_PATH + 96];
+        if (ok) snprintf(msg, sizeof(msg), "[INFO] %s saved to %s\r\n",
+                         logLabel ? logLabel : "Image", filename);
+        else    snprintf(msg, sizeof(msg), "[ERROR] Failed to save %s to %s\r\n",
+                         logLabel ? logLabel : "image", filename);
+        int len = GetWindowTextLength(hLog);
+        SendMessage(hLog, EM_SETSEL, (WPARAM)len, (LPARAM)len);
+        SendMessage(hLog, EM_REPLACESEL, FALSE, (LPARAM)msg);
+    }
+    return ok;
 }

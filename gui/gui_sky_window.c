@@ -712,50 +712,19 @@ static BOOL sky_hit_test(const AppState *state, int w, int h,
  */
 BOOL SkySavePngWithPrompt(HWND hSky, AppState *state)
 {
-    /* Build a default filename of the form
-     *   YYYYMMDDHHmmss_<mode>.png
-     * where <mode> is "TrackedSats" for the marker view or "ARP-EPG" for
-     * the observed/expected heatmap view. */
-    char filename[MAX_PATH];
-    {
-        time_t now_t = time(NULL);
-        struct tm *lt = localtime(&now_t);
-        char ts[16] = "00000000000000";
-        if (lt) strftime(ts, sizeof(ts), "%Y%m%d%H%M%S", lt);
-
-        const char *mode_suffix = "TrackedSats";
-        if (state && state->skyState.mode == SKY_MODE_HEATMAP)
-            mode_suffix = "ARP-EPG";
-
-        snprintf(filename, sizeof(filename), "%s_%s.png", ts, mode_suffix);
-    }
-
-    OPENFILENAMEA ofn;
-    ZeroMemory(&ofn, sizeof(ofn));
-    ofn.lStructSize  = sizeof(ofn);
-    ofn.hwndOwner    = hSky;
-    ofn.lpstrFilter  = "PNG Image (*.png)\0*.png\0All Files (*.*)\0*.*\0";
-    ofn.lpstrFile    = filename;
-    ofn.nMaxFile     = MAX_PATH;
-    ofn.lpstrTitle   = "Save Sky Plot as PNG";
-    ofn.Flags        = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
-    ofn.lpstrDefExt  = "png";
-    if (!GetSaveFileNameA(&ofn))
-        return FALSE;   /* user cancelled */
-
-    BOOL ok = save_window_as_png(hSky, filename);
-
-    if (state && state->hEditLog) {
-        char msg[MAX_PATH + 64];
-        if (ok) snprintf(msg, sizeof(msg),
-                         "[INFO] Sky plot saved to %s\r\n", filename);
-        else    snprintf(msg, sizeof(msg),
-                         "[ERROR] Failed to save sky plot to %s\r\n", filename);
-        int len = GetWindowTextLength(state->hEditLog);
-        SendMessage(state->hEditLog, EM_SETSEL, (WPARAM)len, (LPARAM)len);
-        SendMessage(state->hEditLog, EM_REPLACESEL, FALSE, (LPARAM)msg);
-    }
-    return ok;
+    /* The suffix names which view was captured, so a folder of snapshots
+     * is self-describing: "TrackedSats" for the marker view, "ARP-EPG"
+     * for the observed/expected heatmap.  Everything else -- the dialog,
+     * the timestamp, the log line -- is the shared flow in
+     * gui_snapshot.c, which the other chart windows use too. */
+    const char *mode_suffix =
+        (state && state->skyState.mode == SKY_MODE_HEATMAP) ? "ARP-EPG"
+                                                            : "TrackedSats";
+    return SaveWindowPngWithPrompt(hSky,
+                                   state ? state->hEditLog : NULL,
+                                   "Save Sky Plot as PNG",
+                                   mode_suffix,
+                                   "Sky plot");
 }
 
 static LRESULT CALLBACK SkyWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
