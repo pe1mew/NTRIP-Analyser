@@ -263,3 +263,98 @@ const char *stristr(const char *haystack, const char *needle)
     }
     return NULL;
 }
+
+/* ── NTRIP caster handshake ──────────────────────────────────────────────── */
+
+/**
+ * @brief Copy one header's value into @p out, trimmed.
+ *
+ * @param header Full header block.
+ * @param name   Header name including the colon, e.g. "Server:".
+ */
+static void header_value(const char *header, const char *name,
+                         char *out, size_t out_sz)
+{
+    out[0] = '\0';
+    const char *p = stristr(header, name);
+    if (!p) return;
+
+    /* Must be at the start of a line, or we would match a value that
+     * happens to contain the header name. */
+    if (p != header && p[-1] != '\n') {
+        /* Try later occurrences. */
+        while ((p = stristr(p + 1, name)) != NULL) {
+            if (p == header || p[-1] == '\n') break;
+        }
+        if (!p) return;
+    }
+
+    p += strlen(name);
+    while (*p == ' ' || *p == '\t') p++;
+
+    size_t n = 0;
+    while (*p && *p != '\r' && *p != '\n' && n < out_sz - 1)
+        out[n++] = *p++;
+    while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\t')) n--;
+    out[n] = '\0';
+}
+
+BOOL ParseNtripResponse(const char *header, NtripHandshake *out)
+{
+    if (!out) return FALSE;
+    memset(out, 0, sizeof(*out));
+    if (!header || !*header) return FALSE;
+
+    strncpy(out->raw, header, sizeof(out->raw) - 1);
+    out->raw[sizeof(out->raw) - 1] = '\0';
+
+    /* Status line = everything up to the first CR or LF. */
+    size_t n = 0;
+    while (header[n] && header[n] != '\r' && header[n] != '\n' &&
+           n < sizeof(out->statusLine) - 1) {
+        out->statusLine[n] = header[n];
+        n++;
+    }
+    out->statusLine[n] = '\0';
+    if (n == 0) return FALSE;
+
+    const char *sl = out->statusLine;
+
+    /* NTRIP 1.0 answers "ICY 200 OK", which is not HTTP.  NTRIP 2.0
+     * answers with a normal HTTP status line.  Parse the code from the
+     * status line only -- searching the whole header for "200" would
+     * accept a 404 whose body length happens to be 200. */
+    if (_strnicmp(sl, "ICY", 3) == 0) {
+        out->version = NTRIP_VER_1;
+        const char *p = sl + 3;
+        while (*p == ' ') p++;
+        out->status = atoi(p);
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        strncpy(out->reason, p, sizeof(out->reason) - 1);
+    } else if (_strnicmp(sl, "HTTP/", 5) == 0) {
+        out->version = NTRIP_VER_2;
+        const char *p = sl + 5;
+        while (*p && *p != ' ') p++;          /* skip "1.1" */
+        while (*p == ' ') p++;
+        out->status = atoi(p);
+        while (*p && *p != ' ') p++;
+        while (*p == ' ') p++;
+        strncpy(out->reason, p, sizeof(out->reason) - 1);
+    } else {
+        out->version = NTRIP_VER_UNKNOWN;
+        out->status  = 0;
+        return FALSE;
+    }
+
+    header_value(header, "Server:",        out->server,          sizeof(out->server));
+    header_value(header, "Content-Type:",  out->contentType,     sizeof(out->contentType));
+    header_value(header, "Ntrip-Version:", out->ntripVersionHdr, sizeof(out->ntripVersionHdr));
+
+    char te[64];
+    header_value(header, "Transfer-Encoding:", te, sizeof(te));
+    out->chunked = (stristr(te, "chunked") != NULL);
+
+    out->valid = TRUE;
+    return TRUE;
+}

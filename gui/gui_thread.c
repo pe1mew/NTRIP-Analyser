@@ -377,15 +377,43 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                     header_done = true;
                     start = i + 1;
 
-                    /* Check for ICY 200 OK or HTTP/1.x 200 */
                     header_buf[header_pos] = '\0';
-                    if (!strstr(header_buf, "200") &&
-                        !strstr(header_buf, "ICY")) {
-                        printf("[ERROR] Server response:\n%s\n", header_buf);
+
+                    /* Parse the caster's reply properly.  The previous
+                     * test searched the whole header for "200", which a
+                     * 404 carrying "Content-Length: 200" would satisfy --
+                     * the analyser would then try to decode an HTML error
+                     * page as RTCM. */
+                    ParseNtripResponse(header_buf, &state->handshake);
+
+                    if (!state->handshake.valid || state->handshake.status != 200) {
+                        printf("[ERROR] Caster rejected the request: %s\n",
+                               state->handshake.statusLine[0]
+                                   ? state->handshake.statusLine
+                                   : "(unrecognised response)");
+                        printf("%s\n", header_buf);
                         fflush(stdout);
                         closesocket(sock);
                         PostMessage(state->hMain, WM_APP_STREAM_DONE, 0, 0);
                         return 1;
+                    }
+
+                    /* Full headers to the log: this is the caster
+                     * compliance record, and the differences between
+                     * casters are exactly what explains "works with one
+                     * client but not another". */
+                    printf("[INFO] Caster handshake (NTRIP %s):\n",
+                           state->handshake.version == NTRIP_VER_1 ? "1.0" : "2.0");
+                    for (const char *hp = header_buf; *hp; ) {
+                        const char *eol = hp;
+                        while (*eol && *eol != '\r' && *eol != '\n') eol++;
+                        if (eol > hp) printf("  %.*s\n", (int)(eol - hp), hp);
+                        while (*eol == '\r' || *eol == '\n') eol++;
+                        hp = eol;
+                    }
+                    if (state->handshake.version == NTRIP_VER_1) {
+                        printf("[INFO] Caster answered NTRIP 1.0 (ICY) although "
+                               "Ntrip-Version: Ntrip/2.0 was requested.\n");
                     }
                     printf("[INFO] Stream started\n");
                     fflush(stdout);

@@ -149,6 +149,46 @@ typedef char sky_track_point_is_16_bytes[(sizeof(SkyTrackPoint) == 16) ? 1 : -1]
  * the plot when an SV sets and rises hours later. */
 #define SKY_TRACK_GAP_BREAK_S   300.0
 
+/** @brief Severity of a Stream Health row, driving its row colour.
+ *
+ * Stored in the ListView item's lParam, same technique as the Msg Stats
+ * verdicts. */
+enum {
+    HEALTH_OK   = 0,  /* normal; keeps system colours */
+    HEALTH_INFO = 1,  /* noteworthy but not wrong */
+    HEALTH_WARN = 2,  /* worth attention */
+    HEALTH_BAD  = 3,  /* a real fault */
+};
+
+/** @brief Which NTRIP protocol version the caster answered with. */
+enum {
+    NTRIP_VER_UNKNOWN = 0,
+    NTRIP_VER_1       = 1,  /* "ICY 200 OK" -- the legacy, non-HTTP reply */
+    NTRIP_VER_2       = 2,  /* "HTTP/1.x 200 OK" */
+};
+
+/**
+ * @struct NtripHandshake
+ * @brief What the caster said when the stream was opened.
+ *
+ * The GUI worker already reads the whole response header before the RTCM
+ * bytes start; this is that header, parsed. Useful as a caster-compliance
+ * record: version and header differences explain a whole class of "works
+ * with one client but not another" reports.
+ */
+typedef struct {
+    BOOL valid;                /**< TRUE once a response header was parsed */
+    int  version;              /**< NTRIP_VER_* */
+    int  status;               /**< 200, 401, 404, ... 0 if unparsed */
+    char reason[64];           /**< status reason phrase, e.g. "OK" */
+    char statusLine[128];      /**< the raw first line */
+    char server[96];           /**< Server: header, i.e. the caster software */
+    char contentType[64];      /**< Content-Type: header */
+    char ntripVersionHdr[32];  /**< Ntrip-Version: header, if echoed back */
+    BOOL chunked;              /**< Transfer-Encoding: chunked */
+    char raw[2048];            /**< full header text, for the log */
+} NtripHandshake;
+
 /** @brief How the connected mountpoint serves corrections.
  *
  * Distinguishing these matters because a fixed base and a virtual station
@@ -427,6 +467,10 @@ typedef struct {
 
     int    stationType;               /* STATION_* below */
     char   stationWhy[160];           /* which signal decided it, for display */
+
+    /* Caster handshake, parsed from the response header the worker
+     * already reads before the RTCM bytes begin. */
+    NtripHandshake handshake;
     LONG           streamBytesLast;   /* snapshot for rate calc (UI side) */
     double         streamRateTime;    /* timestamp of last rate calc */
 
@@ -629,6 +673,21 @@ int ParseAdvertisedTypes(const char *details, float *out);
  * @return Pointer into @p haystack at the first match, or NULL.
  */
 const char *stristr(const char *haystack, const char *needle);
+
+/**
+ * @brief Parse an NTRIP caster's response header.
+ *
+ * Recognises both replies a caster can give: the legacy NTRIP 1.0
+ * "ICY 200 OK", which is not HTTP at all, and NTRIP 2.0's ordinary
+ * "HTTP/1.x 200 OK".  Reads the status line properly rather than
+ * searching the whole header for "200" -- a 404 response carrying
+ * "Content-Length: 200" would otherwise look like success.
+ *
+ * @param header Full response header text (NUL-terminated).
+ * @param out    [out] Parsed result; zeroed by this call.
+ * @return TRUE if a status line was recognised.
+ */
+BOOL ParseNtripResponse(const char *header, NtripHandshake *out);
 
 /* gui_events.c — config helpers */
 void GuiToConfig(AppState *state);

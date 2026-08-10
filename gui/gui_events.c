@@ -301,17 +301,24 @@ static void OnTabSelChange(AppState *state)
  * flickers and any selection the user made survives a refresh.
  */
 static void HealthSetRow(HWND hLv, int row, const char *metric,
-                         const char *value, const char *detail)
+                         const char *value, const char *detail, int severity)
 {
     if (ListView_GetItemCount(hLv) <= row) {
         LVITEM lvi;
         ZeroMemory(&lvi, sizeof(lvi));
-        lvi.mask     = LVIF_TEXT;
+        lvi.mask     = LVIF_TEXT | LVIF_PARAM;
         lvi.iItem    = row;
         lvi.pszText  = (char *)metric;
+        lvi.lParam   = severity;
         ListView_InsertItem(hLv, &lvi);
     } else {
         ListView_SetItemText(hLv, row, 0, (char *)metric);
+        LVITEM lvi;
+        ZeroMemory(&lvi, sizeof(lvi));
+        lvi.mask   = LVIF_PARAM;
+        lvi.iItem  = row;
+        lvi.lParam = severity;
+        ListView_SetItem(hLv, &lvi);
     }
     ListView_SetItemText(hLv, row, 1, (char *)value);
     ListView_SetItemText(hLv, row, 2, (char *)detail);
@@ -457,12 +464,52 @@ static void RefreshStreamHealth(AppState *state)
     LONG attempted = ok + crcErr;      /* complete frames the CRC was tested on */
     char v[64], d[256];
 
+    /* ── Caster handshake ─────────────────────────────────────── */
+    const NtripHandshake *hs = &state->handshake;
+    if (!hs->valid) {
+        HealthSetRow(hLv, 0, "NTRIP version", "-",
+                     "No stream opened yet", HEALTH_OK);
+        HealthSetRow(hLv, 1, "Response", "-", "", HEALTH_OK);
+        HealthSetRow(hLv, 2, "Caster software", "-", "", HEALTH_OK);
+    } else {
+        if (hs->version == NTRIP_VER_1) {
+            snprintf(d, sizeof(d),
+                     "Ntrip-Version: Ntrip/2.0 was requested but the caster "
+                     "replied ICY, so it is running NTRIP 1.0");
+            HealthSetRow(hLv, 0, "NTRIP version", "1.0 (ICY)", d, HEALTH_INFO);
+        } else {
+            snprintf(d, sizeof(d), "Replied over HTTP%s%s%s%s",
+                     hs->contentType[0] ? "; Content-Type " : "",
+                     hs->contentType[0] ? hs->contentType : "",
+                     hs->chunked ? "; " : "",
+                     hs->chunked ? "chunked transfer" : "");
+            HealthSetRow(hLv, 0, "NTRIP version", "2.0 (HTTP)", d, HEALTH_OK);
+        }
+
+        char resp[96];
+        snprintf(resp, sizeof(resp), "%d %s", hs->status, hs->reason);
+        HealthSetRow(hLv, 1, "Response", resp, hs->statusLine, HEALTH_OK);
+
+        /* Put the full Server string in the Detail column: it is the
+         * interesting part and routinely longer than the Value column,
+         * so keeping it only there would truncate it. */
+        if (hs->server[0]) {
+            snprintf(d, sizeof(d), "Server: %s", hs->server);
+            HealthSetRow(hLv, 2, "Caster software", hs->server, d, HEALTH_OK);
+        } else {
+            HealthSetRow(hLv, 2, "Caster software", "not stated",
+                         "No Server: response header -- typical of NTRIP 1.0",
+                         HEALTH_OK);
+        }
+    }
+
     snprintf(v, sizeof(v), "%ld", (long)attempted);
-    HealthSetRow(hLv, 0, "Frames checked", v,
-                 "Complete RTCM 3.x frames with a CRC-24Q test applied");
+    HealthSetRow(hLv, 3, "Frames checked", v,
+                 "Complete RTCM 3.x frames with a CRC-24Q test applied", HEALTH_OK);
 
     snprintf(v, sizeof(v), "%ld", (long)ok);
-    HealthSetRow(hLv, 1, "Frames OK", v, "CRC-24Q valid; passed to the decoders");
+    HealthSetRow(hLv, 4, "Frames OK", v,
+                 "CRC-24Q valid; passed to the decoders", HEALTH_OK);
 
     snprintf(v, sizeof(v), "%ld", (long)crcErr);
     if (crcErr == 0) {
@@ -473,7 +520,8 @@ static void RefreshStreamHealth(AppState *state)
                  "%.3f%% of checked frames -- suspect the link between "
                  "receiver and caster (serial, radio or network)", pct);
     }
-    HealthSetRow(hLv, 2, "CRC-24Q errors", v, d);
+    HealthSetRow(hLv, 5, "CRC-24Q errors", v, d,
+                 crcErr > 0 ? HEALTH_BAD : HEALTH_OK);
 
     if (attempted > 0) {
         double pct = 100.0 * crcErr / attempted;
@@ -481,23 +529,27 @@ static void RefreshStreamHealth(AppState *state)
     } else {
         snprintf(v, sizeof(v), "--");
     }
-    HealthSetRow(hLv, 3, "CRC error rate", v,
-                 "CRC failures as a share of frames checked");
+    HealthSetRow(hLv, 6, "CRC error rate", v,
+                 "CRC failures as a share of frames checked",
+                 crcErr > 0 ? HEALTH_BAD : HEALTH_OK);
 
     snprintf(v, sizeof(v), "%ld", (long)malformed);
-    HealthSetRow(hLv, 4, "Malformed frames", v,
-                 "Bad preamble or runt frame -- rejected before the CRC test");
+    HealthSetRow(hLv, 7, "Malformed frames", v,
+                 "Bad preamble or runt frame -- rejected before the CRC test",
+                 malformed > 0 ? HEALTH_WARN : HEALTH_OK);
 
     snprintf(v, sizeof(v), "%ld", (long)resyncs);
-    HealthSetRow(hLv, 5, "Framing re-syncs", v,
-                 "Implausible length field; framing re-acquired from the next byte");
+    HealthSetRow(hLv, 8, "Framing re-syncs", v,
+                 "Implausible length field; framing re-acquired from the next byte",
+                 resyncs > 0 ? HEALTH_WARN : HEALTH_OK);
 
     /* Advertised-vs-observed roll-up.  The per-type detail lives in the
      * Msg Stats tab; this is the one-line answer to "does this mountpoint
      * send what it claims to". */
     if (!state->advValid) {
-        HealthSetRow(hLv, 6, "Advertised types", "unknown",
-                     "No sourcetable entry for this mountpoint -- cannot compare");
+        HealthSetRow(hLv, 9, "Advertised types", "unknown",
+                     "No sourcetable entry for this mountpoint -- cannot compare",
+                     HEALTH_OK);
     } else {
         int missing = 0, rate = 0, extra = 0, ok = 0;
         int rows = ListView_GetItemCount(state->hLvMsgStats);
@@ -522,7 +574,9 @@ static void RefreshStreamHealth(AppState *state)
                  "%d unadvertised%s",
                  ok, missing, rate, extra,
                  state->advAutoFetched ? "  (sourcetable fetched on connect)" : "");
-        HealthSetRow(hLv, 6, "Advertised types", v, d);
+        HealthSetRow(hLv, 9, "Advertised types", v, d,
+                     missing > 0 ? HEALTH_BAD :
+                     rate    > 0 ? HEALTH_WARN : HEALTH_OK);
     }
 
     /* ── Reference-station position checks ────────────────────────
@@ -535,32 +589,35 @@ static void RefreshStreamHealth(AppState *state)
     const char *type_txt =
         (state->stationType == STATION_VRS)   ? "VRS / network" :
         (state->stationType == STATION_FIXED) ? "fixed base"    : "unknown";
-    HealthSetRow(hLv, 7, "Station type", type_txt, state->stationWhy);
+    HealthSetRow(hLv, 10, "Station type", type_txt, state->stationWhy,
+                 state->stationType == STATION_VRS ? HEALTH_INFO : HEALTH_OK);
 
     bool   arp_valid = false;
     double arp_lat = 0.0, arp_lon = 0.0, arp_alt = 0.0;
     rtcm_get_station_arp(&arp_valid, NULL, NULL, NULL, &arp_lat, &arp_lon, &arp_alt);
 
     if (!arp_valid) {
-        HealthSetRow(hLv, 8, "Broadcast ARP", "-",
-                     "No RTCM 1005/1006 received; the station has not stated its position");
-        HealthSetRow(hLv, 9, "Sourcetable match", "-",
-                     "Needs a broadcast ARP to compare against");
-        HealthSetRow(hLv, 10, "ARP stability", "-", "Needs a broadcast ARP");
+        HealthSetRow(hLv, 11, "Broadcast ARP", "-",
+                     "No RTCM 1005/1006 received; the station has not stated its position",
+                     HEALTH_WARN);
+        HealthSetRow(hLv, 12, "Sourcetable match", "-",
+                     "Needs a broadcast ARP to compare against", HEALTH_OK);
+        HealthSetRow(hLv, 13, "ARP stability", "-", "Needs a broadcast ARP", HEALTH_OK);
         return;
     }
 
     snprintf(v, sizeof(v), "%.5f, %.5f", arp_lat, arp_lon);
     snprintf(d, sizeof(d), "From RTCM 1005/1006, altitude %.1f m", arp_alt);
-    HealthSetRow(hLv, 8, "Broadcast ARP", v, d);
+    HealthSetRow(hLv, 11, "Broadcast ARP", v, d, HEALTH_OK);
 
     /* Declared vs broadcast position. */
     if (state->stationType == STATION_VRS) {
-        HealthSetRow(hLv, 9, "Sourcetable match", "n/a",
-                     "Virtual station follows the rover -- comparison not meaningful");
+        HealthSetRow(hLv, 12, "Sourcetable match", "n/a",
+                     "Virtual station follows the rover -- comparison not meaningful",
+                     HEALTH_OK);
     } else if (!state->sourcePosValid) {
-        HealthSetRow(hLv, 9, "Sourcetable match", "-",
-                     "Sourcetable states no position for this mountpoint");
+        HealthSetRow(hLv, 12, "Sourcetable match", "-",
+                     "Sourcetable states no position for this mountpoint", HEALTH_OK);
     } else {
         double d_m = geo_distance_m(state->sourceLat, state->sourceLon,
                                     arp_lat, arp_lon);
@@ -578,16 +635,19 @@ static void RefreshStreamHealth(AppState *state)
                      "Sourcetable says %.4f, %.4f -- check the caster registration",
                      state->sourceLat, state->sourceLon);
         }
-        HealthSetRow(hLv, 9, "Sourcetable match", v, d);
+        HealthSetRow(hLv, 12, "Sourcetable match", v, d,
+                     d_m > 100.0 ? HEALTH_BAD : HEALTH_OK);
     }
 
     /* Did the reference point move during the session?  vrsArpHist
      * already accumulates positions more than ~10 m apart. */
     int moves = state->vrsArpHistCount > 0 ? state->vrsArpHistCount - 1 : 0;
+    int stability_sev = HEALTH_OK;
     if (state->stationType == STATION_VRS) {
         snprintf(v, sizeof(v), "%d hand-over%s", moves, moves == 1 ? "" : "s");
         snprintf(d, sizeof(d),
                  "Expected for a network service; see View -> VRS Monitor");
+        stability_sev = HEALTH_INFO;
     } else if (moves == 0) {
         snprintf(v, sizeof(v), "stable");
         snprintf(d, sizeof(d),
@@ -615,8 +675,9 @@ static void RefreshStreamHealth(AppState *state)
                      "%d distinct positions, largest jump %.2f km -- a fixed base "
                      "should not move; corrections are unreliable",
                      state->vrsArpHistCount, worst / 1000.0);
+        stability_sev = HEALTH_BAD;
     }
-    HealthSetRow(hLv, 10, "ARP stability", v, d);
+    HealthSetRow(hLv, 13, "ARP stability", v, d, stability_sev);
 }
 
 /**
@@ -1084,6 +1145,7 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     state->advAutoFetched = FALSE;
     state->stationType    = STATION_UNKNOWN;
     state->stationWhy[0]  = '\0';
+    memset(&state->handshake, 0, sizeof(state->handshake));
 
     if (state->sourceDetails[0]) {
         state->advCount = ParseAdvertisedTypes(state->sourceDetails,
@@ -1928,6 +1990,45 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         if (nmh->idFrom == IDC_TAB_OUTPUT && nmh->code == TCN_SELCHANGE) {
             OnTabSelChange(state);
+        }
+
+        /* Colour Stream Health rows by severity, stored in lParam by
+         * HealthSetRow.  Same return-value discipline as Msg Stats below:
+         * the CDRF_* value is returned from this procedure directly. */
+        if (nmh->idFrom == IDC_LV_STREAM_HEALTH && nmh->code == NM_CUSTOMDRAW) {
+            NMLVCUSTOMDRAW *cd = (NMLVCUSTOMDRAW *)lParam;
+            switch (cd->nmcd.dwDrawStage) {
+            case CDDS_PREPAINT:
+                return CDRF_NOTIFYITEMDRAW;
+            case CDDS_ITEMPREPAINT: {
+                LVITEM lvi;
+                ZeroMemory(&lvi, sizeof(lvi));
+                lvi.mask  = LVIF_PARAM;
+                lvi.iItem = (int)cd->nmcd.dwItemSpec;
+                LPARAM sev = HEALTH_OK;
+                if (ListView_GetItem(state->hLvStreamHealth, &lvi)) sev = lvi.lParam;
+
+                switch (sev) {
+                case HEALTH_BAD:
+                    cd->clrText   = RGB(150,  20,  20);
+                    cd->clrTextBk = RGB(255, 235, 235);
+                    break;
+                case HEALTH_WARN:
+                    cd->clrText   = RGB(130,  80,   0);
+                    cd->clrTextBk = RGB(255, 246, 225);
+                    break;
+                case HEALTH_INFO:
+                    cd->clrText   = RGB( 20,  60, 150);
+                    cd->clrTextBk = RGB(234, 242, 255);
+                    break;
+                default:
+                    break;   /* HEALTH_OK keeps the system colours */
+                }
+                return CDRF_NEWFONT;
+            }
+            default:
+                return CDRF_DODEFAULT;
+            }
         }
 
         /* Colour Msg Stats rows by their advertised-vs-observed verdict.

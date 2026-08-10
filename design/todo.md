@@ -85,6 +85,28 @@ Known limit: the 150 m band is a heuristic. A physical base genuinely that close
 be classified VRS and have its checks suppressed. The conclusive test — shift the GGA with the VRS
 Monitor's direction buttons and see whether the ARP follows — is not wired into the classifier.
 
+### 2.3 Report NTRIP protocol version and handshake detail — **Shipped**
+
+Three rows at the top of the Stream Health tab — NTRIP version, Response, Caster software — placed
+first because the handshake happens first; the tab now reads in connection order. The full response
+headers go to the Log on connect under an `[INFO] Caster handshake` line, since that is the
+multi-line part and the log already holds this kind of diagnostic text. `ParseNtripResponse()` in
+`gui/gui_parsers.c` handles both replies: NTRIP 1.0's `ICY 200 OK`, which is not HTTP at all, and
+NTRIP 2.0's ordinary HTTP status line. A caster answering ICY despite our `Ntrip-Version:
+Ntrip/2.0` request is reported as informational, not a fault — that is simply an NTRIP 1.0 caster,
+and surfacing it is the point of the item.
+
+**This fixed a pre-existing bug that could mis-accept a rejected connection.** The worker had
+already been reading the whole response header, but tested it with
+`strstr(header, "200") || strstr(header, "ICY")` — a substring search over the entire header. A
+`404 Not Found` carrying `Content-Length: 200`, or a `503` from `Server: caster/2.0.0 build 200`,
+both satisfied it, after which the analyser would try to decode an HTML error page as RTCM. The
+status line is now parsed properly and a rejection reports the actual status.
+
+Stream Health rows also gained severity colouring (`NM_CUSTOMDRAW`, severity in the item lParam)
+matching the Msg Stats treatment: red for real faults, amber for advisories, blue for
+informational. The tab carries 14 rows now and problems need to stand out.
+
 ### 2.2 Raw stream capture and offline replay — **Shipped**
 
 Capture writes raw frames to disk from the File menu (`gui/gui_thread.c:547`); the replay worker
@@ -210,19 +232,12 @@ message rate, throughput, CRC error rate, satellite count, mean C/N0, position d
   (`VRS_DIST_BUFFER_N`, `gui/gui_state.h:365-371`). Subsumes item 4.1 — build one charting path,
   not two.
 
-### 2.3 Report NTRIP protocol version and handshake detail — **Open**
+### 2.3 Report NTRIP protocol version and handshake detail — **Shipped**, see §0
 
-Report whether the caster answered with NTRIP v1 (`ICY 200 OK`) or v2 (HTTP), and make the raw
-response headers visible.
-
-- **Why** — A cheap caster-compliance diagnostic. Version and header differences explain a whole
-  class of "it works with one client but not another" reports.
-- **Inspiration** — `[ESP32]` `src/network/DataOutput.cpp`, which auto-detects ICY versus HTTP
-  per connection on a single port.
-- **Notes** — The client already *sends* `Ntrip-Version: Ntrip/2.0` on every request
-  (`src/ntrip_handler.c:301`, and four further call sites). What is missing is the other half:
-  parsing what came back and surfacing it. Note the five near-duplicate request builders — worth
-  consolidating while touching this.
+Still open from the original note: the client builds the same request in **five near-duplicate
+places** (`src/ntrip_handler.c:301` and four further call sites) — worth consolidating. Note the
+GUI worker does not use any of them; it opens its own socket and writes its own request in
+`gui/gui_thread.c`, so that is a sixth copy.
 
 ### 2.4 VRS / nearby-service analysis — **Partial**
 

@@ -353,9 +353,9 @@ void CreateControls(HWND hwnd, AppState *state)
     ListView_SetExtendedListViewStyle(state->hLvStreamHealth,
         LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
-    LvAddColumn(state->hLvStreamHealth, 0, "Metric", 200);
-    LvAddColumn(state->hLvStreamHealth, 1, "Value",  120);
-    LvAddColumn(state->hLvStreamHealth, 2, "Detail", 380);
+    LvAddColumn(state->hLvStreamHealth, 0, "Metric", 150);
+    LvAddColumn(state->hLvStreamHealth, 1, "Value",  190);
+    LvAddColumn(state->hLvStreamHealth, 2, "Detail", 440);
 
     /* ── Status bar ─────────────────────────────────────────── */
     state->hStatusBar = CreateWindowEx(0,
