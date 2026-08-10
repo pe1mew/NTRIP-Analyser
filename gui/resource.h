@@ -114,6 +114,7 @@
 #define WM_APP_MSG_RAW          (WM_APP + 10)   /* raw RTCM frame for detail window */
 #define WM_APP_DETAIL_CLOSED    (WM_APP + 11)   /* detail window closed: wParam=msg_type */
 #define WM_APP_SKY_UPDATE       (WM_APP + 12)   /* sky-plot SV update: wParam=count, lParam=SkySatUpdate* */
+#define WM_APP_SOURCETABLE      (WM_APP + 13)   /* sourcetable fetched on connect: lParam=heap string, UI frees */
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700

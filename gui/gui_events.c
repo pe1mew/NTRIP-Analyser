@@ -44,6 +44,7 @@ static void OnStreamDone(HWND hwnd, AppState *state);
 static void OnStatUpdate(AppState *state, int msg_type, int count);
 static void OnSatUpdate(AppState *state);
 static void RefreshStreamHealth(AppState *state);
+static void MsgStatsSeedAdvertised(AppState *state);
 static void close_rtcm_capture_if_active(AppState *state);
 
 /* ── Generic ListView sort state ──────────────────────────── */
@@ -372,6 +373,39 @@ static void RefreshStreamHealth(AppState *state)
     snprintf(v, sizeof(v), "%ld", (long)resyncs);
     HealthSetRow(hLv, 5, "Framing re-syncs", v,
                  "Implausible length field; framing re-acquired from the next byte");
+
+    /* Advertised-vs-observed roll-up.  The per-type detail lives in the
+     * Msg Stats tab; this is the one-line answer to "does this mountpoint
+     * send what it claims to". */
+    if (!state->advValid) {
+        HealthSetRow(hLv, 6, "Advertised types", "unknown",
+                     "No sourcetable entry for this mountpoint -- cannot compare");
+    } else {
+        int missing = 0, rate = 0, extra = 0, ok = 0;
+        int rows = ListView_GetItemCount(state->hLvMsgStats);
+        for (int i = 0; i < rows; i++) {
+            LVITEM lvi;
+            ZeroMemory(&lvi, sizeof(lvi));
+            lvi.mask  = LVIF_PARAM;
+            lvi.iItem = i;
+            if (!ListView_GetItem(state->hLvMsgStats, &lvi)) continue;
+            switch (lvi.lParam) {
+            case MSGSTAT_MISSING: missing++; break;
+            case MSGSTAT_RATE:    rate++;    break;
+            case MSGSTAT_EXTRA:   extra++;   break;
+            case MSGSTAT_OK:      ok++;      break;
+            default: break;
+            }
+        }
+
+        snprintf(v, sizeof(v), "%d", state->advCount);
+        snprintf(d, sizeof(d),
+                 "%d arriving as advertised, %d missing, %d off-rate, "
+                 "%d unadvertised%s",
+                 ok, missing, rate, extra,
+                 state->advAutoFetched ? "  (sourcetable fetched on connect)" : "");
+        HealthSetRow(hLv, 6, "Advertised types", v, d);
+    }
 }
 
 /**
@@ -808,6 +842,33 @@ static void OnOpenStream(HWND hwnd, AppState *state)
                                  state->sourceDetails, sizeof(state->sourceDetails));
         }
     }
+
+    /* Advertised message types.  When the sourcetable was already fetched
+     * this is free; otherwise the worker fetches it before connecting (see
+     * WorkerOpenStream) and posts the result back, and advValid stays FALSE
+     * until then.  advAutoFetched tells the worker whether to bother. */
+    memset(state->advInterval, 0, sizeof(state->advInterval));
+    state->advValid       = FALSE;
+    state->advCount       = 0;
+    state->advAutoFetched = FALSE;
+
+    if (state->sourceDetails[0]) {
+        state->advCount = ParseAdvertisedTypes(state->sourceDetails,
+                                               state->advInterval);
+        state->advValid = (state->advCount > 0);
+        if (state->advValid) {
+            char m[sizeof(state->sourceDetails) + 80];
+            snprintf(m, sizeof(m),
+                     "[INFO] Mountpoint advertises %d message type(s): %s\r\n",
+                     state->advCount, state->sourceDetails);
+            AppendLog(state->hEditLog, m);
+        }
+    }
+
+    /* Show the advertised types up front, so anything the mountpoint
+     * promises but never sends is visible as "missing" from the outset
+     * rather than being invisible by its absence. */
+    MsgStatsSeedAdvertised(state);
 
     /* Switch to the Msg Stats tab for real-time updates */
     TabCtrl_SetCurSel(state->hTabOutput, 1);
@@ -1298,6 +1359,90 @@ const char* RtcmMsgDescription(int msg_type)
 
 /* ── Stat Update (real-time, per-message) ─────────────────── */
 
+/**
+ * @brief Find the Msg Stats row for a message type, or -1.
+ */
+static int MsgStatsFindRow(AppState *state, int msg_type)
+{
+    int nItems = ListView_GetItemCount(state->hLvMsgStats);
+    for (int i = 0; i < nItems; i++) {
+        char existing[32];
+        ListView_GetItemText(state->hLvMsgStats, i, 0, existing, sizeof(existing));
+        if (atoi(existing) == msg_type) return i;
+    }
+    return -1;
+}
+
+/**
+ * @brief Create a Msg Stats row for a message type, with its description.
+ *
+ * The status code is stored in the item's lParam so the custom-draw
+ * handler can colour the row without re-parsing the Status text.  lParam
+ * is free for this: ListView_SortItemsEx passes item indices to the
+ * compare callback, not lParam.
+ */
+static int MsgStatsInsertRow(AppState *state, int msg_type)
+{
+    char buf[64];
+    int row = ListView_GetItemCount(state->hLvMsgStats);
+
+    snprintf(buf, sizeof(buf), "%d", msg_type);
+    LVITEM lvi;
+    ZeroMemory(&lvi, sizeof(lvi));
+    lvi.mask    = LVIF_TEXT | LVIF_PARAM;
+    lvi.iItem   = row;
+    lvi.pszText = buf;
+    lvi.lParam  = MSGSTAT_UNKNOWN;
+    ListView_InsertItem(state->hLvMsgStats, &lvi);
+
+    ListView_SetItemText(state->hLvMsgStats, row, 7,
+                         (LPSTR)RtcmMsgDescription(msg_type));
+
+    /* Advertised interval, if the sourcetable named this type. */
+    float adv = (msg_type < GUI_MAX_MSG_TYPES) ? state->advInterval[msg_type] : 0.0f;
+    if (adv > 0.0f)       snprintf(buf, sizeof(buf), "%g s", adv);
+    else if (adv < 0.0f)  snprintf(buf, sizeof(buf), "yes");
+    else                  snprintf(buf, sizeof(buf), "-");
+    ListView_SetItemText(state->hLvMsgStats, row, 5, buf);
+
+    return row;
+}
+
+/**
+ * @brief Set a row's Status cell and its lParam status code.
+ */
+static void MsgStatsSetStatus(AppState *state, int row, int code, const char *text)
+{
+    ListView_SetItemText(state->hLvMsgStats, row, 6, (LPSTR)text);
+
+    LVITEM lvi;
+    ZeroMemory(&lvi, sizeof(lvi));
+    lvi.mask   = LVIF_PARAM;
+    lvi.iItem  = row;
+    lvi.lParam = code;
+    ListView_SetItem(state->hLvMsgStats, &lvi);
+}
+
+/**
+ * @brief Seed the Msg Stats list with every advertised message type.
+ *
+ * Called once the advertised list is known, so types the mountpoint
+ * promises but never sends are visible as "missing" from the start rather
+ * than being invisible by their absence -- which is the whole point of the
+ * comparison.
+ */
+static void MsgStatsSeedAdvertised(AppState *state)
+{
+    if (!state->advValid) return;
+    for (int t = 1; t < GUI_MAX_MSG_TYPES; t++) {
+        if (state->advInterval[t] == 0.0f) continue;
+        if (MsgStatsFindRow(state, t) >= 0) continue;
+        int row = MsgStatsInsertRow(state, t);
+        ListView_SetItemText(state->hLvMsgStats, row, 1, "0");
+        MsgStatsSetStatus(state, row, MSGSTAT_MISSING, "missing");
+    }
+}
+
 static void OnStatUpdate(AppState *state, int msg_type, int count)
 {
     if (msg_type <= 0 || msg_type >= GUI_MAX_MSG_TYPES) return;
@@ -1305,34 +1450,8 @@ static void OnStatUpdate(AppState *state, int msg_type, int count)
     GuiMsgStat *s = &state->msgStats[msg_type];
     char buf[64];
 
-    /* Search for existing row with this message type */
-    int nItems = ListView_GetItemCount(state->hLvMsgStats);
-    int row = -1;
-
-    for (int i = 0; i < nItems; i++) {
-        char existing[32];
-        ListView_GetItemText(state->hLvMsgStats, i, 0, existing, sizeof(existing));
-        if (atoi(existing) == msg_type) {
-            row = i;
-            break;
-        }
-    }
-
-    /* Insert new row if not found */
-    if (row < 0) {
-        row = nItems;
-        snprintf(buf, sizeof(buf), "%d", msg_type);
-        LVITEM lvi;
-        ZeroMemory(&lvi, sizeof(lvi));
-        lvi.mask    = LVIF_TEXT;
-        lvi.iItem   = row;
-        lvi.pszText = buf;
-        ListView_InsertItem(state->hLvMsgStats, &lvi);
-
-        /* Column 5: Description (set once on insert) */
-        const char *desc = RtcmMsgDescription(msg_type);
-        ListView_SetItemText(state->hLvMsgStats, row, 5, (LPSTR)desc);
-    }
+    int row = MsgStatsFindRow(state, msg_type);
+    if (row < 0) row = MsgStatsInsertRow(state, msg_type);
 
     /* Column 1: Count */
     snprintf(buf, sizeof(buf), "%d", count);
@@ -1346,10 +1465,53 @@ static void OnStatUpdate(AppState *state, int msg_type, int count)
     snprintf(buf, sizeof(buf), "%.3f", s->max_dt);
     ListView_SetItemText(state->hLvMsgStats, row, 3, buf);
 
-    /* Column 4: Avg dt */
-    double avg = (s->count > 1) ? s->sum_dt / (s->count - 1) : 0.0;
+    /* Column 4: Avg dt -- averaged over epochs, since that is what the
+     * dt samples measure. */
+    double avg = (s->epochs > 1) ? s->sum_dt / (s->epochs - 1) : 0.0;
     snprintf(buf, sizeof(buf), "%.3f", avg);
     ListView_SetItemText(state->hLvMsgStats, row, 4, buf);
+
+    /* Frames per epoch, when this type is split across several frames.
+     * Shown so a doubled frame count is self-explanatory rather than
+     * looking like a fault. */
+    double fpe = (s->epochs > 0) ? (double)s->count / s->epochs : 1.0;
+    char split[24] = "";
+    if (fpe >= 1.5) snprintf(split, sizeof(split), "  %.0f frames/ep", fpe);
+
+    /* Column 6: advertised-vs-observed verdict.
+     *
+     * The rate check is the part a presence-only comparison misses: a
+     * mountpoint can advertise 1005 every 10 s and actually send it every
+     * 100 s, which is a real fault but looks fine if you only ask whether
+     * the type appeared at all.  It needs at least two samples before an
+     * interval exists to compare, and a generous 2x band so ordinary
+     * jitter and epoch alignment do not cry wolf. */
+    float adv = state->advInterval[msg_type];
+
+    char st[64];
+
+    if (!state->advValid) {
+        snprintf(st, sizeof(st), "unknown%s", split);
+        MsgStatsSetStatus(state, row, MSGSTAT_UNKNOWN, st);
+    } else if (adv == 0.0f) {
+        snprintf(st, sizeof(st), "extra%s", split);
+        MsgStatsSetStatus(state, row, MSGSTAT_EXTRA, st);
+    } else if (adv < 0.0f || s->epochs < 2 || avg <= 0.0) {
+        snprintf(st, sizeof(st), "ok%s", split);
+        MsgStatsSetStatus(state, row, MSGSTAT_OK, st);
+    } else {
+        double ratio = avg / adv;
+        if (ratio >= 0.5 && ratio <= 2.0) {
+            snprintf(st, sizeof(st), "ok%s", split);
+            MsgStatsSetStatus(state, row, MSGSTAT_OK, st);
+        } else if (ratio > 1.0) {
+            snprintf(st, sizeof(st), "slow  %.1fx%s", ratio, split);
+            MsgStatsSetStatus(state, row, MSGSTAT_RATE, st);
+        } else {
+            snprintf(st, sizeof(st), "fast  %.1fx%s", 1.0 / ratio, split);
+            MsgStatsSetStatus(state, row, MSGSTAT_RATE, st);
+        }
+    }
 }
 
 /* ── Satellite Update (real-time, per-message) ────────────── */
@@ -1533,6 +1695,52 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         if (nmh->idFrom == IDC_TAB_OUTPUT && nmh->code == TCN_SELCHANGE) {
             OnTabSelChange(state);
+        }
+
+        /* Colour Msg Stats rows by their advertised-vs-observed verdict.
+         * The code lives in the item's lParam, set by MsgStatsSetStatus. */
+        if (nmh->idFrom == IDC_LV_MSG_STATS && nmh->code == NM_CUSTOMDRAW) {
+            /* MainWndProc is a plain window procedure, not a dialog
+             * procedure, so the custom-draw result is the value returned
+             * from the procedure itself.  DWLP_MSGRESULT would be wrong
+             * here twice over: it applies to dialogs, and the class is
+             * registered with cbWndExtra = 0 so there is nowhere to store
+             * it -- the write fails silently and no colours ever appear. */
+            NMLVCUSTOMDRAW *cd = (NMLVCUSTOMDRAW *)lParam;
+            switch (cd->nmcd.dwDrawStage) {
+            case CDDS_PREPAINT:
+                return CDRF_NOTIFYITEMDRAW;
+            case CDDS_ITEMPREPAINT: {
+                LVITEM lvi;
+                ZeroMemory(&lvi, sizeof(lvi));
+                lvi.mask  = LVIF_PARAM;
+                lvi.iItem = (int)cd->nmcd.dwItemSpec;
+                LPARAM code = MSGSTAT_UNKNOWN;
+                if (ListView_GetItem(state->hLvMsgStats, &lvi)) code = lvi.lParam;
+
+                switch (code) {
+                case MSGSTAT_MISSING:
+                    cd->clrText   = RGB(150,  20,  20);
+                    cd->clrTextBk = RGB(255, 235, 235);
+                    break;
+                case MSGSTAT_RATE:
+                    cd->clrText   = RGB(130,  80,   0);
+                    cd->clrTextBk = RGB(255, 246, 225);
+                    break;
+                case MSGSTAT_EXTRA:
+                    cd->clrText   = RGB( 20,  60, 150);
+                    cd->clrTextBk = RGB(234, 242, 255);
+                    break;
+                default:
+                    /* ok / unknown keep the system colours so a healthy
+                     * stream looks exactly as it did before. */
+                    break;
+                }
+                return CDRF_NEWFONT;
+            }
+            default:
+                return CDRF_DODEFAULT;
+            }
         }
 
         /* Double-click on mountpoint ListView → copy mountpoint to config */
@@ -2392,6 +2600,30 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_APP_SAT_UPDATE: {
         state = GetAppState(hwnd);
         if (state) OnSatUpdate(state);
+        return 0;
+    }
+
+    case WM_APP_SOURCETABLE: {
+        /* Sourcetable fetched implicitly while opening a stream.  Fill the
+         * mountpoint list from it, but do not touch worker lifecycle state
+         * -- the stream worker that sent this is still running.  Ownership
+         * of the string passes to us. */
+        state = GetAppState(hwnd);
+        char *table = (char *)lParam;
+        if (state && table) {
+            ParseMountTable(table, state->hLvMountpoints,
+                            state->config.LATITUDE, state->config.LONGITUDE);
+            int n = ListView_GetItemCount(state->hLvMountpoints);
+            char m[128];
+            snprintf(m, sizeof(m),
+                     "[INFO] Sourcetable fetched on connect: %d mountpoint(s).\r\n", n);
+            AppendLog(state->hEditLog, m);
+
+            /* The advertised list was parsed on the worker; seed the rows
+             * now that we are back on the UI thread. */
+            MsgStatsSeedAdvertised(state);
+        }
+        if (table) free(table);
         return 0;
     }
 

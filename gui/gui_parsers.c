@@ -137,3 +137,118 @@ void ParseMountTable(const char *raw, HWND listview, double userLat, double user
         while (*p == '\r' || *p == '\n') p++;
     }
 }
+
+/* ── Advertised message types (sourcetable STR field 4) ──────────────────── */
+
+BOOL SourcetableFindMountpoint(const char *raw, const char *mountpoint,
+                               char *fmt_out, size_t fmt_sz,
+                               char *det_out, size_t det_sz)
+{
+    if (!raw || !mountpoint || !*mountpoint) return FALSE;
+
+    /* Callers pass mountpoints both with and without the leading slash. */
+    const char *want = (mountpoint[0] == '/') ? mountpoint + 1 : mountpoint;
+
+    const char *p = raw;
+    while (*p) {
+        const char *lineEnd = p;
+        while (*lineEnd && *lineEnd != '\r' && *lineEnd != '\n') lineEnd++;
+        int lineLen = (int)(lineEnd - p);
+
+        if (lineLen > 4 && strncmp(p, "STR;", 4) == 0) {
+            char *buf = (char *)malloc(lineLen + 1);
+            if (buf) {
+                memcpy(buf, p, lineLen);
+                buf[lineLen] = '\0';
+
+                /* Split on ';' -- field 1 is the mountpoint, 3 the format,
+                 * 4 the format-details list we are after. */
+                char *fields[20];
+                int nFields = 0;
+                char *tok = buf;
+                while (nFields < 20) {
+                    fields[nFields++] = tok;
+                    char *semi = strchr(tok, ';');
+                    if (!semi) break;
+                    *semi = '\0';
+                    tok = semi + 1;
+                }
+
+                if (nFields > 4) {
+                    const char *mp = fields[1];
+                    if (mp[0] == '/') mp++;
+                    if (_stricmp(mp, want) == 0) {
+                        if (fmt_out && fmt_sz) {
+                            strncpy(fmt_out, fields[3], fmt_sz - 1);
+                            fmt_out[fmt_sz - 1] = '\0';
+                        }
+                        if (det_out && det_sz) {
+                            strncpy(det_out, fields[4], det_sz - 1);
+                            det_out[det_sz - 1] = '\0';
+                        }
+                        free(buf);
+                        return TRUE;
+                    }
+                }
+                free(buf);
+            }
+        }
+
+        p = lineEnd;
+        while (*p == '\r' || *p == '\n') p++;
+    }
+    return FALSE;
+}
+
+int ParseAdvertisedTypes(const char *details, float *out)
+{
+    if (!out) return 0;
+    for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) out[i] = 0.0f;
+    if (!details || !*details) return 0;
+
+    int found = 0;
+    const char *p = details;
+
+    while (*p) {
+        /* Skip anything that is not the start of a number. */
+        while (*p && (*p < '0' || *p > '9')) p++;
+        if (!*p) break;
+
+        int type = 0;
+        while (*p >= '0' && *p <= '9') {
+            type = type * 10 + (*p - '0');
+            p++;
+        }
+
+        /* Optional "(interval)" immediately after the type.  A bare type
+         * with no interval is still advertised -- record -1 so callers can
+         * tell "advertised, rate unknown" from "not advertised". */
+        float interval = -1.0f;
+        const char *q = p;
+        while (*q == ' ' || *q == '\t') q++;
+        if (*q == '(') {
+            q++;
+            char numbuf[32];
+            int n = 0;
+            while (*q && *q != ')' && n < (int)sizeof(numbuf) - 1) numbuf[n++] = *q++;
+            numbuf[n] = '\0';
+            if (*q == ')') {
+                q++;
+                double v = atof(numbuf);
+                if (v > 0.0) interval = (float)v;
+                p = q;
+            }
+        }
+
+        /* Only accept plausible RTCM 3.x message numbers.  The details
+         * field is not reliably a clean message list -- casters put
+         * version text such as "RTCM 3.2" in it -- and without this floor
+         * the "3" and "2" of that string would be recorded as advertised
+         * types 3 and 2, producing phantom "missing" rows. */
+        if (type >= 1000 && type < GUI_MAX_MSG_TYPES && out[type] == 0.0f) {
+            out[type] = interval;
+            found++;
+        }
+    }
+    return found;
+}

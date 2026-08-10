@@ -131,6 +131,40 @@ int msm_extract_prns(const unsigned char *payload, int payload_len,
                      int *gnss_id_out);
 
 /**
+ * @brief Read the GNSS epoch time from an MSM frame header.
+ *
+ * A single epoch's observations are split across several frames of the
+ * same message type when they do not fit in one frame, so counting
+ * frames over-states the message rate for large constellations.  Frames
+ * belonging to the same epoch carry the same value here, which makes
+ * this the reliable way to count epochs.
+ *
+ * Note DF393 (the multiple-message bit) does NOT serve this purpose: it
+ * marks the end of the whole multi-constellation bundle for a station and
+ * epoch, not the end of one message type's frames.
+ *
+ * @param payload     RTCM payload (starting at the message-number bit).
+ * @param payload_len Payload length in bytes.
+ * @param msg_type    MSM message type (1071..1137).
+ * @param epoch_out   [out] 30-bit epoch field, comparable between frames
+ *                    of the same type.
+ * @return 1 on success, 0 if this is not an MSM frame or is too short.
+ */
+int msm_get_epoch(const unsigned char *payload, int payload_len,
+                  int msg_type, uint32_t *epoch_out);
+
+/**
+ * @brief Read DF393, the MSM multiple-message bit.
+ *
+ * 1 means more MSM frames follow for this station and epoch, across all
+ * constellations; 0 marks the last frame of the bundle.
+ *
+ * @return 0 or 1, or -1 if this is not a usable MSM frame.
+ */
+int msm_get_multiple_message_bit(const unsigned char *payload, int payload_len,
+                                 int msg_type);
+
+/**
  * @brief Extract per-SV best CNR from an MSM7 frame.
  *
  * Walks the per-cell block of an MSM7 payload and emits one (PRN, CNR)

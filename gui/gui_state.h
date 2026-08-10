@@ -63,12 +63,22 @@ typedef struct {
  * @brief Per-message-type statistics collected during stream reception.
  */
 typedef struct {
-    int    count;
+    int    count;         /**< frames received */
     double min_dt;
     double max_dt;
     double sum_dt;
     double last_time;
     bool   seen;
+
+    /* Epoch accounting.  MSM splits one epoch across several frames of
+     * the same type when the observations do not fit in one frame, so
+     * frame count over-states the message rate for large constellations.
+     * The dt statistics above are sampled per EPOCH, not per frame, and
+     * epochs is what should be compared against the advertised interval.
+     * For non-MSM types there is no epoch field and epochs == count. */
+    int      epochs;      /**< distinct epochs seen */
+    uint32_t last_epoch;  /**< previous MSM epoch field value */
+    bool     has_epoch;   /**< TRUE once last_epoch is meaningful */
 } GuiMsgStat;
 
 /**
@@ -138,6 +148,18 @@ typedef char sky_track_point_is_16_bytes[(sizeof(SkyTrackPoint) == 16) ? 1 : -1]
  * seconds apart -- protects against drawing a straight chord across
  * the plot when an SV sets and rises hours later. */
 #define SKY_TRACK_GAP_BREAK_S   300.0
+
+/** @brief Advertised-vs-observed verdict for one message type.
+ *
+ * Stored in each Msg Stats ListView item's lParam so the custom-draw
+ * handler can colour rows without re-parsing the Status text. */
+enum {
+    MSGSTAT_UNKNOWN = 0,  /* no sourcetable entry, no comparison possible */
+    MSGSTAT_OK      = 1,  /* advertised and arriving at roughly the rate  */
+    MSGSTAT_MISSING = 2,  /* advertised but never received                */
+    MSGSTAT_RATE    = 3,  /* arriving, but not near the advertised rate   */
+    MSGSTAT_EXTRA   = 4,  /* received but not advertised                  */
+};
 
 /** @brief Ring buffer of past positions for one satellite (since stream open). */
 #define SKY_TRACK_CAP   1440    /* 24 hours at SKY_TRACK_INTERVAL_S = 60 s/point */
@@ -360,7 +382,21 @@ typedef struct {
     volatile LONG  streamBytes;       /* total data bytes received */
     volatile LONG  streamFormat;      /* 0=none, 1=RTCM3, 2=UBX, 3=SBF, 4=RT27, 5=LB2, 6=Unknown */
     char           sourceFormat[32];  /* Format string from sourcetable (e.g. "RTCM 3.2", "RT27") */
-    char           sourceDetails[128]; /* Details string from sourcetable */
+    char           sourceDetails[256]; /* Details string from sourcetable */
+
+    /* ── Advertised message types (parsed from sourceDetails) ──────
+     * The sourcetable STR format-details field lists what the mountpoint
+     * claims to send, as "1077(1),1087(1),1005(10)" -- type with its
+     * interval in seconds.  advInterval[t] > 0 means type t is advertised
+     * at that interval; 0 means it is not advertised at all.
+     *
+     * advValid is FALSE when no sourcetable entry could be obtained for
+     * this mountpoint, in which case no advertised-vs-observed comparison
+     * is possible and the Status column reads "unknown". */
+    float advInterval[GUI_MAX_MSG_TYPES];
+    BOOL  advValid;
+    int   advCount;                   /* number of advertised types */
+    BOOL  advAutoFetched;             /* TRUE if fetched implicitly on connect */
     LONG           streamBytesLast;   /* snapshot for rate calc (UI side) */
     double         streamRateTime;    /* timestamp of last rate calc */
 
@@ -529,6 +565,33 @@ void LogPumpTimer(AppState *state);
 
 /* gui_parsers.c */
 void ParseMountTable(const char *raw, HWND listview, double userLat, double userLon);
+
+/**
+ * @brief Find one mountpoint's STR line in a raw sourcetable.
+ *
+ * Extracts the Format (field 3) and format-details (field 4) columns for
+ * @p mountpoint.  A leading '/' on either name is ignored, and the match
+ * is case-insensitive, matching the caster conventions users hit in
+ * practice.
+ *
+ * @return TRUE if the mountpoint was found and the outputs were written.
+ */
+BOOL SourcetableFindMountpoint(const char *raw, const char *mountpoint,
+                               char *fmt_out, size_t fmt_sz,
+                               char *det_out, size_t det_sz);
+
+/**
+ * @brief Parse a sourcetable format-details string into advertised intervals.
+ *
+ * Accepts the usual "1077(1),1087(1),1005(10)" form, tolerates whitespace,
+ * and treats a bare type with no parenthesised interval as advertised with
+ * an unknown interval (recorded as -1).
+ *
+ * @param details   Format-details string; may be NULL or empty.
+ * @param out       Array of GUI_MAX_MSG_TYPES floats, zeroed by this call.
+ * @return number of advertised message types found.
+ */
+int ParseAdvertisedTypes(const char *details, float *out);
 
 /* gui_events.c — config helpers */
 void GuiToConfig(AppState *state);

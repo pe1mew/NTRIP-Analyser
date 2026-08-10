@@ -222,6 +222,48 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     bool unsupported_logged = false;
     bool first_data_check = true;   /* true until first data byte is checked */
 
+    /* ── Fetch the sourcetable if we do not have this mountpoint ──────
+     * The Format/Details fields are only populated when the user fetched
+     * the mountpoint list first.  Connecting to a typed-in mountpoint
+     * would otherwise leave nothing to compare observed message types
+     * against, so pull the sourcetable here -- on the worker, before the
+     * stream connect, so the UI never blocks.  A caster that refuses is
+     * not an error: advValid simply stays FALSE and the Status column
+     * reads "unknown". */
+    if (state->sourceDetails[0] == '\0') {
+        printf("[INFO] No sourcetable entry for this mountpoint; fetching...\n");
+        fflush(stdout);
+
+        char *table = receive_mount_table(&state->config);
+        if (table) {
+            if (SourcetableFindMountpoint(table, state->config.MOUNTPOINT,
+                                          state->sourceFormat,
+                                          sizeof(state->sourceFormat),
+                                          state->sourceDetails,
+                                          sizeof(state->sourceDetails))) {
+                state->advCount = ParseAdvertisedTypes(state->sourceDetails,
+                                                       state->advInterval);
+                state->advValid = (state->advCount > 0);
+                state->advAutoFetched = TRUE;
+                printf("[INFO] Sourcetable: mountpoint advertises %d type(s): %s\n",
+                       state->advCount, state->sourceDetails);
+            } else {
+                printf("[WARN] Mountpoint not listed in the caster's sourcetable; "
+                       "no advertised-vs-observed comparison available.\n");
+            }
+            /* We fetched the whole sourcetable anyway, so hand it to the UI
+             * to fill the mountpoint list rather than throwing it away --
+             * the user gets the same table they would have got from "Get
+             * Mountpoints", without the extra click.  The UI thread takes
+             * ownership of the string and frees it. */
+            PostMessage(state->hMain, WM_APP_SOURCETABLE, 0, (LPARAM)table);
+        } else {
+            printf("[WARN] Could not fetch sourcetable; no advertised-vs-observed "
+                   "comparison available.\n");
+        }
+        fflush(stdout);
+    }
+
     /* ── Pre-seed format from sourcetable if available ──────── */
     /* The sourcetable Format + Details columns identify the stream type.
      * RAW streams (RT27, LB2) are wrapped inside RTCM 3.x framing, so
@@ -580,22 +622,46 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                         fflush(stdout);
                     }
 
-                    /* Update message type stats */
+                    /* Update message type stats.
+                     *
+                     * Timing is sampled once per EPOCH, not per frame.  A
+                     * constellation whose observations do not fit in one
+                     * frame is split across several frames carrying the
+                     * same epoch field, and treating each as a separate
+                     * message would report a base sending 1127 twice per
+                     * second when it is in fact sending one epoch per
+                     * second in two parts -- correct behaviour that would
+                     * otherwise be flagged as an off-rate fault. */
                     double now = gui_get_time_seconds();
                     GuiMsgStat *s = &state->msgStats[msg_type];
 
-                    if (!s->seen) {
-                        s->seen = true;
-                        s->last_time = now;
-                        s->min_dt = s->max_dt = s->sum_dt = 0.0;
-                    } else {
-                        double dt = now - s->last_time;
-                        s->last_time = now;
-                        s->sum_dt += dt;
-                        if (dt < s->min_dt || s->min_dt == 0.0)
-                            s->min_dt = dt;
-                        if (dt > s->max_dt)
-                            s->max_dt = dt;
+                    uint32_t epoch = 0;
+                    bool has_epoch = msm_get_epoch(msg_buf + 3, msg_target - 6,
+                                                   msg_type, &epoch) != 0;
+                    bool new_epoch = !has_epoch          /* non-MSM: every frame counts */
+                                     || !s->has_epoch    /* first MSM frame of this type */
+                                     || epoch != s->last_epoch;
+
+                    if (has_epoch) {
+                        s->last_epoch = epoch;
+                        s->has_epoch  = true;
+                    }
+
+                    if (new_epoch) {
+                        if (!s->seen) {
+                            s->seen = true;
+                            s->last_time = now;
+                            s->min_dt = s->max_dt = s->sum_dt = 0.0;
+                        } else {
+                            double dt = now - s->last_time;
+                            s->last_time = now;
+                            s->sum_dt += dt;
+                            if (dt < s->min_dt || s->min_dt == 0.0)
+                                s->min_dt = dt;
+                            if (dt > s->max_dt)
+                                s->max_dt = dt;
+                        }
+                        s->epochs++;
                     }
                     s->count++;
 
@@ -1119,19 +1185,32 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
             total_bytes += frame_len;
             InterlockedExchangeAdd(&state->streamBytes, (LONG)frame_len);
 
-            /* Per-MSM-type stats */
+            /* Per-MSM-type stats -- epoch-sampled, see the obs worker. */
             double now = gui_get_time_seconds();
             GuiMsgStat *s = &state->msgStats[msg_type];
-            if (!s->seen) {
-                s->seen = true;
-                s->last_time = now;
-                s->min_dt = s->max_dt = s->sum_dt = 0.0;
-            } else {
-                double dt = now - s->last_time;
-                s->last_time = now;
-                s->sum_dt += dt;
-                if (dt < s->min_dt || s->min_dt == 0.0) s->min_dt = dt;
-                if (dt > s->max_dt) s->max_dt = dt;
+
+            uint32_t epoch = 0;
+            bool has_epoch = msm_get_epoch(msg_buf + 3, msg_length,
+                                           msg_type, &epoch) != 0;
+            bool new_epoch = !has_epoch || !s->has_epoch || epoch != s->last_epoch;
+            if (has_epoch) {
+                s->last_epoch = epoch;
+                s->has_epoch  = true;
+            }
+
+            if (new_epoch) {
+                if (!s->seen) {
+                    s->seen = true;
+                    s->last_time = now;
+                    s->min_dt = s->max_dt = s->sum_dt = 0.0;
+                } else {
+                    double dt = now - s->last_time;
+                    s->last_time = now;
+                    s->sum_dt += dt;
+                    if (dt < s->min_dt || s->min_dt == 0.0) s->min_dt = dt;
+                    if (dt > s->max_dt) s->max_dt = dt;
+                }
+                s->epochs++;
             }
             s->count++;
             PostMessage(state->hMain, WM_APP_STAT_UPDATE,

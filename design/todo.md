@@ -33,6 +33,32 @@ Item numbers are stable and are never reused or renumbered, so shipped items kee
 
 Retained so the list does not re-propose work that is already done.
 
+### 1.1 Diff advertised vs. observed RTCM message types — **Shipped**
+
+The Msg Stats tab gained **Advertised** and **Status** columns rather than a separate view — that
+table already is "message types", so the comparison belongs where the observations live and column
+sorting keeps working. Four verdicts, colour-coded by `NM_CUSTOMDRAW`: `ok`, `missing` (red),
+`slow`/`fast Nx` (amber), `extra` (blue). Advertised types are seeded as rows at connect with count
+0, since a type that never arrives has no row to appear in otherwise and would be invisible by its
+absence — which is the whole point of the check.
+
+`ParseAdvertisedTypes()` and `SourcetableFindMountpoint()` live in `gui/gui_parsers.c`. The
+sourcetable is fetched automatically on the worker thread when the mountpoint was typed in rather
+than picked from the list, and the fetched table also fills the mountpoint list via
+`WM_APP_SOURCETABLE` instead of being discarded.
+
+**Rate comparison must be per epoch, not per frame.** MSM splits one epoch across several frames of
+the same type when the observations do not fit in one frame, so a base sending 1127 once per second
+in two parts appears to send it twice per second. Timing is therefore sampled only when the MSM
+epoch field changes (`msm_get_epoch()`), and the Status column appends `N frames/ep` when a type is
+split, so a doubled frame count is self-explanatory.
+
+Note DF393, the multiple-message bit, does **not** identify these splits: measured on a real
+capture it was set on five of six MSM types and clear on 1127, with no splitting present at all. It
+marks the end of the whole multi-constellation bundle for a station and epoch, not the end of one
+message type's frames. `msm_get_multiple_message_bit()` exposes it for bundle-boundary work, but
+the epoch field is what the rate check uses.
+
 ### 2.2 Raw stream capture and offline replay — **Shipped**
 
 Capture writes raw frames to disk from the File menu (`gui/gui_thread.c:547`); the replay worker
@@ -74,19 +100,7 @@ see item 4.3.
 
 ## 1. Tier 1 — High value, low effort
 
-### 1.1 Diff advertised vs. observed RTCM message types — **Open**
-
-Compare the message types a mountpoint advertises in its sourcetable STR line against the types
-actually observed on the stream, and report the difference.
-
-- **Why** — Public casters routinely advertise `1004,1005,1012` while streaming MSM7, or advertise
-  messages that never arrive. This is probably the most common real-world base misconfiguration,
-  and it is invisible unless the two lists are placed side by side.
-- **Inspiration** — `[ESP32]` `src/network/DataOutput.cpp`, which generates a sourcetable STR line
-  declaring its supported RTCM message types.
-- **Notes** — Both halves are already in memory. The sourcetable Format and Details strings are now
-  captured into `AppState` (`sourceFormat`, `sourceDetails` at `gui/gui_state.h:304-305`), and the
-  Msg Stats tab counts observed types. Only the comparison is missing.
+### 1.1 Diff advertised vs. observed RTCM message types — **Shipped**, see §0
 
 ### 1.2 Cross-check sourcetable position against broadcast ARP — **Open**
 

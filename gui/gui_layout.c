@@ -323,10 +323,12 @@ void CreateControls(HWND hwnd, AppState *state)
 
     LvAddColumn(state->hLvMsgStats, 0, "Message Type", 100);
     LvAddColumn(state->hLvMsgStats, 1, "Count",         70);
-    LvAddColumn(state->hLvMsgStats, 2, "Min dt (s)",   100);
-    LvAddColumn(state->hLvMsgStats, 3, "Max dt (s)",   100);
-    LvAddColumn(state->hLvMsgStats, 4, "Avg dt (s)",   100);
-    LvAddColumn(state->hLvMsgStats, 5, "Description",  220);
+    LvAddColumn(state->hLvMsgStats, 2, "Min dt (s)",    90);
+    LvAddColumn(state->hLvMsgStats, 3, "Max dt (s)",    90);
+    LvAddColumn(state->hLvMsgStats, 4, "Avg dt (s)",    90);
+    LvAddColumn(state->hLvMsgStats, 5, "Advertised",    85);
+    LvAddColumn(state->hLvMsgStats, 6, "Status",       110);
+    LvAddColumn(state->hLvMsgStats, 7, "Description",  220);
 
     /* Satellites ListView (hidden by default) */
     state->hLvSatellites = CreateWindowEx(WS_EX_CLIENTEDGE,

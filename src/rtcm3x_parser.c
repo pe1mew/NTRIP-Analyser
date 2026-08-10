@@ -139,6 +139,35 @@ int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
     return (int64_t)val;
 }
 
+int msm_get_epoch(const unsigned char *payload, int payload_len,
+                  int msg_type, uint32_t *epoch_out)
+{
+    if (!payload || !epoch_out) return 0;
+    if (msg_type < 1071 || msg_type > 1137) return 0;
+    if (payload_len < 8) return 0;   /* need 54+ header bits */
+
+    /* MSM header, RTCM 10403.3:
+     *   DF002 message number     12 bits @ 0
+     *   DF003 reference station  12 bits @ 12
+     *   GNSS epoch time          30 bits @ 24
+     *   DF393 multiple message    1 bit  @ 54
+     *
+     * The epoch field is 30 bits wide for every constellation -- GLONASS
+     * packs a 3-bit day plus 27-bit millisecond-of-day into the same
+     * width -- so one offset serves all MSM types. */
+    *epoch_out = (uint32_t)get_bits(payload, 24, 30);
+    return 1;
+}
+
+int msm_get_multiple_message_bit(const unsigned char *payload, int payload_len,
+                                 int msg_type)
+{
+    if (!payload) return -1;
+    if (msg_type < 1071 || msg_type > 1137) return -1;
+    if (payload_len < 8) return -1;
+    return (int)get_bits(payload, 54, 1);
+}
+
 int msm_extract_prns(const unsigned char *payload, int payload_len,
                      int msg_type, int *prns_out, int max_prns,
                      int *gnss_id_out)
