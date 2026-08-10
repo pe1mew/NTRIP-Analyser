@@ -149,6 +149,19 @@ typedef char sky_track_point_is_16_bytes[(sizeof(SkyTrackPoint) == 16) ? 1 : -1]
  * the plot when an SV sets and rises hours later. */
 #define SKY_TRACK_GAP_BREAK_S   300.0
 
+/** @brief How the connected mountpoint serves corrections.
+ *
+ * Distinguishing these matters because a fixed base and a virtual station
+ * behave oppositely: a fixed base that moves is broken, while a virtual
+ * station is *expected* to move, since the network places it at the rover.
+ * Applying the fixed-base checks to a VRS produces nothing but false
+ * alarms. */
+enum {
+    STATION_UNKNOWN = 0,  /* not enough evidence yet */
+    STATION_FIXED   = 1,  /* single physical base at a fixed ARP */
+    STATION_VRS     = 2,  /* VRS / MAC / nearest-base network service */
+};
+
 /** @brief Advertised-vs-observed verdict for one message type.
  *
  * Stored in each Msg Stats ListView item's lParam so the custom-draw
@@ -397,6 +410,23 @@ typedef struct {
     BOOL  advValid;
     int   advCount;                   /* number of advertised types */
     BOOL  advAutoFetched;             /* TRUE if fetched implicitly on connect */
+
+    /* ── Sourcetable position + station classification ─────────────
+     * The STR line's declared position, used to cross-check the ARP the
+     * station actually broadcasts in RTCM 1005/1006.  A large mismatch
+     * usually means the base was registered with the caster using wrong
+     * coordinates.
+     *
+     * That check is only meaningful for a FIXED base.  On a VRS or
+     * nearest-base service the reference point legitimately follows the
+     * rover, so classification has to happen first or every network
+     * stream reads as a fault.  See stationType. */
+    double sourceLat, sourceLon;      /* from the sourcetable STR line */
+    BOOL   sourcePosValid;
+    char   sourceNetwork[64];         /* Network field, also carries VRS hints */
+
+    int    stationType;               /* STATION_* below */
+    char   stationWhy[160];           /* which signal decided it, for display */
     LONG           streamBytesLast;   /* snapshot for rate calc (UI side) */
     double         streamRateTime;    /* timestamp of last rate calc */
 
@@ -592,6 +622,13 @@ BOOL SourcetableFindMountpoint(const char *raw, const char *mountpoint,
  * @return number of advertised message types found.
  */
 int ParseAdvertisedTypes(const char *details, float *out);
+
+/**
+ * @brief Case-insensitive substring search (strstr that ignores case).
+ *
+ * @return Pointer into @p haystack at the first match, or NULL.
+ */
+const char *stristr(const char *haystack, const char *needle);
 
 /* gui_events.c — config helpers */
 void GuiToConfig(AppState *state);

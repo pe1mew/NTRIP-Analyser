@@ -59,6 +59,32 @@ marks the end of the whole multi-constellation bundle for a station and epoch, n
 message type's frames. `msm_get_multiple_message_bit()` exposes it for bundle-boundary work, but
 the epoch field is what the rate check uses.
 
+### 1.2 Cross-check sourcetable position against broadcast ARP — **Shipped**
+
+Four rows on the Stream Health tab: station type, broadcast ARP, sourcetable match, ARP stability.
+They live there because they are stream-level facts about the connection, alongside the CRC and
+advertised-type rows, and the detail column has room for the explanation — which matters when the
+answer is "14.3 km, check the caster registration". The declared position is captured from the
+mountpoint list at connect (`sourceLat`/`sourceLon`), the broadcast one comes from
+`rtcm_get_station_arp()`, and movement re-uses the `vrsArpHist*` accumulator that already records
+positions more than ~10 m apart.
+
+**This required the VRS classification that 1.2 depended on.** A virtual station's reference point
+legitimately follows the rover, so without classification every network stream reported a large
+sourcetable mismatch and a moving ARP — both false alarms. `ClassifyStation()` uses two signals and
+always reports which one fired: sourcetable keywords, and the behavioural test that the ARP sits
+within 150 m of the GGA being sent. On a VRS the sourcetable comparison reads `n/a` and ARP
+movement is reported as hand-overs rather than a fault. This closes remaining items 1 and 2 of
+§2.4; hand-over logging, GGA uplink compliance and baseline sanity remain open.
+
+Keyword matching requires **token boundaries**, not substrings. "LINEAR" contains "NEAR" and
+"MACHINE" contains "MAC", and a false VRS verdict is the dangerous direction of error because it
+*suppresses* the position checks, hiding the fault the feature exists to find.
+
+Known limit: the 150 m band is a heuristic. A physical base genuinely that close to the rover would
+be classified VRS and have its checks suppressed. The conclusive test — shift the GGA with the VRS
+Monitor's direction buttons and see whether the ARP follows — is not wired into the classifier.
+
 ### 2.2 Raw stream capture and offline replay — **Shipped**
 
 Capture writes raw frames to disk from the File menu (`gui/gui_thread.c:547`); the replay worker
@@ -102,22 +128,7 @@ see item 4.3.
 
 ### 1.1 Diff advertised vs. observed RTCM message types — **Shipped**, see §0
 
-### 1.2 Cross-check sourcetable position against broadcast ARP — **Open**
-
-Compare the mountpoint's sourcetable latitude/longitude against the Antenna Reference Point
-broadcast in RTCM 1005/1006, and monitor 1005 over time for mid-session position jumps.
-
-- **Why** — A mismatch catches copy-paste errors made when the base was registered with the caster.
-  Watching 1005 across a session catches a base that silently changes position, a fault that is
-  near-impossible to spot by eye and that degrades every rover downstream.
-- **Inspiration** — `[ESP32]` `src/gnss/GNSS_Processor.cpp`, which treats 1005 as authoritative and
-  flags ARP changes above a 0.2 mm threshold.
-- **Notes** — `decode_rtcm_1005()` (`src/rtcm3x_parser.c:576`) already decodes the ECEF position and
-  computes distance and heading to the configured rover position. `gui/gui_parsers.c` has a
-  Haversine implementation for the mountpoint distance column.
-- **Depends on item 2.4** — this check assumes a single fixed base. On a VRS or nearest-base service
-  the ARP legitimately follows the rover, so both halves of this item produce false alarms until the
-  stream can be classified. Do 2.4 first.
+### 1.2 Cross-check sourcetable position against broadcast ARP — **Shipped**, see §0
 
 ### 1.3 Surface CRC-24Q error rate as a first-class metric — **Shipped**, see §0
 
@@ -233,14 +244,10 @@ on its own terms: baseline to the virtual station, hand-over behaviour, and GGA 
 
 Remaining work:
 
-1. **Classify the mountpoint.** Two independent signals, both cheap: the sourcetable Details and
-   Network fields (`VRS`, `MAC`, `NEAR`, `FKP`, `iMAX`, `SSR`), now available in `AppState`
-   (`gui/gui_state.h:304-305`); and behavioural detection — an ARP that tracks the rover GGA within
-   a few metres is a virtual station regardless of what the sourcetable claims. The behavioural test
-   is the authoritative one, since sourcetable metadata is frequently wrong.
-2. **Gate item 1.2 on the classification.** The static-position and position-jump checks must be
-   suppressed, or reinterpreted, once a stream is classified VRS. This is the dependency that makes
-   this item worth doing before 1.2 rather than after.
+1. ~~**Classify the mountpoint.**~~ **Done** — `ClassifyStation()` in `gui/gui_events.c`, using
+   sourcetable keywords (token-boundary matched) plus the behavioural ARP-tracks-GGA test.
+2. ~~**Gate item 1.2 on the classification.**~~ **Done** — the sourcetable comparison reads `n/a`
+   and ARP movement is reported as hand-overs when the stream is classified VRS.
 3. **Report hand-overs explicitly.** The ARP dots make swaps visible on the plot, but the event
    itself — timestamp, old and new ARP, distance jumped — should reach the log and the item 2.1
    timeline, since a hand-over mid-survey is a plausible cause of a position discontinuity the user

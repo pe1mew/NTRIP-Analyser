@@ -252,3 +252,14 @@ int ParseAdvertisedTypes(const char *details, float *out)
     }
     return found;
 }
+
+const char *stristr(const char *haystack, const char *needle)
+{
+    if (!haystack || !needle || !*needle) return NULL;
+    size_t nlen = strlen(needle);
+    for (; *haystack; haystack++) {
+        if (_strnicmp(haystack, needle, nlen) == 0)
+            return haystack;
+    }
+    return NULL;
+}

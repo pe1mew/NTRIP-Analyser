@@ -318,6 +318,124 @@ static void HealthSetRow(HWND hLv, int row, const char *metric,
 }
 
 /**
+ * @brief Great-circle distance in metres between two WGS-84 positions.
+ */
+static double geo_distance_m(double lat1, double lon1, double lat2, double lon2)
+{
+    const double R = 6371008.8;            /* mean Earth radius, metres */
+    double p1 = lat1 * M_PI / 180.0;
+    double p2 = lat2 * M_PI / 180.0;
+    double dp = (lat2 - lat1) * M_PI / 180.0;
+    double dl = (lon2 - lon1) * M_PI / 180.0;
+    double a  = sin(dp / 2) * sin(dp / 2) +
+                cos(p1) * cos(p2) * sin(dl / 2) * sin(dl / 2);
+    return 2.0 * R * atan2(sqrt(a), sqrt(1.0 - a));
+}
+
+/** VRS keywords as they appear in sourcetable Details / Network fields. */
+static const char *k_vrs_keywords[] = {
+    "VRS", "MAC", "NEAR", "FKP", "IMAX", "SSR",
+};
+
+/**
+ * @brief Case-insensitive search for @p token as a whole word.
+ *
+ * A plain substring test is not safe here.  These keywords are short --
+ * "MAC", "SSR", "NEAR" -- and appear inside ordinary words: "LINEAR"
+ * contains "NEAR", "MACHINE" contains "MAC".  Matching those would
+ * classify a fixed base as a virtual station, which *suppresses* the
+ * position checks and hides the very fault this feature exists to find,
+ * so the error must not be made in that direction.
+ *
+ * A match therefore requires non-alphanumeric characters (or the string
+ * ends) on both sides, which still matches the real forms: "VRS",
+ * "NET-VRS", "1077(1) MAC", "Network;NEAR;".
+ */
+static bool contains_token_ci(const char *haystack, const char *token)
+{
+    if (!haystack || !token || !*token) return false;
+    size_t tlen = strlen(token);
+
+    for (const char *p = haystack; *p; p++) {
+        if (_strnicmp(p, token, tlen) != 0) continue;
+
+        char before = (p == haystack) ? '\0' : p[-1];
+        char after  = p[tlen];
+        bool lhs_ok = (before == '\0') || !isalnum((unsigned char)before);
+        bool rhs_ok = (after  == '\0') || !isalnum((unsigned char)after);
+        if (lhs_ok && rhs_ok) return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Classify the mountpoint as a fixed base or a network service.
+ *
+ * Two independent signals, either sufficient:
+ *
+ *   1. Sourcetable keywords in the Details or Network field.  Cheap, but
+ *      sourcetable metadata is frequently wrong or absent.
+ *   2. Behavioural: the broadcast ARP sits essentially on top of the GGA
+ *      position we are sending.  A virtual station is placed at the rover
+ *      by definition, whereas a real base is normally kilometres away.
+ *      This is the authoritative signal when the two disagree, since it
+ *      observes what the caster actually does.
+ *
+ * Called from the 1 Hz status timer, so it re-evaluates as evidence
+ * arrives -- the ARP is not known until the first 1005/1006.
+ */
+static void ClassifyStation(AppState *state)
+{
+    /* 1. Sourcetable keywords. */
+    for (size_t i = 0; i < sizeof(k_vrs_keywords) / sizeof(k_vrs_keywords[0]); i++) {
+        const char *kw = k_vrs_keywords[i];
+        if (contains_token_ci(state->sourceDetails, kw) ||
+            contains_token_ci(state->sourceNetwork, kw)) {
+            state->stationType = STATION_VRS;
+            snprintf(state->stationWhy, sizeof(state->stationWhy),
+                     "sourcetable names \"%s\"", kw);
+            return;
+        }
+    }
+
+    /* 2. Behavioural: does the reference point sit on the rover? */
+    bool   arp_valid = false;
+    double arp_lat = 0.0, arp_lon = 0.0;
+    rtcm_get_station_arp(&arp_valid, NULL, NULL, NULL, &arp_lat, &arp_lon, NULL);
+
+    if (!arp_valid) {
+        state->stationType = STATION_UNKNOWN;
+        snprintf(state->stationWhy, sizeof(state->stationWhy),
+                 "no RTCM 1005/1006 received yet");
+        return;
+    }
+
+    double gga_lat = state->ggaCurrentLat;
+    double gga_lon = state->ggaCurrentLon;
+    if (gga_lat != 0.0 || gga_lon != 0.0) {
+        double d_m = geo_distance_m(arp_lat, arp_lon, gga_lat, gga_lon);
+        /* 150 m: comfortably above VRS placement error, far below the
+         * separation to any real base worth analysing.  A physical base
+         * this close to the rover is possible, so the reason string always
+         * states the evidence rather than asserting the verdict. */
+        if (d_m < 150.0) {
+            state->stationType = STATION_VRS;
+            snprintf(state->stationWhy, sizeof(state->stationWhy),
+                     "reference point sits %.0f m from the GGA being sent", d_m);
+            return;
+        }
+    }
+
+    state->stationType = STATION_FIXED;
+    if (state->vrsArpHistCount > 1)
+        snprintf(state->stationWhy, sizeof(state->stationWhy),
+                 "reference point is independent of the rover position");
+    else
+        snprintf(state->stationWhy, sizeof(state->stationWhy),
+                 "reference point unchanged for the whole session");
+}
+
+/**
  * @brief Repopulate the Stream Health tab from the worker counters.
  *
  * Stream-level frame integrity: how many frames arrived intact, how
@@ -406,6 +524,99 @@ static void RefreshStreamHealth(AppState *state)
                  state->advAutoFetched ? "  (sourcetable fetched on connect)" : "");
         HealthSetRow(hLv, 6, "Advertised types", v, d);
     }
+
+    /* ── Reference-station position checks ────────────────────────
+     * All of these are only meaningful once the station has been
+     * classified: on a VRS the reference point is *supposed* to move and
+     * to sit at the rover, so the fixed-base checks are suppressed rather
+     * than reported as faults. */
+    ClassifyStation(state);
+
+    const char *type_txt =
+        (state->stationType == STATION_VRS)   ? "VRS / network" :
+        (state->stationType == STATION_FIXED) ? "fixed base"    : "unknown";
+    HealthSetRow(hLv, 7, "Station type", type_txt, state->stationWhy);
+
+    bool   arp_valid = false;
+    double arp_lat = 0.0, arp_lon = 0.0, arp_alt = 0.0;
+    rtcm_get_station_arp(&arp_valid, NULL, NULL, NULL, &arp_lat, &arp_lon, &arp_alt);
+
+    if (!arp_valid) {
+        HealthSetRow(hLv, 8, "Broadcast ARP", "-",
+                     "No RTCM 1005/1006 received; the station has not stated its position");
+        HealthSetRow(hLv, 9, "Sourcetable match", "-",
+                     "Needs a broadcast ARP to compare against");
+        HealthSetRow(hLv, 10, "ARP stability", "-", "Needs a broadcast ARP");
+        return;
+    }
+
+    snprintf(v, sizeof(v), "%.5f, %.5f", arp_lat, arp_lon);
+    snprintf(d, sizeof(d), "From RTCM 1005/1006, altitude %.1f m", arp_alt);
+    HealthSetRow(hLv, 8, "Broadcast ARP", v, d);
+
+    /* Declared vs broadcast position. */
+    if (state->stationType == STATION_VRS) {
+        HealthSetRow(hLv, 9, "Sourcetable match", "n/a",
+                     "Virtual station follows the rover -- comparison not meaningful");
+    } else if (!state->sourcePosValid) {
+        HealthSetRow(hLv, 9, "Sourcetable match", "-",
+                     "Sourcetable states no position for this mountpoint");
+    } else {
+        double d_m = geo_distance_m(state->sourceLat, state->sourceLon,
+                                    arp_lat, arp_lon);
+        if (d_m < 1000.0) snprintf(v, sizeof(v), "%.0f m", d_m);
+        else              snprintf(v, sizeof(v), "%.2f km", d_m / 1000.0);
+
+        /* 100 m tolerance: sourcetable coordinates are conventionally
+         * given to about 4 decimal places and describe the site rather
+         * than the antenna, so metre-level agreement is not expected. */
+        if (d_m <= 100.0) {
+            snprintf(d, sizeof(d), "Sourcetable says %.4f, %.4f -- consistent",
+                     state->sourceLat, state->sourceLon);
+        } else {
+            snprintf(d, sizeof(d),
+                     "Sourcetable says %.4f, %.4f -- check the caster registration",
+                     state->sourceLat, state->sourceLon);
+        }
+        HealthSetRow(hLv, 9, "Sourcetable match", v, d);
+    }
+
+    /* Did the reference point move during the session?  vrsArpHist
+     * already accumulates positions more than ~10 m apart. */
+    int moves = state->vrsArpHistCount > 0 ? state->vrsArpHistCount - 1 : 0;
+    if (state->stationType == STATION_VRS) {
+        snprintf(v, sizeof(v), "%d hand-over%s", moves, moves == 1 ? "" : "s");
+        snprintf(d, sizeof(d),
+                 "Expected for a network service; see View -> VRS Monitor");
+    } else if (moves == 0) {
+        snprintf(v, sizeof(v), "stable");
+        snprintf(d, sizeof(d),
+                 "One position across %ld broadcast%s",
+                 (long)state->msgStats[1005].count + state->msgStats[1006].count,
+                 (state->msgStats[1005].count + state->msgStats[1006].count) == 1 ? "" : "s");
+    } else {
+        /* Largest jump between successive recorded positions. */
+        double worst = 0.0;
+        for (int i = 1; i < state->vrsArpHistCount; i++) {
+            double dd = geo_distance_m(state->vrsArpHistLat[i - 1],
+                                       state->vrsArpHistLon[i - 1],
+                                       state->vrsArpHistLat[i],
+                                       state->vrsArpHistLon[i]);
+            if (dd > worst) worst = dd;
+        }
+        snprintf(v, sizeof(v), "moved %dx", moves);
+        if (worst < 1000.0)
+            snprintf(d, sizeof(d),
+                     "%d distinct positions, largest jump %.0f m -- a fixed base "
+                     "should not move; corrections are unreliable",
+                     state->vrsArpHistCount, worst);
+        else
+            snprintf(d, sizeof(d),
+                     "%d distinct positions, largest jump %.2f km -- a fixed base "
+                     "should not move; corrections are unreliable",
+                     state->vrsArpHistCount, worst / 1000.0);
+    }
+    HealthSetRow(hLv, 10, "ARP stability", v, d);
 }
 
 /**
@@ -807,8 +1018,12 @@ static void OnOpenStream(HWND hwnd, AppState *state)
      * path when user double-clicked a row), then fall back to a name
      * search through all rows.  Skip leading '/' in mountpoint names
      * since some configs store it with or without the slash. */
-    state->sourceFormat[0] = '\0';
+    state->sourceFormat[0]  = '\0';
     state->sourceDetails[0] = '\0';
+    state->sourceNetwork[0] = '\0';
+    state->sourceLat        = 0.0;
+    state->sourceLon        = 0.0;
+    state->sourcePosValid   = FALSE;
     {
         const char *mpName = state->config.MOUNTPOINT;
         if (mpName[0] == '/') mpName++;   /* skip leading '/' */
@@ -840,6 +1055,22 @@ static void OnOpenStream(HWND hwnd, AppState *state)
                                  state->sourceFormat, sizeof(state->sourceFormat));
             ListView_GetItemText(state->hLvMountpoints, found, 3,
                                  state->sourceDetails, sizeof(state->sourceDetails));
+            ListView_GetItemText(state->hLvMountpoints, found, 6,
+                                 state->sourceNetwork, sizeof(state->sourceNetwork));
+
+            /* Declared position, for the cross-check against the ARP the
+             * station actually broadcasts. */
+            char latBuf[32] = "", lonBuf[32] = "";
+            ListView_GetItemText(state->hLvMountpoints, found, 8, latBuf, sizeof(latBuf));
+            ListView_GetItemText(state->hLvMountpoints, found, 9, lonBuf, sizeof(lonBuf));
+            if (latBuf[0] && lonBuf[0]) {
+                state->sourceLat = atof(latBuf);
+                state->sourceLon = atof(lonBuf);
+                /* 0,0 is the caster convention for "not stated", not a
+                 * position in the Gulf of Guinea. */
+                state->sourcePosValid = (state->sourceLat != 0.0 ||
+                                         state->sourceLon != 0.0);
+            }
         }
     }
 
@@ -851,6 +1082,8 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     state->advValid       = FALSE;
     state->advCount       = 0;
     state->advAutoFetched = FALSE;
+    state->stationType    = STATION_UNKNOWN;
+    state->stationWhy[0]  = '\0';
 
     if (state->sourceDetails[0]) {
         state->advCount = ParseAdvertisedTypes(state->sourceDetails,

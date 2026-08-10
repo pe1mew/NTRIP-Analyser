@@ -57,19 +57,8 @@ static double sky_get_glo_tod(void)
     return msk;
 }
 
-/**
- * @brief Case-insensitive substring search (like strstr but ignores case).
- */
-static const char *stristr(const char *haystack, const char *needle)
-{
-    if (!haystack || !needle || !*needle) return NULL;
-    size_t nlen = strlen(needle);
-    for (; *haystack; haystack++) {
-        if (_strnicmp(haystack, needle, nlen) == 0)
-            return haystack;
-    }
-    return NULL;
-}
+/* stristr() now lives in gui_parsers.c -- the station classifier in
+ * gui_events.c needs it too. */
 
 /* ── Get Mountpoints worker ──────────────────────────────── */
 
