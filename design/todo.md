@@ -107,7 +107,51 @@ broadcast in RTCM 1005/1006, and monitor 1005 over time for mid-session position
 
 ### 1.3 Surface CRC-24Q error rate as a first-class metric — **Shipped**, see §0
 
-### 1.4 Aggregate per-satellite C/N0 in the Satellites tab — **Partial**
+### 1.4 Per-satellite C/N0 visualisation — **Shipped**
+
+Two views in a floating **Signal Quality** window (View → Signal Quality,
+`gui/gui_signal_window.c`), following the same window pattern as the Sky Plot and VRS Monitor:
+
+- **Signal bars** — one bar per tracked SV, current-epoch C/N0, coloured by constellation using
+  the same hues as the sky plot so a satellite reads identically in both windows. Uses data
+  already in `SkySat`; no new storage.
+- **C/N0 vs elevation scatter** — every accumulated track sample, with a per-constellation mean
+  overlaid in 5° elevation bins. This is the view the item was filed for: a clean install rises
+  monotonically from horizon to zenith, while obstructions and multipath show as a dip at
+  particular elevations. Bins with fewer than 5 samples are skipped rather than drawn, so the mean
+  line never implies more confidence than the data supports.
+
+The scatter needed per-SV C/N0 history, which `SkyTrackBuffer` did not carry. Rather than grow it,
+`SkyTrackPoint.ts` was repacked from an absolute `double` to a `float ts_rel` offset from
+`SkyPlotState.sessionT0`, freeing room for `float cnr_dbhz` **at no memory cost** — the struct
+stays 16 bytes and the buffer stays 11.3 MB. A float resolves a 24-hour offset to better than
+0.01 s, far finer than the 60 s sampling, and every consumer compares differences rather than
+absolute times. A compile-time assertion in `gui_state.h` now pins the 16-byte size, since a future
+widening would silently cost 5.6 MB.
+
+Note the earlier memory figures in that header were wrong (24 B / 17.7 MB); the struct was 16 B /
+11.3 MB before this change too. Corrected.
+
+**Building this surfaced a parser bug that had made every C/N0 reading in the application wrong.**
+`msm7_extract_cnr()` and `msm7_update_per_band_cnr()` both assumed MSM signal data is laid out as
+contiguous 80-bit per-cell blocks, and read C/N0 at a fixed offset within each. MSM actually stores
+each field as its own array across all cells — every fine pseudorange, then every fine phase range,
+then every lock time, then every half-cycle flag, then every C/N0 — as the full MSM7 decoder in the
+same file correctly does. The extractors were therefore reading pseudorange and phase bits as C/N0.
+Measured on a 204-frame MSM7 capture, values spanned 0.75–63.94 dB-Hz and peaked in the 60–65
+bucket; after the fix they span 35–55 and peak at 45–50, which is the expected distribution. This
+also silently corrupted the sky plot's C/N0 shading and the per-SV detail window, both now correct.
+
+The scatter is fed by its own accumulator (`SigCnrState`) on every MSM epoch rather than from the
+trail buffer — the 60 s trail sampling yields one point per satellite per minute, far too sparse to
+read as a cloud.
+
+### 1.4b Per-constellation C/N0 columns in the Satellites tab — **Open**
+
+The Satellites ListView still shows only `GNSS` / `Sats Seen` / `Satellites`
+(`gui/gui_layout.c:338-340`). Min/mean/max C/N0 columns there would give a sortable tabular view
+alongside the charts, and `SatStatsSummary` (`src/ntrip_handler.h:103`) would need a C/N0 field —
+it currently carries only `sat_seen[]` flags.
 
 - **Why** — C/N0 is the primary indicator of antenna and siting quality at the base. A base with
   good message rates but poor C/N0 is quietly delivering bad corrections.

@@ -14,6 +14,7 @@
 #include "gui_state.h"
 #include "gui_sky_window.h"
 #include "gui_vrs_window.h"
+#include "gui_signal_window.h"
 #include "rtcm3x_parser.h"
 #include "rinex_nav.h"
 #include "config.h"
@@ -721,6 +722,8 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     memset(state->skyState.sectors, 0, sizeof(state->skyState.sectors));
     memset(state->skyState.sats,    0, sizeof(state->skyState.sats));
     state->skyState.filter_gnss_id = 0;
+    state->skyState.sessionT0      = gui_get_time_seconds();
+    memset(&state->sigCnr, 0, sizeof(state->sigCnr));
 
     /* Reset VRS analysis state too (distance, history, ARP cloud,
      * GGA override / counters).  Auto-send GGA defaults back to ON. */
@@ -1763,6 +1766,8 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             memset(state->skyState.sectors, 0, sizeof(state->skyState.sectors));
             memset(state->skyState.sats,    0, sizeof(state->skyState.sats));
             state->skyState.filter_gnss_id = 0;
+            state->skyState.sessionT0      = gui_get_time_seconds();
+            memset(&state->sigCnr, 0, sizeof(state->sigCnr));
             ListView_DeleteAllItems(state->hLvMsgStats);
             ListView_DeleteAllItems(state->hLvSatellites);
             for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
@@ -1941,6 +1946,21 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 state->hVrsWnd = CreateVrsWindow(hInst, hwnd, state);
                 if (!state->hVrsWnd) {
                     MessageBox(hwnd, "Failed to create VRS Monitor window.",
+                               APP_TITLE, MB_ICONERROR | MB_OK);
+                }
+            }
+            return 0;
+
+        case IDM_VIEW_SIGNAL_QUALITY:
+            if (state->hSignalWnd) {
+                if (IsIconic(state->hSignalWnd))
+                    ShowWindow(state->hSignalWnd, SW_RESTORE);
+                SetForegroundWindow(state->hSignalWnd);
+            } else {
+                HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+                state->hSignalWnd = CreateSignalWindow(hInst, hwnd, state);
+                if (!state->hSignalWnd) {
+                    MessageBox(hwnd, "Failed to create Signal Quality window.",
                                APP_TITLE, MB_ICONERROR | MB_OK);
                 }
             }
@@ -2254,7 +2274,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     SkySat *s = &state->skyState.sats[g][p - 1];
                     s->az_deg       = upd[i].az_deg;
                     s->el_deg       = upd[i].el_deg;
-                    s->cnr_dbhz     = upd[i].cnr_dbhz;
+                    /* Only MSM7 carries extended C/N0; msm7_extract_cnr()
+                     * returns zeros for MSM4/5/6.  Keep the last known
+                     * value rather than letting an interleaved non-MSM7
+                     * frame wipe it, which would make satellites blink in
+                     * and out of the Signal Quality bars.  Staleness is
+                     * still governed by last_seen_ts. */
+                    if (upd[i].cnr_dbhz > 0.0f)
+                        s->cnr_dbhz = upd[i].cnr_dbhz;
                     s->last_seen_ts = now;
                     s->valid        = true;
 
@@ -2264,17 +2291,42 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                      * makes any ephemeris-update step show up as a long
                      * straight line between two close-in-time samples --
                      * which is exactly the kind of glitch we want to see. */
+                    /* Feed the C/N0-vs-elevation accumulator on EVERY
+                     * epoch.  The trail append below is gated to one
+                     * sample per SKY_TRACK_INTERVAL_S, which is right for
+                     * sky trails but far too sparse to draw a scatter. */
+                    if (upd[i].cnr_dbhz > 0.0f && upd[i].el_deg >= 0.0f) {
+                        SigCnrState *sc = &state->sigCnr;
+                        double el = upd[i].el_deg;
+                        if (el > 90.0) el = 90.0;
+
+                        sc->pts[sc->head].el_deg   = (float)el;
+                        sc->pts[sc->head].cnr_dbhz = upd[i].cnr_dbhz;
+                        sc->pts[sc->head].gnss_id  = g;
+                        sc->head = (sc->head + 1) % SIG_SCATTER_CAP;
+                        if (sc->count < SIG_SCATTER_CAP) sc->count++;
+
+                        int b = (int)(el / SIG_EL_BIN_DEG);
+                        if (b >= SIG_EL_BINS) b = SIG_EL_BINS - 1;
+                        if (b < 0) b = 0;
+                        sc->binSum[g][b] += upd[i].cnr_dbhz;
+                        sc->binCnt[g][b] += 1;
+                        sc->total++;
+                    }
+
                     SkyTrackBuffer *tb = &s->track;
-                    double last_ts = 0.0;
+                    float now_rel = (float)(now - state->skyState.sessionT0);
+                    float last_ts = 0.0f;
                     if (tb->count > 0) {
                         int last_idx = (tb->head + SKY_TRACK_CAP - 1)
                                        % SKY_TRACK_CAP;
-                        last_ts = tb->pts[last_idx].ts;
+                        last_ts = tb->pts[last_idx].ts_rel;
                     }
-                    if (tb->count == 0 || (now - last_ts) >= SKY_TRACK_INTERVAL_S) {
-                        tb->pts[tb->head].az_deg = upd[i].az_deg;
-                        tb->pts[tb->head].el_deg = upd[i].el_deg;
-                        tb->pts[tb->head].ts     = now;
+                    if (tb->count == 0 || (now_rel - last_ts) >= SKY_TRACK_INTERVAL_S) {
+                        tb->pts[tb->head].az_deg   = upd[i].az_deg;
+                        tb->pts[tb->head].el_deg   = upd[i].el_deg;
+                        tb->pts[tb->head].cnr_dbhz = upd[i].cnr_dbhz;
+                        tb->pts[tb->head].ts_rel   = now_rel;
                         tb->head = (tb->head + 1) % SKY_TRACK_CAP;
                         if (tb->count < SKY_TRACK_CAP) tb->count++;
                     }

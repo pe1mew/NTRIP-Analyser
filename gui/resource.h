@@ -31,6 +31,7 @@
 /* ── Menu items: View ─────────────────────────────────────── */
 #define IDM_VIEW_SKY_PLOT       9020
 #define IDM_VIEW_VRS_MONITOR    9021
+#define IDM_VIEW_SIGNAL_QUALITY 9022
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */

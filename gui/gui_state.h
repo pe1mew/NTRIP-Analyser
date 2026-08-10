@@ -86,12 +86,28 @@ static inline double gui_get_time_seconds(void) {
     return (double)now.QuadPart / freq.QuadPart;
 }
 
-/** @brief A single past (az, el) sample for a satellite's track trail. */
+/** @brief A single past (az, el, C/N0) sample for a satellite's track trail.
+ *
+ * @c ts_rel is seconds since @ref SkyPlotState.sessionT0 rather than an
+ * absolute gui_get_time_seconds() value.  That keeps the struct at four
+ * floats -- 16 bytes -- so carrying C/N0 alongside position costs no extra
+ * memory.  A float holds a 24-hour session offset to better than 0.01 s,
+ * far finer than the 60 s sampling interval, and every consumer compares
+ * differences rather than absolute times.
+ */
 typedef struct {
-    float  az_deg;
-    float  el_deg;
-    double ts;            /**< gui_get_time_seconds() when the point was added */
+    float az_deg;
+    float el_deg;
+    float cnr_dbhz;       /**< C/N0 at this sample (0 = unknown) */
+    float ts_rel;         /**< seconds since SkyPlotState.sessionT0 */
 } SkyTrackPoint;
+
+/* Compile-time guard on the size above.  The trail buffer holds
+ * SKY_TRACK_CAP * 8 * 64 of these, so a silent widening to 24 bytes --
+ * which is what reintroducing a double would do -- would cost 5.6 MB
+ * without anyone noticing.  C99 has no _Static_assert, hence the
+ * negative-array-size idiom. */
+typedef char sky_track_point_is_16_bytes[(sizeof(SkyTrackPoint) == 16) ? 1 : -1];
 
 /** @brief Sampling interval (seconds) between track-buffer points.
  *
@@ -109,10 +125,12 @@ typedef struct {
  * straight chord across the plot.
  *
  * Memory cost: SKY_TRACK_CAP * sizeof(SkyTrackPoint) per SV slot
- *            = SKY_TRACK_CAP * 24 B * 8 GNSS * 64 PRN
- *            = 17.7 MB at the default 1440 entries.  Lower
+ *            = SKY_TRACK_CAP * 16 B * 8 GNSS * 64 PRN
+ *            = 11.3 MB at the default 1440 entries.  Lower
  * SKY_TRACK_CAP if you want a tighter memory footprint at the cost
- * of shorter trails.
+ * of shorter trails.  (Keeping SkyTrackPoint at four floats is what
+ * holds this figure -- widening ts_rel back to a double would push
+ * the struct to 24 B and the buffer to 16.9 MB.)
  */
 #define SKY_TRACK_INTERVAL_S    60.0
 
@@ -189,12 +207,51 @@ typedef struct {
 
     SkyPlotMode mode;
 
+    /* Reference epoch for SkyTrackPoint.ts_rel.  Stamped from
+     * gui_get_time_seconds() when a stream is opened, at the same point
+     * the sector grid is reset. */
+    double sessionT0;
+
     /* Per-GNSS filter for marker mode.  0 = show all constellations;
      * 1..7 = show only that gnss_id (G=1, R=2, E=3, J=4, C=5, S=6, I=7).
      * Toggled by clicking a legend chip in gui_sky_window.c.  Tracks for
      * hidden SVs stay in memory and reappear when the filter is cleared. */
     int filter_gnss_id;
 } SkyPlotState;
+
+/* ── C/N0 vs elevation accumulator (Signal Quality window) ───────────────
+ * Fed on EVERY MSM epoch, deliberately not gated by SKY_TRACK_INTERVAL_S.
+ * The 60 s trail sampling is right for sky trails but far too coarse for a
+ * scatter: at one point per SV per minute the cloud takes hours to become
+ * readable.  At a typical 1 Hz epoch with ~38 SVs this fills in seconds.
+ *
+ * Two parts with different jobs:
+ *   - a bounded ring of recent raw samples, which draws the point cloud
+ *     and therefore shows current conditions;
+ *   - unbounded per-constellation elevation-bin sums, which drive the mean
+ *     overlay and never forget, so the mean is session-long truth even
+ *     after the ring has wrapped.
+ */
+#define SIG_SCATTER_CAP   32768   /* ~14 min at 38 SV/s; 393 KB */
+#define SIG_EL_BIN_DEG    5.0
+#define SIG_EL_BINS       18      /* 18 * 5 = 90 degrees */
+
+/** @brief One (elevation, C/N0) observation for the scatter cloud. */
+typedef struct {
+    float el_deg;
+    float cnr_dbhz;
+    int   gnss_id;
+} SigSample;
+
+/** @brief Scatter ring + binned means for the Signal Quality window. */
+typedef struct {
+    SigSample pts[SIG_SCATTER_CAP];
+    int    head;                                  /**< next write index */
+    int    count;                                 /**< 0..SIG_SCATTER_CAP */
+    double binSum[SV_EPH_MAX_GNSS][SIG_EL_BINS];  /**< sum of C/N0 per bin */
+    long   binCnt[SV_EPH_MAX_GNSS][SIG_EL_BINS];  /**< samples per bin */
+    long   total;                                 /**< lifetime sample count */
+} SigCnrState;
 
 /** @brief Azimuth-bin count per elevation band.  Defined in gui_sky_window.c. */
 extern const int sky_az_bins_per_band[SKY_N_EL_BANDS];
@@ -433,6 +490,13 @@ typedef struct {
     HWND hVrsWnd;
     RECT vrsWndRect;
     BOOL vrsWndRectValid;
+
+    /* Signal Quality window (floating, optional) -- same lifecycle
+     * convention as the Sky Plot and VRS Monitor windows. */
+    HWND hSignalWnd;
+    RECT signalWndRect;
+    BOOL signalWndRectValid;
+    SigCnrState sigCnr;   /**< C/N0 vs elevation accumulator */
 
 } AppState;
 
