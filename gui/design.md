@@ -584,13 +584,7 @@ Both targets coexist in `bin/` and share no output files.
 
 ## 12. Future Enhancements (Out of Scope)
 
-- Real-time message rate graph (GDI+ or Direct2D).
-- Map widget showing base station and rover positions.
-- Multi-connection support (connect to multiple casters simultaneously).
-- Export analysis results to CSV / JSON.
-- Dark mode / theme support.
-- Tray icon for background monitoring.
-- Auto-reconnect on connection drop.
+Moved to the project-wide feature backlog: [`design/todo.md`](../design/todo.md).
 
 ---
 
