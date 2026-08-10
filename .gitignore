@@ -2,3 +2,7 @@
 *.json
 ntripanalyse.exe
 
+# Build artifacts
+gui_main.o
+build_output.txt
+

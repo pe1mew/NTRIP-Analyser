@@ -35,6 +35,7 @@ BEGIN
     BEGIN
         MENUITEM "&Sky Plot...",                      IDM_VIEW_SKY_PLOT
         MENUITEM "&VRS Monitor...",                   IDM_VIEW_VRS_MONITOR
+        MENUITEM "Signal &Quality...",                IDM_VIEW_SIGNAL_QUALITY
     END
     POPUP "&Tools"
     BEGIN

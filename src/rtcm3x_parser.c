@@ -333,8 +333,22 @@ void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
     const int cell_block_start = cell_mask_start
                                  + num_sats * num_sigs
                                  + 36 * num_sats;
-    const int cnr_offset_in_cell = 55;
-    const int cell_stride = 80;
+
+    /* MSM signal data is field-by-field across all cells, not contiguous
+     * per-cell blocks -- see the equivalent comment in msm7_extract_cnr().
+     * The CNR array begins after the fine pseudorange (20), fine phase
+     * range (24), lock time (10) and half-cycle (1) arrays. */
+    int num_cells = 0;
+    for (int s = 0; s < num_sats; s++) {
+        for (int sg = 0; sg < num_sigs; sg++) {
+            int cell_mask_bit = cell_mask_start + s * num_sigs + sg;
+            if (cell_mask_bit + 1 > total_bits) break;
+            if (get_bits(payload, cell_mask_bit, 1)) num_cells++;
+        }
+    }
+    if (num_cells == 0) return;
+
+    const int cnr_array_start = cell_block_start + num_cells * (20 + 24 + 10 + 1);
 
     int cell_index = 0;
     for (int s = 0; s < num_sats; s++) {
@@ -344,8 +358,7 @@ void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
             if (cell_mask_bit + 1 > total_bits) break;
             if (!get_bits(payload, cell_mask_bit, 1)) continue;
 
-            int cnr_bit = cell_block_start + cell_index * cell_stride
-                          + cnr_offset_in_cell;
+            int cnr_bit = cnr_array_start + cell_index * 10;
             cell_index++;
             if (cnr_bit + 10 > total_bits) continue;
 
@@ -410,9 +423,34 @@ int msm7_extract_cnr(const unsigned char *payload, int payload_len,
     const int cell_block_start = cell_mask_start
                                  + num_sats * num_sigs
                                  + 36 * num_sats;
-    /* Per-cell CNR offset (after PR 20 + PH 24 + lock 10 + half 1) */
-    const int cnr_offset = 55;
-    const int cell_stride = 80;
+
+    /* MSM signal data is stored field-by-field ACROSS all cells, not as a
+     * contiguous per-cell block: every fine pseudorange, then every fine
+     * phase range, then every lock time, then every half-cycle flag, then
+     * every CNR, then every phase-range rate.  (See the full MSM7 decoder
+     * further down this file, which walks the same layout.)  So the CNR
+     * array starts once the four preceding arrays are done, and cell k's
+     * CNR is a simple index into it.
+     *
+     * MSM7 per-cell field widths:
+     *   DF405 fine pseudorange      20 bits
+     *   DF406 fine phase range      24 bits
+     *   DF407 lock time (extended)  10 bits
+     *   DF420 half-cycle ambiguity   1 bit
+     *   DF408 CNR (extended)        10 bits   <-- what we want
+     *   DF404 fine phase-range rate 15 bits
+     */
+    int num_cells = 0;
+    for (int s = 0; s < num_sats; s++) {
+        for (int sg = 0; sg < num_sigs; sg++) {
+            int cell_mask_bit = cell_mask_start + s * num_sigs + sg;
+            if (cell_mask_bit + 1 > total_bits) break;
+            if (get_bits(payload, cell_mask_bit, 1)) num_cells++;
+        }
+    }
+    if (num_cells == 0) return 0;
+
+    const int cnr_array_start = cell_block_start + num_cells * (20 + 24 + 10 + 1);
 
     /* Best CNR per satellite-index */
     float best_cnr[64];
@@ -425,7 +463,7 @@ int msm7_extract_cnr(const unsigned char *payload, int payload_len,
             if (cell_mask_bit + 1 > total_bits) break;
             if (!get_bits(payload, cell_mask_bit, 1)) continue;
 
-            int cnr_bit = cell_block_start + cell_index * cell_stride + cnr_offset;
+            int cnr_bit = cnr_array_start + cell_index * 10;
             if (cnr_bit + 10 > total_bits) {
                 cell_index++;
                 continue;

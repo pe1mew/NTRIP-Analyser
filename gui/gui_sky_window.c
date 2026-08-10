@@ -567,7 +567,7 @@ static int DrawSkyMarkers(HDC hdc, const AppState *state,
                     pts[i].x = cx + (int)(r_t * sin(az_r) + 0.5);
                     pts[i].y = cy - (int)(r_t * cos(az_r) + 0.5);
                     azs[i]   = tp->az_deg;
-                    tss[i]   = tp->ts;
+                    tss[i]   = tp->ts_rel;
                 }
 
                 /* Polyline pass: 1-px line in the desaturated GNSS hue.
