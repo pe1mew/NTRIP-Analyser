@@ -42,6 +42,7 @@ static void OnCloseStream(HWND hwnd, AppState *state);
 static void OnStreamDone(HWND hwnd, AppState *state);
 static void OnStatUpdate(AppState *state, int msg_type, int count);
 static void OnSatUpdate(AppState *state);
+static void RefreshStreamHealth(AppState *state);
 static void close_rtcm_capture_if_active(AppState *state);
 
 /* ── Generic ListView sort state ──────────────────────────── */
@@ -281,9 +282,95 @@ static void OnTabSelChange(AppState *state)
 {
     int sel = TabCtrl_GetCurSel(state->hTabOutput);
 
-    ShowWindow(state->hEditLog,      (sel == 0) ? SW_SHOW : SW_HIDE);
-    ShowWindow(state->hLvMsgStats,   (sel == 1) ? SW_SHOW : SW_HIDE);
-    ShowWindow(state->hLvSatellites, (sel == 2) ? SW_SHOW : SW_HIDE);
+    ShowWindow(state->hEditLog,        (sel == 0) ? SW_SHOW : SW_HIDE);
+    ShowWindow(state->hLvMsgStats,     (sel == 1) ? SW_SHOW : SW_HIDE);
+    ShowWindow(state->hLvSatellites,   (sel == 2) ? SW_SHOW : SW_HIDE);
+    ShowWindow(state->hLvStreamHealth, (sel == 3) ? SW_SHOW : SW_HIDE);
+
+    /* Populate immediately on switch so the tab is never briefly blank;
+     * the 1 s status timer refreshes it from then on. */
+    if (sel == 3) RefreshStreamHealth(state);
+}
+
+/**
+ * @brief Set a Metric/Value/Detail row in the Stream Health ListView.
+ *
+ * Rows are created once and rewritten in place, so the control never
+ * flickers and any selection the user made survives a refresh.
+ */
+static void HealthSetRow(HWND hLv, int row, const char *metric,
+                         const char *value, const char *detail)
+{
+    if (ListView_GetItemCount(hLv) <= row) {
+        LVITEM lvi;
+        ZeroMemory(&lvi, sizeof(lvi));
+        lvi.mask     = LVIF_TEXT;
+        lvi.iItem    = row;
+        lvi.pszText  = (char *)metric;
+        ListView_InsertItem(hLv, &lvi);
+    } else {
+        ListView_SetItemText(hLv, row, 0, (char *)metric);
+    }
+    ListView_SetItemText(hLv, row, 1, (char *)value);
+    ListView_SetItemText(hLv, row, 2, (char *)detail);
+}
+
+/**
+ * @brief Repopulate the Stream Health tab from the worker counters.
+ *
+ * Stream-level frame integrity: how many frames arrived intact, how
+ * many failed CRC-24Q, and how often framing had to be re-acquired.
+ * Deliberately not per-message-type -- analyze_rtcm_message() reads the
+ * type field before validating the CRC, so on a corrupt frame the type
+ * is untrustworthy and attributing the error to it would mislead.
+ */
+static void RefreshStreamHealth(AppState *state)
+{
+    HWND hLv = state->hLvStreamHealth;
+    if (!hLv) return;
+
+    LONG ok        = InterlockedCompareExchange(&state->healthFramesOk,  0, 0);
+    LONG crcErr    = InterlockedCompareExchange(&state->healthCrcErrors, 0, 0);
+    LONG malformed = InterlockedCompareExchange(&state->healthMalformed, 0, 0);
+    LONG resyncs   = InterlockedCompareExchange(&state->healthResyncs,   0, 0);
+
+    LONG attempted = ok + crcErr;      /* complete frames the CRC was tested on */
+    char v[64], d[256];
+
+    snprintf(v, sizeof(v), "%ld", (long)attempted);
+    HealthSetRow(hLv, 0, "Frames checked", v,
+                 "Complete RTCM 3.x frames with a CRC-24Q test applied");
+
+    snprintf(v, sizeof(v), "%ld", (long)ok);
+    HealthSetRow(hLv, 1, "Frames OK", v, "CRC-24Q valid; passed to the decoders");
+
+    snprintf(v, sizeof(v), "%ld", (long)crcErr);
+    if (crcErr == 0) {
+        snprintf(d, sizeof(d), "No CRC failures -- link integrity is clean");
+    } else {
+        double pct = attempted ? (100.0 * crcErr / attempted) : 0.0;
+        snprintf(d, sizeof(d),
+                 "%.3f%% of checked frames -- suspect the link between "
+                 "receiver and caster (serial, radio or network)", pct);
+    }
+    HealthSetRow(hLv, 2, "CRC-24Q errors", v, d);
+
+    if (attempted > 0) {
+        double pct = 100.0 * crcErr / attempted;
+        snprintf(v, sizeof(v), "%.3f %%", pct);
+    } else {
+        snprintf(v, sizeof(v), "--");
+    }
+    HealthSetRow(hLv, 3, "CRC error rate", v,
+                 "CRC failures as a share of frames checked");
+
+    snprintf(v, sizeof(v), "%ld", (long)malformed);
+    HealthSetRow(hLv, 4, "Malformed frames", v,
+                 "Bad preamble or runt frame -- rejected before the CRC test");
+
+    snprintf(v, sizeof(v), "%ld", (long)resyncs);
+    HealthSetRow(hLv, 5, "Framing re-syncs", v,
+                 "Implausible length field; framing re-acquired from the next byte");
 }
 
 /**
@@ -665,6 +752,14 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     InterlockedExchange(&state->streamFormat, 0);
     state->streamBytesLast = 0;
     state->streamRateTime  = gui_get_time_seconds();
+
+    /* Reset stream-health counters -- they describe one session */
+    InterlockedExchange(&state->healthFramesOk,  0);
+    InterlockedExchange(&state->healthCrcErrors, 0);
+    InterlockedExchange(&state->healthMalformed, 0);
+    InterlockedExchange(&state->healthResyncs,   0);
+    if (state->hLvStreamHealth)
+        ListView_DeleteAllItems(state->hLvStreamHealth);
 
     /* Look up the Format column from the sourcetable for the selected
      * mountpoint.  This tells us the declared stream format (e.g.
@@ -1681,6 +1776,14 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             state->streamBytesLast = 0;
             state->streamRateTime  = gui_get_time_seconds();
 
+            /* Reset stream-health counters for the replay session */
+            InterlockedExchange(&state->healthFramesOk,  0);
+            InterlockedExchange(&state->healthCrcErrors, 0);
+            InterlockedExchange(&state->healthMalformed, 0);
+            InterlockedExchange(&state->healthResyncs,   0);
+            if (state->hLvStreamHealth)
+                ListView_DeleteAllItems(state->hLvStreamHealth);
+
             strncpy(state->replayPath, filename,
                     sizeof(state->replayPath) - 1);
             state->replayPath[sizeof(state->replayPath) - 1] = '\0';
@@ -1918,18 +2021,38 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)statusBuf);
             }
 
-            /* Total bytes in part 2 */
-            char totalBuf[64];
+            /* Total bytes in part 2, with the CRC error count appended
+             * when non-zero.  A clean link therefore looks exactly as it
+             * did before; a faulty one grows a visible chip without
+             * needing a status-bar part of its own.  The full breakdown
+             * lives on the Stream Health tab. */
+            char totalBuf[128];
+            char sizeBuf[64];
             if (totalBytes >= 1048576)
-                snprintf(totalBuf, sizeof(totalBuf), "%.1f MB received",
+                snprintf(sizeBuf, sizeof(sizeBuf), "%.1f MB received",
                          totalBytes / 1048576.0);
             else if (totalBytes >= 1024)
-                snprintf(totalBuf, sizeof(totalBuf), "%.1f kB received",
+                snprintf(sizeBuf, sizeof(sizeBuf), "%.1f kB received",
                          totalBytes / 1024.0);
             else
-                snprintf(totalBuf, sizeof(totalBuf), "%ld B received",
+                snprintf(sizeBuf, sizeof(sizeBuf), "%ld B received",
                          (long)totalBytes);
+
+            LONG hCrc = InterlockedCompareExchange(&state->healthCrcErrors, 0, 0);
+            if (hCrc > 0) {
+                LONG hOk  = InterlockedCompareExchange(&state->healthFramesOk, 0, 0);
+                LONG hTot = hOk + hCrc;
+                snprintf(totalBuf, sizeof(totalBuf), "%s  \xB7  %ld CRC (%.2f%%)",
+                         sizeBuf, (long)hCrc,
+                         hTot ? (100.0 * hCrc / hTot) : 0.0);
+            } else {
+                snprintf(totalBuf, sizeof(totalBuf), "%s", sizeBuf);
+            }
             SendMessage(state->hStatusBar, SB_SETTEXT, 2, (LPARAM)totalBuf);
+
+            /* Keep the Stream Health tab live while it is the visible tab. */
+            if (TabCtrl_GetCurSel(state->hTabOutput) == 3)
+                RefreshStreamHealth(state);
 
             /* ── VRS distance (part 3) ───────────────────────
              * Compute the great-circle distance between the GGA

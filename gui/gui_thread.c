@@ -531,6 +531,7 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
 
                 if (msg_target > GUI_BUFFER_SIZE) {
                     /* Invalid — reset */
+                    InterlockedIncrement(&state->healthResyncs);
                     msg_pos = 0;
                     msg_target = 0;
                     continue;
@@ -542,6 +543,17 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                 /* Analyze the RTCM message */
                 int msg_type = analyze_rtcm_message(msg_buf, msg_target,
                                                      true, &state->config);
+
+                /* Stream-health accounting.  analyze_rtcm_message()
+                 * returns 0 only for a complete frame whose CRC-24Q
+                 * failed, and -1 for a bad preamble or a runt frame,
+                 * so the two faults are distinguishable here. */
+                if (msg_type == 0)
+                    InterlockedIncrement(&state->healthCrcErrors);
+                else if (msg_type < 0)
+                    InterlockedIncrement(&state->healthMalformed);
+                else
+                    InterlockedIncrement(&state->healthFramesOk);
 
                 if (msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES) {
                     /* RTCM stream capture: write the raw frame bytes to
@@ -1083,6 +1095,7 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
         int frame_len  = msg_length + 6;              /* preamble + len + crc */
         if (frame_len > GUI_BUFFER_SIZE) {
             /* Bogus length -- try to resync from next byte. */
+            InterlockedIncrement(&state->healthResyncs);
             continue;
         }
 
@@ -1092,6 +1105,15 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
         /* ── Process the frame ── */
         int msg_type = analyze_rtcm_message(msg_buf, frame_len, true,
                                             &state->config);
+
+        /* Stream-health accounting -- see the live-stream worker above. */
+        if (msg_type == 0)
+            InterlockedIncrement(&state->healthCrcErrors);
+        else if (msg_type < 0)
+            InterlockedIncrement(&state->healthMalformed);
+        else
+            InterlockedIncrement(&state->healthFramesOk);
+
         if (msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES) {
             frames_decoded++;
             total_bytes += frame_len;

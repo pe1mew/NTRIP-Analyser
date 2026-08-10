@@ -78,6 +78,7 @@
 #define IDC_EDIT_LOG            1402
 #define IDC_LV_MSG_STATS        1403
 #define IDC_LV_SATELLITES       1404
+#define IDC_LV_STREAM_HEALTH    1405
 
 /* ── Status bar ───────────────────────────────────────────── */
 #define IDC_STATUSBAR           1500

@@ -275,7 +275,7 @@ void CreateControls(HWND hwnd, AppState *state)
     LvAddColumn(state->hLvMountpoints, 9,  "Lon",            60);
     LvAddColumn(state->hLvMountpoints, 10, "Distance (km)",  90);
 
-    /* ── Tab control (Log / Message Stats / Satellites) ─────── */
+    /* ── Tab control (Log / Msg Stats / Satellites / Health) ── */
     y += 145;
     state->hTabOutput = CreateWindowEx(0,
         WC_TABCONTROL, "",
@@ -289,6 +289,7 @@ void CreateControls(HWND hwnd, AppState *state)
     tci.pszText = "Log";       TabCtrl_InsertItem(state->hTabOutput, 0, &tci);
     tci.pszText = "Msg Stats"; TabCtrl_InsertItem(state->hTabOutput, 1, &tci);
     tci.pszText = "Satellites"; TabCtrl_InsertItem(state->hTabOutput, 2, &tci);
+    tci.pszText = "Stream Health"; TabCtrl_InsertItem(state->hTabOutput, 3, &tci);
 
     /* Child controls inside the tab area */
     RECT tabRC;
@@ -338,6 +339,21 @@ void CreateControls(HWND hwnd, AppState *state)
     LvAddColumn(state->hLvSatellites, 0, "GNSS",        90);
     LvAddColumn(state->hLvSatellites, 1, "Sats Seen",   80);
     LvAddColumn(state->hLvSatellites, 2, "Satellites",  400);
+
+    /* Stream Health ListView (hidden by default).
+     * Metric/Value/Detail rows rather than one row per message type --
+     * these are stream-level counters that cannot be attributed to a
+     * message type (see healthCrcErrors in gui_state.h). */
+    state->hLvStreamHealth = CreateWindowEx(WS_EX_CLIENTEDGE,
+        WC_LISTVIEW, "",
+        WS_CHILD | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
+        tx, ty, tw, th, hwnd, (HMENU)(intptr_t)IDC_LV_STREAM_HEALTH, hInst, NULL);
+    ListView_SetExtendedListViewStyle(state->hLvStreamHealth,
+        LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+
+    LvAddColumn(state->hLvStreamHealth, 0, "Metric", 200);
+    LvAddColumn(state->hLvStreamHealth, 1, "Value",  120);
+    LvAddColumn(state->hLvStreamHealth, 2, "Detail", 380);
 
     /* ── Status bar ─────────────────────────────────────────── */
     state->hStatusBar = CreateWindowEx(0,
@@ -419,6 +435,7 @@ void ResizeControls(HWND hwnd, AppState *state, int width, int height)
     MoveWindow(state->hEditLog,      tx, ty, tw, th, TRUE);
     MoveWindow(state->hLvMsgStats,   tx, ty, tw, th, TRUE);
     MoveWindow(state->hLvSatellites, tx, ty, tw, th, TRUE);
+    MoveWindow(state->hLvStreamHealth, tx, ty, tw, th, TRUE);
 
     /* Update status bar parts proportionally (4 parts: rate, format,
      * bytes, VRS distance). */

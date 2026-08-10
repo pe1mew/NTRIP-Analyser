@@ -39,6 +39,25 @@ Capture writes raw frames to disk from the File menu (`gui/gui_thread.c:547`); t
 reads a `.rtcm3` capture and feeds it through the normal decode path
 (`gui/gui_thread.c:1031`, menu item `IDM_FILE_RTCM_REPLAY` in `gui/resource.h:24`).
 
+### 1.3 CRC-24Q error rate as a first-class metric — **Shipped**
+
+Counters live in `AppState` (`healthFramesOk`, `healthCrcErrors`, `healthMalformed`,
+`healthResyncs`), incremented from both the live worker and the replay worker in
+`gui/gui_thread.c`, and reset per session alongside `streamBytes`.
+
+Presented in two places. The status bar's byte counter (part 2) gains a `· N CRC (x.xx%)`
+suffix **only when the count is non-zero**, so a clean link looks exactly as it did before. The
+full breakdown — frames checked, frames OK, CRC errors, error rate, malformed frames, framing
+re-syncs — is on a new **Stream Health** tab (`RefreshStreamHealth()` in `gui/gui_events.c`).
+
+No parser change was needed: `analyze_rtcm_message()` returns `0` *only* for a complete frame
+whose CRC failed, and `-1` for a bad preamble or runt frame, so the call site can distinguish the
+two faults. Note this contract is load-bearing — a future change that returns `0` for another
+reason would silently corrupt these counts.
+
+Deliberately **not** per-message-type: the type field is read before the CRC is validated, so on a
+corrupt frame the type is untrustworthy.
+
 ### 3.2 Ephemeris decoding — 1019 / 1020 / 1042 / 1044 / 1045 / 1046 — **Shipped**
 
 Decoders live in `src/rtcm3x_parser.c` (`decode_rtcm_1020:1364`, `decode_rtcm_1044:1472`,
@@ -86,20 +105,7 @@ broadcast in RTCM 1005/1006, and monitor 1005 over time for mid-session position
   the ARP legitimately follows the rover, so both halves of this item produce false alarms until the
   stream can be classified. Do 2.4 first.
 
-### 1.3 Surface CRC-24Q error rate as a first-class metric — **Open**
-
-Count CRC failures and expose the error rate in the status bar alongside the throughput figure.
-
-- **Why** — CRC error rate is the single best indicator of a flaky serial or radio link between the
-  GNSS receiver and the caster. It currently scrolls past in the log and is lost.
-- **Inspiration** — `[ESP32]` `RtcmStats`, which carries a dedicated CRC error counter reported in
-  the live telemetry.
-- **Notes** — Verified still open: there is no CRC counter anywhere in `src/` or `gui/`. The failure
-  is detected and printed (`src/rtcm3x_parser.c:2100`), then discarded —
-  `analyze_rtcm_message()` returns `0` instead of the message type (`src/rtcm3x_parser.c:2116`) and
-  the worker drops the frame without recording anything. The return value is overloaded: `0` means
-  "CRC failed", `-1` means "frame too short", so a counter must distinguish the two rather than
-  testing for a falsy result.
+### 1.3 Surface CRC-24Q error rate as a first-class metric — **Shipped**, see §0
 
 ### 1.4 Aggregate per-satellite C/N0 in the Satellites tab — **Partial**
 

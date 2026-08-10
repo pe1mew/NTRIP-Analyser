@@ -250,6 +250,7 @@ typedef struct {
     HWND hEditLog;
     HWND hLvMsgStats;
     HWND hLvSatellites;
+    HWND hLvStreamHealth;
 
     /* ── Status bar ───────────────────────────────────────── */
     HWND hStatusBar;
@@ -305,6 +306,20 @@ typedef struct {
     char           sourceDetails[128]; /* Details string from sourcetable */
     LONG           streamBytesLast;   /* snapshot for rate calc (UI side) */
     double         streamRateTime;    /* timestamp of last rate calc */
+
+    /* ── Stream health counters (written by workers, read by UI) ──
+     * Frame-level integrity accounting.  These are deliberately kept
+     * stream-level rather than per-message-type: analyze_rtcm_message()
+     * reads the type field *before* validating the CRC, so on a corrupt
+     * frame the type itself is untrustworthy and attributing the error
+     * to it would be misleading.
+     *
+     * Written from worker threads via Interlocked*, read by the UI
+     * timer -- same discipline as streamBytes above. */
+    volatile LONG  healthFramesOk;     /* frames decoded with a valid CRC */
+    volatile LONG  healthCrcErrors;    /* complete frames, CRC mismatch */
+    volatile LONG  healthMalformed;    /* bad preamble / too short (parser returned -1) */
+    volatile LONG  healthResyncs;      /* preamble re-syncs after bogus length */
 
     /* ── Splitter between mountpoint list and tab control ── */
     int  splitterLvH;         /* current mountpoint ListView height (pixels) */
