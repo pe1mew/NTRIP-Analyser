@@ -125,6 +125,15 @@ gui/
 └── gui_parsers.c       ← Sourcetable string → ListView rows, stats → ListView
 ```
 
+**This section describes the original design.** The implementation has
+since grown several modules that this document does not cover — the
+floating Sky Plot, Signal Quality, Session History, VRS Monitor and
+per-SV detail windows, the GDI+ snapshot helper, and the RTCM detail
+viewer. For the current file inventory see
+[`docs/gui.md`](../docs/gui.md); `build-gui.bat` is authoritative. The
+design rationale below is retained as a record of the decisions that
+shaped the codebase, not as a description of its present shape.
+
 ### 4.1 File Responsibilities
 
 | File | Responsibility |
@@ -390,6 +399,11 @@ The GUI build follows the same pattern as the existing CLI build task in
 ```
 
 **Step 2 — Compile and link everything:**
+
+> **Outdated.** The command below is the original minimal build. The
+> project now links a dozen further modules and needs `-lcomdlg32` and
+> `-lgdiplus` as well. Use `build-gui.bat`, or see
+> [`docs/compile.md`](../docs/compile.md) for the current command.
 
 ```bash
 "C:/Program Files/CodeBlocks/MinGW/bin/gcc.exe" -g -mwindows -std=c99 -D_USE_MATH_DEFINES \

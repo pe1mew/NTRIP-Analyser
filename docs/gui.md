@@ -6,13 +6,24 @@ The Windows GUI application (`ntrip-analyser-gui.exe`) provides a user-friendly 
 
 - **Interactive connection management** - Easy configuration of NTRIP caster settings
 - **Real-time stream monitoring** - Live display of received RTCM messages
-- **Message analysis** - Comprehensive statistics on message types and intervals
+- **Message analysis** - Per-type statistics, compared against what the
+  mountpoint's sourcetable entry advertises
+- **Stream health** - Caster handshake, CRC-24Q integrity, advertised-vs-
+  observed message types, and reference-station position checks, all on
+  one tab with severity colouring
 - **Satellite tracking** - Per-constellation satellite visibility analysis
 - **Detailed message viewer** - Decode and inspect individual RTCM messages
 - **Configuration management** - Save and load connection profiles
 - **Live polar sky plot** - Floating window showing every tracked satellite
   at its azimuth / elevation, with markers + trails or an Onocoy-style
   observed/expected heatmap; PNG snapshot export
+- **Signal quality** - C/N0 bars per satellite plus a C/N0-versus-elevation
+  scatter over the session, which is what actually reveals antenna and
+  siting problems
+- **Session history** - Six metrics plotted over time on a shared axis, so
+  dropouts and reconnects are visible instead of averaged away
+- **VRS monitor** - Rover-to-virtual-station distance, direction plot and
+  rolling distance chart for network mountpoints
 - **Multi-GNSS ephemerides** - GPS / GLONASS / Galileo / QZSS / BeiDou
   orbits propagated from either a second NTRIP stream (RTCM
   1019/1020/1042/1044/1045/1046) or a RINEX 3 NAV file
@@ -30,17 +41,20 @@ It shares the same core library with the CLI application:
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │                              GUI Layer                                │
-│  gui/gui_main.c       — WinMain, message loop, window creation       │
-│  gui/gui_layout.c     — Control creation, sizing, DPI-awareness      │
-│  gui/gui_events.c     — Button handlers, menu commands               │
-│  gui/gui_thread.c     — Worker threads (obs / eph / replay)          │
-│  gui/gui_log.c        — Log redirect (printf → listbox)              │
-│  gui/gui_parsers.c    — Message parsing for GUI display              │
-│  gui/gui_detail.c     — RTCM message detail viewer (double-click)    │
-│  gui/gui_sky_window.c — Floating Sky Plot window                     │
-│  gui/gui_snapshot.c   — GDI+ PNG snapshot helper                     │
-│  gui/gui_sv_detail.c  — Per-SV detail popup (left-click on marker)   │
-│  gui/resource.rc      — Menu bar, manifest, icon, version            │
+│  gui/gui_main.c          — WinMain, message loop, window creation    │
+│  gui/gui_layout.c        — Control creation, sizing, DPI-awareness   │
+│  gui/gui_events.c        — Handlers, health checks, classification   │
+│  gui/gui_thread.c        — Worker threads (obs / eph / replay)       │
+│  gui/gui_log.c           — Log redirect (printf → log panel)         │
+│  gui/gui_parsers.c       — Sourcetable, advertised types, handshake  │
+│  gui/gui_detail.c        — RTCM message detail viewer (double-click) │
+│  gui/gui_sky_window.c    — Floating Sky Plot window                  │
+│  gui/gui_signal_window.c — Floating Signal Quality window            │
+│  gui/gui_hist_window.c   — Floating Session History window           │
+│  gui/gui_vrs_window.c    — Floating VRS Monitor window               │
+│  gui/gui_snapshot.c      — GDI+ PNG snapshot + shared save dialog    │
+│  gui/gui_sv_detail.c     — Per-SV detail popup (left-click marker)   │
+│  gui/resource.rc         — Menu bar, manifest, icon, version         │
 └────────────────────────┬─────────────────────────────────────────────┘
                          │  calls ↓         ↑ posts WM_APP+n
 ┌────────────────────────┴─────────────────────────────────────────────┐
@@ -120,12 +134,16 @@ gcc -g -mwindows -std=c99 -D_USE_MATH_DEFINES -o bin/ntrip-analyser-gui.exe ^
     gui/gui_main.c gui/gui_layout.c gui/gui_events.c gui/gui_thread.c ^
     gui/gui_log.c gui/gui_parsers.c gui/gui_detail.c ^
     gui/gui_sky_window.c gui/gui_snapshot.c gui/gui_sv_detail.c ^
+    gui/gui_vrs_window.c gui/gui_signal_window.c gui/gui_hist_window.c ^
     src/ntrip_handler.c src/rtcm3x_parser.c src/config.c src/nmea_parser.c ^
     src/sv_ephemeris.c src/sv_orbit.c src/rinex_nav.c ^
     lib/cJSON/cJSON.c gui/resource.o ^
     -Isrc -Ilib/cJSON -Igui ^
     -lws2_32 -lcomctl32 -lcomdlg32 -lgdiplus -lm -Wall
 ```
+
+`build-gui.bat` is the authoritative source list — if this command and that
+script ever disagree, the script is right.
 
 **Compile flags explained:**
 - `-mwindows` — GUI subsystem (no console window)
@@ -158,7 +176,7 @@ gcc -g -mwindows -std=c99 -D_USE_MATH_DEFINES -o bin/ntrip-analyser-gui.exe ^
    | **Latitude** | Rover latitude (decimal degrees) | `52.1234` |
    | **Longitude** | Rover longitude (decimal degrees) | `4.5678` |
 
-3. **Click "Connect"** to start receiving the NTRIP stream
+3. **Click "Open Stream"** to start receiving the NTRIP stream
 
 ### Main Window Features
 
@@ -167,70 +185,128 @@ gcc -g -mwindows -std=c99 -D_USE_MATH_DEFINES -o bin/ntrip-analyser-gui.exe ^
 
 **How to use:**
 1. Enter caster hostname and port
-2. Click **"Get Mountpoints"** button
-3. View the sourcetable in the log window
-4. Find desired mountpoint and copy its name to the Mountpoint field
+2. Click **"Get Mountpoints"**
+3. Browse the table: mountpoint, identifier, format, details, carrier,
+   nav systems, network, country, latitude, longitude, and distance from
+   your configured position
+4. **Double-click** a row to copy its mountpoint into the Mountpoint field
 
-**What you'll see:** Complete sourcetable listing all available streams, their formats, locations, and capabilities.
+The list also fills in automatically when you open a stream for a
+mountpoint you typed by hand — the sourcetable is fetched anyway to
+support the advertised-vs-observed comparison, so it is displayed rather
+than discarded.
 
-#### 📡 Connect to Stream
+Right-click the list for **Select All** / **Copy**; `Ctrl+A` and `Ctrl+C`
+work too. Click any column header to sort.
+
+#### 📡 Open Stream
 **Purpose:** Start receiving and decoding RTCM data
 
 **How to use:**
-1. Fill in all connection fields
-2. Click **"Connect"**
-3. Watch real-time messages appear in the log window
-4. Click **"Disconnect"** to stop
+1. Fill in the connection fields
+2. Click **"Open Stream"**
+3. The view switches to the **Msg Stats** tab and statistics populate live
+4. Click **"Close Stream"** to stop
 
-**Status indicators:**
-- Connection progress messages in log
-- Real-time message decoding output
-- Error messages if connection fails
+The status bar shows connection state and data rate, detected stream
+format, total bytes received (with a CRC error count if any occur), and
+the rover-to-reference distance.
 
-#### 📊 Message Statistics
-**Purpose:** Analyze message types and transmission patterns
+### Output Tabs
 
-**How to use:**
-1. Connect to a stream
-2. Let it run for desired duration (default: 60 seconds)
-3. Click **"Analyze Messages"**
-4. Review statistics in the log window
+The lower half of the window is a four-tab panel. All four update live.
 
-**Statistics displayed:**
-- **Message Type:** RTCM message number (e.g., 1005, 1077, 1087)
-- **Count:** Total number of messages received
-- **Min Interval:** Minimum time between messages (seconds)
-- **Avg Interval:** Average transmission interval (seconds)
-- **Max Interval:** Maximum time between messages (seconds)
+#### 📝 Log
+Connection progress, the caster's handshake headers, decoded message
+output, and warnings. Auto-scrolls; scroll back at any time.
 
-Results are automatically sorted by message frequency (most common first).
+#### 📊 Msg Stats
+One row per RTCM message type, updated as frames arrive.
 
-#### 🛰️ Satellite Analysis
-**Purpose:** Count and categorize visible satellites
+| Column | Meaning |
+|--------|---------|
+| **Message Type** | RTCM message number (e.g. 1005, 1077, 1087) |
+| **Count** | Frames received |
+| **Min / Max / Avg dt** | Interval between epochs, in seconds |
+| **Advertised** | Interval the sourcetable promises for this type, if any |
+| **Status** | Verdict of the advertised-vs-observed comparison |
+| **Description** | Human-readable message name |
 
-**How to use:**
-1. Connect to a stream
-2. Let it run for desired duration (default: 60 seconds)
-3. Click **"Count Satellites"**
-4. View satellite breakdown by constellation
+**Status values**, colour-coded so problems stand out:
 
-**Information shown:**
-- **GPS** satellites (G01-G32)
-- **GLONASS** satellites (R01-R24)
-- **Galileo** satellites (E01-E36)
-- **BeiDou** satellites (C01-C37)
-- **QZSS** satellites (J01-J07)
-- **SBAS** satellites (S20-S58)
-- **Total** unique satellites across all constellations
+| Status | Colour | Meaning |
+|--------|--------|---------|
+| `ok` | default | Advertised and arriving at roughly the advertised rate |
+| `missing` | red | Advertised but never received — the row exists with count 0 so its absence is visible |
+| `slow N.Nx` / `fast N.Nx` | amber | Arriving, but not near the advertised interval |
+| `extra` | blue | Received but not advertised — the sourcetable is out of date |
+| `unknown` | default | No sourcetable entry, so no comparison is possible |
+
+**Note on rates:** intervals are measured **per epoch, not per frame**. MSM
+splits a single epoch across several frames when the observations do not
+fit in one, so a base sending 1127 once per second in two parts would
+otherwise look like it were sending twice per second. Where a type is
+split, the status appends `N frames/ep`.
+
+**Double-click** a row to open a live detail window for that message type.
+
+#### 🛰️ Satellites
+Unique satellites seen per constellation, with the RINEX IDs listed:
+GPS (G), GLONASS (R), Galileo (E), BeiDou (C), QZSS (J), SBAS (S),
+NavIC (I).
+
+#### 🩺 Stream Health
+Fourteen rows answering "is this mountpoint healthy", in connection order.
+Rows are colour-coded: red for real faults, amber for advisories, blue for
+informational.
+
+**Caster handshake**
+
+| Row | Shows |
+|-----|-------|
+| **NTRIP version** | 1.0 (ICY) or 2.0 (HTTP). A caster answering ICY despite our `Ntrip-Version: Ntrip/2.0` request is simply an NTRIP 1.0 caster — informational, not a fault |
+| **Response** | Status code and reason, plus the raw status line |
+| **Caster software** | The `Server:` response header, i.e. which caster implementation you are talking to |
+
+**Frame integrity**
+
+| Row | Shows |
+|-----|-------|
+| **Frames checked** | Complete RTCM 3.x frames that had a CRC-24Q test applied |
+| **Frames OK** | Passed CRC and reached the decoders |
+| **CRC-24Q errors** | Failures — the best single indicator of a flaky link between receiver and caster |
+| **CRC error rate** | Failures as a share of frames checked |
+| **Malformed frames** | Bad preamble or runt frame, rejected before the CRC test |
+| **Framing re-syncs** | Implausible length field; framing re-acquired from the next byte |
+
+**Message types**
+
+| Row | Shows |
+|-----|-------|
+| **Advertised types** | Roll-up of the Msg Stats comparison: how many arrive as advertised, are missing, are off-rate, or are unadvertised |
+
+**Reference station**
+
+| Row | Shows |
+|-----|-------|
+| **Station type** | `fixed base` or `VRS / network`, and which signal decided it |
+| **Broadcast ARP** | Position from RTCM 1005/1006 with altitude |
+| **Sourcetable match** | Distance between the declared and broadcast positions. A large gap usually means the base was registered with the caster using wrong coordinates |
+| **ARP stability** | Whether the reference point moved during the session, and the largest jump |
+
+**Why classification matters:** on a VRS the reference point legitimately
+follows the rover, so the sourcetable comparison reads `n/a` and movement
+is reported as hand-overs. Applying fixed-base checks to a network
+mountpoint would produce nothing but false alarms.
 
 #### 🔍 Detailed Message Viewer
 **Purpose:** Deep-dive into individual RTCM message structure
 
 **How to use:**
-1. **Double-click** any message in the log window
-2. A new window opens with complete message details
-3. Review all decoded fields and values
-4. Close window when done
+1. **Double-click** any row in the **Msg Stats** tab
+2. A window opens showing that message type decoded, refreshed live as
+   new frames of that type arrive
+3. Several detail windows can be open at once
 
 **What's decoded:**
 Depending on message type, you'll see:
@@ -308,6 +384,76 @@ clipboard for inclusion in tickets or notes.
 
 The popup auto-refreshes once per second; close it any time without
 disturbing the sky plot.
+
+#### 📶 Signal Quality window
+**Purpose:** Judge the antenna and siting quality of the reference station,
+which is what C/N0 primarily indicates.
+
+**How to open:** Menu **View → Signal Quality...**
+
+**Two views, stacked:**
+
+1. **C/N0 by satellite (this epoch)** — one bar per tracked satellite,
+   coloured by constellation using the same hues as the Sky Plot so a
+   satellite reads identically in both. Hover any bar for a tooltip giving
+   the satellite, its C/N0 and its elevation.
+2. **C/N0 vs elevation (whole session)** — every accumulated observation
+   plotted as elevation against C/N0, with a per-constellation mean
+   overlaid in 5° bins. **This is the diagnostic view**: a clean
+   installation rises monotonically from horizon to zenith, while
+   obstructions and multipath show as a dip at particular elevations —
+   which no snapshot view can reveal. Bins with fewer than five samples
+   are omitted rather than drawn, so the mean line never implies more
+   confidence than the data supports.
+
+C/N0 requires MSM7, which carries the extended-resolution field. Streams
+using MSM4/5/6 will populate the bars only sparsely.
+
+#### 📈 Session History window
+**Purpose:** See metrics over time. The Msg Stats min/max/avg columns hide
+the faults that matter — a 45-second dropout and a steady stream can
+average alike.
+
+**How to open:** Menu **View → Session History...**
+
+**Six stacked strip charts on one shared time axis:**
+
+| Panel | Reveals |
+|-------|---------|
+| **Throughput** (kB/s) | Dropouts, bursts, reconnects |
+| **Message rate** (frame/s) | The same, per frame rather than per byte |
+| **CRC-24Q errors** (per s) | Link degradation, visible as spikes |
+| **Satellites tracked** | Constellation loss, or ephemerides arriving |
+| **Mean C/N0** (dB-Hz) | Gradual signal degradation |
+| **Reference drift** (m) | A fixed base wandering from where it started |
+
+Sharing one time axis is the point: a reconnect appears as a simultaneous
+trough in throughput *and* message rate, while a bad link shows CRC spikes
+with throughput unchanged. Vertical gridlines mark the same instants in
+every panel so a feature can be traced across metrics.
+
+Sampling is once per second for four hours, after which the oldest samples
+are overwritten and the header says so. Each pixel column shows the
+**peak** of the samples it covers, not their mean, so a one-second CRC
+spike stays visible however long the session runs.
+
+The C/N0 panel uses a fixed 20–60 dB-Hz band; the others are zero-based,
+because for those a trough to zero is exactly the fault being looked for.
+
+#### 🛰 VRS Monitor window
+**Purpose:** Analyse a network (VRS / MAC / nearest-base) mountpoint, where
+the reference point follows the rover.
+
+**How to open:** Menu **View → VRS Monitor...**
+
+**Shows:** live rover-to-virtual-station distance, a polar plot giving
+direction and distance, a rolling five-minute distance chart, and
+accumulated ARP dots that reveal hand-overs between physical bases.
+
+The **Tools → Toggle auto-send GGA** item and the in-plot N/E/S/W shift
+buttons let you move the reported rover position and watch whether the
+virtual station follows — the conclusive test of whether a mountpoint is
+really a VRS.
 
 #### 🛰 Ephemeris stream (optional second NTRIP connection)
 **Purpose:** Without ephemerides the sky plot cannot compute azimuth
@@ -418,12 +564,24 @@ without needing the caster.
 | `Esc`    | Close Stream |
 | `Alt+F4` | Exit |
 
-**Sky Plot window:**
+**Mountpoint list:**
 
 | Shortcut | Action |
 |----------|--------|
-| `M` | Toggle markers ↔ heatmap |
-| `S` | Save Sky Plot as PNG |
+| `Ctrl+A` | Select all rows |
+| `Ctrl+C` | Copy selected rows as tab-separated text |
+
+**Floating chart windows:**
+
+| Window | Shortcut | Action |
+|--------|----------|--------|
+| Sky Plot | `M` | Toggle markers ↔ heatmap |
+| Sky Plot | `S` | Save as PNG |
+| Signal Quality | `Ctrl+S` or `S` | Save as PNG |
+| Session History | `Ctrl+S` or `S` | Save as PNG |
+
+Snapshots are named `YYYYMMDDHHmmss_<view>.png`, so a folder of them sorts
+by capture time.
 
 ### Menu Bar
 
@@ -443,13 +601,35 @@ without needing the caster.
 - **Close Stream** (`Esc`)
 
 **View Menu:**
-- **Sky Plot...** — open the floating polar sky-visibility window
+- **Sky Plot...** — floating polar sky-visibility window
+- **VRS Monitor...** — network-mountpoint analysis
+- **Signal Quality...** — C/N0 bars and C/N0-vs-elevation scatter
+- **Session History...** — six metrics plotted over time
+
+**Tools Menu:**
+- **Toggle auto-send GGA** — stop or resume the periodic GGA uplink, used
+  to test how a VRS mountpoint reacts
 
 **Help Menu:**
 - **About NTRIP-Analyser**
 - **View on GitHub**
 
 ## Troubleshooting
+
+**Start with the Stream Health tab.** Most of the questions below are
+answered directly there: whether the caster accepted the connection and
+with which protocol version, whether frames are arriving intact, whether
+the mountpoint is sending what it advertises, and whether the reference
+station is where it claims to be.
+
+| Symptom | Where to look |
+|---------|---------------|
+| Connection rejected | **Response** row gives the actual status code and reason; the Log holds the full response headers |
+| Data arrives but rovers do not fix | **Advertised types** — a missing or off-rate correction type is the usual cause |
+| Position looks wrong or jumps | **Sourcetable match** and **ARP stability** |
+| Intermittent corruption | **CRC-24Q errors** and its rate; a non-zero rate points at the link between receiver and caster |
+| Poor accuracy despite a healthy stream | **Signal Quality** window — check whether C/N0 rises with elevation |
+| Gaps you cannot pin down | **Session History** — dropouts show as simultaneous troughs |
 
 ### Connection Issues
 
@@ -519,19 +699,24 @@ without needing the caster.
 
 ```
 gui/
-├── gui_main.c         — Entry point (WinMain), window class registration
-├── gui_layout.c       — UI layout, control positioning, DPI scaling
-├── gui_events.c       — Event handlers (button clicks, menu commands)
-├── gui_thread.c       — Worker threads (obs / eph / replay)
-├── gui_log.c          — Redirectable output (printf → log window)
-├── gui_parsers.c      — Parse message types from raw RTCM data
-├── gui_detail.c       — RTCM message detail viewer (double-click)
-├── gui_sky_window.c   — Floating Sky Plot (rose, markers, heatmap, footer)
-├── gui_snapshot.c     — GDI+ PNG snapshot helper
-├── gui_sv_detail.c    — Per-SV detail popup (left-click on marker)
-├── gui_state.h        — AppState structure, constants, function prototypes
-├── resource.h         — Resource ID definitions
-└── resource.rc        — Windows resources (menus, dialogs, version info)
+├── gui_main.c          — Entry point (WinMain), window class registration
+├── gui_layout.c        — UI layout, control positioning, DPI scaling
+├── gui_events.c        — Event handlers, Stream Health checks, station
+│                         classification, session-history sampling
+├── gui_thread.c        — Worker threads (obs / eph / replay)
+├── gui_log.c           — Redirectable output (printf → log window)
+├── gui_parsers.c       — Sourcetable rows, advertised message types,
+│                         NTRIP handshake parsing
+├── gui_detail.c        — RTCM message detail viewer (double-click)
+├── gui_sky_window.c    — Floating Sky Plot (rose, markers, heatmap, footer)
+├── gui_signal_window.c — Floating Signal Quality (C/N0 bars + scatter)
+├── gui_hist_window.c   — Floating Session History (six strip charts)
+├── gui_vrs_window.c    — Floating VRS Monitor (distance, polar, chart)
+├── gui_snapshot.c      — GDI+ PNG snapshot + shared save-with-prompt flow
+├── gui_sv_detail.c     — Per-SV detail popup (left-click on marker)
+├── gui_state.h         — AppState structure, constants, function prototypes
+├── resource.h          — Resource ID definitions
+└── resource.rc         — Windows resources (menus, dialogs, version info)
 
 src/  (shared with CLI, additions for the Sky Plot)
 ├── sv_ephemeris.{c,h} — Per-(GNSS,PRN) eph cache, TOW-only validity
@@ -581,21 +766,35 @@ src/  (shared with CLI, additions for the Sky Plot)
 - `CreateSvDetailWindow()` — Per-SV popup with PRN, az/el, CNR table
 - 1 Hz refresh timer + Copy button
 
+**gui_signal_window.c:**
+- `CreateSignalWindow()` — C/N0 bars + C/N0-vs-elevation scatter
+- Hover hit-testing for the per-bar tooltip
+
+**gui_hist_window.c:**
+- `CreateHistWindow()` — six stacked strip charts on a shared time axis
+- Peak-per-column compression so short spikes survive a long session
+
+**gui_vrs_window.c:**
+- `CreateVrsWindow()` — rover-to-virtual-station distance, polar plot,
+  rolling distance chart, ARP hand-over dots
+
 **gui_snapshot.c:**
-- `SnapshotHwndToPng()` — GDI+ flat C API wrapper that grabs a window
+- `save_window_as_png()` — GDI+ flat C API wrapper that grabs a window
   bitmap and saves it as a PNG file
+- `SaveWindowPngWithPrompt()` — shared save flow (timestamped default
+  name, overwrite prompt, log line) used by every chart window
 
 ## Future Enhancements
 
-Potential improvements for future versions:
+The planned and considered work lives in the project-wide backlog:
+**[design/todo.md](../design/todo.md)**. It records what has shipped and
+why, so the same ideas are not re-proposed.
 
-- **Message timeline** — Visual chart of message transmission patterns
-- **Export functionality** — Save analysis results / message stats to file
-- **Multiple streams** — Monitor several mountpoints simultaneously
-- **Real-time plotting** — Graph signal strength, satellite count over time
-- **Dark theme** — Alternative color scheme for low-light environments
-- **Replay pacing** — Optional realtime / Nx playback for the RTCM replay
-  worker (currently as-fast-as-possible)
+Still open at the time of writing: structured export of analysis results
+(CSV / JSON — only PNG snapshots exist today), monitoring several
+mountpoints at once, a dark theme, an ionospheric monitor, and optional
+realtime / Nx pacing for the replay worker, which currently runs as fast
+as disk and CPU allow.
 
 ## See Also
 

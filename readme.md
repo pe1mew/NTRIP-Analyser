@@ -34,30 +34,59 @@ The analyser can perform the following operations on NTRIP streams:
    - Message statistics (count, minimum/average/maximum transmission intervals)
    - Filtered message decoding (show only specific message types)
    - Satellite analysis (count unique satellites per GNSS constellation)
-3. **Live polar sky plot** (GUI) — floating window showing every tracked
+3. **Stream health checks** (GUI) — answers "is this mountpoint actually
+   healthy", not just "is data arriving":
+   - **Caster handshake** — NTRIP 1.0 (ICY) vs 2.0 (HTTP), response status
+     and caster software, with the full response headers in the log
+   - **Frame integrity** — CRC-24Q error count and rate, malformed frames,
+     framing re-syncs
+   - **Advertised vs. observed** — every message type the sourcetable
+     promises, compared against what actually arrives and at what rate;
+     missing, off-rate and unadvertised types are called out
+   - **Reference-station position** — the sourcetable position cross-checked
+     against the broadcast RTCM 1005/1006 ARP, plus detection of a fixed
+     base that moves mid-session
+   - **VRS awareness** — network mountpoints are classified as such, so the
+     fixed-base checks are not applied where a moving reference point is
+     correct behaviour
+4. **Live polar sky plot** (GUI) — floating window showing every tracked
    satellite at its azimuth / elevation as seen from the reference-station
    ARP, with two render modes:
-   - **Markers** — per-GNSS coloured dots shaded by CNR, with a 120-point
-     trail of past positions and a left-click SV detail popup
+   - **Markers** — per-GNSS coloured dots shaded by CNR, with a trail of
+     past positions and a left-click SV detail popup
      (per-band CNR table, PRN, az/el)
    - **Heatmap** — Onocoy-style observed-vs-expected sector coverage map
      (150 sectors, red → yellow → green ramp)
-4. **Multi-GNSS ephemeris** (GPS / GLONASS / Galileo / QZSS / BeiDou) sourced
+5. **Signal quality** (GUI) — C/N0 bars per satellite for the current epoch,
+   plus a C/N0-versus-elevation scatter over the whole session with a
+   per-constellation mean. A clean antenna installation rises monotonically
+   from horizon to zenith; obstructions and multipath show as a dip at
+   particular elevations
+6. **Session history** (GUI) — throughput, message rate, CRC errors,
+   satellites tracked, mean C/N0 and reference-point drift plotted over time
+   on a shared axis, so dropouts, bursts and reconnects are visible rather
+   than averaged away
+7. **VRS monitor** (GUI) — rover-to-virtual-station distance, a polar
+   direction plot and a rolling distance chart, for analysing network
+   services and their hand-overs
+8. **Multi-GNSS ephemeris** (GPS / GLONASS / Galileo / QZSS / BeiDou) sourced
    from one of:
    - A second NTRIP connection that feeds RTCM 1019 / 1020 / 1042 / 1044 /
      1045 / 1046 frames into the eph cache (e.g. BKG `BCEP00BKG0` or
      Kadaster `BCEP00KAD0`), or
    - A RINEX 3 multi-GNSS NAV file loaded from disk
-5. **RTCM capture and replay** (GUI) — save the live stream to a `.rtcm3`
+9. **RTCM capture and replay** (GUI) — save the live stream to a `.rtcm3`
    file and feed it back through the same UI pipeline for offline analysis
-6. **PNG snapshot** of the sky plot, self-contained with ARP / mountpoint
-   / clock footer
+10. **PNG snapshots** of the sky plot, signal-quality and session-history
+    windows, each self-contained with its own header/footer context
 
 ## Documentation
 
 - **[Compilation Guide](docs/compile.md)** — Build instructions for Windows and Linux
 - **[GUI User Guide](docs/gui.md)** — Complete Windows GUI documentation
-- **[General Documentation](docs/readme.md)** — Additional project documentation
+- **[General Documentation](docs/readme.md)** — CLI usage and configuration
+- **[Feature Backlog](design/todo.md)** — What is shipped, what is planned, and why
+- **[GUI Design Document](gui/design.md)** — Architecture and design decisions
 
 ## Quick Start
 

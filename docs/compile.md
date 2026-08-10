@@ -26,7 +26,7 @@ encoder in `sky_render.c` mean the CLI can generate the same
 heatmap-snapshot PNG as the GUI without GDI+ or libpng.
 
 ### Windows
-This code was originally developed on Windows using the Mingw compiler that comes with Code::Blocks. For this the primary compiler was configured in Visual Studio Code. See [tasks.json](.vscode/tasks.json).
+This code was originally developed on Windows using the Mingw compiler that comes with Code::Blocks. For this the primary compiler was configured in Visual Studio Code. See [tasks.json](../.vscode/tasks.json).
 
 For Windows: install Code::Blocks with Mingw compiler and Visual Studio Code. In VSC type `ctrl-shift-b` to compile the code.
 
@@ -70,22 +70,31 @@ on top of the CLI core:
 
 | GUI module | Purpose |
 |---|---|
+| GUI module | Purpose |
+|---|---|
 | `gui/gui_main.c` | `WinMain`, message loop, window class |
 | `gui/gui_layout.c` | Control creation, sizing, layout |
-| `gui/gui_events.c` | Menu / button handlers (incl. Sky Plot, RINEX load, RTCM capture/replay) |
+| `gui/gui_events.c` | Menu / button handlers, Stream Health checks, station classification, session-history sampling |
 | `gui/gui_thread.c` | Worker threads (obs stream, eph stream, replay) |
-| `gui/gui_log.c` | Log redirect (printf → listbox) |
-| `gui/gui_parsers.c` | Message parsing for GUI display |
+| `gui/gui_log.c` | Log redirect (printf → log panel) |
+| `gui/gui_parsers.c` | Sourcetable rows, advertised message types, NTRIP handshake parsing |
 | `gui/gui_detail.c` | RTCM message detail viewer |
 | `gui/gui_sky_window.c` | Floating Sky Plot window (rose, markers, heatmap, footer, snapshot) |
-| `gui/gui_snapshot.c` | GDI+ PNG export helper |
+| `gui/gui_signal_window.c` | Floating Signal Quality window (C/N0 bars, C/N0-vs-elevation scatter) |
+| `gui/gui_hist_window.c` | Floating Session History window (six strip charts on a shared time axis) |
+| `gui/gui_vrs_window.c` | Floating VRS Monitor window (distance, polar plot, rolling chart) |
+| `gui/gui_snapshot.c` | GDI+ PNG export helper and the shared save-with-prompt flow |
 | `gui/gui_sv_detail.c` | Per-SV detail popup (PRN, az/el, per-band CNR) |
 | `gui/resource.rc` | Menu bar, version info, manifest |
 | `src/rinex_nav.c` | RINEX 3 multi-GNSS NAV loader |
 
 Required link libraries: `-lws2_32 -lcomctl32 -lcomdlg32 -lgdiplus -lm`.
-`-lgdiplus` is new in this release and is needed for the Sky Plot PNG
-snapshot.
+`-lgdiplus` is needed for the PNG snapshot support in the Sky Plot,
+Signal Quality and Session History windows.
+
+`build-gui.bat` holds the authoritative source list; treat any table or
+command elsewhere in the docs as a description of it rather than a second
+source of truth.
 
 For detailed GUI compilation instructions, build methods, and troubleshooting, see the **[GUI Documentation](gui.md#building-the-gui)**.
 

@@ -215,6 +215,8 @@ same file correctly does. The extractors were therefore reading pseudorange and 
 Measured on a 204-frame MSM7 capture, values spanned 0.75–63.94 dB-Hz and peaked in the 60–65
 bucket; after the fix they span 35–55 and peak at 45–50, which is the expected distribution. This
 also silently corrupted the sky plot's C/N0 shading and the per-SV detail window, both now correct.
+CLI output was never affected: both extractors are called only from `gui/`, and the CLI's MSM7
+output comes from the full decoder, which reads the layout correctly.
 
 The scatter is fed by its own accumulator (`SigCnrState`) on every MSM epoch rather than from the
 trail buffer — the 60 s trail sampling yields one point per satellite per minute, far too sparse to

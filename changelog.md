@@ -6,6 +6,111 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — Stream health analysis
+
+A new **Stream Health** tab answering "is this mountpoint healthy", not
+just "is data arriving". Fourteen rows in connection order, colour-coded
+by severity: red for real faults, amber for advisories, blue for
+informational.
+
+- **Caster handshake** — NTRIP 1.0 (ICY) versus 2.0 (HTTP), response
+  status and caster software, with the full response headers written to
+  the log. A caster answering ICY despite an `Ntrip-Version: Ntrip/2.0`
+  request is reported as informational, since that is simply an NTRIP 1.0
+  caster.
+- **Frame integrity** — CRC-24Q error count and rate, malformed frames and
+  framing re-syncs. The CRC result was previously computed and discarded.
+- **Advertised versus observed message types** — the Msg Stats tab gained
+  **Advertised** and **Status** columns comparing what the sourcetable
+  promises against what arrives, with verdicts `ok`, `missing`,
+  `slow`/`fast Nx` and `extra`. Advertised types are seeded as rows at
+  connect, so a type that never arrives is visible rather than absent.
+- **Reference-station position** — the sourcetable position cross-checked
+  against the broadcast RTCM 1005/1006 ARP, plus detection of a fixed base
+  that moves mid-session.
+- **Station classification** — VRS / MAC / nearest-base mountpoints are
+  identified from sourcetable keywords and from the reference point
+  tracking the transmitted GGA. The fixed-base checks are suppressed for
+  them, since a moving reference point is correct behaviour there.
+
+Rate comparison is per **epoch**, not per frame: MSM splits one epoch
+across several frames when the observations do not fit in one, so frame
+counting would report a correctly-behaving base as sending at twice its
+advertised rate.
+
+### Added — Signal Quality window
+
+`View → Signal Quality` shows C/N0 bars per satellite for the current
+epoch, with a hover tooltip giving satellite, C/N0 and elevation, plus a
+C/N0-versus-elevation scatter accumulated over the session with a
+per-constellation mean in 5° bins. The scatter is the diagnostic view: a
+clean installation rises monotonically from horizon to zenith, while
+obstructions and multipath show as a dip at particular elevations.
+
+### Added — Session History window
+
+`View → Session History` plots throughput, message rate, CRC errors,
+satellites tracked, mean C/N0 and reference-point drift over time on one
+shared axis, sampled once per second for four hours. Each pixel column
+shows the peak of the samples it covers rather than their mean, so a
+one-second spike stays visible however long the session runs. This
+supersedes the long-planned message-rate graph.
+
+### Added — PNG snapshots for the new windows
+
+`Ctrl+S` saves the Signal Quality and Session History windows as PNG. The
+sky plot's save routine was factored into `SaveWindowPngWithPrompt()` in
+`gui_snapshot.c`, so all three windows share one implementation and the
+existing timestamped filename convention.
+
+### Added — Sourcetable fetched on connect
+
+Opening a stream for a hand-typed mountpoint now fetches the sourcetable
+on the worker thread, so the advertised-versus-observed comparison works
+either way. The fetched table also fills the mountpoint list rather than
+being discarded.
+
+### Fixed — MSM7 C/N0 read from the wrong bits
+
+`msm7_extract_cnr()` and `msm7_update_per_band_cnr()` both assumed MSM
+signal data is stored as contiguous 80-bit per-cell blocks, and read C/N0
+at a fixed offset within each. MSM actually stores each field as its own
+array spanning all cells — every fine pseudorange, then every fine phase
+range, then every lock time, then every half-cycle flag, then every C/N0 —
+as the full MSM7 decoder in the same file already did correctly. Both
+extractors were therefore reading pseudorange and phase bits and scaling
+them as if they were C/N0.
+
+Measured over a 204-frame MSM7 capture, values spanned 0.75 to 63.94
+dB-Hz and peaked in the 60–65 bucket, above the physical range for a
+tracked GNSS signal. After the fix they span 35 to 55 and peak at 45–50.
+
+This had corrupted the GUI's sky-plot C/N0 shading and the per-SV detail
+window. **CLI output was not affected**: although the CLI links the same
+parser, these two extractor helpers are only called from `gui/`, and the
+CLI's MSM7 output comes from the full decoder, which reads the layout
+correctly.
+
+### Fixed — Rejected connections could be treated as success
+
+The GUI worker tested the caster's response with
+`strstr(header, "200") || strstr(header, "ICY")`, a substring search over
+the entire header. A `404 Not Found` carrying `Content-Length: 200`, or a
+`503` from `Server: caster/2.0.0 build 200`, both satisfied it, after
+which the analyser would try to decode an HTML error page as RTCM. The
+status line is now parsed properly, and a rejection reports the actual
+status alongside the headers.
+
+### Changed — Sky-plot trail samples carry C/N0
+
+`SkyTrackPoint.ts` became a float offset from a session epoch rather than
+an absolute double, which freed room for a C/N0 field at no memory cost:
+the struct stays 16 bytes and the trail buffer stays 11.3 MB. A
+compile-time assertion pins the size, since reintroducing a double would
+cost 5.6 MB silently. The header's memory figures were also corrected —
+they claimed 24 B and 17.7 MB where the struct was already 16 B and
+11.3 MB.
+
 ### Fixed — GLONASS sky-plot jumps (two distinct causes)
 
 Two separate bugs hit GLONASS sky-plot trails; both are now fixed.
