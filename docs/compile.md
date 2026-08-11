@@ -54,6 +54,18 @@ on Windows, `ntrip-monitord` on UNIX.  The project version is parsed out
 of `src/core/version.h`, so the build system cannot disagree with the
 binaries about the release number.
 
+**Executables land in `bin/`, not in the build directory** — the same
+place `build-gui.bat` and the VS Code tasks have always written, so
+every build system puts them in one spot. Object files and CMake's own
+state stay in the build directory, which remains disposable.
+
+That separation is the point. The programs look for `config.json` in the
+working directory, so configs end up beside the executable; if that were
+a build directory, `rm -rf build` would take your caster credentials
+with it. `bin/` is in `.gitignore` apart from the `readme.md` placeholder
+that makes git create the directory at all, so binaries, configs and
+captures can live there without being committed.
+
 The hand-written commands below remain for a quick compiler-only build.
 
 ### Windows

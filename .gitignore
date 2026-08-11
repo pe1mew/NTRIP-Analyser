@@ -1,6 +1,16 @@
 *.exe
 *.json
-ntrip-analyser.exe
+
+# bin/ is the output directory for every build system -- CMake, the VS
+# Code tasks and build-gui.bat all write executables here, and configs
+# and captures naturally sit beside them.  Ignore the lot except the
+# placeholder that makes git create the directory at all: without it a
+# fresh clone has no bin/ and every non-CMake build fails on "No such
+# file or directory".
+#
+# Needed on top of *.exe because the Linux binaries carry no extension.
+bin/*
+!bin/readme.md
 
 # Build artifacts
 gui_main.o

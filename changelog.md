@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — CMake now puts executables in `bin/`
+
+The same directory `build-gui.bat` and the VS Code tasks have always
+written to, so every build system agrees on one location.
+
+The motive is not tidiness.  The programs read `config.json` from the
+working directory, so configs naturally end up beside the executable —
+and when that was a CMake build directory, a clean rebuild deleted them.
+Caster credentials should not live somewhere `rm -rf` is the normal way
+to get a fresh build.  Object files and CMake state stay in the build
+directory, which remains disposable.
+
+`.gitignore` now covers `bin/*` with an exception for the `readme.md`
+placeholder that makes git create the directory at all — needed on top
+of `*.exe`, since the Linux binaries carry no extension.
+
+Verified on both platforms: binaries appear in `bin/` and run, the
+`release` target still resolves its target paths and packages correctly,
+and `git check-ignore` confirms the binaries, configs and captures are
+ignored while `bin/readme.md` stays tracked.
+
 ### Added — minimise to the notification area (Tools menu)
 
 With the option on, minimising hides the window and leaves an icon in

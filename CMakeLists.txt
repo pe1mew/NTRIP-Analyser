@@ -38,6 +38,28 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "" FORCE)
 endif()
 
+# ── Where executables land ────────────────────────────────────────────
+# bin/, alongside build-gui.bat and the VS Code tasks, which have always
+# written there.  One stable location for every build system.
+#
+# The reason this matters is not tidiness.  The programs look for
+# config.json in the working directory, so configs end up sitting beside
+# the executable -- and if that is a build directory, a clean rebuild
+# deletes them.  A build tree must stay disposable, so the binaries come
+# out of it instead.
+#
+# bin/ is a tracked directory (bin/readme.md is a placeholder, since git
+# does not track empty directories) and .gitignore keeps everything else
+# in it out of the repository.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+# Multi-config generators (Visual Studio, Ninja Multi-Config) otherwise
+# append Debug/ or Release/ to the path above; pin each so the binary is
+# in the same place whichever generator built it.
+foreach(_cfg ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER "${_cfg}" _CFG)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${_CFG} "${CMAKE_SOURCE_DIR}/bin")
+endforeach()
+
 # Strict -std=c99 hides POSIX declarations on glibc; without these,
 # clock_gettime, getaddrinfo and strncasecmp fail to resolve.
 if(UNIX)
