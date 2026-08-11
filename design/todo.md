@@ -252,6 +252,34 @@ A caution recorded for the next person: `-s / --sat` does **not** honour `--rtcm
 is `--sky`-only — so `-s` silently connects to the live caster instead of replaying a file. An
 early comparison against it looked like agreement purely by coincidence.
 
+### 0.5 The last two framing loops, in `--sky` — **Partial**
+
+`run_sky_stdin_stream()` (`src/cli/main.c:328`) and `run_sky_obs_stream()` (`:522`) still frame RTCM
+by hand — the only duplicates of the session layer's framing left in the tree, and the reason the
+migration in [architecture.md §9](architecture.md) is not finished.
+
+**Done: the prerequisite.** The stdin path could not move onto the session layer at all, because
+`ns_open_file()` takes a path and `stdin` has none. `ns_open_stream(FILE *f, bool own, ...)` is the
+general form — `ns_open_file()` is now a wrapper — and `ns_close()` closes only what the session
+opened, so a caller's handle survives. Verified equivalent to `ns_open_file()` on the capture (206
+frames, 39 SVs, 45.46 dB-Hz through both) and working on `stdin`.
+
+Recorded while testing it: a Windows caller **must** put the handle in binary mode first.
+In text mode the same capture yields **1** frame instead of 206, because CRLF byte pairs inside
+RTCM payloads get translated. `run_sky_stdin_stream()` already does this (`_setmode`, `:338`); any
+new caller must too.
+
+**Not done: the two conversions**, deliberately. `--sky` gates on an ephemeris source in pre-flight
+(`EXIT_NO_EPH`) and exits before the framing loop runs, so with no RINEX NAV file and no `EPH_*`
+configured there is no way to exercise either function end to end here. These are the least-tested
+paths in the tree; rewriting ~500 lines of them without being able to run the result is how the
+`take_header()` and clone-build faults got in.
+
+To finish: a RINEX 3 NAV file covering the capture's epoch (2026-05-28), or `EPH_*` caster settings.
+Then convert `run_sky_obs_stream()` onto `ns_open()` and `run_sky_stdin_stream()` onto
+`ns_open_stream(stdin, false, ...)`, as `cli_stream.c` already does for the other modes, and compare
+frame/MSM counts and the rendered PNG before and after.
+
 ### 3.2 Ephemeris decoding — 1019 / 1020 / 1042 / 1044 / 1045 / 1046 — **Shipped**
 
 Decoders live in `src/rtcm3x_parser.c` (`decode_rtcm_1020:1364`, `decode_rtcm_1044:1472`,
@@ -317,7 +345,18 @@ read as a cloud.
 
 ### 0.1 Displayed version numbers must follow `src/core/version.h` — **Shipped**, see §0
 
-### 1.4b Per-constellation C/N0 columns in the Satellites tab — **Open**
+### 1.4b Per-constellation C/N0 columns in the Satellites tab — **Shipped**
+
+The tab shows `GNSS` / `Seen` / `In View` / `C/N0 Min` / `C/N0 Mean` / `C/N0 Max` / `Satellites`,
+fed from `ns_stats()->gnss[]` via `AppState.gnssStats` rather than recomputed, so it agrees with the
+daemon's Munin graphs by construction. Works for replay as well as live, since both drive
+`ObsProcessFrame`.
+
+`Seen` (cumulative, from `satStats`) and `In View` (current 5 s window, from `sv_track`) are both
+shown on purpose — either alone invites a misreading. C/N0 renders as `-` rather than `0.00` when
+the stream carries none, because MSM4/5/6 have no C/N0 field and a zero reads as a dead signal.
+
+Original text below, kept because its cost estimate was wrong in an instructive way.
 
 The Satellites ListView still shows only `GNSS` / `Sats Seen` / `Satellites`
 (`gui/gui_layout.c:338-340`). Min/mean/max C/N0 columns there would give a sortable tabular view

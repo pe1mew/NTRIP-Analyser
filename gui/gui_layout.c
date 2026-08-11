@@ -338,9 +338,16 @@ void CreateControls(HWND hwnd, AppState *state)
     ListView_SetExtendedListViewStyle(state->hLvSatellites,
         LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
+    /* "Seen" is cumulative for the session; "In View" is the current
+     * five-second window.  The C/N0 columns describe the In View set --
+     * a satellite that has set has no current signal to report. */
     LvAddColumn(state->hLvSatellites, 0, "GNSS",        90);
-    LvAddColumn(state->hLvSatellites, 1, "Sats Seen",   80);
-    LvAddColumn(state->hLvSatellites, 2, "Satellites",  400);
+    LvAddColumn(state->hLvSatellites, 1, "Seen",        55);
+    LvAddColumn(state->hLvSatellites, 2, "In View",     60);
+    LvAddColumn(state->hLvSatellites, 3, "C/N0 Min",    70);
+    LvAddColumn(state->hLvSatellites, 4, "C/N0 Mean",   75);
+    LvAddColumn(state->hLvSatellites, 5, "C/N0 Max",    70);
+    LvAddColumn(state->hLvSatellites, 6, "Satellites",  400);
 
     /* Stream Health ListView (hidden by default).
      * Metric/Value/Detail rows rather than one row per message type --

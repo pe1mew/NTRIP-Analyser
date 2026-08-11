@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include "net/ntrip_handler.h"
 #include "core/sv_ephemeris.h"
+#include "core/ns_stats.h"
 #include "net/ntrip_proto.h"
 
 /* ── Application constants ────────────────────────────────── */
@@ -458,6 +459,21 @@ typedef struct {
 
     /* ── Real-time satellite statistics ───────────────────── */
     SatStatsSummary satStats;
+
+    /* Per-constellation satellites-in-view and C/N0, copied from the
+     * session's snapshot by the worker and read by the UI thread.
+     *
+     * Distinct from satStats above, which counts every satellite seen
+     * since the session opened and never forgets one.  This is the
+     * current view over a five-second window, so a setting satellite
+     * leaves it.  Both are shown: "40 seen, 38 in view" is the useful
+     * reading, and either number alone invites the wrong one.
+     *
+     * Written by the worker and read by the UI without a lock, matching
+     * how satStats is already handled -- a torn read costs one stale
+     * repaint, which is not worth a critical section on the frame path. */
+    NsGnssStats gnssStats[NS_MAX_GNSS];
+    int         nGnssStats;
 
     /* ── Stream info (set by worker, read by UI) ─────────── */
     volatile LONG  streamBytes;       /* total data bytes received */

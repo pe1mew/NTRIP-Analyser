@@ -294,6 +294,19 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
 
     /* Satellite info from MSM messages. */
     extract_satellites(frame + 3, msg_length, msg_type, &state->satStats);
+
+    /* Satellites in view and their C/N0, from the session's own tracker.
+     * stats_refresh() runs on every ns_pump(), so this is at most one
+     * pump old.  Taken here rather than recomputed in the GUI so that
+     * the Satellites tab, the daemon's Munin graphs and Android all
+     * report the same numbers. */
+    {
+        const NsStatsSnapshot *snap = ns_stats(c->sess);
+        if (snap) {
+            memcpy(state->gnssStats, snap->gnss, sizeof(state->gnssStats));
+            state->nGnssStats = snap->n_gnss;
+        }
+    }
     PostMessage(state->hMain, WM_APP_SAT_UPDATE, 0, 0);
 
     /* ── Sky-plot update for MSM frames ─────────────────────────

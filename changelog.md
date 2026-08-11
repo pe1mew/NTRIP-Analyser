@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — a config file missing one key crashed the program
+
+`load_config()` read required fields as
+`strcpy(dst, cJSON_GetObjectItem(json, key)->valuestring)`, which
+dereferences NULL when the key is absent and overruns a fixed buffer
+when the value is longer than it.  A hand-edited `config.json` with one
+key misspelt was enough to segfault every artefact that loads a config.
+Confirmed by running the old code against a config missing
+`NTRIP_CASTER`: immediate SIGSEGV.
+
+Missing or wrongly-typed keys now leave the field empty, matching how
+the optional `EPH_*` fields in the same function have always behaved.
+Empty required fields were already reported downstream by
+`--check-config` and by the connection attempt itself.
+
+The same function also ignored `fread`'s return value and terminated the
+buffer at the size reported by `ftell`.  Those differ routinely: the file
+is opened in text mode, so on Windows every CRLF becomes one LF and
+`fread` returns fewer bytes than `ftell` promised, leaving uninitialised
+heap between the real end of the data and the terminator — which cJSON
+then parsed.  It now terminates at what was actually read, and reports a
+read error instead of continuing.
+
+### Added — `ns_open_stream()`, for sessions fed from an open handle
+
+The general form of `ns_open_file()`, which is now a thin wrapper around
+it.  A caller can hand the session a `FILE *` it already owns — `stdin`
+above all, which is how a capture is piped in for offline analysis and
+which no path-based API can express.  `ns_close()` closes only what the
+session opened, so a caller's handle survives.
+
+Verified equivalent to `ns_open_file()` on the same capture (206 frames,
+39 satellites, 45.46 dB-Hz through both), and on `stdin`.  Note that a
+Windows caller must put the handle in binary mode first: in text mode
+the same capture yields **one** frame instead of 206, because CRLF byte
+pairs inside RTCM payloads are translated.
+
+### Added — per-constellation C/N0 in the GUI's Satellites tab
+
+The tab now shows **Seen**, **In View**, and C/N0 **Min / Mean / Max**
+per constellation, read from the session's tracker rather than
+recomputed, so it agrees with the daemon's Munin graphs by construction.
+
+`Seen` and `In View` are deliberately both present: the first counts
+every satellite observed since the session opened and never forgets one,
+the second is the current five-second window.  "40 seen, 38 in view" is
+the useful reading, and either number alone invites the wrong one.
+
+C/N0 shows `-` rather than `0.00` where the stream carries none, since
+MSM4/5/6 have no C/N0 field at all and a zero would read as a dead
+signal rather than as a stream that never reports one.
+
 ### Added — satellite and C/N0 tracking in the session layer
 
 The monitoring daemon's `sats_total` and `cnr_mean` graphs have read

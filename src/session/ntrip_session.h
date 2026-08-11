@@ -34,6 +34,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>    /* FILE, for ns_open_stream() */
 #include <stddef.h>
 
 #include "core/ns_stats.h"
@@ -149,6 +150,27 @@ NtripSession *ns_open(const NsOptions *opt, NsEventFn cb, void *user);
  */
 NtripSession *ns_open_file(const char *path, const NsOptions *opt,
                            NsEventFn cb, void *user);
+
+/**
+ * @brief Open a session that reads RTCM from an already-open stream.
+ *
+ * The general form of @ref ns_open_file, which is a thin wrapper around
+ * it. Exists so a caller can feed the session from a handle it does not
+ * own -- `stdin` above all, which is how a capture is piped in for
+ * offline analysis and which no path/`fopen` API can express.
+ *
+ * @param f    Stream to read, positioned at the first RTCM byte. Should
+ *             be in binary mode; on Windows a text-mode handle mangles
+ *             CRLF byte pairs inside RTCM payloads.
+ * @param own  true to `fclose` @p f in @ref ns_close. Pass **false** for
+ *             `stdin` or any handle the caller reuses afterwards.
+ * @param opt  Session options; the connection fields are ignored.
+ * @param cb   Event callback.
+ * @param user Opaque pointer passed to @p cb.
+ * @return Session handle, or NULL on allocation failure.
+ */
+NtripSession *ns_open_stream(FILE *f, bool own, const NsOptions *opt,
+                             NsEventFn cb, void *user);
 
 /**
  * @brief Advance the session by one iteration.

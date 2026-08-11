@@ -13,6 +13,30 @@
 #include <string.h>
 #include "cJSON.h"
 
+/**
+ * @brief Copy a JSON string field into a fixed buffer, bounded.
+ *
+ * A missing key, or one holding something other than a string, yields an
+ * empty result rather than a crash.
+ *
+ * @param json Object to read from.
+ * @param key  Field name.
+ * @param dst  Destination buffer, always NUL-terminated on return.
+ * @param cap  Capacity of @p dst.
+ */
+static void cfg_copy_string(const cJSON *json, const char *key,
+                            char *dst, size_t cap)
+{
+    if (!dst || cap == 0) return;
+    dst[0] = '\0';
+
+    const cJSON *item = cJSON_GetObjectItem(json, key);
+    if (!item || !cJSON_IsString(item) || !item->valuestring) return;
+
+    strncpy(dst, item->valuestring, cap - 1);
+    dst[cap - 1] = '\0';
+}
+
 int load_config(const char *filename, NTRIP_Config *config) {
     FILE *file = fopen(filename, "r");
     if (!file) {
@@ -24,15 +48,34 @@ int load_config(const char *filename, NTRIP_Config *config) {
     long length = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    char *data = (char *)malloc(length + 1);
+    if (length < 0) {
+        perror("Failed to size config file");
+        fclose(file);
+        return -1;
+    }
+
+    char *data = (char *)malloc((size_t)length + 1);
     if (!data) {
         perror("Failed to allocate memory for config file");
         fclose(file);
         return -1;
     }
 
-    fread(data, 1, length, file);
-    data[length] = '\0';
+    /* Terminate at what was actually read, not at the size on disk.
+     *
+     * These differ routinely: the file is opened in text mode, so on
+     * Windows every CRLF becomes one LF and fread returns fewer bytes
+     * than ftell reported.  Writing the NUL at `length` therefore left
+     * uninitialised heap between the real end and the terminator, which
+     * cJSON then parsed.  A truncated read did the same. */
+    size_t got = fread(data, 1, (size_t)length, file);
+    if (ferror(file)) {
+        perror("Failed to read config file");
+        free(data);
+        fclose(file);
+        return -1;
+    }
+    data[got] = '\0';
     fclose(file);
 
     cJSON *json = cJSON_Parse(data);
@@ -43,12 +86,28 @@ int load_config(const char *filename, NTRIP_Config *config) {
         return -1;
     }
 
-    // Extract configuration values
-    strcpy(config->NTRIP_CASTER, cJSON_GetObjectItem(json, "NTRIP_CASTER")->valuestring);
-    config->NTRIP_PORT = cJSON_GetObjectItem(json, "NTRIP_PORT")->valueint;
-    strcpy(config->MOUNTPOINT, cJSON_GetObjectItem(json, "MOUNTPOINT")->valuestring);
-    strcpy(config->USERNAME, cJSON_GetObjectItem(json, "USERNAME")->valuestring);
-    strcpy(config->PASSWORD, cJSON_GetObjectItem(json, "PASSWORD")->valuestring);
+    /* Extract configuration values.
+     *
+     * A missing key leaves the field empty rather than crashing: these
+     * were `strcpy(dst, cJSON_GetObjectItem(...)->valuestring)`, which
+     * dereferenced NULL when a key was absent and overran the fixed
+     * buffer when a value was longer than it.  A hand-edited config with
+     * one key misspelt was enough to take the program down.
+     *
+     * Empty required fields are already reported downstream -- by
+     * `--check-config`, and by the connection attempt itself -- so this
+     * matches how the optional EPH_* fields below have always behaved. */
+    cfg_copy_string(json, "NTRIP_CASTER", config->NTRIP_CASTER,
+                    sizeof(config->NTRIP_CASTER));
+    cfg_copy_string(json, "MOUNTPOINT", config->MOUNTPOINT,
+                    sizeof(config->MOUNTPOINT));
+    cfg_copy_string(json, "USERNAME", config->USERNAME,
+                    sizeof(config->USERNAME));
+    cfg_copy_string(json, "PASSWORD", config->PASSWORD,
+                    sizeof(config->PASSWORD));
+
+    cJSON *port = cJSON_GetObjectItem(json, "NTRIP_PORT");
+    config->NTRIP_PORT = (port && cJSON_IsNumber(port)) ? port->valueint : 0;
 
     // New: Extract latitude and longitude if present
     cJSON *lat = cJSON_GetObjectItem(json, "LATITUDE");

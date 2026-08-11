@@ -1096,6 +1096,8 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     /* Clear previous stats, ListViews, and last-decoded-text cache */
     memset(state->msgStats, 0, sizeof(state->msgStats));
     memset(&state->satStats, 0, sizeof(state->satStats));
+    memset(state->gnssStats, 0, sizeof(state->gnssStats));
+    state->nGnssStats = 0;
     /* Reset the heatmap accumulator and per-SV track buffers -- both
      * are "since connect" data so any prior session must be cleared.
      * Also clear the per-GNSS legend filter so a new mountpoint starts
@@ -1920,11 +1922,46 @@ static void OnSatUpdate(AppState *state)
             ListView_InsertItem(state->hLvSatellites, &lvi);
         }
 
-        /* Column 1: Sats Seen count */
+        /* Column 1: satellites seen at any point this session */
         snprintf(buf, sizeof(buf), "%d", gs->count);
         ListView_SetItemText(state->hLvSatellites, row, 1, buf);
 
-        /* Column 2: RINEX satellite IDs */
+        /* Columns 2-5: current view and its C/N0, from the session's
+         * tracker.  Matched by constellation rather than by row order --
+         * a constellation with nothing in view is absent from gnssStats
+         * while still holding a row here from what it has been seen. */
+        const NsGnssStats *cur = NULL;
+        for (int k = 0; k < state->nGnssStats; k++) {
+            if (state->gnssStats[k].gnss_id == gs->gnss_id) {
+                cur = &state->gnssStats[k];
+                break;
+            }
+        }
+
+        if (cur) {
+            snprintf(buf, sizeof(buf), "%d", cur->sats_tracked);
+            ListView_SetItemText(state->hLvSatellites, row, 2, buf);
+        } else {
+            ListView_SetItemText(state->hLvSatellites, row, 2, "0");
+        }
+
+        /* A dash rather than "0.00" when there is no C/N0: MSM4/5/6 carry
+         * no C/N0 field at all, and a zero would read as a dead signal
+         * rather than as a stream that never reports one. */
+        if (cur && cur->cnr_mean > 0.0f) {
+            snprintf(buf, sizeof(buf), "%.1f", cur->cnr_min);
+            ListView_SetItemText(state->hLvSatellites, row, 3, buf);
+            snprintf(buf, sizeof(buf), "%.1f", cur->cnr_mean);
+            ListView_SetItemText(state->hLvSatellites, row, 4, buf);
+            snprintf(buf, sizeof(buf), "%.1f", cur->cnr_max);
+            ListView_SetItemText(state->hLvSatellites, row, 5, buf);
+        } else {
+            ListView_SetItemText(state->hLvSatellites, row, 3, "-");
+            ListView_SetItemText(state->hLvSatellites, row, 4, "-");
+            ListView_SetItemText(state->hLvSatellites, row, 5, "-");
+        }
+
+        /* Column 6: RINEX satellite IDs */
         buf[0] = '\0';
         int pos = 0;
         for (int s = 1; s <= MAX_SATS_PER_GNSS; s++) {
@@ -1937,7 +1974,7 @@ static void OnSatUpdate(AppState *state)
                 if (wrote > 0) pos += wrote;
             }
         }
-        ListView_SetItemText(state->hLvSatellites, row, 2, buf);
+        ListView_SetItemText(state->hLvSatellites, row, 6, buf);
     }
 }
 

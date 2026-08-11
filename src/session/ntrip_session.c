@@ -94,6 +94,7 @@ struct NtripSession {
     ns_sock_t  sock;
     FILE      *file;
     bool       is_file;
+    bool       own_file;   /* false when the caller owns it, e.g. stdin */
 
     bool       stopped;
     bool       ended;
@@ -656,25 +657,41 @@ NtripSession *ns_open(const NsOptions *opt, NsEventFn cb, void *user)
     return s;
 }
 
-NtripSession *ns_open_file(const char *path, const NsOptions *opt,
-                           NsEventFn cb, void *user)
+NtripSession *ns_open_stream(FILE *f, bool own, const NsOptions *opt,
+                             NsEventFn cb, void *user)
 {
-    if (!path) return NULL;
+    if (!f) return NULL;
     NtripSession *s = alloc_session(opt, cb, user);
     if (!s) return NULL;
 
-    s->is_file = true;
-    s->file    = fopen(path, "rb");
-    if (!s->file) {
-        emit_log(s, NS_LOG_ERROR, "Cannot open capture: %s", path);
-        emit_end(s, NS_END_NET_ERROR);
-        return s;   /* caller still closes it */
-    }
+    s->is_file  = true;
+    s->file     = f;
+    s->own_file = own;
+
     /* A capture has no handshake; it is payload from the first byte. */
     s->header_done = true;
     s->connected   = true;
     s->stats.connected = true;
     return s;
+}
+
+NtripSession *ns_open_file(const char *path, const NsOptions *opt,
+                           NsEventFn cb, void *user)
+{
+    if (!path) return NULL;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        /* Report through the session so the caller's error handling is
+         * the same whether the failure is a bad path or a dead socket. */
+        NtripSession *s = alloc_session(opt, cb, user);
+        if (!s) return NULL;
+        s->is_file = true;
+        emit_log(s, NS_LOG_ERROR, "Cannot open capture: %s", path);
+        emit_end(s, NS_END_NET_ERROR);
+        return s;   /* caller still closes it */
+    }
+    return ns_open_stream(f, true, opt, cb, user);
 }
 
 int ns_pump(NtripSession *s, int timeout_ms)
@@ -765,7 +782,9 @@ void ns_close(NtripSession *s)
 {
     if (!s) return;
     if (s->sock != NS_INVALID_SOCK) closesocket(s->sock);
-    if (s->file) fclose(s->file);
+    /* Only close what this session opened.  Closing a caller's handle --
+     * stdin, above all -- would break the program around us. */
+    if (s->file && s->own_file) fclose(s->file);
     free(s);
 }
 
