@@ -176,7 +176,7 @@ The analyser can perform the following operations on NTRIP streams:
 
 **Windows CLI:**
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Ilib/cJSON -lws2_32 -lm -Wall
+gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli_stream.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 **Windows GUI:**
@@ -187,7 +187,7 @@ build-gui.bat
 **Linux CLI:**
 ```bash
 mkdir -p bin
-gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm -lpthread
+gcc -g -o bin/ntripanalyser src/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
 ```
 
 See [compilation guide](docs/compile.md) for complete build instructions.

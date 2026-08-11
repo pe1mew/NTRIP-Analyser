@@ -32,7 +32,7 @@ For Windows: install Code::Blocks with Mingw compiler and Visual Studio Code. In
 
 Direct command line:
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Ilib/cJSON -lws2_32 -lm -Wall
+gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli_stream.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 ### Linux
@@ -48,13 +48,13 @@ mkdir -p bin
 
 To compile, in the root of the repository execute: 
 ```bash
-gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm -lpthread
+gcc -g -o bin/ntripanalyser src/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
 ```
 
 This command will:
-- Compile all C source files in the `src/` directory using wildcard (`src/*.c`)
-  — automatically picks up `sv_ephemeris.c`, `sv_orbit.c`, `rinex_nav.c`,
-  `sky_collect.c`, and `sky_render.c`
+- Compile all C source files in `src/` and its `core/`, `net/` and
+  `session/` subdirectories — the subdirectory globs are required, since
+  `src/*.c` alone does not descend into them
 - Include the cJSON library from `lib/cjson/cJSON.c`
 - Add the cJSON headers to include path (`-Ilib/cjson`)
 - Enable debug symbols (`-g`) and all warnings (`-Wall`)
@@ -68,8 +68,6 @@ This command will:
 The GUI links additional source modules and a couple of extra libraries
 on top of the CLI core:
 
-| GUI module | Purpose |
-|---|---|
 | GUI module | Purpose |
 |---|---|
 | `gui/gui_main.c` | `WinMain`, message loop, window class |

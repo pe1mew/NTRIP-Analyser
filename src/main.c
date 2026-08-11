@@ -28,6 +28,7 @@
 #include "cJSON.h" // Include cJSON library
 #include "rtcm3x_parser.h" // Include RTCM parser header
 #include "ntrip_handler.h"
+#include "cli_stream.h"
 #include "config.h"
 #include "cli_help.h"
 #include "sky_collect.h"
@@ -1269,7 +1270,7 @@ int main(int argc, char *argv[]) {
 
     // === 0. Analyze message types if requested ===
     if (operation == OP_ANALYZE_TYPES) {
-        analyze_message_types(&config, analysis_time);
+        cli_analyze_types(&config, analysis_time);
 #ifdef _WIN32
         WSACleanup();
 #endif
@@ -1316,7 +1317,7 @@ int main(int argc, char *argv[]) {
         } else {
             INFO("[DEBUG] No filter: all message types will be shown.\n");
         }
-        start_ntrip_stream_with_filter(&config, filter_list, filter_count, verbose);
+        cli_stream_decode(&config, filter_list, filter_count, verbose);
 #ifdef _WIN32
         WSACleanup();
 #endif
@@ -1324,7 +1325,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (operation == OP_ANALYZE_SATS) {
-        analyze_satellites_stream(&config, analysis_time);
+        cli_analyze_sats(&config, analysis_time);
 #ifdef _WIN32
         WSACleanup();
 #endif
