@@ -55,6 +55,7 @@ add_library(ntrip_core STATIC
     src/core/rtcm3x_parser.c
     src/core/sv_ephemeris.c
     src/core/sv_orbit.c
+    src/core/sv_track.c
     src/core/rinex_nav.c
     src/core/sky_collect.c
     src/core/sky_render.c

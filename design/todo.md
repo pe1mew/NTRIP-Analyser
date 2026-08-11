@@ -219,6 +219,39 @@ Verified end to end on both platforms: the target builds, packages, writes a per
 `SHA256SUMS` that `sha256sum -c` accepts, and the daemon tarball extracts to a runnable binary with
 the Munin plugin's executable bit intact.
 
+### 0.4 Satellite and C/N0 aggregation in the session layer — **Shipped**
+
+The daemon's `sats_total` and `cnr_mean` Munin graphs read zero from the day the service was
+deployed. The numbers existed only in the GUI, computed as a side effect of drawing the sky plot,
+where no other frontend could reach them.
+
+`src/core/sv_track.c` now keeps a per-(constellation, PRN) table of what the stream carries and at
+what C/N0. The session layer feeds it every MSM frame (`sv_track_feed`, ignores non-MSM so the
+caller needs no classification) and summarises it in `stats_refresh`, so every consumer counts the
+same way.
+
+**It does not reuse the GUI's satellite view, deliberately.** That view computes azimuth and
+elevation, needing a decoded ephemeris per SV *and* a station ARP, and goes blank when either is
+missing. Satellite count and C/N0 need neither: PRNs come from the MSM satellite mask, C/N0 from
+the MSM7 signal block. Reusing it would have made the daemon's graphs depend on ephemeris
+availability for no reason.
+
+Two semantics worth remembering:
+
+- The count is **currently in view** (a 5 s staleness window), not **seen this session**. A setting
+  satellite lowers it — which is what makes the graph a health signal rather than a ratchet.
+- C/N0 is **MSM7-only**. MSM4/5/6 carry no extended C/N0, so those streams get counts with
+  `cnr_mean` at zero, matching what `NsGnssStats` already documents.
+
+Verified by replaying the 206-frame capture and comparing satellite by satellite against the
+pre-existing `extract_satellites()` — exact agreement on all 39 SVs across GPS (10), GLONASS (9),
+Galileo (10) and BeiDou (10), on both Windows and Linux. Mean C/N0 45.5 dB-Hz, consistent with the
+MSM7 layout fixed under 1.4.
+
+A caution recorded for the next person: `-s / --sat` does **not** honour `--rtcm-stdin` — that flag
+is `--sky`-only — so `-s` silently connects to the live caster instead of replaying a file. An
+early comparison against it looked like agreement purely by coincidence.
+
 ### 3.2 Ephemeris decoding — 1019 / 1020 / 1042 / 1044 / 1045 / 1046 — **Shipped**
 
 Decoders live in `src/rtcm3x_parser.c` (`decode_rtcm_1020:1364`, `decode_rtcm_1044:1472`,
@@ -288,8 +321,13 @@ read as a cloud.
 
 The Satellites ListView still shows only `GNSS` / `Sats Seen` / `Satellites`
 (`gui/gui_layout.c:338-340`). Min/mean/max C/N0 columns there would give a sortable tabular view
-alongside the charts, and `SatStatsSummary` (`src/ntrip_handler.h:103`) would need a C/N0 field —
-it currently carries only `sat_seen[]` flags.
+alongside the charts.
+
+**Re-priced by 0.4.** This item assumed `SatStatsSummary` would need a new C/N0 field. It no longer
+does: `sv_track_summarise()` already produces per-constellation `sats_tracked` and
+`cnr_mean`/`cnr_median`/`cnr_min`/`cnr_max` in `NsGnssStats`, and the session layer keeps it
+current. The remaining work is reading `ns_stats()->gnss[]` in the GUI and adding the columns — no
+new parsing, no new plumbing.
 
 - **Why** — C/N0 is the primary indicator of antenna and siting quality at the base. A base with
   good message rates but poor C/N0 is quietly delivering bad corrections.

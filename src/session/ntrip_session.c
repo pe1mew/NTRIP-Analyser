@@ -23,6 +23,7 @@
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"   /* crc24q, msm_get_epoch, get_bits */
 #include "core/nmea_parser.h"     /* GGA construction */
+#include "core/sv_track.h"        /* satellites and C/N0 per constellation */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -123,6 +124,11 @@ struct NtripSession {
     NsStatsSnapshot stats;
     double     last_rate_t;
     uint64_t   last_rate_bytes;
+
+    /* Which satellites the stream is currently carrying.  Lives here
+     * rather than in a frontend so that every consumer -- the daemon's
+     * snapshot, the GUI, Android -- reports the same numbers. */
+    SvTrack    sv;
 
     /* Per-type epoch tracking, so intervals are measured per epoch.
      * Indexed by the position in stats.types[]. */
@@ -322,6 +328,13 @@ static void stats_refresh(NtripSession *s, double now)
         s->last_rate_bytes = s->stats.bytes_total;
         s->last_rate_t     = now;
     }
+
+    /* Recomputed rather than accumulated: a satellite leaving view has to
+     * lower the count, and only a fresh sweep against the staleness
+     * window can do that. */
+    sv_track_summarise(&s->sv, now, SV_TRACK_STALE_S,
+                       s->stats.gnss, NS_MAX_GNSS, &s->stats.n_gnss,
+                       &s->stats.sats_total, &s->stats.cnr_mean_all);
 }
 
 static void maybe_emit_stats(NtripSession *s, double now)
@@ -426,6 +439,10 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                                                    msg_type, &epoch) != 0;
                     bool new_epoch = stats_frame(s, msg_type, epoch,
                                                  has_epoch, now);
+
+                    /* Ignores non-MSM types, so no classification here. */
+                    sv_track_feed(&s->sv, s->frame + 3, payload_len,
+                                  msg_type, now);
 
                     if (!s->announced_streaming) {
                         s->announced_streaming = true;
@@ -622,6 +639,7 @@ static NtripSession *alloc_session(const NsOptions *opt, NsEventFn cb, void *use
     s->last_rate_t   = s->t0;
 
     ns_stats_init(&s->stats);
+    sv_track_reset(&s->sv);
     s->stats.t_start_unix = s->t_start_unix;
     strncpy(s->stats.mountpoint, s->opt.config.MOUNTPOINT,
             sizeof(s->stats.mountpoint) - 1);

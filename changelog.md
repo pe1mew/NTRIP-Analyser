@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — satellite and C/N0 tracking in the session layer
+
+The monitoring daemon's `sats_total` and `cnr_mean` graphs have read
+zero since the service was deployed: the numbers existed only in the
+GUI, computed as a side effect of drawing the sky plot, where nothing
+else could reach them.
+
+A new core module, `src/core/sv_track.c`, keeps a per-(constellation,
+PRN) table of what the stream is carrying and at what C/N0.  The session
+layer feeds it every MSM frame and summarises it into the snapshot, so
+the daemon, the GUI and Android all count the same way.
+
+It deliberately does **not** reuse the GUI's satellite view.  That view
+computes azimuth and elevation, which needs a decoded ephemeris per
+satellite *and* a station ARP, and goes blank when either is missing.
+Counting satellites and averaging C/N0 needs neither — the PRNs come
+straight from the MSM satellite mask and the C/N0 from the MSM7 signal
+block — so the daemon now reports both from the first frame.
+
+Two properties worth knowing when reading the graphs:
+
+- The count is *currently in view*, not *seen this session*: a setting
+  satellite lowers it.  A base losing sky view should show a falling
+  line, not a permanently rising one.
+- C/N0 requires MSM7.  MSM4/5/6 carry no extended C/N0 field, so those
+  streams report satellite counts with `cnr_mean` at zero.
+
+Verified by replaying a 206-frame capture and comparing satellite by
+satellite against the pre-existing `extract_satellites()`: the two agree
+exactly on all 39 satellites across GPS, GLONASS, Galileo and BeiDou, on
+both Windows and Linux.  Mean C/N0 reads 45.5 dB-Hz, consistent with the
+corrected MSM7 signal-block layout.
+
 ## [3.0.0] - 2026-08-11
 
 Major, because an executable was renamed: scripts calling `ntripanalyse`

@@ -179,12 +179,22 @@ Two further behaviours worth knowing:
   negotiation; renaming a field silently starts a new RRD and orphans
   the history.
 
-### Fields that read zero today
+### Satellites and C/N0
 
-`sats_total` and `cnr_mean` are populated by satellite/C-N0 aggregation
-that currently lives in the GUI and has not yet moved into the shared
-session layer (design/architecture.md §3.3). Their graphs sit at zero
-until it does — the daemon is not broken.
+`sats_total` and `cnr_mean` report the satellites observed within the
+last five seconds and their mean C/N0, tracked in the session layer so
+the daemon, the GUI and Android all count the same way.
+
+Two things worth knowing when reading those graphs:
+
+- **The count is "currently in view", not "seen this session".** A
+  satellite that sets drops out of the count. That is what makes the
+  graph useful as a health signal: a base losing sky view shows a
+  falling line rather than a permanently rising one.
+- **C/N0 needs MSM7.** MSM4/5/6 carry no extended C/N0 field, so a base
+  transmitting only those reports satellite counts with `cnr_mean` at
+  zero. That is the stream's doing, not the daemon's. If you need the
+  signal graph, configure the base to send MSM7 (1077/1087/1097/1127).
 
 ## Verifying the chain
 
