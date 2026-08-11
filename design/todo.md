@@ -17,6 +17,7 @@ line numbers — prefer citing a function name alongside the line so a stale num
 | **Open** | Not started. |
 | **Partial** | Some of the machinery exists; the item names what is left. |
 | **Shipped** | Implemented on `main`. Kept for the record in §0, with its original number. |
+| **Dropped** | Considered and deliberately not pursued. Kept, with the reasoning, so it is not re-proposed. |
 
 Item numbers are stable and are never reused or renumbered, so shipped items keep their IDs.
 
@@ -512,7 +513,7 @@ All items in this section are tagged `[design.md]`.
 | 4.2 | Map widget showing base and rover positions | Partial | The browser-based map picker covers coordinate entry, and the VRS Monitor polar plot covers the base/rover relationship live. An in-window map remains unbuilt — reassess whether it is still wanted |
 | 4.3 | Multi-connection support | Partial | A second NTRIP connection exists but is purpose-built for ephemeris-only casters (`WorkerOpenEphStream`, `gui/gui_state.h:443`, commit `320f412`). Generalising it to N arbitrary streams for side-by-side base comparison is the remaining work |
 | 4.4 | Export analysis results to CSV / JSON | **Shipped** | File > Export Statistics writes the session snapshot as JSON or CSV through  /  — the same serialisers the daemon publishes through, so an export and a Munin sample agree by construction. Format follows the typed extension, not just the filter. Truncation is a failure, not a partial write |
-| 4.5 | Dark mode / theme support | Open | Verified: no theme handling in `gui/` |
+| 4.5 | Dark mode / theme support | **Dropped** | Not a requirement. Reasoning in §5 |
 | 4.6 | Tray icon for background monitoring | **Shipped** | Tools > Minimise to notification area, off by default. The icon exists only while the window is hidden, so it never duplicates the taskbar button. Tooltip carries mountpoint, satellite count and rate, refreshed each second — it is the whole UI in that state. Removed first in `WM_DESTROY` so no ghost icon survives; disabling the option while hidden restores the window rather than stranding it |
 | 4.7 | Auto-reconnect on connection drop | **Shipped** | Tools > Auto-reconnect on drop, off by default so an unattended run means what it always did. Uses the session layer backoff the daemon relies on; applies to the next stream opened. Stream Health gains a Reconnects row, set before the function early-returns on a missing ARP so it shows on streams without 1005/1006 |
 
@@ -530,6 +531,34 @@ output, GNSS module NVM commands, OTA firmware update.
 from proprietary receiver output. They are **not carried in RTCM**, so they are unobtainable by a
 stream consumer. The nearest derivable proxy is a simultaneous collapse of C/N0 across all
 constellations, which item 1.4 would make detectable.
+
+### 4.5 Dark mode / theme support — **Dropped** `[design.md]`
+
+Dropped as a requirement in August 2026. It is recorded here rather than deleted because it is the
+kind of item that gets re-proposed on sight, and the reason it was declined is not obvious from the
+outside — it is not that nobody wanted it, but that Win32 makes it disproportionately expensive.
+
+What the survey found:
+
+| | |
+|---|---|
+| Hardcoded `RGB()` sites | 78, across five files, with no central palette |
+| Existing theme handling | none — not one `WM_CTLCOLOR` handler |
+| Controls involved | 18 edits, 4 ListViews, a tab control, status bar, buttons |
+
+The decisive part is the **tab control and the menu bar**. Neither honours colour messages, so both
+need owner-draw or undocumented `uxtheme` ordinals. That matters because a dark client area beneath
+a light menu bar and light tabs does not read as a theme, it reads as a rendering fault — and the
+four plot windows hold 66 of the 78 colours, so leaving them light has the same effect. There is no
+cheap subset that looks deliberate; the work is roughly 300 lines of theming plus 78 colour-site
+conversions, most of it spent on Win32 chrome rather than on anything about GNSS.
+
+**If it is ever revived**, the order that keeps each stage independently useful is: a central
+palette with light and dark variants; then the four plot windows, which are self-contained and are
+where people actually look; then the main-window controls and the title bar
+(`DwmSetWindowAttribute`, `SetWindowTheme(..., "DarkMode_Explorer", ...)`); and the tab control
+owner-draw last, being the fiddliest. The palette alone is worth having even if the rest is never
+built — 78 scattered literals is a maintenance problem in its own right.
 
 ---
 
