@@ -359,6 +359,9 @@ constellations, which item 1.4 would make detectable.
 
 ## Reference
 
+- [`design/architecture.md`](architecture.md) — how one core is to be shared across the CLI, the
+  Windows GUI, the planned monitoring service and the Android app. Several items here (4.4 export,
+  and anything the service or phone needs) depend on the statistics-snapshot schema defined there.
 - RTCM Standard: RTCM 10403.3 — Differential GNSS Services Version 3
 - NTRIP Protocol: [BKG NTRIP Documentation](https://igs.bkg.bund.de/ntrip/about)
 - GUI design document: [`gui/design.md`](../gui/design.md)

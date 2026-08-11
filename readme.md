@@ -167,7 +167,8 @@ The analyser can perform the following operations on NTRIP streams:
 - **[GUI User Guide](docs/gui.md)** — Complete Windows GUI documentation
 - **[General Documentation](docs/readme.md)** — CLI usage and configuration
 - **[Feature Backlog](design/todo.md)** — What is shipped, what is planned, and why
-- **[GUI Design Document](gui/design.md)** — Architecture and design decisions
+- **[Architecture](design/architecture.md)** — Structure for sharing one core across the CLI, GUI, monitoring service and Android app
+- **[GUI Design Document](gui/design.md)** — Windows GUI design decisions
 
 ## Quick Start
 
