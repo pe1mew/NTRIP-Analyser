@@ -46,6 +46,88 @@ static void OnStreamDone(HWND hwnd, AppState *state);
 static void OnStatUpdate(AppState *state, int msg_type, int count);
 static void OnSatUpdate(AppState *state);
 static void RefreshStreamHealth(AppState *state);
+
+/* ── Notification area ("tray") ───────────────────────────────────────
+ *
+ * The icon exists only while the window is hidden.  Keeping it visible
+ * all the time would put a second, redundant entry beside the taskbar
+ * button; the point of the icon is to be the *only* remaining handle on
+ * the program once the window is gone.
+ */
+
+/** @brief Fill the NOTIFYICONDATA common to add/modify/delete. */
+static void TrayFillBase(NOTIFYICONDATA *nid, HWND hwnd)
+{
+    ZeroMemory(nid, sizeof(*nid));
+    nid->cbSize           = sizeof(*nid);
+    nid->hWnd             = hwnd;
+    nid->uID              = 1;
+    nid->uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid->uCallbackMessage = WM_APP_TRAY;
+    nid->hIcon            = LoadIcon(NULL, IDI_APPLICATION);
+}
+
+/**
+ * @brief Compose the hover tooltip.
+ *
+ * The tooltip is the whole user interface while the window is hidden, so
+ * it states what the stream is doing rather than only the program name.
+ * Capped at 127 characters plus NUL by the Win32 struct.
+ */
+static void TrayFormatTip(AppState *state, char *out, size_t cap)
+{
+    const char *mp = state->config.MOUNTPOINT[0] ? state->config.MOUNTPOINT
+                                                 : "no mountpoint";
+    if (!state->bWorkerRunning) {
+        snprintf(out, cap, "%s - not connected", APP_TITLE);
+        return;
+    }
+    if (state->haveStats) {
+        snprintf(out, cap, "%s - %s, %d sats, %.1f kB/s",
+                 APP_TITLE, mp, state->lastStats.sats_total,
+                 state->lastStats.bytes_per_s / 1024.0);
+    } else {
+        snprintf(out, cap, "%s - %s, connecting", APP_TITLE, mp);
+    }
+}
+
+static void TrayAdd(HWND hwnd, AppState *state)
+{
+    if (state->trayIconShown) return;
+    NOTIFYICONDATA nid;
+    TrayFillBase(&nid, hwnd);
+    TrayFormatTip(state, nid.szTip, sizeof(nid.szTip));
+    if (Shell_NotifyIcon(NIM_ADD, &nid))
+        state->trayIconShown = TRUE;
+}
+
+static void TrayRemove(HWND hwnd, AppState *state)
+{
+    if (!state->trayIconShown) return;
+    NOTIFYICONDATA nid;
+    TrayFillBase(&nid, hwnd);
+    Shell_NotifyIcon(NIM_DELETE, &nid);
+    state->trayIconShown = FALSE;
+}
+
+/** @brief Refresh the tooltip; no-op when the icon is not shown. */
+static void TrayUpdateTip(HWND hwnd, AppState *state)
+{
+    if (!state->trayIconShown) return;
+    NOTIFYICONDATA nid;
+    TrayFillBase(&nid, hwnd);
+    TrayFormatTip(state, nid.szTip, sizeof(nid.szTip));
+    Shell_NotifyIcon(NIM_MODIFY, &nid);
+}
+
+/** @brief Bring the window back and drop the icon. */
+static void TrayRestore(HWND hwnd, AppState *state)
+{
+    ShowWindow(hwnd, SW_SHOW);
+    ShowWindow(hwnd, SW_RESTORE);
+    SetForegroundWindow(hwnd);
+    TrayRemove(hwnd, state);
+}
 static void MsgStatsSeedAdvertised(AppState *state);
 static double geo_distance_m(double lat1, double lon1, double lat2, double lon2);
 static void close_rtcm_capture_if_active(AppState *state);
@@ -2037,9 +2119,45 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_SIZE: {
         state = GetAppState(hwnd);
         if (state) {
+            /* Minimising with the preference on hides the window and
+             * leaves the icon as the only handle on the program. */
+            if (wParam == SIZE_MINIMIZED && state->minimiseToTray) {
+                TrayAdd(hwnd, state);
+                if (state->trayIconShown) ShowWindow(hwnd, SW_HIDE);
+                return 0;
+            }
             int w = LOWORD(lParam);
             int h = HIWORD(lParam);
             ResizeControls(hwnd, state, w, h);
+        }
+        return 0;
+    }
+
+    case WM_APP_TRAY: {
+        state = GetAppState(hwnd);
+        if (!state) return 0;
+        switch (LOWORD(lParam)) {
+        case WM_LBUTTONDBLCLK:
+            TrayRestore(hwnd, state);
+            break;
+        case WM_RBUTTONUP: {
+            HMENU hMenu = CreatePopupMenu();
+            if (!hMenu) break;
+            AppendMenu(hMenu, MF_STRING, IDM_TRAY_RESTORE, "&Restore");
+            AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+            AppendMenu(hMenu, MF_STRING, IDM_TRAY_EXIT, "E&xit");
+            POINT pt;
+            GetCursorPos(&pt);
+            /* Required so the menu dismisses when the user clicks away;
+             * without it the popup survives the click and lingers. */
+            SetForegroundWindow(hwnd);
+            TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL);
+            PostMessage(hwnd, WM_NULL, 0, 0);
+            DestroyMenu(hMenu);
+            break;
+        }
+        default:
+            break;
         }
         return 0;
     }
@@ -2777,6 +2895,37 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             return 0;
         }
 
+        case IDM_TRAY_RESTORE:
+            TrayRestore(hwnd, state);
+            return 0;
+
+        case IDM_TRAY_EXIT:
+            /* Through WM_CLOSE so the existing shutdown path runs --
+             * stopping the worker, closing the capture file, removing
+             * the icon -- rather than exiting from under it. */
+            SendMessage(hwnd, WM_CLOSE, 0, 0);
+            return 0;
+
+        case IDM_TOOLS_TRAY_MINIMIZE: {
+            state->minimiseToTray = !state->minimiseToTray;
+            CheckMenuItem(GetMenu(hwnd), IDM_TOOLS_TRAY_MINIMIZE,
+                          MF_BYCOMMAND |
+                          (state->minimiseToTray ? MF_CHECKED : MF_UNCHECKED));
+            /* Turning it off while already hidden would strand the
+             * window with no taskbar button and no icon. */
+            if (!state->minimiseToTray && !IsWindowVisible(hwnd))
+                TrayRestore(hwnd, state);
+            MessageBox(hwnd,
+                state->minimiseToTray
+                  ? "Minimising now hides the window to the notification "
+                    "area.\n\nDouble-click the icon to restore it, or "
+                    "right-click for Restore and Exit."
+                  : "Minimising now behaves normally.",
+                "Minimise to notification area",
+                MB_ICONINFORMATION | MB_OK);
+            return 0;
+        }
+
         case IDM_TOOLS_AUTO_RECONNECT: {
             state->autoReconnect = !state->autoReconnect;
             CheckMenuItem(GetMenu(hwnd), IDM_TOOLS_AUTO_RECONNECT,
@@ -2832,6 +2981,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if (wParam == IDT_LOG_PUMP) {
             LogPumpTimer(state);
         }
+
+        /* Keep the tooltip current while the window is hidden -- it is
+         * the entire user interface in that state.  Outside the
+         * bWorkerRunning branch below so a stream that stops is
+         * reflected too, not frozen on its last good reading. */
+        if (wParam == IDT_STATUS_UPDATE && state->trayIconShown)
+            TrayUpdateTip(hwnd, state);
 
         if (wParam == IDT_STATUS_UPDATE && state->bWorkerRunning) {
             /* ── Compute data rate and update status bar ──── */
@@ -3284,6 +3440,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         /* Free the last-decoded-text cache */
         state = GetAppState(hwnd);
         if (state) {
+            /* Before anything else: an icon outliving its window is the
+             * classic notification-area bug, leaving a ghost that only
+             * disappears when the user hovers over it. */
+            TrayRemove(hwnd, state);
+
             for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
                 if (state->lastDecodedText[i]) {
                     HeapFree(GetProcessHeap(), 0, state->lastDecodedText[i]);

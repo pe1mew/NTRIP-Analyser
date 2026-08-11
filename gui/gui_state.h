@@ -489,6 +489,13 @@ typedef struct {
      * an unattended run means. */
     BOOL autoReconnect;
 
+    /* Notification-area ("tray") state.  minimiseToTray is the user's
+     * preference; trayIconShown tracks whether the icon is currently
+     * registered, so it is added and removed exactly once -- a stale
+     * icon left behind after exit is the classic failure here. */
+    BOOL minimiseToTray;
+    BOOL trayIconShown;
+
     /* ── Stream info (set by worker, read by UI) ─────────── */
     volatile LONG  streamBytes;       /* total data bytes received */
     volatile LONG  streamFormat;      /* 0=none, 1=RTCM3, 2=UBX, 3=SBF, 4=RT27, 5=LB2, 6=Unknown */

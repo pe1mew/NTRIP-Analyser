@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — minimise to the notification area (Tools menu)
+
+With the option on, minimising hides the window and leaves an icon in
+the notification area.  Double-click restores it; right-click offers
+Restore and Exit.  Off by default, so minimising behaves as it always
+has unless asked otherwise.
+
+The icon exists **only while the window is hidden**.  Showing it
+permanently would put a second, redundant entry beside the taskbar
+button; the point of it is to be the only remaining handle on the
+program once the window is gone.
+
+The tooltip carries the mountpoint, satellite count and data rate, and
+refreshes every second — while the window is hidden it is the entire
+user interface, so "NTRIP-Analyser" alone would not be worth reading.
+
+Two failure modes are handled deliberately: the icon is removed in
+`WM_DESTROY` before anything else, since an icon outliving its window
+leaves a ghost that only vanishes when the user hovers over it; and
+turning the option off while the window is already hidden restores it
+first, rather than stranding a window with neither taskbar button nor
+icon.  Exit from the tray menu goes through `WM_CLOSE` so the normal
+shutdown path runs — stopping the worker and closing any capture file —
+instead of exiting from under it.
+
 ### Added — File > Export Statistics
 
 Writes the session's statistics snapshot as JSON or CSV, chosen by the

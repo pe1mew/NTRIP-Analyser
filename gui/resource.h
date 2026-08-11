@@ -40,6 +40,11 @@
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
 #define IDM_TOOLS_AUTO_RECONNECT   9041  /* reconnect with backoff on drop */
+#define IDM_TOOLS_TRAY_MINIMIZE    9042  /* minimise to the notification area */
+
+/* ── Tray context menu ────────────────────────────────────── */
+#define IDM_TRAY_RESTORE        3010
+#define IDM_TRAY_EXIT           3011
 /* The VRS position-shift / reset controls were moved into the VRS
  * Monitor window itself (in-plot N/E/S/W buttons + Reset top-left),
  * see resource IDs IDC_VRS_BTN_* below. */
@@ -120,6 +125,7 @@
 #define WM_APP_DETAIL_CLOSED    (WM_APP + 11)   /* detail window closed: wParam=msg_type */
 #define WM_APP_SKY_UPDATE       (WM_APP + 12)   /* sky-plot SV update: wParam=count, lParam=SkySatUpdate* */
 #define WM_APP_SOURCETABLE      (WM_APP + 13)   /* sourcetable fetched on connect: lParam=heap string, UI frees */
+#define WM_APP_TRAY             (WM_APP + 14)   /* notification-area callback: lParam=mouse message */
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700

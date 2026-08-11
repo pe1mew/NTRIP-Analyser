@@ -44,6 +44,7 @@ BEGIN
     BEGIN
         MENUITEM "Toggle &auto-send GGA",             IDM_TOOLS_VRS_GGA_TOGGLE
         MENUITEM "Auto-&reconnect on drop",           IDM_TOOLS_AUTO_RECONNECT
+        MENUITEM "&Minimise to notification area",    IDM_TOOLS_TRAY_MINIMIZE
     END
     POPUP "&Help"
     BEGIN

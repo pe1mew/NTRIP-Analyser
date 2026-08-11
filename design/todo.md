@@ -513,7 +513,7 @@ All items in this section are tagged `[design.md]`.
 | 4.3 | Multi-connection support | Partial | A second NTRIP connection exists but is purpose-built for ephemeris-only casters (`WorkerOpenEphStream`, `gui/gui_state.h:443`, commit `320f412`). Generalising it to N arbitrary streams for side-by-side base comparison is the remaining work |
 | 4.4 | Export analysis results to CSV / JSON | **Shipped** | File > Export Statistics writes the session snapshot as JSON or CSV through  /  — the same serialisers the daemon publishes through, so an export and a Munin sample agree by construction. Format follows the typed extension, not just the filter. Truncation is a failure, not a partial write |
 | 4.5 | Dark mode / theme support | Open | Verified: no theme handling in `gui/` |
-| 4.6 | Tray icon for background monitoring | Open | Verified: no `Shell_NotifyIcon` call |
+| 4.6 | Tray icon for background monitoring | **Shipped** | Tools > Minimise to notification area, off by default. The icon exists only while the window is hidden, so it never duplicates the taskbar button. Tooltip carries mountpoint, satellite count and rate, refreshed each second — it is the whole UI in that state. Removed first in `WM_DESTROY` so no ghost icon survives; disabling the option while hidden restores the window rather than stranding it |
 | 4.7 | Auto-reconnect on connection drop | **Shipped** | Tools > Auto-reconnect on drop, off by default so an unattended run means what it always did. Uses the session layer backoff the daemon relies on; applies to the next stream opened. Stream Health gains a Reconnects row, set before the function early-returns on a missing ARP so it shows on streams without 1005/1006 |
 
 ---
