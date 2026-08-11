@@ -19,6 +19,7 @@
 #include "core/rtcm3x_parser.h"
 #include "core/rinex_nav.h"
 #include "core/config.h"
+#include "core/version.h"
 #include "cJSON.h"
 
 #include <stdio.h>
@@ -2621,12 +2622,15 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         /* ── Help menu ──────────────────────────────────────── */
         case IDM_HELP_ABOUT:
+            /* Version and author come from core/version.h so this dialog
+             * cannot drift from the binary it describes -- it reported
+             * v0.1.0 for the whole of the 2.0.0 release otherwise. */
             MessageBox(hwnd,
-                "NTRIP-Analyser v0.1.0\n\n"
+                NTRIP_PRODUCT_NAME " v" NTRIP_VERSION_STRING "\n\n"
                 "NTRIP RTCM 3.x Stream Analyser\n"
-                "Author: Remko Welling, PE1MEW\n\n"
+                "Author: " NTRIP_COMPANY_NAME "\n\n"
                 "Licensed under Apache License 2.0\nwith Commons Clause.",
-                "About NTRIP-Analyser",
+                "About " NTRIP_PRODUCT_NAME,
                 MB_OK | MB_ICONINFORMATION);
             return 0;
 

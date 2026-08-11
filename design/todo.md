@@ -159,6 +159,44 @@ reason would silently corrupt these counts.
 Deliberately **not** per-message-type: the type field is read before the CRC is validated, so on a
 corrupt frame the type is untrustworthy.
 
+### 0.1 Displayed version numbers follow `src/core/version.h` — **Shipped**
+
+The About dialog composes its text from `NTRIP_PRODUCT_NAME`, `NTRIP_VERSION_STRING` and
+`NTRIP_COMPANY_NAME` rather than the hardcoded "v0.1.0" it had shown for the whole 2.0.0 release.
+
+The sweep found more than the dialog. Two request paths still sent `User-Agent: NTRIP CClient/1.0`
+— the sourcetable fetch (`src/net/ntrip_handler.c`) and the `--sky` observation stream
+(`src/cli/main.c`), both of them paths that have not yet moved onto the session layer, which had
+been building a correct header all along. The monitoring daemon, meanwhile, never set `user_agent`
+at all and so inherited the generic default instead of naming itself.
+
+The `NTRIP <artefact>/<version>` convention is now one macro, `NTRIP_USER_AGENT()`, beside the
+artefact names in `version.h`; it had been spelled out by hand at five call sites. The session
+layer's fallback names the project rather than the CLI, since a caller that leaves `user_agent`
+unset is any front end.
+
+Verified by building all three artefacts and reading the strings back out of each binary: GUI
+`ntrip-analyser-gui/2.0.0`, CLI `ntripanalyse/2.0.0`, daemon `ntrip-monitord/2.0.0`, each alongside
+the shared `ntrip-analyser/2.0.0` used by the sourcetable fetch, with no `CClient` string left
+anywhere.
+
+**Left open deliberately — see 0.2.** The CLI answers to four different names.
+
+### 0.2 The CLI has four names — **Open**
+
+`NTRIP_ARTEFACT_CLI` is `"ntripanalyse"`, the built binary is `ntripanalyser` (CMake `OUTPUT_NAME`),
+`--version` prints a hardcoded `"ntrip-analyser"`, and the documentation is itself split — roughly
+30 references to `ntripanalyse` against 5 to `ntripanalyser`.
+
+This is a naming decision rather than a staleness bug, which is why 0.1 left it alone: picking a
+winner changes what users type and what any wrapper script greps for, and `--version` output is the
+kind of thing people parse. The artefact constants are *not* part of the statistics-snapshot
+contract (`ns_stats` carries no producer field), so nothing outside the repository keys on them
+today — the change is cheap now and gets more expensive with every release.
+
+Decide the canonical name, then align the constant, the CMake `OUTPUT_NAME`, the `--version`
+literal in `src/cli/main.c` and the docs in one pass.
+
 ### 3.2 Ephemeris decoding — 1019 / 1020 / 1042 / 1044 / 1045 / 1046 — **Shipped**
 
 Decoders live in `src/rtcm3x_parser.c` (`decode_rtcm_1020:1364`, `decode_rtcm_1044:1472`,
@@ -222,13 +260,7 @@ The scatter is fed by its own accumulator (`SigCnrState`) on every MSM epoch rat
 trail buffer — the 60 s trail sampling yields one point per satellite per minute, far too sparse to
 read as a cloud.
 
-### 0.1 Displayed version numbers must follow `src/core/version.h` — **Open**
-
-The product version was unified at 2.0.0 in `src/core/version.h`, and the CLI banner and the GUI's
-Win32 version resource follow it — but the **About dialog still says "NTRIP-Analyser v0.1.0"**
-(`gui/gui_events.c:2625`, hardcoded). Sweep every user-visible version string onto
-`NTRIP_VERSION_STRING` so a release bump is one edit. Check the docs while at it: anything printing
-a literal version is a future lie.
+### 0.1 Displayed version numbers must follow `src/core/version.h` — **Shipped**, see §0
 
 ### 1.4b Per-constellation C/N0 columns in the Satellites tab — **Open**
 

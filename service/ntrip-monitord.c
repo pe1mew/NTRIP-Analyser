@@ -147,6 +147,10 @@ static bool load_md_config(const char *path, MdConfig *cfg)
         ns_options_default(o);
         o->auto_reconnect = true;      /* a monitor must ride out drops */
         o->stats_interval_s = 0.0;     /* the daemon reads stats itself */
+        /* Name the daemon explicitly.  This is the one artefact that holds
+         * a connection open around the clock, so it is the one a caster
+         * operator most needs to recognise in a connection log. */
+        o->user_agent = NTRIP_USER_AGENT(NTRIP_ARTEFACT_SERVICE);
 
         const cJSON *s;
         if ((s = cJSON_GetObjectItem(mp, "caster")) && cJSON_IsString(s))

@@ -618,7 +618,7 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     opt.stats_interval_s = 0.0;    /* the GUI keeps its own statistics  */
     opt.send_gga         = false;  /* GGA is driven interactively below */
     opt.auto_reconnect   = false;  /* manual reconnect, as before       */
-    opt.user_agent       = "NTRIP " NTRIP_ARTEFACT_GUI "/" NTRIP_VERSION_STRING;
+    opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI);
 
     NtripSession *sess = ns_open(&opt, ObsOnEvent, &ctx);
     if (!sess) {
@@ -813,7 +813,7 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
     opt.stats_interval_s = 0.0;
     opt.send_gga         = false;
     opt.auto_reconnect   = false;
-    opt.user_agent       = "NTRIP " NTRIP_ARTEFACT_GUI "/" NTRIP_VERSION_STRING;
+    opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI);
 
     NtripSession *sess = ns_open(&opt, EphOnEvent, &ctx);
     if (!sess) {

@@ -66,6 +66,28 @@
 #define NTRIP_ARTEFACT_SERVICE "ntrip-monitord"
 #define NTRIP_ARTEFACT_ANDROID "ntrip-analyser-android"
 
+/**
+ * Artefact name for code shared by several front ends, where the calling
+ * artefact is not known at the point of use -- the sourcetable fetch, for
+ * instance, which the CLI and the GUI both call.
+ */
+#define NTRIP_ARTEFACT_COMMON  "ntrip-analyser"
+
+/**
+ * @brief NTRIP User-Agent product token: `NTRIP <artefact>/<version>`.
+ *
+ * Composing it here rather than at each call site keeps every request the
+ * project makes truthful about its version.  A caster operator reading a
+ * connection log sees which artefact connected and which release built
+ * it, which is the whole reason the header exists.
+ *
+ * @param artefact One of the NTRIP_ARTEFACT_* string literals above.
+ *
+ * @note Literal concatenation, so @p artefact must be a string literal
+ *       and the result is a compile-time constant.
+ */
+#define NTRIP_USER_AGENT(artefact)  "NTRIP " artefact "/" NTRIP_VERSION_STRING
+
 /* ── Contract versions ────────────────────────────────────────────────
  * These are versioned independently of the product, as plain integers,
  * because they outlive any single release: a Munin graph, an installed

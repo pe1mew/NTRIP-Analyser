@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — stale version and identity strings
+
+Every version a user or a caster operator can see now derives from
+`src/core/version.h`.
+
+- **The GUI's About dialog reported "v0.1.0"** for the whole of the 2.0.0
+  release (`gui/gui_events.c`).  It now composes its text from
+  `NTRIP_PRODUCT_NAME`, `NTRIP_VERSION_STRING` and `NTRIP_COMPANY_NAME`,
+  so it cannot drift from the binary it describes.  The Win32 version
+  resource was already correct, which is what made the discrepancy easy
+  to miss: the file properties said 2.0.0 while the About box said 0.1.0.
+- **Two request paths still sent `User-Agent: NTRIP CClient/1.0`** — the
+  sourcetable fetch in `src/net/ntrip_handler.c` and the `--sky`
+  observation stream in `src/cli/main.c`.  Both are paths that have not
+  yet moved onto the session layer, which had been building a correct
+  header all along.  A caster operator reading a connection log was
+  therefore told the wrong software under a long-obsolete version.
+- **The monitoring daemon did not name itself.**  It never set
+  `user_agent`, so it inherited the generic default.  It now sends
+  `NTRIP ntrip-monitord/<version>`.  This is the one artefact that holds
+  a connection open around the clock, so it is the one an operator most
+  needs to recognise.
+
+The `NTRIP <artefact>/<version>` convention had been spelled out by hand
+at five call sites.  It is now a single macro, `NTRIP_USER_AGENT()`, in
+`version.h` beside the artefact names, so a release bump remains one
+edit.  The session layer's fallback now names the project rather than the
+CLI: a caller that leaves `user_agent` unset is any front end, and
+claiming to be the CLI put the wrong artefact in the caster's log.
+
 ### Fixed — the repository could not be built on Linux from a clone
 
 `lib/` was tracked as `lib/cjson` while every build file referenced

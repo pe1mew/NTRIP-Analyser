@@ -476,8 +476,11 @@ static void do_connect(NtripSession *s)
     }
 
     char req[1024];
+    /* The fallback names the project, not a front end: a caller that
+     * leaves user_agent NULL is any of them, and claiming to be the CLI
+     * would put the wrong artefact in the caster's log. */
     const char *agent = s->opt.user_agent ? s->opt.user_agent
-                                          : "NTRIP " NTRIP_ARTEFACT_CLI "/" NTRIP_VERSION_STRING;
+                                          : NTRIP_USER_AGENT(NTRIP_ARTEFACT_COMMON);
     int n = ns_proto_build_request(req, sizeof(req),
                                    s->opt.config.NTRIP_CASTER,
                                    s->opt.config.MOUNTPOINT,

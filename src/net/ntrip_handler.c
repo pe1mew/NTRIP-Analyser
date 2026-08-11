@@ -1,6 +1,7 @@
 #include "net/ntrip_handler.h"
 #include "core/nmea_parser.h"
 #include "core/rtcm3x_parser.h"
+#include "core/version.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -166,10 +167,12 @@ char* receive_mount_table(const NTRIP_Config *config) {
         return NULL; // -4
     }
 
+    /* Shared by the CLI and the GUI, so it identifies as the project
+     * rather than as one front end. */
     snprintf(request, sizeof(request),
              "GET / HTTP/1.1\r\n"
              "Host: %s\r\n"
-             "User-Agent: NTRIP CClient/1.0\r\n"
+             "User-Agent: " NTRIP_USER_AGENT(NTRIP_ARTEFACT_COMMON) "\r\n"
              "Authorization: Basic %s\r\n"
              "\r\n",
              config->NTRIP_CASTER, config->AUTH_BASIC);

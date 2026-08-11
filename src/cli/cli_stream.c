@@ -141,7 +141,7 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
     opt.stats_interval_s = 0.0;
     opt.send_gga         = false;   /* driven below, with the "GGA " echo */
     opt.auto_reconnect   = false;
-    opt.user_agent       = "NTRIP " NTRIP_ARTEFACT_CLI "/" NTRIP_VERSION_STRING;
+    opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
 
     NtripSession *sess = ns_open(&opt, cli_on_event, c);
     if (!sess) {
@@ -402,7 +402,7 @@ int run_eph_stream(const NTRIP_Config *config,
     opt.stats_interval_s = 0.0;
     opt.send_gga         = false;
     opt.auto_reconnect   = false;
-    opt.user_agent       = "NTRIP " NTRIP_ARTEFACT_CLI "/" NTRIP_VERSION_STRING;
+    opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
 
     NtripSession *sess = ns_open(&opt, eph_cli_on_event, &ctx);
     int rc = 0;

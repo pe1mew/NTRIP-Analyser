@@ -570,7 +570,7 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
              "GET /%s HTTP/1.1\r\n"
              "Host: %s\r\n"
              "Ntrip-Version: Ntrip/2.0\r\n"
-             "User-Agent: NTRIP CClient/1.0\r\n"
+             "User-Agent: " NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI) "\r\n"
              "Authorization: Basic %s\r\n"
              "\r\n",
              config->MOUNTPOINT, config->NTRIP_CASTER, config->AUTH_BASIC);
