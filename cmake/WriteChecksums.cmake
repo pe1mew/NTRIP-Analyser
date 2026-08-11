@@ -39,5 +39,21 @@ if(_out STREQUAL "")
     message(WARNING "No release assets found in ${DIST_DIR}")
 endif()
 
-file(WRITE "${DIST_DIR}/${_sums_name}" "${_out}")
+# LF endings, on every platform.
+#
+# file(WRITE) opens in text mode on Windows and turns each LF into CRLF,
+# which breaks `sha256sum -c`: the trailing CR becomes part of the
+# filename, so it reports "No such file or directory" for assets sitting
+# right beside it.  A checksum file that cannot be checked is worse than
+# none, and the failure only shows up on the platform that did not build
+# it -- so it survives any amount of local testing.
+#
+# configure_file with NEWLINE_STYLE UNIX is the only writer CMake offers
+# with newline control.  Substitution is left on because the content is
+# hex digests and our own asset names, which contain no @VAR@ or ${VAR}.
+file(WRITE "${DIST_DIR}/${_sums_name}.in" "${_out}")
+configure_file("${DIST_DIR}/${_sums_name}.in"
+               "${DIST_DIR}/${_sums_name}"
+               NEWLINE_STYLE UNIX)
+file(REMOVE "${DIST_DIR}/${_sums_name}.in")
 message(STATUS "Wrote ${_sums_name}")

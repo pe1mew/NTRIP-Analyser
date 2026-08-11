@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — `SHA256SUMS` could not be checked on Linux
+
+CMake's `file(WRITE)` opens in text mode on Windows and turns each LF
+into CRLF, so the checksum file the `release` target produced there
+carried a trailing CR on every line.  `sha256sum -c` then treated the CR
+as part of the filename and reported "No such file or directory" for
+assets sitting right beside it.
+
+It is now written with LF endings on every platform, via the only writer
+CMake offers with newline control.
+
+The failure appeared only on the platform that did **not** build the
+file, which is why it survived local testing: checksums generated on
+Windows had only ever been checked on Windows.  It surfaced when the
+3.1.0 assets from both platforms were verified side by side.
+
 ## [3.1.0] - 2026-08-11
 
 Minor: everything here is additive or a fix.  Two of the fixes matter
