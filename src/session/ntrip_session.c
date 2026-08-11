@@ -476,11 +476,11 @@ static void do_connect(NtripSession *s)
     }
 
     char req[1024];
-    /* The fallback names the project, not a front end: a caller that
-     * leaves user_agent NULL is any of them, and claiming to be the CLI
-     * would put the wrong artefact in the caster's log. */
+    /* Every front end sets this.  The fallback is deliberately its own
+     * name rather than the CLI's, so that a caller which forgot shows up
+     * in the caster's log as a bug and not as a different artefact. */
     const char *agent = s->opt.user_agent ? s->opt.user_agent
-                                          : NTRIP_USER_AGENT(NTRIP_ARTEFACT_COMMON);
+                                          : NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB);
     int n = ns_proto_build_request(req, sizeof(req),
                                    s->opt.config.NTRIP_CASTER,
                                    s->opt.config.MOUNTPOINT,

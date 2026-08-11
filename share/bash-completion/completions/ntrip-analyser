@@ -1,19 +1,19 @@
-# bash completion for ntripanalyse
+# bash completion for ntrip-analyser
 #
 # Install (system-wide):
-#   sudo cp share/bash-completion/completions/ntripanalyse \
+#   sudo cp share/bash-completion/completions/ntrip-analyser \
 #     /usr/share/bash-completion/completions/
 #
 # Install (per-user, bash):
 #   mkdir -p ~/.local/share/bash-completion/completions
-#   cp share/bash-completion/completions/ntripanalyse \
+#   cp share/bash-completion/completions/ntrip-analyser \
 #     ~/.local/share/bash-completion/completions/
 #
-# Or source it directly: . share/bash-completion/completions/ntripanalyse
+# Or source it directly: . share/bash-completion/completions/ntrip-analyser
 #
-# Also works for the Windows binary name `ntripanalyse.exe` (handled below).
+# Also works for the Windows binary name `ntrip-analyser.exe` (handled below).
 
-_ntripanalyse_complete()
+_ntrip-analyser_complete()
 {
     local cur prev opts
     COMPREPLY=()
@@ -55,6 +55,5 @@ _ntripanalyse_complete()
     return 0
 }
 
-complete -F _ntripanalyse_complete ntripanalyse
-complete -F _ntripanalyse_complete ntripanalyser
-complete -F _ntripanalyse_complete ntripanalyse.exe
+complete -F _ntrip-analyser_complete ntrip-analyser
+complete -F _ntrip-analyser_complete ntrip-analyser.exe

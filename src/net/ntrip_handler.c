@@ -98,7 +98,7 @@ void base64_encode(const char *input, char *output) {
     output[output_index] = '\0';
 }
 
-char* receive_mount_table(const NTRIP_Config *config) {
+char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -167,15 +167,17 @@ char* receive_mount_table(const NTRIP_Config *config) {
         return NULL; // -4
     }
 
-    /* Shared by the CLI and the GUI, so it identifies as the project
-     * rather than as one front end. */
+    /* The caller names itself: this is reachable from both the CLI and
+     * the GUI, and a caster operator should see which one asked. */
     snprintf(request, sizeof(request),
              "GET / HTTP/1.1\r\n"
              "Host: %s\r\n"
-             "User-Agent: " NTRIP_USER_AGENT(NTRIP_ARTEFACT_COMMON) "\r\n"
+             "User-Agent: %s\r\n"
              "Authorization: Basic %s\r\n"
              "\r\n",
-             config->NTRIP_CASTER, config->AUTH_BASIC);
+             config->NTRIP_CASTER,
+             agent ? agent : NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
+             config->AUTH_BASIC);
 
 #ifdef _WIN32
     int sent = send(sock, request, strlen(request), 0);

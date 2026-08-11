@@ -323,7 +323,7 @@ static void *eph_thread_entry(void *p)
  * Mirrors run_sky_obs_stream() but reads from stdin instead of a
  * socket.  Auto-stops at EOF (reason=eof); Ctrl-C and Ctrl-A behave
  * the same.  Useful for offline replay of a captured .rtcm3 file:
- *     ./ntripanalyse --sky --rtcm-stdin -R brdc.rnx < capture.rtcm3
+ *     ./ntrip-analyser --sky --rtcm-stdin -R brdc.rnx < capture.rtcm3
  */
 static int run_sky_stdin_stream(const NTRIP_Config *config,
                                 SkyRenderSector *sectors,
@@ -1025,7 +1025,7 @@ static int run_sky_mode(NTRIP_Config *config,
     }
 
     /* Script-friendly: print the saved path on its own line to stdout.
-     * Scripts can capture it with $(./ntripanalyse --sky --duration 60 -q). */
+     * Scripts can capture it with $(./ntrip-analyser --sky --duration 60 -q). */
     printf("%s\n", filename);
     fflush(stdout);
 
@@ -1179,7 +1179,7 @@ int main(int argc, char *argv[]) {
                 no_progress = true;
                 break;
             case 7:         /* --version */
-                printf("ntrip-analyser %s\n", NTRIP_ANALYSER_VERSION);
+                printf("%s %s\n", NTRIP_ARTEFACT_CLI, NTRIP_VERSION_STRING);
                 return EXIT_OK;
             case 8:  ov.caster         = optarg; break;   /* --caster */
             case 9:  ov.port           = optarg; break;   /* --port */
@@ -1280,7 +1280,8 @@ int main(int argc, char *argv[]) {
     // === 1. Request and display mountpoint list ===
     if (operation == OP_SHOW_MOUNT_FORMATTED || operation == OP_SHOW_MOUNT_RAW) {
         INFO("[DEBUG] Requesting mountpoint list (sourcetable)...\n");
-        char *mount_table = receive_mount_table(&config);
+        char *mount_table = receive_mount_table(&config,
+                                NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI));
         if (mount_table) {
             /* Sourcetable IS the data -- keep it on stdout. */
             if (operation == OP_SHOW_MOUNT_RAW) {

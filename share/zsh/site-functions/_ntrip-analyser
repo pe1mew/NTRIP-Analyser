@@ -1,12 +1,12 @@
-#compdef ntripanalyse ntripanalyser ntripanalyse.exe
-# zsh completion for ntripanalyse
+#compdef ntrip-analyser ntrip-analyser.exe
+# zsh completion for ntrip-analyser
 #
 # Install (system-wide):
-#   sudo cp share/zsh/site-functions/_ntripanalyse /usr/share/zsh/site-functions/
+#   sudo cp share/zsh/site-functions/_ntrip-analyser /usr/share/zsh/site-functions/
 #
 # Install (per-user):
 #   mkdir -p ~/.zsh/completions
-#   cp share/zsh/site-functions/_ntripanalyse ~/.zsh/completions/
+#   cp share/zsh/site-functions/_ntrip-analyser ~/.zsh/completions/
 #   # Then add to ~/.zshrc:
 #   #   fpath=(~/.zsh/completions $fpath)
 #   #   autoload -Uz compinit && compinit

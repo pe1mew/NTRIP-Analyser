@@ -527,7 +527,7 @@ Added to `.vscode/launch.json` for debugging the GUI:
 
 | Target | Executable | Build task |
 |---|---|---|
-| CLI (existing) | `bin/ntripanalyse.exe` | "Build NTRIP-Analyser (CodeBlocks MinGW)" |
+| CLI (existing) | `bin/ntrip-analyser.exe` | "Build NTRIP-Analyser (CodeBlocks MinGW)" |
 | GUI (new) | `bin/ntrip-analyser-gui.exe` | "Build NTRIP-Analyser GUI (CodeBlocks MinGW)" |
 
 Both targets coexist in `bin/` and share no output files.

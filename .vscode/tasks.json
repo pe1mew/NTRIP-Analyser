@@ -8,7 +8,7 @@
             "args": [
                 "-g",
                 "-o",
-                "bin/ntripanalyse.exe",
+                "bin/ntrip-analyser.exe",
                 "src/cli/main.c",
                 "lib/cJSON/cJSON.c",
                 "src/core/rtcm3x_parser.c",
@@ -48,7 +48,7 @@
             "args": [
                 "-g",
                 "-o",
-                "bin/ntripanalyser",
+                "bin/ntrip-analyser",
                 "src/cli/main.c",
                 "lib/cJSON/cJSON.c",
                 "src/core/rtcm3x_parser.c",

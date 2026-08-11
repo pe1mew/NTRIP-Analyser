@@ -68,7 +68,8 @@ DWORD WINAPI WorkerGetMountpoints(LPVOID param)
 {
     AppState *state = (AppState *)param;
 
-    char *mount_table = receive_mount_table(&state->config);
+    char *mount_table = receive_mount_table(&state->config,
+                            NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI));
 
     /* Post result to UI thread: wParam=0 success, 1 error; lParam=heap string */
     PostMessage(state->hMain, WM_APP_MOUNT_RESULT,
@@ -527,7 +528,8 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
         printf("[INFO] No sourcetable entry for this mountpoint; fetching...\n");
         fflush(stdout);
 
-        char *table = receive_mount_table(&state->config);
+        char *table = receive_mount_table(&state->config,
+                          NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI));
         if (table) {
             if (SourcetableFindMountpoint(table, state->config.MOUNTPOINT,
                                           state->sourceFormat,

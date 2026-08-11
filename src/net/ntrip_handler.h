@@ -133,9 +133,14 @@ void base64_encode(const char *input, char *output);
  * Connects to the configured NTRIP caster and retrieves the mountpoint table.
  *
  * @param config Pointer to NTRIP_Config struct with connection details.
+ * @param agent  User-Agent header value, e.g. `NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI)`.
+ *               Both the CLI and the GUI call this, so the caller names
+ *               itself rather than the request claiming to be either one.
+ *               NULL selects @ref NTRIP_ARTEFACT_LIB, which marks a caller
+ *               that forgot.
  * @return Pointer to the mount table string (must be freed by caller), or NULL on error.
  */
-char* receive_mount_table(const NTRIP_Config *config);
+char* receive_mount_table(const NTRIP_Config *config, const char *agent);
 
 
 

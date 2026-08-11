@@ -50,7 +50,7 @@ and in what they can show.
 
 | | **GUI** | **CLI** |
 |---|---|---|
-| Executable | `bin/ntrip-analyser-gui.exe` | `bin/ntripanalyse.exe` (Windows)<br>`bin/ntripanalyser` (Linux) |
+| Executable | `bin/ntrip-analyser-gui.exe` | `bin/ntrip-analyser.exe` (Windows)<br>`bin/ntrip-analyser` (Linux) |
 | Platform | Windows only (native Win32) | Windows and Linux |
 | Driven by | Point and click | Command-line arguments |
 | Configuration | On-screen fields, saved to JSON | `config.json` |
@@ -78,13 +78,13 @@ Full analysis via command-line arguments, suited to automation, scripting
 and remote operation.
 
 ```sh
-ntripanalyse -g                          # write a template config.json
-ntripanalyse -m                          # list the caster's mountpoints
-ntripanalyse -d                          # decode the stream
-ntripanalyse -d 1005,1077                # decode only these message types
-ntripanalyse -t 60                       # message-type statistics for 60 s
-ntripanalyse -s 60                       # unique satellites for 60 s
-ntripanalyse --sky -R nav.rnx --duration 900   # 15-min coverage heatmap PNG
+ntrip-analyser -g                          # write a template config.json
+ntrip-analyser -m                          # list the caster's mountpoints
+ntrip-analyser -d                          # decode the stream
+ntrip-analyser -d 1005,1077                # decode only these message types
+ntrip-analyser -t 60                       # message-type statistics for 60 s
+ntrip-analyser -s 60                       # unique satellites for 60 s
+ntrip-analyser --sky -R nav.rnx --duration 900   # 15-min coverage heatmap PNG
 ```
 
 Reads `config.json` from the working directory. `--sky` needs ephemerides,
@@ -92,7 +92,7 @@ so it requires either an `EPH_CASTER` block in the config or a RINEX 3 NAV
 file via `-R`. It can also replay a capture offline:
 
 ```sh
-ntripanalyse --sky --rtcm-stdin -R nav.rnx < capture.rtcm3
+ntrip-analyser --sky --rtcm-stdin -R nav.rnx < capture.rtcm3
 ```
 
 See the [CLI manual](docs/cli.md) for the full option list.
@@ -178,7 +178,7 @@ The analyser can perform the following operations on NTRIP streams:
 
 **Windows CLI:**
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
+gcc -g -o bin/ntrip-analyser.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 **Windows GUI:**
@@ -189,7 +189,7 @@ build-gui.bat
 **Linux CLI:**
 ```bash
 mkdir -p bin
-gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cJSON/cJSON.c -Isrc -Ilib/cJSON -Wall -lm -lpthread
+gcc -g -o bin/ntrip-analyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cJSON/cJSON.c -Isrc -Ilib/cJSON -Wall -lm -lpthread
 ```
 
 See [compilation guide](docs/compile.md) for complete build instructions.

@@ -5,9 +5,9 @@
 #                    NDK compiles unchanged (design/architecture.md §2.2).
 #   ntrip_session  — the NTRIP stream loop, shared by every frontend.
 #
-#   ntripanalyse       CLI          (Windows + Linux)
-#   ntrip-analyser-gui Windows GUI  (WIN32 only)
-#   ntrip-monitord     service      (UNIX only)
+#   ntrip-analyser      CLI          (Windows + Linux)
+#   ntrip-analyser-gui  Windows GUI  (WIN32 only)
+#   ntrip-monitord      service      (UNIX only)
 #
 # Build:
 #   cmake -B build && cmake --build build
@@ -79,17 +79,15 @@ if(WIN32)
 endif()
 
 # ── CLI ───────────────────────────────────────────────────────────────
-add_executable(ntripanalyse
+add_executable(ntrip-analyser
     src/cli/main.c
     src/cli/cli_help.c
     src/cli/cli_stream.c
 )
-target_link_libraries(ntripanalyse PRIVATE ntrip_session)
+target_link_libraries(ntrip-analyser PRIVATE ntrip_session)
 if(UNIX)
     find_package(Threads REQUIRED)
-    target_link_libraries(ntripanalyse PRIVATE Threads::Threads)
-    # The historical Linux binary name.
-    set_target_properties(ntripanalyse PROPERTIES OUTPUT_NAME ntripanalyser)
+    target_link_libraries(ntrip-analyser PRIVATE Threads::Threads)
 endif()
 
 # ── Windows GUI ───────────────────────────────────────────────────────
@@ -138,4 +136,118 @@ if(UNIX)
             DESTINATION share/munin/plugins)
 endif()
 
-install(TARGETS ntripanalyse RUNTIME DESTINATION bin)
+install(TARGETS ntrip-analyser RUNTIME DESTINATION bin)
+
+# ── Self-contained Windows binaries ───────────────────────────────────
+# MinGW links libwinpthread-1.dll dynamically by default, and that DLL is
+# not part of Windows.  A release .exe built without this starts with a
+# missing-DLL dialog on any machine that has no MinGW installed -- which
+# is every machine we ship to.  Linking statically makes each executable
+# a single self-contained file, which is what lets the release ship bare
+# .exe assets instead of a zip with runtime DLLs beside them.
+if(WIN32)
+    target_link_options(ntrip-analyser PRIVATE -static)
+    if(TARGET ntrip-analyser-gui)
+        target_link_options(ntrip-analyser-gui PRIVATE -static)
+    endif()
+endif()
+
+# ── Release packaging ─────────────────────────────────────────────────
+#
+# Two naming rules, deliberately different:
+#
+#   installed / typed   ntrip-analyser
+#   release asset       ntrip-analyser-2.0.1-linux-x64
+#
+# The installed name must never carry a version or a platform.  The
+# systemd unit, the Munin plugin, the documentation and any user's script
+# all refer to the command by name, and every one of them breaks if that
+# name changes each release.
+#
+# A downloaded file has the opposite problem: it lands in a Downloads
+# folder stripped of every trace of where it came from, so it has to say
+# what it is on its face.  That is also the first thing anyone needs when
+# a bug report says only "the analyser crashes".
+#
+# Build the assets with:  cmake --build build --target release
+
+if(WIN32)
+    set(NTRIP_REL_OS "windows")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(NTRIP_REL_OS "linux")
+else()
+    string(TOLOWER "${CMAKE_SYSTEM_NAME}" NTRIP_REL_OS)
+endif()
+
+# Human-facing architecture names.  These are read by a person choosing a
+# download, not by a toolchain, so "x64" rather than "x86_64".
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+    set(NTRIP_REL_ARCH "x64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    set(NTRIP_REL_ARCH "arm64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7l|armv7|arm)$")
+    set(NTRIP_REL_ARCH "armhf")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(i386|i686|x86)$")
+    set(NTRIP_REL_ARCH "x86")
+else()
+    string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" NTRIP_REL_ARCH)
+endif()
+
+set(NTRIP_REL_TAG  "${PROJECT_VERSION}-${NTRIP_REL_OS}-${NTRIP_REL_ARCH}")
+set(NTRIP_DIST_DIR "${CMAKE_BINARY_DIR}/dist")
+
+add_custom_target(release
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "${NTRIP_DIST_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory   "${NTRIP_DIST_DIR}"
+    COMMENT "Packaging ${PROJECT_VERSION} for ${NTRIP_REL_OS}-${NTRIP_REL_ARCH}"
+    VERBATIM)
+add_dependencies(release ntrip-analyser)
+
+add_custom_command(TARGET release POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:ntrip-analyser>"
+        "${NTRIP_DIST_DIR}/ntrip-analyser-${NTRIP_REL_TAG}${CMAKE_EXECUTABLE_SUFFIX}"
+    VERBATIM)
+
+if(TARGET ntrip-analyser-gui)
+    add_dependencies(release ntrip-analyser-gui)
+    add_custom_command(TARGET release POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:ntrip-analyser-gui>"
+            "${NTRIP_DIST_DIR}/ntrip-analyser-gui-${NTRIP_REL_TAG}${CMAKE_EXECUTABLE_SUFFIX}"
+        VERBATIM)
+endif()
+
+# The daemon is the one artefact that is not just a binary: without the
+# unit file, the sysusers fragment, the Munin plugin and an example
+# config, a bare executable is about a quarter of the product.  So it
+# ships as a tarball that mirrors what `make install` would place.
+if(TARGET ntrip-monitord)
+    add_dependencies(release ntrip-monitord)
+    set(_svc_stage "${CMAKE_BINARY_DIR}/_pkg/ntrip-monitord-${NTRIP_REL_TAG}")
+    add_custom_command(TARGET release POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E remove_directory "${_svc_stage}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory   "${_svc_stage}"
+        COMMAND ${CMAKE_COMMAND} -E copy
+                "$<TARGET_FILE:ntrip-monitord>"
+                "${CMAKE_SOURCE_DIR}/service/ntrip-monitord.service"
+                "${CMAKE_SOURCE_DIR}/service/ntrip-monitord.sysusers"
+                "${CMAKE_SOURCE_DIR}/service/monitord.example.json"
+                "${CMAKE_SOURCE_DIR}/service/munin/ntrip_monitor"
+                "${CMAKE_SOURCE_DIR}/docs/service.md"
+                "${_svc_stage}/"
+        COMMAND ${CMAKE_COMMAND} -E chdir "${CMAKE_BINARY_DIR}/_pkg"
+                ${CMAKE_COMMAND} -E tar cfz
+                "${NTRIP_DIST_DIR}/ntrip-monitord-${NTRIP_REL_TAG}.tar.gz"
+                "ntrip-monitord-${NTRIP_REL_TAG}"
+        VERBATIM)
+endif()
+
+# Per-platform checksum file: Windows and Linux assets are built on
+# different machines, so a single shared SHA256SUMS would be overwritten
+# by whichever upload happened last.
+add_custom_command(TARGET release POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+            -DDIST_DIR=${NTRIP_DIST_DIR}
+            -DTAG=${NTRIP_REL_TAG}
+            -P "${CMAKE_SOURCE_DIR}/cmake/WriteChecksums.cmake"
+    COMMAND ${CMAKE_COMMAND} -E echo "Release assets in ${NTRIP_DIST_DIR}"
+    VERBATIM)

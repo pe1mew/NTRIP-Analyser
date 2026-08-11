@@ -1,6 +1,6 @@
 # NTRIP-Analyser CLI manual
 
-`ntripanalyse` is the command-line application for connecting to NTRIP casters, retrieving mountpoint tables, and analyzing or decoding RTCM 3.x streams. It is designed for GNSS enthusiasts who need to inspect or debug NTRIP data streams.
+`ntrip-analyser` is the command-line application for connecting to NTRIP casters, retrieving mountpoint tables, and analyzing or decoding RTCM 3.x streams. It is designed for GNSS enthusiasts who need to inspect or debug NTRIP data streams.
 
 ---
 
@@ -46,7 +46,7 @@ Set the various parameters
 Run the program from the command line:
 
 ```sh
-ntripanalyse [options]
+ntrip-analyser [options]
 ```
 
 #### **Options**
@@ -73,42 +73,42 @@ ntripanalyse [options]
 
 - **Show mountpoint table:**
   ```sh
-  ntripanalyse -m
+  ntrip-analyser -m
   ```
 
 - **Decode all RTCM messages from the configured mountpoint:**
   ```sh
-  ntripanalyse -d
+  ntrip-analyser -d
   ```
 
 - **Decode only specific RTCM message types (e.g., 1005 and 1074):**
   ```sh
-  ntripanalyse -d 1005,1074
+  ntrip-analyser -d 1005,1074
   ```
 
 - **Analyze message types for 120 seconds:**
   ```sh
-  ntripanalyse -t 120
+  ntrip-analyser -t 120
   ```
 
 - **Count seen satellites for 120 seconds:**
   ```sh
-  ntripanalyse -s 120
+  ntrip-analyser -s 120
   ```
 
 - **Generate a template config file:**
   ```sh
-  ntripanalyse -i
+  ntrip-analyser -i
   ```
 
 - **Use a different config file:**
   ```sh
-  ntripanalyse -c myconfig.json -d
+  ntrip-analyser -c myconfig.json -d
   ```
 
 - **Verbose output (show config and action):**
   ```sh
-  ntripanalyse -v -d
+  ntrip-analyser -v -d
   ```
 ---
 
@@ -118,7 +118,7 @@ ntripanalyse [options]
 
 
 ```sh
->ntripanalyse.exe -t -v
+>ntrip-analyser.exe -t -v
 === NTRIP-Analyser Configuration ===
   Config file: config.json
   NTRIP_CASTER: somecaster.net
@@ -140,7 +140,7 @@ ntripanalyse [options]
 
 
 ```sh
->ntripanalyse.exe -t
+>ntrip-analyser.exe -t
 [INFO] Analyzing message types for 60 seconds...
 1137 1077 1087 1097 1117 1127 1127 1137 1077 1087 1097 1117 1127 1127 1137 1077 1087 1097 
 ...

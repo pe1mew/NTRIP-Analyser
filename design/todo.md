@@ -175,27 +175,49 @@ artefact names in `version.h`; it had been spelled out by hand at five call site
 layer's fallback names the project rather than the CLI, since a caller that leaves `user_agent`
 unset is any front end.
 
-Verified by building all three artefacts and reading the strings back out of each binary: GUI
-`ntrip-analyser-gui/2.0.0`, CLI `ntripanalyse/2.0.0`, daemon `ntrip-monitord/2.0.0`, each alongside
-the shared `ntrip-analyser/2.0.0` used by the sourcetable fetch, with no `CClient` string left
-anywhere.
+Verified by building all three artefacts and reading the strings back out of each binary — GUI
+`ntrip-analyser-gui/2.0.0`, CLI `ntrip-analyser/2.0.0`, daemon `ntrip-monitord/2.0.0` — with no
+`CClient` string left anywhere. (The CLI token read `ntripanalyse/2.0.0` when this item shipped;
+0.2 renamed it in the same unreleased batch.)
 
 **Left open deliberately — see 0.2.** The CLI answers to four different names.
 
-### 0.2 The CLI has four names — **Open**
+### 0.2 The CLI has four names — **Shipped**
 
-`NTRIP_ARTEFACT_CLI` is `"ntripanalyse"`, the built binary is `ntripanalyser` (CMake `OUTPUT_NAME`),
-`--version` prints a hardcoded `"ntrip-analyser"`, and the documentation is itself split — roughly
-30 references to `ntripanalyse` against 5 to `ntripanalyser`.
+`NTRIP_ARTEFACT_CLI` was `"ntripanalyse"`, the built binary was `ntripanalyser` (CMake
+`OUTPUT_NAME`), `--version` printed a hardcoded `"ntrip-analyser"`, and the documentation was itself
+split — roughly 30 references against 11.
 
-This is a naming decision rather than a staleness bug, which is why 0.1 left it alone: picking a
-winner changes what users type and what any wrapper script greps for, and `--version` output is the
-kind of thing people parse. The artefact constants are *not* part of the statistics-snapshot
-contract (`ns_stats` carries no producer field), so nothing outside the repository keys on them
-today — the change is cheap now and gets more expensive with every release.
+All four are now **`ntrip-analyser`**, chosen because it matches the product, is consistent with
+`ntrip-analyser-gui`, and was already what `--version` printed. 84 references across 16 tracked
+files, plus the two shell-completion files, which are *named* for the command and so needed
+`git mv` rather than an edit. Historical changelog entries were left alone: they record what the
+command was called at the time, and rewriting them would falsify the record.
 
-Decide the canonical name, then align the constant, the CMake `OUTPUT_NAME`, the `--version`
-literal in `src/cli/main.c` and the docs in one pass.
+The rename made `NTRIP_ARTEFACT_CLI` and `NTRIP_ARTEFACT_COMMON` the same string, which exposed a
+latent ambiguity — `receive_mount_table()` is reachable from both the CLI and the GUI and was
+identifying as neither. It now takes the agent from its caller, so each front end names itself.
+What remains is `NTRIP_ARTEFACT_LIB` (`"ntrip-analyser-lib"`), used only as the session layer's
+fallback: deliberately not a real artefact name, so that if it ever appears in a caster's log it
+reads as a front end that forgot to identify itself rather than as the CLI.
+
+### 0.3 Release asset naming and packaging — **Shipped**
+
+Installed names stay plain (`ntrip-analyser`, `ntrip-analyser-gui.exe`, `ntrip-monitord`) because
+the systemd unit, the Munin plugin, the docs and any user script refer to them by name. Release
+assets carry `<artefact>-<version>-<os>-<arch>`, generated from `version.h` by a `release` target
+so a filename cannot disagree with the binary inside it. Full rationale in
+[architecture.md §7.5](architecture.md).
+
+Windows binaries are now linked `-static`. They previously depended on `libwinpthread-1.dll`, which
+is not part of Windows — a published `.exe` would have failed to start on any machine without MinGW
+installed, i.e. every machine we ship to. This was found by inspecting the import table of a
+release-configuration build, not by running it, since a development machine has the DLL and cannot
+reproduce the failure.
+
+Verified end to end on both platforms: the target builds, packages, writes a per-platform
+`SHA256SUMS` that `sha256sum -c` accepts, and the daemon tarball extracts to a runnable binary with
+the Munin plugin's executable bit intact.
 
 ### 3.2 Ephemeris decoding — 1019 / 1020 / 1042 / 1044 / 1045 / 1046 — **Shipped**
 

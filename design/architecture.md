@@ -448,9 +448,71 @@ development build is traceable to a commit rather than to a version
 number shared by everything between two releases.
 
 ```
-$ ntripanalyse --version
+$ ntrip-analyser --version
 ntrip-analyser 2.0.0
 ```
+
+### 7.5 Artefact naming: installed name versus release asset
+
+These are two different names with opposite requirements, and conflating
+them is the mistake this section exists to prevent.
+
+**The installed name is stable, unversioned and platform-free.**
+
+| Artefact | Installed as |
+|---|---|
+| CLI | `ntrip-analyser` |
+| Windows GUI | `ntrip-analyser-gui.exe` |
+| Monitoring daemon | `ntrip-monitord` |
+
+The systemd unit refers to `/usr/local/sbin/ntrip-monitord`, the Munin
+plugin reads a fixed path, the documentation tells people what to type,
+and users write scripts around all of it. A version or a platform tag in
+any of those names breaks every reference on each upgrade. `ntrip-monitord`
+keeps the Unix daemon `d` suffix and is not renamed for symmetry: it is
+already deployed, and consistency is not worth breaking a running install.
+
+**The release asset is self-describing:**
+
+```
+<artefact>-<version>-<os>-<arch>[.ext]
+```
+
+| Asset | Notes |
+|---|---|
+| `ntrip-analyser-2.0.0-windows-x64.exe` | statically linked, single file |
+| `ntrip-analyser-2.0.0-linux-x64` | dynamically linked against glibc |
+| `ntrip-analyser-gui-2.0.0-windows-x64.exe` | statically linked, single file |
+| `ntrip-monitord-2.0.0-linux-x64.tar.gz` | binary + unit + sysusers + Munin plugin + example config + manual |
+| `ntrip-analyser-2.0.0.apk` | Android; `versionCode` from `version.h` |
+| `SHA256SUMS-2.0.0-<os>-<arch>.txt` | one per build host |
+
+A downloaded file lands in a Downloads folder stripped of all context, so
+it must say what it is on its face; it is also the first thing needed when
+a bug report says only "the analyser crashes". Lowercase, hyphens, and a
+bare version — the `v` prefix belongs to the git tag, not the filename.
+
+`x64` and `arm64` rather than `x86_64` and `aarch64`: these names are read
+by a person choosing a download, not by a toolchain. `linux-arm64` matters
+because a monitoring daemon on a Raspberry Pi beside the base station is a
+natural deployment.
+
+The daemon is the one artefact shipped as an archive. Without the unit
+file, the sysusers fragment, the Munin plugin and an example config, a
+bare executable is roughly a quarter of the product.
+
+**Windows binaries are linked `-static`.** MinGW otherwise links
+`libwinpthread-1.dll` dynamically, and that DLL is not part of Windows: an
+`.exe` published without it fails on any machine with no MinGW install,
+which is every machine we ship to. Static linking is what makes a bare
+`.exe` asset honest rather than a zip of runtime DLLs.
+
+The checksum file is per build host because Windows and Linux assets are
+produced on different machines; a single shared `SHA256SUMS` would be
+overwritten by whichever upload happened last.
+
+Asset names are generated from `version.h` by the `release` target, never
+typed. A version written by hand into a filename eventually lies.
 
 ## 8. Build system
 
@@ -459,7 +521,7 @@ hand-written `gcc` lines. `CMakeLists.txt` exists but covers only the
 CLI.
 
 Proposed: one CMake project with `ntrip_core` and `ntrip_session` as
-static libraries, and `ntripanalyse`, `ntrip-analyser-gui` and
+static libraries, and `ntrip-analyser`, `ntrip-analyser-gui` and
 `ntrip-monitord` as executables that link them. The GUI target guards on
 `WIN32`; the service target guards on `UNIX`. Android builds the two
 libraries through the NDK's own CMake support, which is why this

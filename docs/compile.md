@@ -63,7 +63,7 @@ For Windows: install Code::Blocks with Mingw compiler and Visual Studio Code. In
 
 Direct command line:
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
+gcc -g -o bin/ntrip-analyser.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 ### Linux
@@ -79,7 +79,7 @@ mkdir -p bin
 
 To compile, in the root of the repository execute: 
 ```bash
-gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cJSON/cJSON.c -Isrc -Ilib/cJSON -Wall -lm -lpthread
+gcc -g -o bin/ntrip-analyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cJSON/cJSON.c -Isrc -Ilib/cJSON -Wall -lm -lpthread
 ```
 
 This command will:
@@ -92,7 +92,7 @@ This command will:
 - Link the math library (`-lm`)
 - Link POSIX threads (`-lpthread`) — required by the CLI `-s --sky`
   mode, which spawns a parallel eph NTRIP worker
-- Output the executable to `bin/ntripanalyser`
+- Output the executable to `bin/ntrip-analyser`
 
 ## GUI Application (Windows Only)
 
@@ -132,50 +132,95 @@ For detailed GUI compilation instructions, build methods, and troubleshooting, s
 build-gui.bat
 ```
 
+## Building release assets
+
+The `release` target builds everything available on the current platform
+and packages it under `<build-dir>/dist/`, ready to upload:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build --target release
+```
+
+Assets are named `<artefact>-<version>-<os>-<arch>[.ext]`, with the
+version read from `src/core/version.h` — never typed by hand, so it
+cannot disagree with the binaries:
+
+| Platform | Produces |
+|---|---|
+| Windows | `ntrip-analyser-2.0.0-windows-x64.exe`<br>`ntrip-analyser-gui-2.0.0-windows-x64.exe`<br>`SHA256SUMS-2.0.0-windows-x64.txt` |
+| Linux | `ntrip-analyser-2.0.0-linux-x64`<br>`ntrip-monitord-2.0.0-linux-x64.tar.gz`<br>`SHA256SUMS-2.0.0-linux-x64.txt` |
+
+Each platform must be built on that platform; run the target once per
+target machine and upload the results together. The checksum file is
+named per platform for exactly that reason — a shared `SHA256SUMS` would
+be overwritten by whichever upload happened last.
+
+Verify a download with:
+
+```bash
+sha256sum -c SHA256SUMS-2.0.0-linux-x64.txt
+```
+
+**The installed binary keeps its plain name.** `ntrip-analyser`,
+`ntrip-analyser-gui.exe` and `ntrip-monitord` never carry a version or a
+platform: the systemd unit, the Munin plugin, the documentation and any
+user script all refer to them by name. Only the downloadable file is
+tagged. Rename the asset when you install it, or use `cmake --install`.
+
+Windows executables are linked `-static`, so each is a single
+self-contained file. Without that, MinGW leaves a dependency on
+`libwinpthread-1.dll`, which is not part of Windows and would make the
+download fail to start on any machine without MinGW installed.
+
+The daemon ships as a tarball rather than a bare binary because it is
+more than a binary — the archive holds the executable, the systemd unit,
+the sysusers fragment, the Munin plugin, an example config and
+[service.md](service.md).
+
 ## Shell Completion (CLI)
 
 Tab-completion files for bash and zsh ship under `share/`:
 
 ```
 share/
-├── bash-completion/completions/ntripanalyse   # bash function _ntripanalyse_complete
-└── zsh/site-functions/_ntripanalyse           # zsh _arguments definition
+├── bash-completion/completions/ntrip-analyser   # bash function _ntrip-analyser_complete
+└── zsh/site-functions/_ntrip-analyser           # zsh _arguments definition
 ```
 
 ### Bash
 
 System-wide:
 ```bash
-sudo cp share/bash-completion/completions/ntripanalyse \
+sudo cp share/bash-completion/completions/ntrip-analyser \
     /usr/share/bash-completion/completions/
 ```
 
 Per-user:
 ```bash
 mkdir -p ~/.local/share/bash-completion/completions
-cp share/bash-completion/completions/ntripanalyse \
+cp share/bash-completion/completions/ntrip-analyser \
     ~/.local/share/bash-completion/completions/
 ```
 
 Or just source it directly in your `~/.bashrc`:
 ```bash
-. /path/to/share/bash-completion/completions/ntripanalyse
+. /path/to/share/bash-completion/completions/ntrip-analyser
 ```
 
-The completion script triggers on `ntripanalyse`, `ntripanalyser`, and
-`ntripanalyse.exe` so it works for both Linux and Windows binary names.
+The completion script triggers on `ntrip-analyser`, `ntrip-analyser`, and
+`ntrip-analyser.exe` so it works for both Linux and Windows binary names.
 
 ### Zsh
 
 System-wide:
 ```bash
-sudo cp share/zsh/site-functions/_ntripanalyse /usr/share/zsh/site-functions/
+sudo cp share/zsh/site-functions/_ntrip-analyser /usr/share/zsh/site-functions/
 ```
 
 Per-user (no root):
 ```bash
 mkdir -p ~/.zsh/completions
-cp share/zsh/site-functions/_ntripanalyse ~/.zsh/completions/
+cp share/zsh/site-functions/_ntrip-analyser ~/.zsh/completions/
 # Then in ~/.zshrc:
 #   fpath=(~/.zsh/completions $fpath)
 #   autoload -Uz compinit && compinit

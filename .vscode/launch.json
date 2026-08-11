@@ -8,7 +8,7 @@
             "name": "Run NTRIP-Analyser (Windows, no debug)",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/ntripanalyse.exe",
+            "program": "${workspaceFolder}/ntrip-analyser.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

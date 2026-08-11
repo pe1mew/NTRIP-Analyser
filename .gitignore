@@ -1,6 +1,6 @@
 *.exe
 *.json
-ntripanalyse.exe
+ntrip-analyser.exe
 
 # Build artifacts
 gui_main.o
@@ -12,6 +12,14 @@ service/ntrip-monitord
 service/ntrip-monitord.exe
 !service/monitord.example.json
 
-# CMake build directories
-build/
-build-win/
+# CMake build directories.  The glob covers ad-hoc names too -- build/,
+# build-win/, build-rel/ -- so a new build directory is never accidentally
+# committed by a `git add -A`.
+build*/
+
+# Release packaging output (`cmake --build <dir> --target release`)
+dist/
+_pkg/
+
+# Claude Code session state and worktrees
+.claude/

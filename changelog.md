@@ -6,6 +6,66 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the CLI is now `ntrip-analyser`
+
+It previously answered to four names: the artefact constant said
+`ntripanalyse`, the built binary was `ntripanalyser`, `--version` printed
+a hardcoded `ntrip-analyser`, and the documentation was split between the
+first two.  All four are now `ntrip-analyser`, which matches the product,
+is consistent with `ntrip-analyser-gui`, and was already what `--version`
+printed.
+
+The shell-completion files are *named* for the command, so they were
+renamed rather than edited: `share/bash-completion/completions/ntrip-analyser`
+and `share/zsh/site-functions/_ntrip-analyser`.  Historical changelog
+entries keep the old name — they record what the command was called at
+the time.
+
+**If you invoke `ntripanalyse` or `ntripanalyser` from a script, update
+it.**  No compatibility alias is installed; with four spellings already
+in circulation, adding a fifth path to the same binary seemed the wrong
+direction.
+
+One consequence worth naming: the rename made `NTRIP_ARTEFACT_CLI` and
+`NTRIP_ARTEFACT_COMMON` the same string, which exposed an ambiguity that
+was always there — `receive_mount_table()` is reachable from both the CLI
+and the GUI and identified as neither.  It now takes its `User-Agent`
+from the caller, so each front end names itself on the sourcetable
+request too.
+
+### Added — release packaging
+
+`cmake --build <dir> --target release` builds and packages everything
+available on the current platform into `<dir>/dist/`, named
+`<artefact>-<version>-<os>-<arch>[.ext]` with the version read from
+`src/core/version.h` rather than typed.
+
+Installed binaries deliberately keep their plain, unversioned names — the
+systemd unit, the Munin plugin, the documentation and any user script all
+refer to them by name, and every one of those breaks if the name changes
+each release.  Only the downloadable file is tagged, because it lands in
+a Downloads folder stripped of all context.  The reasoning is recorded in
+`design/architecture.md` §7.5.
+
+The daemon ships as a tarball holding the binary, the systemd unit, the
+sysusers fragment, the Munin plugin, an example config and the manual; a
+bare executable would be about a quarter of the product.  Each platform
+writes its own `SHA256SUMS-<version>-<os>-<arch>.txt`, since Windows and
+Linux assets are built on different machines and a shared file would be
+overwritten by whichever upload happened last.
+
+### Fixed — Windows binaries depended on a DLL that is not part of Windows
+
+MinGW links `libwinpthread-1.dll` dynamically by default, so a published
+`.exe` would have failed to start with a missing-DLL dialog on any
+machine without MinGW installed — which is every machine we ship to.  A
+development machine has the DLL and cannot reproduce the failure, so this
+was found by reading the import table of a release build rather than by
+running it.
+
+Both Windows executables are now linked `-static` and depend only on
+system DLLs.
+
 ### Fixed — stale version and identity strings
 
 Every version a user or a caster operator can see now derives from

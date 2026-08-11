@@ -11,7 +11,7 @@ application appears only when one genuinely needs multiple pages.
 | I am using… | Read |
 |---|---|
 | The Windows desktop application | **[gui.md](gui.md)** |
-| The command-line tool (`ntripanalyse`) | **[cli.md](cli.md)** |
+| The command-line tool (`ntrip-analyser`) | **[cli.md](cli.md)** |
 | The monitoring service + Munin graphs | **[service.md](service.md)** |
 | The Android app | Not released yet; its design notes live in `android/design/` |
 

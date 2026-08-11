@@ -61,17 +61,23 @@
 /* ── Artefact names ───────────────────────────────────────────────────
  * Used in banners and in the statistics snapshot, so a consumer can tell
  * which program produced a given record. */
-#define NTRIP_ARTEFACT_CLI     "ntripanalyse"
+#define NTRIP_ARTEFACT_CLI     "ntrip-analyser"
 #define NTRIP_ARTEFACT_GUI     "ntrip-analyser-gui"
 #define NTRIP_ARTEFACT_SERVICE "ntrip-monitord"
 #define NTRIP_ARTEFACT_ANDROID "ntrip-analyser-android"
 
 /**
- * Artefact name for code shared by several front ends, where the calling
- * artefact is not known at the point of use -- the sourcetable fetch, for
- * instance, which the CLI and the GUI both call.
+ * Defensive default for a caller that reaches the session layer without
+ * naming itself.  Deliberately not one of the names above: if this string
+ * ever appears in a caster's log it means a front end forgot to set
+ * `user_agent`, and it should be identifiable as exactly that rather than
+ * quietly impersonating the CLI.
+ *
+ * Shared code that *is* reachable from several front ends -- the
+ * sourcetable fetch, for instance -- takes the agent from its caller
+ * instead, so each front end names itself truthfully.
  */
-#define NTRIP_ARTEFACT_COMMON  "ntrip-analyser"
+#define NTRIP_ARTEFACT_LIB     "ntrip-analyser-lib"
 
 /**
  * @brief NTRIP User-Agent product token: `NTRIP <artefact>/<version>`.
