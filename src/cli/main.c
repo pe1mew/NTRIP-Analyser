@@ -28,6 +28,7 @@
 #include "cJSON.h" // Include cJSON library
 #include "core/rtcm3x_parser.h" // Include RTCM parser header
 #include "net/ntrip_handler.h"
+#include "session/ntrip_session.h"
 #include "cli/cli_stream.h"
 #include "core/config.h"
 #include "cli/cli_help.h"
@@ -325,6 +326,84 @@ static void *eph_thread_entry(void *p)
  * the same.  Useful for offline replay of a captured .rtcm3 file:
  *     ./ntrip-analyser --sky --rtcm-stdin -R brdc.rnx < capture.rtcm3
  */
+/* ── Sky-mode frame handling, shared by the stdin and obs sources ──────
+ *
+ * Both sources used to carry their own copy of the RTCM framer and of the
+ * per-frame body below -- the last two duplicates of the session layer's
+ * framing in the tree.  They now differ only in how the session is
+ * opened, which is the whole point of the session layer.
+ *
+ * One behavioural change comes with that: the old loops accepted any
+ * frame with a plausible preamble and length, without checking its CRC.
+ * The session validates CRC first, so a corrupted frame is now counted as
+ * an error instead of being decoded as if it were sound.  On a clean
+ * stream the frame counts are identical.
+ */
+typedef struct {
+    const NTRIP_Config *config;
+    SkyRenderSector    *sectors;
+    long frame_total;
+    long msm_total;
+    long obs_total;    /* sector updates contributed */
+    long bytes_total;
+    int  end_reason;   /* NsEndReason, or -1 while running */
+} SkyCtx;
+
+static void sky_on_event(const NsEvent *ev, void *user)
+{
+    SkyCtx *c = (SkyCtx *)user;
+
+    switch (ev->type) {
+    case NS_EV_RAW:
+        c->bytes_total += ev->u.raw.len;
+        break;
+
+    case NS_EV_DISCONNECTED:
+        c->end_reason = ev->u.end.reason;
+        break;
+
+    case NS_EV_FRAME: {
+        const unsigned char *payload = ev->u.frame.data + 3;
+        int  payload_len = ev->u.frame.len - 6;
+        int  mt = ev->u.frame.msg_type;
+
+        c->frame_total++;
+
+        if (mt == 1005) {
+            decode_rtcm_1005(payload, payload_len, c->config);
+        } else if (mt == 1006) {
+            decode_rtcm_1006(payload, payload_len, c->config);
+        }
+
+        int subtype = mt % 10;
+        if (mt >= 1070 && mt <= 1139 && subtype >= 4 && subtype <= 7) {
+            c->msm_total++;
+
+            /* The broadcast ARP if one has arrived, else the configured
+             * position -- without a station location there is no geometry
+             * to project the satellites onto. */
+            bool   arp_valid = false;
+            double sx = 0, sy = 0, sz = 0;
+            rtcm_get_station_arp(&arp_valid, &sx, &sy, &sz, NULL, NULL, NULL);
+            if (!arp_valid &&
+                (c->config->LATITUDE != 0.0 || c->config->LONGITUDE != 0.0)) {
+                geodetic_to_ecef(c->config->LATITUDE, c->config->LONGITUDE,
+                                 0.0, &sx, &sy, &sz);
+                arp_valid = true;
+            }
+            if (arp_valid) {
+                c->obs_total += sky_collect_feed_msm(
+                    c->sectors, payload, payload_len, mt, sx, sy, sz);
+            }
+        }
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+
 static int run_sky_stdin_stream(const NTRIP_Config *config,
                                 SkyRenderSector *sectors,
                                 int duration_s,
@@ -367,34 +446,49 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
         sink_used = 1;
     }
 
-    unsigned char msg_buffer[BUFFER_SIZE];
-    int  msg_buffer_len = 0;
-    char buffer[BUFFER_SIZE];
-
-    long  msm_total     = 0;
-    long  obs_total     = 0;
-    long  frame_total   = 0;
-    long  bytes_total   = 0;
     long  bytes_at_tick = 0;
     time_t last_tick    = t_start;
     const char spin[] = "|/-\\";
     int spin_i = 0;
 
+    SkyCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.config     = config;
+    ctx.sectors    = sectors;
+    ctx.end_reason = -1;
+
+    /* stdin is not a path, so this is the one source ns_open_file()
+     * cannot express; ns_open_stream() takes the handle directly and
+     * ns_close() leaves it open, since we do not own it. */
+    NsOptions opt;
+    ns_options_default(&opt);
+    opt.config = *config;
+
+    NtripSession *sess = ns_open_stream(stdin, false, &opt, sky_on_event, &ctx);
+    if (!sess) {
+        ERR("[OBS] Out of memory opening the stdin session\n");
+        *reason = STOP_REASON_ERROR;
+        terminal_restore();
+        if (sink_used) {
+            rtcm_set_output_buffer(NULL);
+            rtcm_strbuf_free(&sink);
+        }
+        return 1;
+    }
+
     while (!g_stop_requested && !g_abort_requested) {
-        size_t got = fread(buffer, 1, sizeof(buffer), stdin);
-        if (got == 0) {
-            if (feof(stdin)) {
+        long bytes_before = ctx.bytes_total;
+
+        if (ns_pump(sess, 0) < 0) {
+            if (ctx.end_reason == NS_END_EOF) {
                 *reason = STOP_REASON_EOF;
                 INFO("\n[OBS] stdin EOF\n");
-                break;
-            }
-            if (ferror(stdin)) {
+            } else {
                 *reason = STOP_REASON_ERROR;
-                break;
             }
-            continue;
+            break;
         }
-        int received = (int)got;
+        int received = (int)(ctx.bytes_total - bytes_before);
 
         if (poll_for_ctrl_a()) {
             g_abort_requested = 1;
@@ -409,95 +503,34 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
             break;
         }
 
-        bytes_total += received;
+        (void)received;   /* the session accumulates the byte total */
 
         if (show_progress && now != last_tick) {
-            long bytes_in_window = bytes_total - bytes_at_tick;
-            bytes_at_tick = bytes_total;
+            long bytes_in_window = ctx.bytes_total - bytes_at_tick;
+            bytes_at_tick = ctx.bytes_total;
             double kBps = (double)bytes_in_window / 1024.0;
             if (json_output) {
                 fprintf(stderr,
                     "{\"event\":\"tick\",\"t\":%ld,\"frames\":%ld,\"msm\":%ld,"
                     "\"upd\":%ld,\"kBps\":%.2f,\"total_kb\":%ld,\"source\":\"stdin\"}\n",
-                    (long)now, frame_total, msm_total, obs_total,
-                    kBps, bytes_total / 1024);
+                    (long)now, ctx.frame_total, ctx.msm_total, ctx.obs_total,
+                    kBps, ctx.bytes_total / 1024);
             } else if (stderr_is_tty) {
                 fprintf(stderr,
                     "\r [%c] stdin frames=%ld  MSM=%ld  upd=%ld  rate=%5.1f kB/s  total=%ld KB    ",
-                    spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kBps, bytes_total / 1024);
+                    spin[spin_i & 3], ctx.frame_total, ctx.msm_total, ctx.obs_total,
+                    kBps, ctx.bytes_total / 1024);
             } else {
                 fprintf(stderr,
                     "[%c] stdin frames=%ld  MSM=%ld  upd=%ld  rate=%5.1f kB/s  total=%ld KB\n",
-                    spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kBps, bytes_total / 1024);
+                    spin[spin_i & 3], ctx.frame_total, ctx.msm_total, ctx.obs_total,
+                    kBps, ctx.bytes_total / 1024);
             }
             fflush(stderr);
             spin_i++;
             last_tick = now;
         }
 
-        /* Same frame-parsing pipeline as run_sky_obs_stream. */
-        int buf_pos = 0;
-        while (buf_pos < received) {
-            if (msg_buffer_len == 0) {
-                while (buf_pos < received &&
-                       (unsigned char)buffer[buf_pos] != 0xD3) buf_pos++;
-                if (buf_pos >= received) break;
-            }
-            int to_copy = received - buf_pos;
-            if (msg_buffer_len + to_copy > BUFFER_SIZE)
-                to_copy = BUFFER_SIZE - msg_buffer_len;
-            memcpy(msg_buffer + msg_buffer_len, buffer + buf_pos, to_copy);
-            msg_buffer_len += to_copy;
-            buf_pos += to_copy;
-
-            while (msg_buffer_len >= 3) {
-                if (msg_buffer[0] != 0xD3) {
-                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
-                    continue;
-                }
-                int msg_length = ((msg_buffer[1] & 0x03) << 8) | msg_buffer[2];
-                int frame_len  = 3 + msg_length + 3;
-                if (msg_buffer_len < frame_len) break;
-                if (msg_length < 2) {
-                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
-                    continue;
-                }
-                int mt = ((int)msg_buffer[3] << 4) | ((int)msg_buffer[4] >> 4);
-                frame_total++;
-
-                if (mt == 1005) {
-                    decode_rtcm_1005(&msg_buffer[3], msg_length, config);
-                } else if (mt == 1006) {
-                    decode_rtcm_1006(&msg_buffer[3], msg_length, config);
-                }
-
-                int subtype = mt % 10;
-                if (mt >= 1070 && mt <= 1139 && subtype >= 4 && subtype <= 7) {
-                    msm_total++;
-                    bool   arp_valid = false;
-                    double sx = 0, sy = 0, sz = 0;
-                    rtcm_get_station_arp(&arp_valid, &sx, &sy, &sz, NULL, NULL, NULL);
-                    if (!arp_valid &&
-                        (config->LATITUDE != 0.0 || config->LONGITUDE != 0.0)) {
-                        geodetic_to_ecef(config->LATITUDE, config->LONGITUDE, 0.0,
-                                         &sx, &sy, &sz);
-                        arp_valid = true;
-                    }
-                    if (arp_valid) {
-                        int contrib = sky_collect_feed_msm(
-                            sectors, &msg_buffer[3], msg_length, mt,
-                            sx, sy, sz);
-                        obs_total += contrib;
-                    }
-                }
-
-                memmove(msg_buffer, msg_buffer + frame_len,
-                        msg_buffer_len - frame_len);
-                msg_buffer_len -= frame_len;
-            }
-        }
     }
 
     if (*reason == STOP_REASON_NONE) {
@@ -507,7 +540,12 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
 
     if (show_progress && stderr_is_tty && !json_output) INFO("\n");
     INFO("[OBS] stdin closed (frames=%ld  MSM=%ld  sector updates=%ld  total=%ld KB)\n",
-         frame_total, msm_total, obs_total, bytes_total / 1024);
+         ctx.frame_total, ctx.msm_total, ctx.obs_total, ctx.bytes_total / 1024);
+
+    /* Closes the session, not stdin: ns_open_stream() was told we do not
+     * own the handle. */
+    ns_close(sess);
+
     terminal_restore();
     if (sink_used) {
         rtcm_set_output_buffer(NULL);

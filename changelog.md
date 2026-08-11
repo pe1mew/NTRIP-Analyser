@@ -29,6 +29,27 @@ heap between the real end of the data and the terminator — which cJSON
 then parsed.  It now terminates at what was actually read, and reports a
 read error instead of continuing.
 
+### Changed — `--sky` reads stdin through the session layer
+
+`run_sky_stdin_stream()` framed RTCM by hand.  It now opens the session
+on `stdin` and does its per-frame work in a handler shared with the
+observation source, removing one of the last two duplicates of the
+session layer's framing and both copies of the per-frame body.
+
+A correctness improvement comes with it: the old loop accepted any frame
+with a plausible preamble and length **without checking its CRC**, so a
+corrupted frame was decoded as though it were sound.  The session
+validates the CRC first.
+
+Verified against a binary built from the previous commit, both fed the
+same capture: identical frame, MSM and byte counts (447 / 444 / 119 kB),
+byte-identical PNG output when run back to back, and the same 3330
+sector updates once the ephemeris cache had filled.
+
+`run_sky_obs_stream()` still frames by hand; its per-frame body is
+already the shared handler, so what remains is replacing its socket
+setup and GGA push with `ns_open()`.
+
 ### Added — `ns_open_stream()`, for sessions fed from an open handle
 
 The general form of `ns_open_file()`, which is now a thin wrapper around

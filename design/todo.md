@@ -269,16 +269,36 @@ In text mode the same capture yields **1** frame instead of 206, because CRLF by
 RTCM payloads get translated. `run_sky_stdin_stream()` already does this (`_setmode`, `:338`); any
 new caller must too.
 
-**Not done: the two conversions**, deliberately. `--sky` gates on an ephemeris source in pre-flight
-(`EXIT_NO_EPH`) and exits before the framing loop runs, so with no RINEX NAV file and no `EPH_*`
-configured there is no way to exercise either function end to end here. These are the least-tested
-paths in the tree; rewriting ~500 lines of them without being able to run the result is how the
-`take_header()` and clone-build faults got in.
+**Done: `run_sky_stdin_stream()`.** It now opens `ns_open_stream(stdin, false, ...)` and does its
+per-frame work in `sky_on_event()`, a handler shared with the obs source. Both hand-written copies
+of the per-frame body are gone with it.
 
-To finish: a RINEX 3 NAV file covering the capture's epoch (2026-05-28), or `EPH_*` caster settings.
-Then convert `run_sky_obs_stream()` onto `ns_open()` and `run_sky_stdin_stream()` onto
-`ns_open_stream(stdin, false, ...)`, as `cli_stream.c` already does for the other modes, and compare
-frame/MSM counts and the rendered PNG before and after.
+One behavioural change came free: the old loops accepted any frame with a plausible preamble and
+length **without checking its CRC**, so a corrupted frame was decoded as if it were sound. The
+session validates CRC first.
+
+Verified against a binary built from the previous commit, both fed the same fresh capture
+(`fresh.rtcm3`, 447 frames):
+
+| Measure | Old | New |
+|---|---|---|
+| frames / MSM / bytes | 447 / 444 / 119 KB | identical |
+| PNG, back-to-back runs | `0d024b7d…` | `0d024b7d…` (byte-identical) |
+| sector updates, ephemeris cache saturated | 3330 | 3330 |
+
+Two measurement traps worth recording, because both first looked like regressions:
+
+- **The PNG embeds something time-dependent.** Two runs seconds apart hash the same; runs a minute
+  apart do not. Comparisons must be back-to-back.
+- **Sector updates depend on how much ephemeris has arrived**, not only on the observations. Paced
+  runs gave old 2994–3117 against new 3330 — non-overlapping, and it looked systematic. Delaying the
+  observations until the eph cache had filled brought both to exactly 3330. Any before/after
+  comparison of this number must pre-warm the cache or it measures the caster, not the code.
+
+**Remaining: `run_sky_obs_stream()`** (`src/cli/main.c`), still framing by hand. Its per-frame body
+is already `sky_on_event()`; what is left is replacing its socket setup, HTTP request, GGA push and
+header skipping with `ns_open()` — all of which the session layer already does, `send_gga` included.
+Verify with a live `--sky --duration` run against the counts above.
 
 ### 3.2 Ephemeris decoding — 1019 / 1020 / 1042 / 1044 / 1045 / 1046 — **Shipped**
 
