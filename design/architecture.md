@@ -495,8 +495,8 @@ extraction before any working code is touched.**
 
 | Step | Work | Risk |
 |---|---|---|
-| **1** | Define `NsStatsSnapshot` and its JSON serialiser in `src/core/`. Nothing consumes it yet. | None — pure addition |
-| **2** | Add `src/session/`, built from the GUI worker's logic. Existing code untouched. | None — nothing calls it |
+| **1** | ~~Define `NsStatsSnapshot` and its JSON serialiser in `src/core/`.~~ **Done** — `src/core/ns_stats.{h,c}`, plus `src/core/version.h` unifying the version at 2.0.0. | None — pure addition |
+| **2** | ~~Add `src/session/`.~~ **Done** — `src/session/ntrip_session.{h,c}` with `src/net/ntrip_proto.{h,c}` beneath it. Validated by replaying a capture: the session reproduces the independently measured statistics exactly (206 frames, per-type counts, CRC accounting). Existing code untouched. | None — nothing calls it |
 | **3** | Build `ntrip-monitord` and the Munin plugin on it. First real consumer. | Low — greenfield |
 | **4** | Move the GUI obs worker onto the session layer; `gui_thread.c` becomes an adapter posting `WM_APP_*` from `NsEvent`. | Medium — behaviour must be compared before and after |
 | **5** | Move the CLI onto it, collapsing the five `ntrip_handler` entry points into one. | Medium |
