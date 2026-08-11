@@ -252,7 +252,7 @@ A caution recorded for the next person: `-s / --sat` does **not** honour `--rtcm
 is `--sky`-only — so `-s` silently connects to the live caster instead of replaying a file. An
 early comparison against it looked like agreement purely by coincidence.
 
-### 0.5 The last two framing loops, in `--sky` — **Partial**
+### 0.5 The last two framing loops, in `--sky` — **Shipped**
 
 `run_sky_stdin_stream()` (`src/cli/main.c:328`) and `run_sky_obs_stream()` (`:522`) still frame RTCM
 by hand — the only duplicates of the session layer's framing left in the tree, and the reason the
@@ -511,10 +511,10 @@ All items in this section are tagged `[design.md]`.
 | 4.1 | Real-time message rate graph | **Shipped** | Delivered as the Message rate panel of the item 2.1 Session History window — one charting path, not two |
 | 4.2 | Map widget showing base and rover positions | Partial | The browser-based map picker covers coordinate entry, and the VRS Monitor polar plot covers the base/rover relationship live. An in-window map remains unbuilt — reassess whether it is still wanted |
 | 4.3 | Multi-connection support | Partial | A second NTRIP connection exists but is purpose-built for ephemeris-only casters (`WorkerOpenEphStream`, `gui/gui_state.h:443`, commit `320f412`). Generalising it to N arbitrary streams for side-by-side base comparison is the remaining work |
-| 4.4 | Export analysis results to CSV / JSON | Open | `gui/gui_snapshot.c` exports the window as **PNG** only (`save_window_as_png`). Structured data export is untouched |
+| 4.4 | Export analysis results to CSV / JSON | Open, **re-priced down** | `gui/gui_snapshot.c` exports the window as **PNG** only. The serialisers already exist and are in use by the daemon — `ns_stats_to_json()` and `ns_stats_to_csv_row()` (`src/core/ns_stats.c`). The remaining work is a menu item and a file dialog calling them on `ns_stats()`, not a format to design |
 | 4.5 | Dark mode / theme support | Open | Verified: no theme handling in `gui/` |
 | 4.6 | Tray icon for background monitoring | Open | Verified: no `Shell_NotifyIcon` call |
-| 4.7 | Auto-reconnect on connection drop | Open | Verified: reconnect is manual only (`gui/gui_events.c:894`). Reconnect events should appear on the item 2.1 timeline |
+| 4.7 | Auto-reconnect on connection drop | Open, **re-priced down** | Reconnect is manual only (`gui/gui_events.c:894`), but the mechanism exists: the session layer reconnects with backoff and the daemon relies on it. `gui/gui_thread.c` sets `opt.auto_reconnect = false` at two sites, "manual reconnect, as before". The work is a user-visible setting plus surfacing the reconnect on the item 2.1 timeline, not new reconnection logic |
 
 ---
 
