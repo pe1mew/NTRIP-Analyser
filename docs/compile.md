@@ -39,6 +39,15 @@ will use:
 cmake -B build && cmake --build build
 ```
 
+On Windows with the Code::Blocks MinGW toolchain, name the generator and
+the compiler explicitly -- a bare `cmake -B build` looks for MSVC:
+
+```batch
+cmake -B build -G "MinGW Makefiles" ^
+      -DCMAKE_C_COMPILER="C:/Program Files/CodeBlocks/MinGW/bin/gcc.exe"
+cmake --build build -j4
+```
+
 It produces `ntrip_core` and `ntrip_session` as static libraries and
 whichever executables the platform supports: the CLI everywhere, the GUI
 on Windows, `ntrip-monitord` on UNIX.  The project version is parsed out

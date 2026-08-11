@@ -11,3 +11,7 @@ build_output.txt
 service/ntrip-monitord
 service/ntrip-monitord.exe
 !service/monitord.example.json
+
+# CMake build directories
+build/
+build-win/

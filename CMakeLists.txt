@@ -113,9 +113,15 @@ if(WIN32)
     target_include_directories(ntrip-analyser-gui PRIVATE gui)
     target_link_libraries(ntrip-analyser-gui PRIVATE
         ntrip_session comctl32 comdlg32 gdiplus)
-    # windres must find core/version.h, which resource.rc includes.
+    # windres needs two search paths: src/ for core/version.h, which
+    # resource.rc includes, and the repository root, because the manifest
+    # is referenced as "gui/ntrip-gui.exe.manifest" -- a path relative to
+    # the root, where build-gui.bat runs windres from.  CMake runs it in
+    # the build directory instead, so without this the manifest is not
+    # found.  Keeping resource.rc's path root-relative means both build
+    # systems work from one file.
     set_source_files_properties(gui/resource.rc PROPERTIES
-        COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}/src")
+        COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}/src -I${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 # ── Monitoring service ────────────────────────────────────────────────
