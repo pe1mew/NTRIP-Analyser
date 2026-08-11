@@ -53,11 +53,18 @@ and in what they can show.
 | Executable | `bin/ntrip-analyser-gui.exe` | `bin/ntrip-analyser.exe` (Windows)<br>`bin/ntrip-analyser` (Linux) |
 | Platform | Windows only (native Win32) | Windows and Linux |
 | Driven by | Point and click | Command-line arguments |
-| Configuration | On-screen fields, saved to JSON | `config.json` |
+| Configuration | On-screen fields, saved to JSON | `config.json` — start from [`bin/exampleConfig.json`](bin/exampleConfig.json) |
 | Best for | Investigating a stream interactively | Automation, scripting, cron, headless servers |
 | Live visualisation | Sky plot, signal quality, session history, VRS monitor | Sky-coverage heatmap (PNG, via `--sky`) |
 | Stream health checks | Yes — handshake, CRC, advertised-vs-observed, position | No |
 | Output | On-screen, plus PNG snapshots | Console text, plus PNG for `--sky` |
+
+> **Trying it out:** a ready-to-edit configuration ships as
+> [`bin/exampleConfig.json`](bin/exampleConfig.json) (and as an asset on
+> each [release](https://github.com/pe1mew/NTRIP-Analyser/releases)).
+> It targets the Dutch Kadaster open caster, ephemeris stream included,
+> so the sky plot works out of the box — substitute your own free
+> Kadaster registration for the placeholder username and password.
 
 **Which should I use?**
 

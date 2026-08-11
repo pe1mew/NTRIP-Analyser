@@ -593,7 +593,10 @@ by capture time.
 ### Menu Bar
 
 **File Menu:**
-- **Load Configuration...** (`Ctrl+O`)
+- **Load Configuration...** (`Ctrl+O`) — a ready-to-edit example to
+  test with ships as `bin/exampleConfig.json`, targeting the Kadaster
+  open caster with its ephemeris stream; substitute your own free
+  registration for the placeholder credentials
 - **Save Configuration...** (`Ctrl+S`)
 - **Generate Template Config** — write a default `template_config.json`
 - **Load Ephemerides (RINEX)...** — populate the eph cache from a file
