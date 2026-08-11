@@ -40,17 +40,11 @@ static double haversine_km(double lat1, double lon1, double lat2, double lon2)
     return R * c;
 }
 
-/**
- * @brief Parse a raw NTRIP sourcetable and populate a ListView with STR entries.
+/* Documented in gui_state.h -- the contract lives with the declaration.
  *
- * Each STR line has semicolon-separated fields:
+ * Implementation note: each STR line is semicolon-separated,
  *   STR;Mountpoint;Identifier;Format;Details;Carrier;NavSys;Network;Country;Lat;Lon;...
- *
- * @param raw       Full sourcetable response (may include HTTP headers).
- * @param listview  Handle to the mountpoint ListView control.
- * @param userLat   User latitude from config (for distance calculation).
- * @param userLon   User longitude from config (for distance calculation).
- */
+ * and the response may still carry HTTP headers, which are skipped. */
 void ParseMountTable(const char *raw, HWND listview, double userLat, double userLon)
 {
     if (!raw || !listview) return;

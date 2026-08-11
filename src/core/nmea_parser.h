@@ -7,7 +7,7 @@
  *
  * Project: NTRIP-Analyser
  * @author Remko Welling
- * @license Apache License 2.0 with Commons Clause (see LICENSE for details)
+ * @copyright Apache License 2.0 with Commons Clause (see LICENSE for details)
  *
  * ## Usage:
  *   - Use create_gngga_sentence() to generate a GNGGA NMEA sentence for a given latitude and longitude.

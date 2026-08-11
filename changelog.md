@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — a Doxyfile, and `cmake --build build --target docs`
+
+Curated rather than dumped: Doxygen defaults everything it is not told,
+so only the settings that actually differ are listed.  A full generated
+configuration is thousands of lines in which the handful of real
+decisions cannot be found, and it goes stale against every release.
+
+The version is **not** written in it.  `PROJECT_NUMBER` reads the
+`NTRIP_VERSION` environment variable, which the CMake `docs` target
+supplies from `version.h`, so the documentation cannot contradict the
+binaries.  A bare `doxygen` run still works and simply omits the version.
+The target only exists when Doxygen is installed, so no build fails for
+want of a documentation tool.
+
+`lib/` is excluded — documenting vendored cJSON would bury this
+project's API under a third-party one several times its size.
+`EXTRACT_ALL` is off on purpose: with it on, undocumented entities are
+published with empty descriptions and the warnings fall silent, which
+hides exactly what the configuration exists to find.
+
+### Fixed — Doxygen documentation duplicated between headers and sources
+
+Ten functions carried a full `/** */` block on both the declaration and
+the definition.  Doxygen merges the two, so `ParseMountTable` was
+reported as having eight parameters when it takes four.
+
+The contract now lives with the declaration in the header, and the
+implementation files keep plain comments for notes that genuinely belong
+there — the sourcetable field layout, why a branch exists.  File-local
+`static` functions have no header and keep their blocks.
+
+Also fixed: `@license` is not a Doxygen command and was silently dropped
+from five file headers (now `@copyright`), four functions were missing
+`@param` entries, and one `@ref` pointed at a member that cannot be
+resolved that way.
+
 ### Removed — dead code in the RTCM parser
 
 `decode_rtcm_1074`, `_1084`, `_1094` and `_1124` were per-type MSM4

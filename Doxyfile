@@ -1,0 +1,116 @@
+# Doxygen configuration for NTRIP-Analyser.
+#
+# Deliberately short.  Doxygen supplies a default for every option it is
+# not given, so only the settings that differ from the default are listed
+# here -- a dumped full configuration is thousands of lines in which the
+# handful of real decisions are impossible to find, and it goes stale
+# against every Doxygen release.
+#
+# Generate with either:
+#
+#     doxygen                                   # from the repository root
+#     cmake --build build --target docs         # picks up the version
+#
+# Output lands in build/doxygen/html, which .gitignore already covers
+# through the build*/ rule.
+
+# ── Identity ──────────────────────────────────────────────────────────
+PROJECT_NAME           = "NTRIP-Analyser"
+PROJECT_BRIEF          = "NTRIP / RTCM 3.x stream analyser for assessing RTK bases and casters"
+
+# The version is never typed here.  src/core/version.h is the single
+# source of truth, so it arrives through the environment: the CMake
+# `docs` target sets it, and a standalone run can too --
+#
+#     NTRIP_VERSION=3.1.0 doxygen
+#
+# An empty value simply omits the version rather than printing a wrong
+# one, which is the failure that a hardcoded number guarantees.
+PROJECT_NUMBER         = "$(NTRIP_VERSION)"
+
+OUTPUT_DIRECTORY       = build/doxygen
+
+# ── What to read ──────────────────────────────────────────────────────
+# The four artefacts and the shared libraries beneath them.  readme.md
+# becomes the landing page so the generated docs open on an explanation
+# of what this program is, rather than on a file list.
+# docs/ and design/ are included so the cross-links between them and the
+# readme resolve; without them Doxygen reports every such link as an
+# unresolvable reference and the generated pages carry dead links.
+INPUT                  = readme.md \
+                         docs \
+                         design \
+                         src \
+                         gui \
+                         service
+USE_MDFILE_AS_MAINPAGE = readme.md
+FILE_PATTERNS          = *.c *.h *.md
+RECURSIVE              = YES
+
+# lib/ is vendored cJSON: documenting it would bury this project's own
+# API under a third-party one several times its size.
+EXCLUDE                = lib
+EXCLUDE_PATTERNS       = */build*/*
+
+# ── C, not C++ ────────────────────────────────────────────────────────
+OPTIMIZE_OUTPUT_FOR_C  = YES
+TYPEDEF_HIDES_STRUCT   = YES
+
+# ── What to document ──────────────────────────────────────────────────
+# EXTRACT_ALL stays off on purpose.  With it on, undocumented entities
+# are published with empty descriptions and the warnings below go quiet,
+# so documentation gaps become invisible -- which is the opposite of what
+# this configuration is for.
+EXTRACT_ALL            = NO
+EXTRACT_STATIC         = NO
+EXTRACT_PRIVATE        = NO
+
+# ── Warnings, which are the point ─────────────────────────────────────
+# Every *function declaration* in every header carries a Doxygen block,
+# and these settings are what keeps that true: a new undocumented
+# function, or a @param that no longer matches its signature, is
+# reported.
+#
+# Expect a large count all the same.  Doxygen also reports undocumented
+# macros and struct fields, of which this project has some 590 -- window
+# metrics, control IDs, per-field notes it considers missing.  They are
+# excluded from the output rather than published empty (EXTRACT_ALL is
+# off), so the warnings are a coverage report, not a defect list.
+#
+# What is worth acting on, and worth watching for regressions, is the
+# much smaller set that is not of the form "X is not documented":
+# mismatched parameter names, duplicated blocks, unresolvable @ref.
+# Two such warnings remain, both noted in the log.
+#
+#     grep -v "not documented" build/doxygen/doxygen-warnings.log
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_NO_PARAMDOC       = YES
+WARN_LOGFILE           = build/doxygen/doxygen-warnings.log
+
+# ── Preprocessing ─────────────────────────────────────────────────────
+# _WIN32 is defined so the Windows GUI documents fully; it is a
+# Windows-only program, and without this its whole API disappears behind
+# the platform guards.  The cost is that POSIX-only branches inside the
+# shared sources are not shown -- acceptable, because the platform split
+# lives in the implementations and the headers are portable.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = NO
+INCLUDE_PATH           = src
+PREDEFINED             = _WIN32 \
+                         __cplusplus=0
+
+# ── Output ────────────────────────────────────────────────────────────
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+SORT_MEMBER_DOCS       = NO
+JAVADOC_AUTOBRIEF      = NO
+
+# Graphviz is not assumed to be installed; the call graphs are a nicety
+# and their absence should not produce a page of errors.
+HAVE_DOT               = NO

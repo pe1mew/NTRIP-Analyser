@@ -125,7 +125,7 @@ static inline double gui_get_time_seconds(void) {
 
 /** @brief A single past (az, el, C/N0) sample for a satellite's track trail.
  *
- * @c ts_rel is seconds since @ref SkyPlotState.sessionT0 rather than an
+ * @c ts_rel is seconds since `SkyPlotState::sessionT0` rather than an
  * absolute gui_get_time_seconds() value.  That keeps the struct at four
  * floats -- 16 bytes -- so carrying C/N0 alongside position costs no extra
  * memory.  A float holds a 24-hour session offset to better than 0.01 s,

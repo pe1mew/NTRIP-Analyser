@@ -2306,8 +2306,7 @@ void decode_rtcm_1019(const unsigned char *payload, int payload_len) {
     rtcm_printf("            Cic=%+.6e Cis=%+.6e\n", cic_s, cis_s);
 }
 
-/**
- * @brief Decode RTCM 3.x Type 1029 — Unicode Text String.
+/* Documented in rtcm3x_parser.h -- the contract lives with the declaration.
  *
  * Fields (RTCM 10403.3):
  *   DF002  Message Number        12 bits

@@ -10,7 +10,7 @@
  *
  * Project: NTRIP RTCM 3.x Stream Analyzer
  * @author Remko Welling, PE1MEW
- * @license Apache License 2.0 with Commons Clause (see LICENSE for details)
+ * @copyright Apache License 2.0 with Commons Clause (see LICENSE for details)
  *
  * ## Usage:
  *   - Fill an NTRIP_Config struct with connection and authentication details.

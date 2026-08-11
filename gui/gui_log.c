@@ -18,8 +18,7 @@
 #include <io.h>
 #include <fcntl.h>
 
-/**
- * @brief Redirect stdout and stderr to a pipe for GUI capture.
+/* Documented in gui_state.h -- the contract lives with the declaration.
  *
  * Creates a pipe, saves the original stdout/stderr descriptors,
  * and redirects them to the pipe's write end.
@@ -44,8 +43,7 @@ void LogRedirectStart(AppState *state)
     setvbuf(stderr, NULL, _IONBF, 0);
 }
 
-/**
- * @brief Restore original stdout/stderr and close the pipe.
+/* Documented in gui_state.h -- the contract lives with the declaration.
  */
 void LogRedirectStop(AppState *state)
 {
@@ -92,8 +90,7 @@ void LogRedirectStop(AppState *state)
     }
 }
 
-/**
- * @brief Timer callback: read available data from the pipe and append to log.
+/* Documented in gui_state.h -- the contract lives with the declaration.
  *
  * Called from WM_TIMER with IDT_LOG_PUMP. Non-blocking: uses PeekNamedPipe
  * to check for available data before reading.

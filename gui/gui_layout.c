@@ -79,8 +79,8 @@ static void LvAddColumn(HWND hLv, int index, const char *text, int width)
     ListView_InsertColumn(hLv, index, &col);
 }
 
-/**
- * @brief Create all child controls and store handles in AppState.
+/* Documented in gui_state.h -- the contract lives with the declaration.
+ *
  * Called once from WM_CREATE.
  */
 void CreateControls(HWND hwnd, AppState *state)
@@ -385,8 +385,8 @@ void CreateControls(HWND hwnd, AppState *state)
     if (hMono) SendMessage(state->hEditLog, WM_SETFONT, (WPARAM)hMono, TRUE);
 }
 
-/**
- * @brief Reposition / resize controls when the window size changes.
+/* Documented in gui_state.h -- the contract lives with the declaration.
+ *
  * Called from WM_SIZE.
  */
 void ResizeControls(HWND hwnd, AppState *state, int width, int height)

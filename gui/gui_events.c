@@ -882,8 +882,7 @@ static void AppendLog(HWND hLog, const char *text)
 
 /* ── Config ↔ GUI helpers ─────────────────────────────────── */
 
-/**
- * @brief Read all edit controls into the AppState NTRIP_Config.
+/* Documented in gui_state.h -- the contract lives with the declaration.
  */
 void GuiToConfig(AppState *state)
 {
@@ -941,8 +940,7 @@ void GuiToConfig(AppState *state)
     base64_encode(auth, state->config.EPH_AUTH_BASIC);
 }
 
-/**
- * @brief Populate all edit controls from the AppState NTRIP_Config.
+/* Documented in gui_state.h -- the contract lives with the declaration.
  */
 void ConfigToGui(AppState *state)
 {
@@ -2093,8 +2091,7 @@ static void OnSatUpdate(AppState *state)
     }
 }
 
-/**
- * @brief Main window procedure.
+/* Documented in gui_state.h -- the contract lives with the declaration.
  */
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {

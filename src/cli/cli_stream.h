@@ -35,7 +35,10 @@ extern "C" {
  * matching messages are decoded, all others print as their bare type
  * number.  Runs until the connection drops or the process is interrupted.
  *
- * @param debug Print the caster's response header after login.
+ * @param config       Connection settings for the observation stream.
+ * @param filter_list  Message types to decode fully; NULL for all.
+ * @param filter_count Number of entries in @p filter_list.
+ * @param debug        Print the caster's response header after login.
  */
 void cli_stream_decode(const NTRIP_Config *config,
                        const int *filter_list, int filter_count,
@@ -58,6 +61,7 @@ void cli_analyze_sats(const NTRIP_Config *config, int seconds);
  * cache.  Decoder text is swallowed into a string buffer, so a progress
  * line on the terminal stays intact.
  *
+ * @param config    Connection settings; the EPH_* fields select the caster.
  * @param stop_flag Polled each iteration; non-zero stops the stream.
  * @param verbose   Log each cached ephemeris to stderr.
  * @return 0 on a clean stop, non-zero on a connection failure.

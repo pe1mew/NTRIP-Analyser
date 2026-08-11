@@ -6,7 +6,7 @@
  *
  * Project: NTRIP-Analyser
  * Author: Remko Welling
- * @license Apache License 2.0 with Commons Clause (see LICENSE for details)
+ * @copyright Apache License 2.0 with Commons Clause (see LICENSE for details)
  */
 
 #ifndef CLI_HELP_H

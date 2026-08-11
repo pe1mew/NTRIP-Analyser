@@ -704,8 +704,7 @@ static BOOL sky_hit_test(const AppState *state, int w, int h,
     return TRUE;
 }
 
-/**
- * @brief Prompt the user for a PNG path and save the sky-window snapshot.
+/* Documented in gui_sky_window.h -- the contract lives with the declaration.
  *
  * Logs success / failure to the main window's log via state->hEditLog.
  * Returns TRUE on success.  Public surface declared in gui_sky_window.h.

@@ -168,6 +168,29 @@ endif()
 
 install(TARGETS ntrip-analyser RUNTIME DESTINATION bin)
 
+# ── API documentation ─────────────────────────────────────────────────
+# Optional: the target only exists when Doxygen is installed, so a build
+# never fails for want of a documentation tool.
+#
+#   cmake --build build --target docs
+#
+# The Doxyfile takes the version from the NTRIP_VERSION environment
+# variable rather than hardcoding one, so it cannot contradict
+# version.h.  This target supplies it; a bare `doxygen` run works too and
+# simply omits the version.
+find_package(Doxygen QUIET)
+if(DOXYGEN_FOUND)
+    add_custom_target(docs
+        COMMAND ${CMAKE_COMMAND} -E env
+                "NTRIP_VERSION=${PROJECT_VERSION}"
+                ${DOXYGEN_EXECUTABLE}
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Generating API documentation with Doxygen ${DOXYGEN_VERSION}"
+        VERBATIM)
+else()
+    message(STATUS "Doxygen not found; the 'docs' target is unavailable")
+endif()
+
 # ── Self-contained Windows binaries ───────────────────────────────────
 # MinGW links libwinpthread-1.dll dynamically by default, and that DLL is
 # not part of Windows.  A release .exe built without this starts with a

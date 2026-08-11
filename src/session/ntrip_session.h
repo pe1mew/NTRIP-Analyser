@@ -175,6 +175,7 @@ NtripSession *ns_open_stream(FILE *f, bool own, const NsOptions *opt,
 /**
  * @brief Advance the session by one iteration.
  *
+ * @param s          Session to advance.
  * @param timeout_ms Longest time to wait for input.  Ignored for replay.
  * @return >0 bytes consumed, 0 nothing available before the timeout,
  *         or <0 when the session has ended -- after which the caller
@@ -186,7 +187,10 @@ int ns_pump(NtripSession *s, int timeout_ms);
  * @brief Pump until the session ends or @p stop_flag becomes non-zero.
  *
  * Convenience for callers that own a whole thread, such as the CLI.
- * @param stop_flag May be NULL.
+ *
+ * @param s         Session to run.
+ * @param stop_flag Polled each iteration; may be NULL to run until the
+ *                  session ends on its own.
  */
 void ns_run(NtripSession *s, const volatile int *stop_flag);
 

@@ -1,6 +1,6 @@
 # Compiling
 
-The code is setup for compilation in Windows and Linux using *#DEFINES*.
+The code is setup for compilation in Windows and Linux using `#define`s.
 
 ## CLI Application
 
