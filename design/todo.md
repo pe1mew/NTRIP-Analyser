@@ -295,10 +295,27 @@ Two measurement traps worth recording, because both first looked like regression
   observations until the eph cache had filled brought both to exactly 3330. Any before/after
   comparison of this number must pre-warm the cache or it measures the caster, not the code.
 
-**Remaining: `run_sky_obs_stream()`** (`src/cli/main.c`), still framing by hand. Its per-frame body
-is already `sky_on_event()`; what is left is replacing its socket setup, HTTP request, GGA push and
-header skipping with `ns_open()` — all of which the session layer already does, `send_gga` included.
-Verify with a live `--sky --duration` run against the counts above.
+**Done: `run_sky_obs_stream()`.** Its DNS lookup, socket, GET request, HTTP-header skip, GGA
+keep-alive and receive timeout are all `ns_open()` now. `grep 0xD3 src/cli/main.c` returns nothing:
+**the session layer is the only RTCM framer in the tree.**
+
+It carried the same header-skip bug the session layer had already fixed — `buffer[received] = '\0'`
+with `received` able to reach `sizeof(buffer)`, a one-byte overflow, and `strstr()` over a buffer
+not guaranteed to be terminated.
+
+Two deliberate behaviour changes:
+
+- **"Connected" now means the caster accepted us.** It was printed the moment `connect()` returned,
+  which is optimistic — a 401 or 404 connects perfectly well. It is now emitted on `NS_EV_HANDSHAKE`,
+  and the function returns failure when no handshake ever completed.
+- **GGA is sent only when a position is configured** (`opt.send_gga`), where the old code always
+  sent it, transmitting `0,0` when none was set. The interval stays 5 s.
+
+Verified: the deterministic stdin path stays byte-identical (447 / 444 / 119 kB, PNG
+`560ae252…` for both binaries back to back), and live 40 s runs overlap — frames old
+{235, 235, 235} against new {235, 240, 246}, sector updates old {1662, 1672, 1672} against new
+{1650, 1671, 1671}. Overlapping ranges, unlike the disjoint ones that exposed the ephemeris-timing
+effect above.
 
 ### 3.2 Ephemeris decoding — 1019 / 1020 / 1042 / 1044 / 1045 / 1046 — **Shipped**
 

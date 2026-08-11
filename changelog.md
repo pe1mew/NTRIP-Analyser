@@ -29,6 +29,33 @@ heap between the real end of the data and the terminator — which cJSON
 then parsed.  It now terminates at what was actually read, and reports a
 read error instead of continuing.
 
+### Changed — the session layer is now the only RTCM framer
+
+`run_sky_obs_stream()` was the last place that framed RTCM by hand.  Its
+DNS lookup, socket, GET request, HTTP-header skip, GGA keep-alive and
+receive timeout are all `ns_open()` now, and `grep 0xD3 src/cli/main.c`
+returns nothing.  That completes the migration begun in
+`design/architecture.md` §9: one framer, one stream loop, four frontends.
+
+It carried the header-skip bug the session layer had already fixed:
+`buffer[received] = '\0'` where `received` can reach `sizeof(buffer)` —
+a one-byte overflow — and `strstr()` across a buffer not guaranteed to
+be NUL-terminated.
+
+Two deliberate behaviour changes:
+
+- **"Connected" now means the caster accepted the request.**  It used to
+  print the moment `connect()` returned, which is optimistic: a 401 or a
+  404 connects perfectly well.  It is now reported once the handshake
+  parses, and `--sky` treats "never accepted" as a failure.
+- **GGA is sent only when a position is configured.**  The old code sent
+  it unconditionally every 5 s, transmitting `0,0` when none was set.
+
+Verified against a binary built from the previous commit: the
+deterministic stdin path stays byte-identical (447 frames, 444 MSM,
+119 kB, same PNG hash from both binaries run back to back), and live
+40-second runs overlap on frames and sector updates.
+
 ### Changed — `--sky` reads stdin through the session layer
 
 `run_sky_stdin_stream()` framed RTCM by hand.  It now opens the session

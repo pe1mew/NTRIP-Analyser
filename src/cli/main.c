@@ -347,6 +347,8 @@ typedef struct {
     long obs_total;    /* sector updates contributed */
     long bytes_total;
     int  end_reason;   /* NsEndReason, or -1 while running */
+    bool accepted;     /* the caster answered and the stream began   */
+    bool announce;     /* print "[OBS] Connected" -- obs source only  */
 } SkyCtx;
 
 static void sky_on_event(const NsEvent *ev, void *user)
@@ -358,8 +360,27 @@ static void sky_on_event(const NsEvent *ev, void *user)
         c->bytes_total += ev->u.raw.len;
         break;
 
+    case NS_EV_HANDSHAKE:
+        /* The caster answered and accepted us.  The old code announced
+         * this the moment connect() returned, which was optimistic: a
+         * 401 or 404 still connects. */
+        c->accepted = true;
+        if (c->announce)
+            INFO("[OBS] Connected to %s:%d /%s\n",
+                 c->config->NTRIP_CASTER, c->config->NTRIP_PORT,
+                 c->config->MOUNTPOINT);
+        break;
+
     case NS_EV_DISCONNECTED:
         c->end_reason = ev->u.end.reason;
+        break;
+
+    case NS_EV_LOG:
+        /* Connection diagnostics the session reports -- a refused
+         * mountpoint, a DNS failure -- which the caller used to print
+         * itself from the return code. */
+        if (ev->u.log.level >= NS_LOG_WARN)
+            ERR("[OBS] %s\n", ev->u.log.text);
         break;
 
     case NS_EV_FRAME: {
@@ -563,75 +584,33 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
                               bool verbose,
                               StopReason *reason)
 {
-#ifdef _WIN32
-    typedef SOCKET sock_t;
-#define SK_CLOSE closesocket
-#define SK_INVALID INVALID_SOCKET
-#else
-    typedef int sock_t;
-#define SK_CLOSE close
-#define SK_INVALID -1
-#endif
+    SkyCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.config     = config;
+    ctx.sectors    = sectors;
+    ctx.end_reason = -1;
+    ctx.announce   = true;
 
-    struct addrinfo hints, *result;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    if (getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result) != 0) {
-        fprintf(stderr, "[OBS] DNS lookup failed for %s\n", config->NTRIP_CASTER);
+    /* DNS, socket, the GET request, the HTTP header, the GGA keep-alive
+     * and the receive timeout are all the session layer's job now.  The
+     * hand-rolled version also carried the header-skip bug this layer
+     * already fixed: it wrote `buffer[received] = '\0'` with `received`
+     * able to reach sizeof(buffer), and ran strstr() over a buffer that
+     * was not necessarily terminated. */
+    NsOptions opt;
+    ns_options_default(&opt);
+    opt.config         = *config;
+    opt.auto_reconnect = false;   /* --sky collects one session, as before */
+    opt.user_agent     = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
+    opt.send_gga       = (config->LATITUDE != 0.0 || config->LONGITUDE != 0.0);
+    opt.gga_interval_s = 5.0;     /* matches the previous keep-alive period */
+
+    NtripSession *sess = ns_open(&opt, sky_on_event, &ctx);
+    if (!sess) {
+        ERR("[OBS] Out of memory opening the stream session\n");
         return 1;
     }
 
-    sock_t sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == SK_INVALID) {
-        fprintf(stderr, "[OBS] Socket creation failed\n");
-        freeaddrinfo(result);
-        return 1;
-    }
-
-    struct sockaddr_in server;
-    server.sin_family = AF_INET;
-    server.sin_port   = htons(config->NTRIP_PORT);
-    server.sin_addr   = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
-    memset(&(server.sin_zero), 0, 8);
-    freeaddrinfo(result);
-
-    if (connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0) {
-        fprintf(stderr, "[OBS] Connect failed to %s:%d\n",
-                config->NTRIP_CASTER, config->NTRIP_PORT);
-        SK_CLOSE(sock);
-        return 1;
-    }
-
-    char request[1024];
-    snprintf(request, sizeof(request),
-             "GET /%s HTTP/1.1\r\n"
-             "Host: %s\r\n"
-             "Ntrip-Version: Ntrip/2.0\r\n"
-             "User-Agent: " NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI) "\r\n"
-             "Authorization: Basic %s\r\n"
-             "\r\n",
-             config->MOUNTPOINT, config->NTRIP_CASTER, config->AUTH_BASIC);
-    send(sock, request, strlen(request), 0);
-
-    /* Optional GGA push (some casters require it before sending data). */
-    char gga[100];
-    create_gngga_sentence(config->LATITUDE, config->LONGITUDE, gga);
-    char gga_with_crlf[104];
-    snprintf(gga_with_crlf, sizeof(gga_with_crlf), "%s\r\n", gga);
-    time_t last_gga_time = time(NULL);
-
-    /* Short recv timeout so the SIGINT flag is polled. */
-#ifdef _WIN32
-    DWORD tv_ms = 500;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv_ms, sizeof(tv_ms));
-#else
-    struct timeval tv = { 0, 500000 };
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof(tv));
-#endif
-
-    INFO("[OBS] Connected to %s:%d /%s\n",
-         config->NTRIP_CASTER, config->NTRIP_PORT, config->MOUNTPOINT);
     if (duration_s > 0)
         INFO("Collecting heatmap data for %d s (Ctrl-C to save early, Ctrl-A to abort without saving)\n",
              duration_s);
@@ -667,15 +646,6 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
         sink_used = 1;
     }
 
-    int header_skipped = 0;
-    unsigned char msg_buffer[BUFFER_SIZE];
-    int msg_buffer_len = 0;
-    char buffer[BUFFER_SIZE];
-
-    long  msm_total      = 0;
-    long  obs_total      = 0;
-    long  frame_total    = 0;
-    long  bytes_total    = 0;       /* lifetime payload bytes (after HTTP header) */
     long  bytes_at_tick  = 0;       /* snapshot at the start of the current second */
     time_t t_start       = time(NULL);
     time_t last_tick     = t_start;
@@ -689,23 +659,16 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
     terminal_setup();
 
     while (!g_stop_requested && !g_abort_requested) {
-        int received = recv(sock, buffer, sizeof(buffer), 0);
-        if (received == 0) {
-            fprintf(stderr, "\n[OBS] Caster closed the connection\n");
-            *reason = STOP_REASON_EOF;
+        /* 500 ms so the SIGINT and Ctrl-A flags stay responsive, matching
+         * the receive timeout the socket used to carry. */
+        if (ns_pump(sess, 500) < 0) {
+            if (ctx.end_reason == NS_END_EOF) {
+                fprintf(stderr, "\n[OBS] Caster closed the connection\n");
+                *reason = STOP_REASON_EOF;
+            } else {
+                *reason = STOP_REASON_ERROR;
+            }
             break;
-        }
-        if (received < 0) {
-#ifdef _WIN32
-            int err = WSAGetLastError();
-            if (err == WSAETIMEDOUT) { /* fall through to housekeeping */ }
-            else { *reason = STOP_REASON_ERROR; break; }
-#else
-            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-                /* fall through */
-            } else { *reason = STOP_REASON_ERROR; break; }
-#endif
-            received = 0;
         }
 
         /* Poll for Ctrl-A on every iteration -- raw mode means the
@@ -725,21 +688,15 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
             break;
         }
 
-        /* Keep-alive GGA every 5 s. */
-        if (now - last_gga_time >= 5) {
-            send(sock, gga_with_crlf, strlen(gga_with_crlf), 0);
-            last_gga_time = now;
-        }
-
-        if (received > 0) bytes_total += received;
+        /* The GGA keep-alive is opt.send_gga; byte totals come from ctx. */
 
         /* Heartbeat: spinner + counters + bps.  When stdout is a TTY use
          * a carriage-return so the line refreshes in place; otherwise
          * print a fresh line per tick so a pipe / log file stays clean.
          * --quiet and --no-progress suppress it entirely. */
         if (show_progress && now != last_tick) {
-            long bytes_in_window = bytes_total - bytes_at_tick;
-            bytes_at_tick = bytes_total;
+            long bytes_in_window = ctx.bytes_total - bytes_at_tick;
+            bytes_at_tick = ctx.bytes_total;
 
             /* kB/s = bytes / 1024 -- matches the GUI status-bar display
              * (gui_events.c "Streaming  X.X kB/s") so the two UIs agree. */
@@ -748,117 +705,26 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
                 fprintf(stderr,
                     "{\"event\":\"tick\",\"t\":%ld,\"frames\":%ld,\"msm\":%ld,"
                     "\"upd\":%ld,\"kBps\":%.2f,\"total_kb\":%ld}\n",
-                    (long)now, frame_total, msm_total, obs_total,
-                    kBps, bytes_total / 1024);
+                    (long)now, ctx.frame_total, ctx.msm_total, ctx.obs_total,
+                    kBps, ctx.bytes_total / 1024);
             } else if (stderr_is_tty) {
                 fprintf(stderr,
                     "\r [%c] frames=%ld  MSM=%ld  obs+exp updates=%ld  rate=%5.1f kB/s  total=%ld KB    ",
-                    spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kBps, bytes_total / 1024);
+                    spin[spin_i & 3], ctx.frame_total, ctx.msm_total, ctx.obs_total,
+                    kBps, ctx.bytes_total / 1024);
             } else {
                 fprintf(stderr,
                     "[%c] frames=%ld  MSM=%ld  obs+exp updates=%ld  rate=%5.1f kB/s  total=%ld KB\n",
-                    spin[spin_i & 3], frame_total, msm_total, obs_total,
-                    kBps, bytes_total / 1024);
+                    spin[spin_i & 3], ctx.frame_total, ctx.msm_total, ctx.obs_total,
+                    kBps, ctx.bytes_total / 1024);
             }
             fflush(stderr);
             spin_i++;
             last_tick = now;
         }
 
-        if (received == 0) continue;
-
-        if (!header_skipped) {
-            buffer[received] = '\0';
-            char *ptr = strstr(buffer, "\r\n\r\n");
-            if (ptr) {
-                int offset = (ptr - buffer) + 4;
-                memmove(buffer, buffer + offset, received - offset);
-                received -= offset;
-                header_skipped = 1;
-            } else {
-                continue;
-            }
-        }
-
-        int buf_pos = 0;
-        while (buf_pos < received) {
-            if (msg_buffer_len == 0) {
-                while (buf_pos < received &&
-                       (unsigned char)buffer[buf_pos] != 0xD3) buf_pos++;
-                if (buf_pos >= received) break;
-            }
-            int to_copy = received - buf_pos;
-            if (msg_buffer_len + to_copy > BUFFER_SIZE)
-                to_copy = BUFFER_SIZE - msg_buffer_len;
-            memcpy(msg_buffer + msg_buffer_len, buffer + buf_pos, to_copy);
-            msg_buffer_len += to_copy;
-            buf_pos += to_copy;
-
-            while (msg_buffer_len >= 3) {
-                if (msg_buffer[0] != 0xD3) {
-                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
-                    continue;
-                }
-                int msg_length = ((msg_buffer[1] & 0x03) << 8) | msg_buffer[2];
-                int frame_len  = 3 + msg_length + 3;
-                if (msg_buffer_len < frame_len) break;
-                if (msg_length < 2) {
-                    memmove(msg_buffer, msg_buffer + 1, --msg_buffer_len);
-                    continue;
-                }
-                int mt = ((int)msg_buffer[3] << 4) | ((int)msg_buffer[4] >> 4);
-
-                frame_total++;
-
-                /* Reset the discard sink between frames so it can't grow
-                 * unbounded if we're running for hours. */
-                if (sink_used) rtcm_strbuf_clear(&sink);
-
-                /* Decode 1005/1006 so the station ARP gets cached for
-                 * azel_from_ecef.  Don't decode MSM frames -- we only need
-                 * the sat-mask + sectorisation, which sky_collect handles. */
-                if (mt == 1005) {
-                    decode_rtcm_1005(&msg_buffer[3], msg_length, config);
-                } else if (mt == 1006) {
-                    decode_rtcm_1006(&msg_buffer[3], msg_length, config);
-                }
-
-                int subtype = mt % 10;
-                if (mt >= 1070 && mt <= 1139 && subtype >= 4 && subtype <= 7) {
-                    msm_total++;
-
-                    /* Get current ARP -- prefer cached 1005/1006, fall back
-                     * to the configured rover lat/lon at altitude 0. */
-                    bool   arp_valid = false;
-                    double sx = 0, sy = 0, sz = 0;
-                    rtcm_get_station_arp(&arp_valid, &sx, &sy, &sz,
-                                         NULL, NULL, NULL);
-                    if (!arp_valid &&
-                        (config->LATITUDE != 0.0 || config->LONGITUDE != 0.0)) {
-                        geodetic_to_ecef(config->LATITUDE, config->LONGITUDE,
-                                         0.0, &sx, &sy, &sz);
-                        arp_valid = true;
-                    }
-
-                    if (arp_valid) {
-                        int contrib = sky_collect_feed_msm(
-                            sectors, &msg_buffer[3], msg_length, mt,
-                            sx, sy, sz);
-                        obs_total += contrib;
-                    }
-                }
-
-                memmove(msg_buffer, msg_buffer + frame_len,
-                        msg_buffer_len - frame_len);
-                msg_buffer_len -= frame_len;
-            }
-        }
     }
 
-    /* If the loop ended via the while-condition (not an explicit break)
-     * the reason is either SIGINT or the abort flag flipped from outside;
-     * fall back to those if no break-path stamped a reason. */
     if (*reason == STOP_REASON_NONE) {
         if (g_abort_requested)       *reason = STOP_REASON_ABORT;
         else if (g_stop_requested)   *reason = STOP_REASON_SIGINT;
@@ -868,7 +734,7 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
      * Only needed when the TTY spinner left the cursor mid-line. */
     if (show_progress && stderr_is_tty && !json_output) INFO("\n");
     INFO("[OBS] Stream stopped (frames=%ld  MSM=%ld  sector updates=%ld  total=%ld KB)\n",
-         frame_total, msm_total, obs_total, bytes_total / 1024);
+         ctx.frame_total, ctx.msm_total, ctx.obs_total, ctx.bytes_total / 1024);
     if (g_abort_requested)
         INFO("[OBS] Aborted by Ctrl-A; PNG will NOT be written.\n");
     fflush(stdout);
@@ -879,11 +745,12 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
         rtcm_set_output_buffer(NULL);
         rtcm_strbuf_free(&sink);
     }
-    SK_CLOSE(sock);
-    return 0;
 
-#undef SK_CLOSE
-#undef SK_INVALID
+    /* A caster that never accepted us is a failure, as it was when this
+     * function did its own connect(): the caller skips the PNG. */
+    bool never_accepted = !ctx.accepted;
+    ns_close(sess);
+    return never_accepted ? 1 : 0;
 }
 
 /* ── Sky-mode entry point ──────────────────────────────────────────── */
