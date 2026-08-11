@@ -266,11 +266,11 @@ static void ensure_sv_detail_class(HINSTANCE hInst)
     wc.style         = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc   = SvDetailWndProc;
     wc.hInstance     = hInst;
-    wc.hIcon         = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIcon         = GuiLoadAppIcon(FALSE);
     wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName = SV_DETAIL_CLASS_NAME;
-    wc.hIconSm       = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIconSm       = GuiLoadAppIcon(TRUE);
 
     if (RegisterClassEx(&wc) ||
         GetLastError() == ERROR_CLASS_ALREADY_EXISTS) {

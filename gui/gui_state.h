@@ -22,6 +22,31 @@
 #include "core/sv_ephemeris.h"
 #include "core/ns_stats.h"
 #include "net/ntrip_proto.h"
+#include "resource.h"    /* IDI_APP_ICON; pure #defines, also fed to windres */
+
+/**
+ * @brief Load the application icon at the size Windows asks for.
+ *
+ * `LoadIcon` always returns the system large size, which Windows then
+ * squashes for title bars and the notification area -- and a 32x32 arc
+ * pattern scaled to 16 turns to mush.  `LoadImage` with the metric size
+ * picks the matching image out of the multi-size .ico instead, so each
+ * one is the render drawn for that size.
+ *
+ * @param small_icon TRUE for title-bar and notification-area size,
+ *                   FALSE for the Alt-Tab and shell size.
+ * @return The icon, or the system default if the resource is missing --
+ *         a window with no icon at all looks like a fault.
+ */
+static __inline HICON GuiLoadAppIcon(BOOL small_icon)
+{
+    int cx = GetSystemMetrics(small_icon ? SM_CXSMICON : SM_CXICON);
+    int cy = GetSystemMetrics(small_icon ? SM_CYSMICON : SM_CYICON);
+    HICON h = (HICON)LoadImage(GetModuleHandle(NULL),
+                               MAKEINTRESOURCE(IDI_APP_ICON),
+                               IMAGE_ICON, cx, cy, LR_DEFAULTCOLOR);
+    return h ? h : LoadIcon(NULL, IDI_APPLICATION);
+}
 
 /* ── Application constants ────────────────────────────────── */
 #define APP_TITLE       "NTRIP-Analyser"

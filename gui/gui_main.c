@@ -58,12 +58,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     wc.cbClsExtra    = 0;
     wc.cbWndExtra    = 0;
     wc.hInstance     = hInstance;
-    wc.hIcon         = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIcon         = GuiLoadAppIcon(FALSE);
     wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.lpszMenuName  = MAKEINTRESOURCE(IDR_MAIN_MENU);
     wc.lpszClassName = APP_CLASS_NAME;
-    wc.hIconSm      = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIconSm      = GuiLoadAppIcon(TRUE);
 
     if (!RegisterClassEx(&wc)) {
         MessageBox(NULL, "Window class registration failed.", APP_TITLE,

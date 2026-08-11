@@ -538,8 +538,8 @@ BOOL RegisterHistWindowClass(HINSTANCE hInst)
     wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground = NULL;
     wc.lpszClassName = HIST_WINDOW_CLASS;
-    wc.hIcon         = LoadIcon(NULL, IDI_APPLICATION);
-    wc.hIconSm       = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIcon         = GuiLoadAppIcon(FALSE);
+    wc.hIconSm       = GuiLoadAppIcon(TRUE);
 
     if (!RegisterClassEx(&wc)) {
         if (GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return FALSE;

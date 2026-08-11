@@ -153,11 +153,11 @@ static void EnsureDetailClassRegistered(HINSTANCE hInst)
     wc.style         = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc   = DetailWndProc;
     wc.hInstance      = hInst;
-    wc.hIcon          = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIcon          = GuiLoadAppIcon(FALSE);
     wc.hCursor        = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground  = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName  = DETAIL_CLASS_NAME;
-    wc.hIconSm        = LoadIcon(NULL, IDI_APPLICATION);
+    wc.hIconSm        = GuiLoadAppIcon(TRUE);
 
     RegisterClassEx(&wc);
     g_detailClassRegistered = TRUE;

@@ -64,7 +64,9 @@ static void TrayFillBase(NOTIFYICONDATA *nid, HWND hwnd)
     nid->uID              = 1;
     nid->uFlags           = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid->uCallbackMessage = WM_APP_TRAY;
-    nid->hIcon            = LoadIcon(NULL, IDI_APPLICATION);
+    /* Small size: the notification area is where a generic or squashed
+     * icon hurts most, since the icon is the only identity on show. */
+    nid->hIcon            = GuiLoadAppIcon(TRUE);
 }
 
 /**
@@ -79,7 +81,11 @@ static void TrayFormatTip(AppState *state, char *out, size_t cap)
     const char *mp = state->config.MOUNTPOINT[0] ? state->config.MOUNTPOINT
                                                  : "no mountpoint";
     if (!state->bWorkerRunning) {
-        snprintf(out, cap, "%s - not connected", APP_TITLE);
+        /* Name the mountpoint even when idle.  Running two analysers at
+         * once is normal -- comparing a base against a reference, say --
+         * and two icons both reading "not connected" give no way to tell
+         * which window each belongs to. */
+        snprintf(out, cap, "%s - %s, not connected", APP_TITLE, mp);
         return;
     }
     if (state->haveStats) {

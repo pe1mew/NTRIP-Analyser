@@ -57,6 +57,12 @@ END
 /* This enables modern themed controls (XP+ visual styles)     */
 1 24 "gui/ntrip-gui.exe.manifest"
 
+/* ── Application icon ─────────────────────────────────────── */
+/* Root-relative like the manifest above, so both build systems find it:
+ * build-gui.bat runs windres from the repository root, and CMake passes
+ * the root as a second -I path for exactly this reason. */
+IDI_APP_ICON ICON "gui/ntrip-analyser.ico"
+
 /* ── Version Information ──────────────────────────────────────
  * Values come from src/core/version.h so the GUI, CLI, service and
  * Android app cannot drift apart.  windres resolves these macros; the
