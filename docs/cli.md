@@ -1,6 +1,6 @@
-# NTRIP-Analyser
+# NTRIP-Analyser CLI manual
 
-NTRIP-Analyser is a command-line tool for connecting to NTRIP casters, retrieving mountpoint tables, and analyzing or decoding RTCM 3.x streams. It is designed for GNSS enthusiasts who need to inspect or debug NTRIP data streams.
+`ntripanalyse` is the command-line application for connecting to NTRIP casters, retrieving mountpoint tables, and analyzing or decoding RTCM 3.x streams. It is designed for GNSS enthusiasts who need to inspect or debug NTRIP data streams.
 
 ---
 

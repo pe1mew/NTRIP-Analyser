@@ -4,7 +4,7 @@ A tool for analysing NTRIP RTCM 3.x data streams, available as both a command-li
 
 ## Screenshots
 
-![NTRIP-Analyser main window](manual/images/MainScreen.png)
+![NTRIP-Analyser main window](docs/images/MainScreen.png)
 
 *The main window. The Stream Health tab is flagging a real problem: this
 mountpoint advertises seven message types but one of them never arrives,
@@ -12,8 +12,8 @@ and the station has not broadcast its position at all.*
 
 <table>
 <tr>
-<td width="50%"><img src="manual/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks"></td>
-<td width="50%"><img src="manual/images/20260810134221_SignalQuality.png" alt="Signal quality: C/N0 bars and elevation scatter"></td>
+<td width="50%"><img src="docs/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks"></td>
+<td width="50%"><img src="docs/images/20260810134221_SignalQuality.png" alt="Signal quality: C/N0 bars and elevation scatter"></td>
 </tr>
 <tr>
 <td valign="top"><b>Sky Plot</b> — every tracked satellite at its azimuth and
@@ -24,8 +24,8 @@ elevation over the whole session. A healthy antenna rises steadily from
 horizon to zenith; obstructions show as a dip.</td>
 </tr>
 <tr>
-<td width="50%"><img src="manual/images/20260810134225_SessionHistory.png" alt="Session history strip charts"></td>
-<td width="50%"><img src="manual/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap"></td>
+<td width="50%"><img src="docs/images/20260810134225_SessionHistory.png" alt="Session history strip charts"></td>
+<td width="50%"><img src="docs/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap"></td>
 </tr>
 <tr>
 <td valign="top"><b>Session History</b> — throughput, message rate, CRC errors,
@@ -70,7 +70,7 @@ and in what they can show.
 - **Not on Windows** — the CLI is your only option; the GUI is Win32-native.
 
 Both are documented in full: **[GUI User Guide](docs/gui.md)** and
-**[CLI Documentation](docs/readme.md)**.
+**[CLI Manual](docs/cli.md)**.
 
 ### Command-Line Interface (CLI)
 
@@ -95,7 +95,7 @@ file via `-R`. It can also replay a capture offline:
 ntripanalyse --sky --rtcm-stdin -R nav.rnx < capture.rtcm3
 ```
 
-See the [CLI documentation](docs/readme.md) for the full option list.
+See the [CLI manual](docs/cli.md) for the full option list.
 
 ### Windows GUI Application
 
@@ -163,9 +163,11 @@ The analyser can perform the following operations on NTRIP streams:
 
 ## Documentation
 
+- **[Documentation Index](docs/readme.md)** — Which application, which page
 - **[Compilation Guide](docs/compile.md)** — Build instructions for Windows and Linux
 - **[GUI User Guide](docs/gui.md)** — Complete Windows GUI documentation
-- **[General Documentation](docs/readme.md)** — CLI usage and configuration
+- **[CLI Manual](docs/cli.md)** — Command-line usage and configuration
+- **[Service Manual](docs/service.md)** — ntrip-monitord and the Munin graphs
 - **[Feature Backlog](design/todo.md)** — What is shipped, what is planned, and why
 - **[Architecture](design/architecture.md)** — Structure for sharing one core across the CLI, GUI, monitoring service and Android app
 - **[GUI Design Document](gui/design.md)** — Windows GUI design decisions
