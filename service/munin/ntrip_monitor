@@ -1,0 +1,226 @@
+#!/bin/sh
+# ntrip_monitor -- Munin multigraph plugin for NTRIP-Analyser's monitord.
+#
+# Reads the per-mountpoint JSON snapshots that ntrip-monitord writes and
+# prints Munin multigraph config/values.  The plugin holds no connection
+# and does no computation: munin-node invokes plugins every five minutes
+# and expects an answer in seconds, which is why the daemon exists
+# (design/architecture.md par. 5.1).
+#
+# The parsing here is NOT a general JSON parser.  It reads the flat
+# single-line documents produced by ns_stats_to_json(), whose exact shape
+# this project controls (src/core/ns_stats.c).  Every key it extracts is
+# a unique top-level scalar, or an element of the "types" array in the
+# fixed order the serialiser emits.
+#
+# Field names are a published contract: Munin has no version negotiation,
+# and renaming a field silently orphans its RRD history.  Treat every
+# field name in this file as frozen (design/architecture.md par. 7.3).
+#
+# Configuration (via munin plugin-conf.d):
+#   [ntrip_monitor]
+#   env.statedir /var/lib/ntrip-monitor
+#   env.stale    120
+#
+# stale: snapshots older than this many seconds are reported as U
+# (undefined).  Reporting the last known values instead would draw a
+# flat, healthy-looking line while the daemon is down -- exactly the
+# wrong failure mode for a monitor.
+#
+# Project: NTRIP-Analyser
+# License: Apache License 2.0 with Commons Clause
+
+STATEDIR="${statedir:-/var/lib/ntrip-monitor}"
+STALE="${stale:-120}"
+
+# scalar <file> <key> -> value, or "U" if absent/null
+scalar() {
+    # Keys are unique top-level scalars in our own serialiser's output.
+    v=$(sed -n 's/.*"'"$2"'":\([^,}]*\).*/\1/p' "$1" | head -1)
+    case "$v" in
+        ""|null) echo "U" ;;
+        \"*)     echo "$v" | tr -d '"' ;;
+        *)       echo "$v" ;;
+    esac
+}
+
+# is_stale <file> -> 0 (stale) / 1 (fresh)
+is_stale() {
+    now=$(date +%s)
+    mtime=$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || echo 0)
+    [ $((now - mtime)) -gt "$STALE" ]
+}
+
+# type_frames <file> -> lines of "<msgtype> <frames>"
+type_frames() {
+    awk '{
+        if (!match($0, /"types":\[/)) exit
+        s = substr($0, RSTART + RLENGTH)
+        d = 1
+        for (i = 1; i <= length(s); i++) {
+            c = substr(s, i, 1)
+            if (c == "[") d++
+            if (c == "]") { d--; if (d == 0) { s = substr(s, 1, i - 1); break } }
+        }
+        n = split(s, recs, /\},\{/)
+        for (r = 1; r <= n; r++) {
+            if (match(recs[r], /"type":[0-9]+/)) {
+                t = substr(recs[r], RSTART + 7, RLENGTH - 7)
+                if (match(recs[r], /"frames":[0-9]+/)) {
+                    f = substr(recs[r], RSTART + 9, RLENGTH - 9)
+                    print t, f
+                }
+            }
+        }
+    }' "$1"
+}
+
+emit_config() {
+    f="$1"; name="$2"; mount="$3"
+
+    cat <<EOF
+multigraph ntrip_throughput_${name}
+graph_title NTRIP ${mount} throughput
+graph_category ntrip
+graph_vlabel bytes/s
+graph_args --base 1024 -l 0
+bytes_per_s.label throughput
+bytes_per_s.type GAUGE
+bytes_per_s.min 0
+
+multigraph ntrip_integrity_${name}
+graph_title NTRIP ${mount} frame integrity
+graph_category ntrip
+graph_vlabel frames/s
+crc_error.label CRC-24Q errors
+crc_error.type DERIVE
+crc_error.min 0
+crc_error.warning 1
+malformed.label malformed frames
+malformed.type DERIVE
+malformed.min 0
+resyncs.label framing re-syncs
+resyncs.type DERIVE
+resyncs.min 0
+
+multigraph ntrip_satellites_${name}
+graph_title NTRIP ${mount} satellites tracked
+graph_category ntrip
+graph_vlabel satellites
+sats_total.label satellites
+sats_total.type GAUGE
+sats_total.min 0
+
+multigraph ntrip_cnr_${name}
+graph_title NTRIP ${mount} mean C/N0
+graph_category ntrip
+graph_vlabel dB-Hz
+cnr_mean.label mean C/N0
+cnr_mean.type GAUGE
+cnr_mean.warning 35:
+
+multigraph ntrip_availability_${name}
+graph_title NTRIP ${mount} availability
+graph_category ntrip
+graph_vlabel state
+connected.label connected (1 = yes)
+connected.type GAUGE
+connected.critical 1:1
+reconnects.label reconnects
+reconnects.type DERIVE
+reconnects.min 0
+
+multigraph ntrip_msgrate_${name}
+graph_title NTRIP ${mount} message rate per type
+graph_category ntrip
+graph_vlabel frames/s
+EOF
+    type_frames "$f" | while read -r t frames; do
+        echo "type_${t}.label RTCM ${t}"
+        echo "type_${t}.type DERIVE"
+        echo "type_${t}.min 0"
+    done
+}
+
+emit_values() {
+    f="$1"; name="$2"
+
+    if is_stale "$f"; then
+        # The daemon has stopped writing.  Everything is U: a stale
+        # "connected:true" must not keep a green light on.
+        bytes="U"; crc="U"; malformed="U"; resyncs="U"
+        sats="U"; cnr="U"; conn="U"; reconn="U"
+    else
+        bytes=$(scalar "$f" bytes_per_s)
+        crc=$(scalar "$f" frames_crc_error)
+        malformed=$(scalar "$f" frames_malformed)
+        resyncs=$(scalar "$f" framing_resyncs)
+        sats=$(scalar "$f" sats_total)
+        cnr=$(scalar "$f" cnr_mean_all)
+        reconn=$(scalar "$f" reconnects)
+        case "$(scalar "$f" connected)" in
+            true)  conn=1 ;;
+            false) conn=0 ;;
+            *)     conn="U" ;;
+        esac
+    fi
+
+    cat <<EOF
+multigraph ntrip_throughput_${name}
+bytes_per_s.value ${bytes}
+
+multigraph ntrip_integrity_${name}
+crc_error.value ${crc}
+malformed.value ${malformed}
+resyncs.value ${resyncs}
+
+multigraph ntrip_satellites_${name}
+sats_total.value ${sats}
+
+multigraph ntrip_cnr_${name}
+cnr_mean.value ${cnr}
+
+multigraph ntrip_availability_${name}
+connected.value ${conn}
+reconnects.value ${reconn}
+
+multigraph ntrip_msgrate_${name}
+EOF
+    if is_stale "$f"; then
+        type_frames "$f" | while read -r t frames; do
+            echo "type_${t}.value U"
+        done
+    else
+        type_frames "$f" | while read -r t frames; do
+            echo "type_${t}.value ${frames}"
+        done
+    fi
+}
+
+# ── Main ────────────────────────────────────────────────────────────
+
+found=0
+for f in "$STATEDIR"/*.json; do
+    [ -f "$f" ] || continue
+    # Only snapshots: anything ns_stats_to_json() wrote carries a
+    # schema_version.  A stray JSON file (a config, a note) must not
+    # invent a graph family.
+    [ "$(scalar "$f" schema_version)" = "U" ] && continue
+    found=1
+    base=$(basename "$f" .json)
+    # Munin field/graph names: [A-Za-z0-9_] only.
+    name=$(echo "$base" | tr -c 'A-Za-z0-9_' '_' | sed 's/_*$//')
+    mount=$(scalar "$f" mountpoint)
+    [ "$mount" = "U" ] && mount="$base"
+
+    case "$1" in
+        config) emit_config "$f" "$name" "$mount" ;;
+        *)      emit_values "$f" "$name" ;;
+    esac
+done
+
+if [ "$found" = "0" ]; then
+    echo "# no snapshots in $STATEDIR -- is ntrip-monitord running?" >&2
+    exit 1
+fi
+exit 0

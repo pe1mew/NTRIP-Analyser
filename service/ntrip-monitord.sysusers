@@ -1,0 +1,10 @@
+# systemd-sysusers(8) fragment: creates the service account.
+# Installed to /usr/lib/sysusers.d/ by `make install`, applied by
+# `systemd-sysusers` (or automatically at boot).
+#
+# A static user rather than DynamicUser=, deliberately: the snapshots in
+# /var/lib/ntrip-monitor exist to be read by another party (the Munin
+# plugin, running as the munin user), and DynamicUser= relocates the
+# state directory under /var/lib/private, which is root-only.  A monitor
+# whose output nobody can read is not monitoring anything.
+u ntrip-monitor - "NTRIP stream monitor"

@@ -497,7 +497,7 @@ extraction before any working code is touched.**
 |---|---|---|
 | **1** | ~~Define `NsStatsSnapshot` and its JSON serialiser in `src/core/`.~~ **Done** — `src/core/ns_stats.{h,c}`, plus `src/core/version.h` unifying the version at 2.0.0. | None — pure addition |
 | **2** | ~~Add `src/session/`.~~ **Done** — `src/session/ntrip_session.{h,c}` with `src/net/ntrip_proto.{h,c}` beneath it. Validated by replaying a capture: the session reproduces the independently measured statistics exactly (206 frames, per-type counts, CRC accounting). Existing code untouched. | None — nothing calls it |
-| **3** | Build `ntrip-monitord` and the Munin plugin on it. First real consumer. | Low — greenfield |
+| **3** | ~~Build `ntrip-monitord` and the Munin plugin.~~ **Done** — `service/`. Validated end-to-end on Windows against a live caster: the daemon's published rate (1674 B/s) matched the GUI's independent figure for the same stream, and the epoch accounting correctly reported a live 2-frames-per-epoch BeiDou split as on-rate. Verified on Linux (Ubuntu 24.04, Shuttle2): daemon built with the Makefile, live oneshot against the same caster agreed with the Windows run, and all three unit suites pass there. | Low — greenfield |
 | **4** | Move the GUI obs worker onto the session layer; `gui_thread.c` becomes an adapter posting `WM_APP_*` from `NsEvent`. | Medium — behaviour must be compared before and after |
 | **5** | Move the CLI onto it, collapsing the five `ntrip_handler` entry points into one. | Medium |
 | **6** | Directory move (§2.1) and CMake (§7), once callers are stable. | Low but noisy in `git log` |
@@ -515,9 +515,9 @@ project and would make the real changes unreviewable in the same diff.
 
 ## 10. Decisions still open
 
-1. **Threading inside the daemon.** One thread per mountpoint is simplest;
-   a `select()` loop over all sessions scales better. Only matters beyond
-   roughly a dozen mountpoints.
+1. ~~**Threading inside the daemon.**~~ Resolved: single-threaded round-robin
+   over `ns_pump()`, timeout divided across sessions. Revisit beyond a dozen
+   mountpoints.
 2. **Retention.** Munin keeps its own RRDs, so the daemon probably needs
    no history of its own — but the GUI's session history and item 4.4's
    export suggest a shared ring-buffer type would be reused. Decide
@@ -525,9 +525,9 @@ project and would make the real changes unreviewable in the same diff.
 3. **Sourcetable polling.** The advertised-versus-observed check needs the
    sourcetable. Re-fetching periodically would catch a caster changing its
    metadata mid-session, at the cost of extra requests.
-4. **Config format.** The CLI and GUI share `config.json` for one
-   connection. The daemon needs a list. Either extend the schema with an
-   optional array or give the daemon its own file.
+4. ~~**Config format.**~~ Resolved: the daemon has its own JSON file with a
+   `mountpoints` array (`service/monitord.example.json`); `config.json` stays
+   a single-connection schema for the interactive tools.
 5. **Whether the CLI keeps its current output verbatim.** Step 5 is far
    easier if small formatting differences are acceptable; scripts parsing
    CLI output would disagree.

@@ -309,8 +309,13 @@ static void stats_refresh(NtripSession *s, double now)
     s->stats.crc_error_rate =
         checked ? (double)s->stats.frames_crc_error / (double)checked : 0.0;
 
+    /* The window must span several update cycles of the stream.  RTCM
+     * casters typically emit one burst per second; with a 0.5 s window a
+     * measurement landing between bursts reads 0 B/s and one landing on
+     * a burst reads double, so the published rate depends on window
+     * phase.  2 s always covers at least two bursts. */
     double dt = now - s->last_rate_t;
-    if (dt >= 0.5) {
+    if (dt >= 2.0) {
         s->stats.bytes_per_s =
             (double)(s->stats.bytes_total - s->last_rate_bytes) / dt;
         s->last_rate_bytes = s->stats.bytes_total;
@@ -498,6 +503,8 @@ static void do_connect(NtripSession *s)
  */
 static int take_header(NtripSession *s, const unsigned char *data, int len)
 {
+    int prev = s->header_len;
+
     int space = NS_HEADER_MAX - 1 - s->header_len;
     int take  = len < space ? len : space;
     memcpy(s->header + s->header_len, data, (size_t)take);
@@ -506,6 +513,14 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
 
     int end = ns_proto_header_end((const unsigned char *)s->header, s->header_len);
     if (end < 0) return -1;
+
+    /* The caller needs the payload offset within ITS buffer, not within
+     * the accumulated header.  When the header spans several recvs the
+     * two differ by the bytes accumulated before this call; conflating
+     * them either drops the first payload bytes or re-feeds header tail
+     * as RTCM. */
+    int off_in_buf = end - prev;
+    if (off_in_buf < 0) off_in_buf = 0;   /* terminator straddled calls */
 
     s->header_done = true;
     ns_proto_parse_response(s->header, &s->handshake);
@@ -536,8 +551,8 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
                  "Caster answered NTRIP 1.0 (ICY) although Ntrip/2.0 was requested");
     }
 
-    /* Header bytes beyond the terminator are already stream payload. */
-    return end;
+    /* Bytes beyond the terminator in this recv are already payload. */
+    return off_in_buf;
 }
 
 /** @brief Send a GGA sentence, as VRS mountpoints require. */

@@ -1,0 +1,38 @@
+# systemd unit for ntrip-monitord.
+#
+# Install:  cp ntrip-monitord.service /etc/systemd/system/
+#           systemctl daemon-reload && systemctl enable --now ntrip-monitord
+#
+# The daemon logs to stderr, which journald captures:
+#           journalctl -u ntrip-monitord -f
+
+[Unit]
+Description=NTRIP stream monitor (writes Munin snapshots)
+Documentation=https://github.com/pe1mew/NTRIP-Analyser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/ntrip-monitord --config /etc/ntrip-monitord/monitord.json
+Restart=on-failure
+RestartSec=10
+
+# A static user (created via ntrip-monitord.sysusers), NOT DynamicUser=.
+# DynamicUser relocates StateDirectory under /var/lib/private, which is
+# root-only -- and the whole point of the state directory is that the
+# Munin plugin, running as the munin user, reads it.
+User=ntrip-monitor
+StateDirectory=ntrip-monitor
+StateDirectoryMode=0755
+ConfigurationDirectory=ntrip-monitord
+NoNewPrivileges=yes
+# Snapshots must come out world-readable whatever the ambient umask.
+UMask=0022
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,9 @@
 #include <stdlib.h>     /* atoi */
 #include <string.h>
 #include <ctype.h>
+#ifndef _WIN32
+#include <strings.h>    /* strncasecmp lives here under POSIX */
+#endif
 
 /* ── Base64, for HTTP Basic authentication ────────────────────────────
  * Implemented here rather than reusing base64_encode() from
