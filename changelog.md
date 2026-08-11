@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — ionospheric disturbance monitoring (core module)
+
+`src/core/iono.c` measures how unsettled the ionosphere is above the
+base, as **ROTI** — the Rate Of TEC Index, TECU/min — from the
+geometry-free combination of dual-frequency MSM7 carrier phases.
+Verdicts: QUIET below 0.5, UNSETTLED to 1.0, DISTURBED above.
+
+ROTI rather than TEC, deliberately.  Differencing the geometry-free
+combination between epochs cancels the carrier-phase ambiguity exactly,
+so the rate needs no calibration; absolute TEC would need code levelling
+plus satellite and receiver code biases that an NTRIP stream does not
+carry.  Slant TEC is reported only relative to each arc's start, and the
+module's header states plainly that a single station observes its own
+pierce points, not the base-rover gradient that actually degrades RTK.
+
+Per satellite it maintains a phase arc broken by cycle slips (lock-time
+drop), gaps over 30 s, or a signal-pair change; picks the widest usable
+frequency separation (L1/L5 over L1/L2 when both are present); and
+excludes GLONASS, whose FDMA frequencies depend on a channel number only
+the 1020 ephemeris carries.
+
+Two mistakes were caught by validation rather than review, and are why
+the constants are what they are:
+
+- **Rates must be timed by the GNSS epoch in the frame**, not arrival
+  time.  Six interleaved MSM types space one satellite's frames ~6× its
+  true epoch interval apart, scaling every rate down sixfold — and
+  network jitter would feed straight into the index.
+- **ROT must be sampled at 30 s, not per epoch.**  The geometry-free
+  scale is ~7.8 TECU/m, so 2 mm of phase noise differenced over one
+  second is 1.3 TECU/min of pure noise — the first run reported a quiet
+  ionosphere as DISTURBED, measuring the receiver rather than the sky.
+  At the standard 30 s (Pi et al., 1997) the same noise is 0.044.
+
+Validated on a 9-minute live capture from RFSEE01: median ROTI 0.043
+TECU/min across 32 dual-frequency satellites — a textbook quiet
+mid-latitude value — with 527 s unbroken arcs, and one satellite's
+flapping L2P lock correctly breaking its arc 36 times rather than
+producing false rate spikes.
+
+Not yet surfaced anywhere: the GUI and daemon wiring (Stream Health row,
+Session History chart, sky-plot overlay including a ROTI-painted
+timelapse, dedicated window) is the next step of backlog 3.1.
+
 ### Added — a Doxyfile, and `cmake --build build --target docs`
 
 Curated rather than dumped: Doxygen defaults everything it is not told,

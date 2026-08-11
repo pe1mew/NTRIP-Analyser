@@ -484,7 +484,7 @@ Remaining work:
 
 ## 3. Tier 3 — Flagship, high effort
 
-### 3.1 Ionospheric monitor — **Open** (re-priced downward)
+### 3.1 Ionospheric monitor — **Partial**
 
 Build a geometry-free code and carrier-phase combination from dual-frequency MSM7 observations,
 and map slant delay to vertical delay at a thin-shell pierce point.
@@ -500,6 +500,20 @@ and map slant delay to vertical delay at a thin-shell pierce point.
   needs. Since item 3.2 shipped, `src/sv_orbit.c` and `src/sv_ephemeris.c` provide orbits and the
   sky plot already computes elevation per SV. What remains genuinely hard is the phase-arc and
   cycle-slip management, not the geometry. Recommended as the next flagship.
+
+**Done: the measurement core** (`src/core/iono.c`), validated on a 9-minute live capture — median
+ROTI 0.043 TECU/min on a quiet day, textbook mid-latitude, with arc/slip management proven against
+a satellite whose L2P lock flapped 36 times. Decisions recorded in the module header: ROTI not TEC
+(ambiguity cancels in the rate; absolute TEC needs biases a stream does not carry), median not mean
+(one low-elevation outlier must not trip the verdict), GLONASS excluded (FDMA), widest frequency
+pair preferred. Two validation-caught traps live in the changelog: rates must be timed by the GNSS
+epoch in the frame, and ROT sampled at 30 s — per-epoch differencing measures phase noise, not the
+ionosphere, and misreports a quiet day as DISTURBED.
+
+**Remaining: the four surfaces** agreed on 2026-08-11 — Stream Health row, Session History ROTI
+chart, sky-plot overlay (including painting the existing 24 h trail buffer by ROTI, which is a
+timelapse in one image; note `SkyTrackPoint` widens 16→20 B, ~11.8→14.7 MB), and the dedicated
+Ionosphere window. Plus `sats_dualfreq`/`roti_median` in the snapshot for the daemon and Munin.
 
 ---
 

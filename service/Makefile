@@ -23,6 +23,7 @@ SRC = ntrip-monitord.c \
       ../src/core/sv_ephemeris.c \
       ../src/core/sv_orbit.c \
       ../src/core/sv_track.c \
+      ../src/core/iono.c \
       ../src/core/rinex_nav.c \
       ../lib/cJSON/cJSON.c
 
