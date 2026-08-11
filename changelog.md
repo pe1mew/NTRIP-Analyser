@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-08-11
+
+Minor, because it adds capability: a window-layout reset, an
+auto-reconnect checkbox in the main window, and a `--reconnect` CLI
+flag.  Alongside those, polish of the 3.2.0 ionospheric release after
+first live use — the Ionosphere Sky restyled to the coverage heatmap's
+idiom, with correct PNG names and remembered placement.
+
 ### Fixed — Ionosphere Sky saved PNGs named after the wrong window
 
 Pressing S in the Ionosphere Sky window went through the Sky Plot's save

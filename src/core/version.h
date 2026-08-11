@@ -40,17 +40,17 @@
  * this file disagree (cmake/CheckReleaseTag.cmake).
  */
 #define NTRIP_VERSION_MAJOR   3
-#define NTRIP_VERSION_MINOR   2
+#define NTRIP_VERSION_MINOR   3
 #define NTRIP_VERSION_PATCH   0
 
 /** Human-readable version.  Keep in step with the three numbers above. */
-#define NTRIP_VERSION_STRING  "3.2.0"
+#define NTRIP_VERSION_STRING  "3.3.0"
 
 /** Comma-separated form required by the Win32 VERSIONINFO resource. */
-#define NTRIP_VERSION_RC      3,2,0,0
+#define NTRIP_VERSION_RC      3,3,0,0
 
 /** Dotted four-part form for the Win32 resource string fields. */
-#define NTRIP_VERSION_RC_STR  "3.2.0.0"
+#define NTRIP_VERSION_RC_STR  "3.3.0.0"
 
 /**
  * Android requires a monotonically increasing integer independent of the
@@ -58,7 +58,7 @@
  * ordering correct while remaining readable: 3.0.0 is 30000, 3.1.3 is
  * 30103.  Minor and patch are therefore capped at 99.
  */
-#define NTRIP_ANDROID_VERSION_CODE 30200
+#define NTRIP_ANDROID_VERSION_CODE 30300
 
 /* ── Product identity ─────────────────────────────────────────────── */
 #define NTRIP_PRODUCT_NAME    "NTRIP-Analyser"
