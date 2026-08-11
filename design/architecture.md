@@ -371,7 +371,88 @@ session layer. The session already accepts a configured position.
 
 ---
 
-## 7. Build system
+## 7. Versioning
+
+Before this restructuring the repository carried three disagreeing
+versions: `src/cli_help.h` said `0.3.0-dev`, `gui/resource.rc` said
+`0.1.0.0`, and the only git tag was `0.1`. With four artefacts that
+becomes untenable, so the scheme below starts at **2.0.0**.
+
+### 7.1 One product version for all artefacts
+
+`src/core/version.h` is the single source of truth. The CLI, the Windows
+GUI, the monitoring service and the Android app all report the same
+number, because they are built from one commit — so "2.0.0" identifies
+the exact source of every binary in a release.
+
+The alternative, versioning each artefact independently, requires a
+compatibility matrix saying which CLI works with which service. Nobody
+maintains those, and they answer a question that does not arise when
+everything ships together.
+
+```c
+#define NTRIP_VERSION_MAJOR   2
+#define NTRIP_VERSION_MINOR   0
+#define NTRIP_VERSION_PATCH   0
+#define NTRIP_VERSION_STRING  "2.0.0"
+#define NTRIP_VERSION_RC      2,0,0,0      /* Win32 VERSIONINFO   */
+#define NTRIP_ANDROID_VERSION_CODE 20000   /* MAJOR*10000+MINOR*100+PATCH */
+```
+
+The header is deliberately free of `#include`s and types so `windres` can
+consume it when compiling `gui/resource.rc`, and so build tooling (CMake,
+Gradle) can parse it textually. **Do not add an include to it.**
+
+Note this means `windres` needs `-Isrc`; `build-gui.bat` and the VS Code
+resource task pass it.
+
+### 7.2 What each component means
+
+| Bump | When |
+|---|---|
+| **MAJOR** | A user-visible contract breaks: a CLI option removed or given a new meaning, an incompatible config schema, a field removed or repurposed in the statistics snapshot, a renamed Munin field. |
+| **MINOR** | New capability, backward compatible. |
+| **PATCH** | Fixes only, no new capability. |
+
+Release tags are `v2.0.0`. The existing `0.1` tag predates the scheme and
+is left alone.
+
+### 7.3 Contracts are versioned separately
+
+Binaries ship together; **contracts outlive them**. A Munin graph, an
+installed phone build or a CSV file archived last year may be read by
+software of a quite different vintage, so the things that cross those
+boundaries carry their own integer version, checked independently of the
+product version:
+
+| Contract | Version constant | Lives in |
+|---|---|---|
+| Statistics snapshot (JSON / CSV) | `NS_STATS_SCHEMA_VERSION` | `src/core/ns_stats.h` |
+| `config.json` layout | `NTRIP_CONFIG_SCHEMA_VERSION` | `src/core/version.h` |
+| Munin field names | *(the names themselves)* | `service/` |
+
+These are plain integers, not semver: a consumer only needs to know
+whether it understands the format. Adding a field at the end is backward
+compatible and does not require a bump; removing or repurposing one does,
+and also forces a MAJOR product bump.
+
+Munin has no version negotiation at all — a renamed field silently
+becomes a new graph and the history is orphaned. Treat Munin field names
+as frozen once published.
+
+### 7.4 Identifying a build
+
+Each artefact reports `<name> <version>`, and should also carry the git
+short SHA once the build system can supply it, so a report from a
+development build is traceable to a commit rather than to a version
+number shared by everything between two releases.
+
+```
+$ ntripanalyse --version
+ntrip-analyser 2.0.0
+```
+
+## 8. Build system
 
 Four targets across two platforms outgrows `build-gui.bat` and
 hand-written `gcc` lines. `CMakeLists.txt` exists but covers only the
@@ -384,11 +465,11 @@ static libraries, and `ntripanalyse`, `ntrip-analyser-gui` and
 libraries through the NDK's own CMake support, which is why this
 matters more than convenience.
 
-Keep `build-gui.bat` working during migration — see §8.
+Keep `build-gui.bat` working during migration — see §9.
 
 ---
 
-## 8. Migration path
+## 9. Migration path
 
 **All of this happens on a `refactoring` branch; `main` stays stable and
 releasable throughout.**
@@ -432,7 +513,7 @@ project and would make the real changes unreviewable in the same diff.
 
 ---
 
-## 9. Decisions still open
+## 10. Decisions still open
 
 1. **Threading inside the daemon.** One thread per mountpoint is simplest;
    a `select()` loop over all sessions scales better. Only matters beyond
@@ -453,7 +534,7 @@ project and would make the real changes unreviewable in the same diff.
 
 ---
 
-## 10. What this buys
+## 11. What this buys
 
 - One framing loop instead of ten; one request builder instead of six.
 - The analysis already written for the GUI becomes available to the

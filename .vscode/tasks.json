@@ -12,6 +12,7 @@
                 "src/main.c",
                 "lib/cJSON/cJSON.c",
                 "src/rtcm3x_parser.c",
+                "src/core/ns_stats.c",
                 "src/ntrip_handler.c",
                 "src/config.c",
                 "src/cli_help.c",
@@ -47,6 +48,7 @@
                 "src/main.c",
                 "lib/cjson/cJSON.c",
                 "src/rtcm3x_parser.c",
+                "src/core/ns_stats.c",
                 "src/ntrip_handler.c",
                 "src/config.c",
                 "src/cli_help.c",
@@ -76,6 +78,7 @@
             "type": "shell",
             "command": "C:/Program Files/CodeBlocks/MinGW/bin/windres.exe",
             "args": [
+                "-Isrc",
                 "gui/resource.rc",
                 "-o",
                 "gui/resource.o"
@@ -110,6 +113,7 @@
                 "gui/gui_vrs_window.c",
                 "gui/gui_signal_window.c",
                 "gui/gui_hist_window.c",
+                "src/core/ns_stats.c",
                 "src/ntrip_handler.c",
                 "src/rtcm3x_parser.c",
                 "src/config.c",
