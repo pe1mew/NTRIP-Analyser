@@ -1,6 +1,40 @@
 # NTRIP-Analyser
 
-A tool for analyzing NTRIP RTCM 3.x data streams, available as both a command-line interface (CLI) and a Windows graphical user interface (GUI).
+A tool for analysing NTRIP RTCM 3.x data streams, available as both a command-line interface (CLI) and a Windows graphical user interface (GUI).
+
+## Screenshots
+
+![NTRIP-Analyser main window](manual/images/MainScreen.png)
+
+*The main window. The Stream Health tab is flagging a real problem: this
+mountpoint advertises seven message types but one of them never arrives,
+and the station has not broadcast its position at all.*
+
+<table>
+<tr>
+<td width="50%"><img src="manual/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks"></td>
+<td width="50%"><img src="manual/images/20260810134221_SignalQuality.png" alt="Signal quality: C/N0 bars and elevation scatter"></td>
+</tr>
+<tr>
+<td valign="top"><b>Sky Plot</b> — every tracked satellite at its azimuth and
+elevation as seen from the reference station, coloured by constellation and
+trailed over the session.</td>
+<td valign="top"><b>Signal Quality</b> — C/N0 per satellite, and C/N0 against
+elevation over the whole session. A healthy antenna rises steadily from
+horizon to zenith; obstructions show as a dip.</td>
+</tr>
+<tr>
+<td width="50%"><img src="manual/images/20260810134225_SessionHistory.png" alt="Session history strip charts"></td>
+<td width="50%"><img src="manual/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap"></td>
+</tr>
+<tr>
+<td valign="top"><b>Session History</b> — throughput, message rate, CRC errors,
+satellites, C/N0 and reference drift on one shared time axis, so a dropout is
+visible instead of averaged away.</td>
+<td valign="top"><b>Coverage heatmap</b> — observed versus expected satellite
+coverage per sky sector, which reveals where the station's view is blocked.</td>
+</tr>
+</table>
 
 ## About this project
 
@@ -8,21 +42,68 @@ The primary goal of this project is to deepen my understanding of NTRIP streams,
 
 A secondary goal is to practice and experiment with programming, leveraging AI tools such as GitHub Copilot. Please note that, while AI assistance has accelerated development, I cannot guarantee the originality or accuracy of all code segments, as the sources used by large language models are not always transparent or verifiable. The results and information presented here have not been exhaustively validated. As such, I advise caution: **do not rely on this code or its output for critical applications without independent verification.** The included disclaimer applies in full.
 
-## Applications
+## Two versions of the tool
+
+NTRIP-Analyser ships as **two separate programs** built from the same core
+library, so both decode RTCM identically. They differ in how you drive them
+and in what they can show.
+
+| | **GUI** | **CLI** |
+|---|---|---|
+| Executable | `bin/ntrip-analyser-gui.exe` | `bin/ntripanalyse.exe` (Windows)<br>`bin/ntripanalyser` (Linux) |
+| Platform | Windows only (native Win32) | Windows and Linux |
+| Driven by | Point and click | Command-line arguments |
+| Configuration | On-screen fields, saved to JSON | `config.json` |
+| Best for | Investigating a stream interactively | Automation, scripting, cron, headless servers |
+| Live visualisation | Sky plot, signal quality, session history, VRS monitor | Sky-coverage heatmap (PNG, via `--sky`) |
+| Stream health checks | Yes — handshake, CRC, advertised-vs-observed, position | No |
+| Output | On-screen, plus PNG snapshots | Console text, plus PNG for `--sky` |
+
+**Which should I use?**
+
+- **Diagnosing a mountpoint** — use the GUI. The Stream Health tab answers
+  "is this stream healthy" directly, and the chart windows show things a
+  console cannot.
+- **Unattended or repeated runs** — use the CLI. It takes `--duration`,
+  emits machine-readable status with `--json`, and can replay a capture
+  from stdin, so it fits cron jobs and scripts.
+- **Not on Windows** — the CLI is your only option; the GUI is Win32-native.
+
+Both are documented in full: **[GUI User Guide](docs/gui.md)** and
+**[CLI Documentation](docs/readme.md)**.
 
 ### Command-Line Interface (CLI)
-The CLI application provides full analysis capabilities via command-line arguments, ideal for automation, scripting, and remote operation.
 
-**Executables:**
-- Windows: `bin/ntripanalyse.exe`
-- Linux: `bin/ntripanalyser`
+Full analysis via command-line arguments, suited to automation, scripting
+and remote operation.
+
+```sh
+ntripanalyse -g                          # write a template config.json
+ntripanalyse -m                          # list the caster's mountpoints
+ntripanalyse -d                          # decode the stream
+ntripanalyse -d 1005,1077                # decode only these message types
+ntripanalyse -t 60                       # message-type statistics for 60 s
+ntripanalyse -s 60                       # unique satellites for 60 s
+ntripanalyse --sky -R nav.rnx --duration 900   # 15-min coverage heatmap PNG
+```
+
+Reads `config.json` from the working directory. `--sky` needs ephemerides,
+so it requires either an `EPH_CASTER` block in the config or a RINEX 3 NAV
+file via `-R`. It can also replay a capture offline:
+
+```sh
+ntripanalyse --sky --rtcm-stdin -R nav.rnx < capture.rtcm3
+```
+
+See the [CLI documentation](docs/readme.md) for the full option list.
 
 ### Windows GUI Application
-The GUI application provides a user-friendly desktop interface with real-time monitoring, message analysis, satellite tracking, and detailed message decoding.
 
-**Executable:** `bin/ntrip-analyser-gui.exe`
+A desktop interface with real-time monitoring, stream health analysis,
+message statistics, satellite tracking and detailed message decoding.
 
-**Note:** The GUI is Windows-only and built with native Win32 API. See [GUI documentation](docs/gui.md) for detailed information.
+Built with the native Win32 API in C99, with no dependencies beyond the
+Windows SDK and GDI+. See the [GUI documentation](docs/gui.md).
 
 ## Core Functionalities
 
