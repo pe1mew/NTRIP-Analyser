@@ -65,6 +65,7 @@ void print_help(const char *progname) {
     printf("                           casters), print resolved values, then exit.  Useful\n");
     printf("                           as a CI fail-fast check.\n");
     printf("\nOther:\n");
+    printf("      --reconnect          Reconnect with backoff if the stream drops\n");
     printf("  -g, --generate           Generate default config.json\n");
     printf("  -i, --info               Show program info\n");
     printf("      --version            Print version (ntrip-analyser X.Y.Z) and exit\n");

@@ -253,6 +253,17 @@ void CreateControls(HWND hwnd, AppState *state)
     state->hBtnOpenStream   = CreateBtn(hwnd, IDC_BTN_OPEN_STREAM,   "Open Stream",     x, y, bw, bh); x += bw + 5;
     state->hBtnCloseStream  = CreateBtn(hwnd, IDC_BTN_CLOSE_STREAM,  "Close Stream",    x, y, bw, bh);
     EnableWindow(state->hBtnCloseStream, FALSE);  /* disabled until a worker starts */
+    x += bw + 14;
+
+    /* Visible mirror of Tools > Auto-reconnect on drop: a menu-only
+     * toggle is invisible until the menu is opened, and whether a
+     * long-running session will ride out a drop is worth seeing at a
+     * glance.  Applies to the next stream opened; kept in sync with the
+     * menu item in gui_events.c. */
+    state->hChkReconnect = CreateWindowEx(0, "BUTTON", "Auto-reconnect",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
+        x, y + 3, 110, bh - 4, hwnd, (HMENU)(intptr_t)IDC_CHK_RECONNECT,
+        hInst, NULL);
 
     /* ── Mountpoint ListView ────────────────────────────────── */
     y += bh + 14;

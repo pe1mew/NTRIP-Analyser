@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — Ionosphere Sky saved PNGs named after the wrong window
+
+Pressing S in the Ionosphere Sky window went through the Sky Plot's save
+helper, whose filename suffix comes from the Sky Plot's own mode — so
+every capture was named `..._TrackedSats.png` whatever it showed.  The
+window now uses the shared saver directly with its own suffix:
+`ROTI-Heatmap` or `ROTI-Tracks`, matching which presentation was on
+screen.
+
+### Added — auto-reconnect visible in the GUI, and `--reconnect` for the CLI
+
+The GUI setting existed only as a Tools-menu toggle, invisible until the
+menu was opened — easy to believe it was never added.  It is now also a
+checkbox in the Actions row beside Close Stream; checkbox and menu item
+are one setting and stay in sync, and the confirmation dialog is gone
+since the checkbox shows the state.
+
+The CLI gains `--reconnect`, applying the session layer's backoff to the
+stream modes.  Off by default there too: a finite analysis (`-t 60`)
+should fail loudly on a drop rather than quietly extend its measurement
+window.
+
+### Added — View > Reset window layout
+
+Forgets every remembered window placement and puts any open floating
+window back at its factory size, cascaded from the main window.  The
+Sky Plot, Ionosphere Sky and VRS Monitor remember their placements
+across reopens; this is the way back when a remembered layout has
+outlived its usefulness — a disconnected second monitor, say.  The
+Ionosphere Sky also now remembers its own placement, opening at the Sky
+Plot's actual size until the user resizes it, after which their own
+choice wins.
+
+### Changed — Ionosphere Sky matches the Sky Plot's look
+
+The first cut drew pale floating patches on white.  It now follows the
+coverage heatmap's idiom: every sector drawn with a thin grey edge and a
+full-strength fill, empty sectors in light grey, so the plot reads as an
+instrument.  Elevation numbers on the north axis, a dashed crosshair,
+and the Sky Plot's footer (local time, mountpoint).  In the track
+presentation, satellite labels -- G05, E11, C27 -- sit beside each live
+marker, so a coloured trail traces straight to its row in the Ionosphere
+table; markers and trail dots keep their original sizes.  The heatmap
+shows no satellites at all: it is a picture of the sky, not of the
+constellation.
+
 ## [3.2.0] - 2026-08-11
 
 Minor: the ionospheric monitor, end to end.  A ROTI measurement core in

@@ -37,8 +37,6 @@
 
 /* Default window size when first opened — chosen large enough that
  * the rose has room to breathe and the legend fits comfortably. */
-#define SKY_WIN_DEF_W   860
-#define SKY_WIN_DEF_H   880
 
 /* Sector grid: band 0 = 0..10 deg elevation (horizon), band 8 = 80..90 deg
  * (zenith).  Widest bands at low elevation get the most azimuth slices so

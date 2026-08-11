@@ -14,6 +14,11 @@
 #ifndef GUI_SKY_WINDOW_H
 #define GUI_SKY_WINDOW_H
 
+/* Default window size, shared with the Ionosphere Sky window so the two
+ * polar views open at the same scale and read as a pair. */
+#define SKY_WIN_DEF_W   860
+#define SKY_WIN_DEF_H   880
+
 #include "gui_state.h"
 
 #define SKY_WINDOW_CLASS "NtripSkyWindowClass"

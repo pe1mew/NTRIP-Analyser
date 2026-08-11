@@ -2907,6 +2907,31 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             return 0;
         }
 
+        case IDM_VIEW_RESET_LAYOUT: {
+            /* Forget every remembered placement and put any open
+             * floating window back at its factory size, cascaded from
+             * the main window.  Windows that never remember anything
+             * (Ionosphere table, Session History, Signal Quality) are
+             * already reset by closing and reopening them. */
+            state->skyWndRectValid     = FALSE;
+            state->ionoSkyWndRectValid = FALSE;
+            state->vrsWndRectValid     = FALSE;
+
+            RECT rm;
+            GetWindowRect(hwnd, &rm);
+            int bx = rm.left + 40, by = rm.top + 40;
+            if (state->hSkyWnd)
+                SetWindowPos(state->hSkyWnd, NULL, bx, by,
+                             SKY_WIN_DEF_W, SKY_WIN_DEF_H, SWP_NOZORDER);
+            if (state->hIonoSkyWnd)
+                SetWindowPos(state->hIonoSkyWnd, NULL, bx + 48, by + 48,
+                             SKY_WIN_DEF_W, SKY_WIN_DEF_H, SWP_NOZORDER);
+            if (state->hVrsWnd)
+                SetWindowPos(state->hVrsWnd, NULL, bx + 96, by + 96,
+                             VRS_WIN_DEF_W, VRS_WIN_DEF_H, SWP_NOZORDER);
+            return 0;
+        }
+
         case IDM_VIEW_IONO_SKY: {
             HINSTANCE hi = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
             IonoSkyWindowOpen(hi, hwnd, state);
@@ -2977,22 +3002,27 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             return 0;
         }
 
-        case IDM_TOOLS_AUTO_RECONNECT: {
-            state->autoReconnect = !state->autoReconnect;
+        /* The menu item and the Actions-row checkbox are one setting;
+         * either toggles it and both displays follow.  No confirmation
+         * dialog any more: the checkbox makes the state visible, which
+         * is what the dialog existed to compensate for.  Applies to the
+         * next stream opened. */
+        case IDM_TOOLS_AUTO_RECONNECT:
+        case IDC_CHK_RECONNECT: {
+            if (LOWORD(wParam) == IDC_CHK_RECONNECT) {
+                state->autoReconnect =
+                    (SendMessage(state->hChkReconnect, BM_GETCHECK, 0, 0)
+                     == BST_CHECKED);
+            } else {
+                state->autoReconnect = !state->autoReconnect;
+            }
             CheckMenuItem(GetMenu(hwnd), IDM_TOOLS_AUTO_RECONNECT,
                           MF_BYCOMMAND |
                           (state->autoReconnect ? MF_CHECKED : MF_UNCHECKED));
-            char msg[420];
-            snprintf(msg, sizeof(msg),
-                "Auto-reconnect is now %s.\n\n"
-                "When on, a dropped stream is re-established automatically "
-                "with a backoff delay, the same mechanism the monitoring "
-                "service uses.\n\n"
-                "This takes effect the next time a stream is opened; the "
-                "current session keeps the setting it started with.",
-                state->autoReconnect ? "ON" : "OFF");
-            MessageBox(hwnd, msg, "Auto-reconnect",
-                       MB_ICONINFORMATION | MB_OK);
+            if (state->hChkReconnect)
+                SendMessage(state->hChkReconnect, BM_SETCHECK,
+                            state->autoReconnect ? BST_CHECKED : BST_UNCHECKED,
+                            0);
             return 0;
         }
 

@@ -981,6 +981,7 @@ int main(int argc, char *argv[]) {
         {"eph-mountpoint", required_argument, 0, 15 },
         {"eph-user",       required_argument, 0, 16 },
         {"eph-password",   required_argument, 0, 17 },
+        {"reconnect",      no_argument,       0, 21 },
         {"check-config",   no_argument,       0, 18 },
         {"json",           no_argument,       0, 19 },
         {"rtcm-stdin",     no_argument,       0, 20 },
@@ -1099,6 +1100,7 @@ int main(int argc, char *argv[]) {
             case 18: check_config_only = true;   break;   /* --check-config */
             case 19: json_output       = true;   break;   /* --json */
             case 20: rtcm_stdin        = true;   break;   /* --rtcm-stdin */
+            case 21: cli_auto_reconnect = true;  break;   /* --reconnect */
             case 'g':
                 initialize_config("config.json");
                 return EXIT_OK;

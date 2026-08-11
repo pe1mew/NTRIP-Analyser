@@ -533,6 +533,10 @@ typedef struct {
      * an unattended run means. */
     BOOL autoReconnect;
 
+    /* The checkbox mirroring autoReconnect in the Actions row; kept in
+     * sync with the Tools-menu item, whichever one is used. */
+    HWND hChkReconnect;
+
     /* Notification-area ("tray") state.  minimiseToTray is the user's
      * preference; trayIconShown tracks whether the icon is currently
      * registered, so it is added and removed exactly once -- a stale
@@ -622,6 +626,8 @@ typedef struct {
     HWND hSkyWnd;
     RECT skyWndRect;
     BOOL skyWndRectValid;
+    RECT ionoSkyWndRect;        /* Ionosphere Sky remembers its own size */
+    BOOL ionoSkyWndRectValid;
 
     /* Live sky-plot model.  Written by WM_APP_SKY_UPDATE on the UI
      * thread; read on the UI thread during WM_PAINT of hSkyWnd. */

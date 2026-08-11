@@ -35,8 +35,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define VRS_WIN_DEF_W   620
-#define VRS_WIN_DEF_H   700
 
 #define VRS_BG_COLOR        RGB(255, 255, 255)
 #define VRS_HEADER_BG       RGB(245, 245, 245)

@@ -38,6 +38,7 @@
 #define IDM_VIEW_HISTORY        9023
 #define IDM_VIEW_IONO           9024  /* per-satellite ROTI table */
 #define IDM_VIEW_IONO_SKY       9025  /* polar ROTI heatmap / tracks */
+#define IDM_VIEW_RESET_LAYOUT   9026  /* windows back to default size/pos */
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
@@ -80,6 +81,7 @@
 #define IDC_BTN_GET_MOUNTS      1110
 #define IDC_BTN_OPEN_STREAM     1111
 #define IDC_BTN_CLOSE_STREAM    1120
+#define IDC_CHK_RECONNECT       1121    /* auto-reconnect checkbox */
 #define IDC_BTN_MAP_PICK        1130    /* "Map" button: open browser map */
 #define IDC_BTN_MAP_PASTE       1131    /* "<<" button: paste coords from clipboard */
 

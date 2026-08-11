@@ -69,6 +69,16 @@ void cli_analyze_sats(const NTRIP_Config *config, int seconds);
 int run_eph_stream(const NTRIP_Config *config,
                    const volatile int *stop_flag, bool verbose);
 
+/**
+ * @brief When true, stream modes reconnect with backoff after a drop.
+ *
+ * Set by the CLI's `--reconnect` flag before a mode runs.  Off by
+ * default: a finite analysis (`-t 60`, `-s 120`) should fail loudly on a
+ * drop rather than quietly extend its window, so the choice belongs to
+ * the user.
+ */
+extern bool cli_auto_reconnect;
+
 #ifdef __cplusplus
 }
 #endif

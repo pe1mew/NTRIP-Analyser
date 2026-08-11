@@ -20,6 +20,10 @@
 #ifndef GUI_VRS_WINDOW_H
 #define GUI_VRS_WINDOW_H
 
+/* Default window size; also used by View > Reset window layout. */
+#define VRS_WIN_DEF_W   620
+#define VRS_WIN_DEF_H   700
+
 #include "gui_state.h"
 
 #define VRS_WINDOW_CLASS "NtripVrsMonitorClass"

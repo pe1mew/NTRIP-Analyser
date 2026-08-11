@@ -41,6 +41,8 @@ BEGIN
         MENUITEM "Session &History...",               IDM_VIEW_HISTORY
         MENUITEM "&Ionosphere...",                    IDM_VIEW_IONO
         MENUITEM "Ionosphere S&ky...",                IDM_VIEW_IONO_SKY
+        MENUITEM SEPARATOR
+        MENUITEM "&Reset window layout",              IDM_VIEW_RESET_LAYOUT
     END
     POPUP "&Tools"
     BEGIN

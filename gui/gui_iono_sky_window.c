@@ -12,9 +12,11 @@
  */
 
 #include "gui_iono_sky_window.h"
-#include "gui_sky_window.h"   /* SkySavePngWithPrompt */
+#include "gui_snapshot.h"     /* SaveWindowPngWithPrompt */
+#include "gui_sky_window.h"    /* SKY_WIN_DEF_W/H, shared default size */
 #include <math.h>
 #include <stdio.h>
+#include <time.h>
 
 #define IONOSKY_CLASS   "NtripIonoSkyWindow"
 #define IDT_IONOSKY     1
@@ -23,19 +25,10 @@
 /** @brief Verdict colour: grey unknown, green quiet, amber, red. */
 static COLORREF isky_colour(float roti)
 {
-    if (roti < 0.0f)                 return RGB(200, 200, 200);
+    if (roti < 0.0f)                 return RGB(240, 240, 240);
     if (roti >= IONO_ROTI_DISTURBED) return RGB(215,  40,  40);
     if (roti >= IONO_ROTI_UNSETTLED) return RGB(230, 160,  20);
     return RGB( 70, 175,  90);
-}
-
-/** @brief Paler variant for large filled sectors, so the grid on top stays legible. */
-static COLORREF isky_colour_pale(float roti)
-{
-    COLORREF c = isky_colour(roti);
-    return RGB((GetRValue(c) * 6 + 255 * 4) / 10,
-               (GetGValue(c) * 6 + 255 * 4) / 10,
-               (GetBValue(c) * 6 + 255 * 4) / 10);
 }
 
 /** @brief One sector's most recent ROTI sample. */
@@ -144,17 +137,21 @@ static void isky_paint(HWND hwnd, AppState *state)
     if (state->ionoSkyHeatmap) {
         static IskySector grid[SKY_N_EL_BANDS][SKY_MAX_AZ_BINS];
         isky_collect(state, grid);
-        HPEN penNull = (HPEN)GetStockObject(NULL_PEN);
-        HPEN oldP = (HPEN)SelectObject(hdc, penNull);
-        for (int band = 0; band < SKY_N_EL_BANDS; band++) {
+        /* Same idiom as the coverage heatmap: every sector drawn with a
+         * thin grey edge and a full-strength fill.  The complete lattice
+         * of edges is what makes the plot read as an instrument rather
+         * than as blobs floating on white. */
+        HPEN penEdge = CreatePen(PS_SOLID, 1, RGB(140, 140, 140));
+        HPEN oldP = (HPEN)SelectObject(hdc, penEdge);
+        for (int band = SKY_N_EL_BANDS - 1; band >= 0; band--) {
             int n_az = sky_az_bins_per_band[band];
             double el_lo = band * 10.0, el_hi = el_lo + 10.0;
             double r_out = (90.0 - el_lo) / 90.0 * radius;
             double r_in  = (90.0 - el_hi) / 90.0 * radius;
             for (int b = 0; b < n_az; b++) {
-                if (!grid[band][b].has) continue;
-                HBRUSH br = CreateSolidBrush(
-                    isky_colour_pale(grid[band][b].roti));
+                HBRUSH br = CreateSolidBrush(grid[band][b].has
+                                ? isky_colour(grid[band][b].roti)
+                                : RGB(240, 240, 240));
                 HBRUSH oldB = (HBRUSH)SelectObject(hdc, br);
                 double aw = 360.0 / n_az;
                 isky_wedge(hdc, cx, cy, r_in, r_out, b * aw, (b + 1) * aw);
@@ -163,27 +160,44 @@ static void isky_paint(HWND hwnd, AppState *state)
             }
         }
         SelectObject(hdc, oldP);
+        DeleteObject(penEdge);
     }
 
-    /* ── Grid: elevation rings and cardinal spokes ────────────────── */
-    HPEN penGrid = CreatePen(PS_SOLID, 1, RGB(180, 180, 180));
-    HPEN oldPg = (HPEN)SelectObject(hdc, penGrid);
+    /* ── Grid: crosshair, elevation numbers, cardinal labels ──────── */
     HBRUSH nullBr = (HBRUSH)GetStockObject(NULL_BRUSH);
     HBRUSH oldBg = (HBRUSH)SelectObject(hdc, nullBr);
-    for (int el = 0; el < 90; el += 30) {
-        int r = (int)((90.0 - el) / 90.0 * radius);
-        Ellipse(hdc, cx - r, cy - r, cx + r, cy + r);
+    if (!state->ionoSkyHeatmap) {
+        /* Rings only in track mode -- in heatmap mode the sector edges
+         * already form them. */
+        HPEN penRing = CreatePen(PS_SOLID, 1, RGB(180, 180, 180));
+        HPEN oldPr = (HPEN)SelectObject(hdc, penRing);
+        for (int el = 0; el < 90; el += 15) {
+            int r = (int)((90.0 - el) / 90.0 * radius);
+            Ellipse(hdc, cx - r, cy - r, cx + r, cy + r);
+        }
+        SelectObject(hdc, oldPr);
+        DeleteObject(penRing);
     }
+    HPEN penAxis = CreatePen(PS_DOT, 1, RGB(120, 120, 120));
+    HPEN oldPg = (HPEN)SelectObject(hdc, penAxis);
     MoveToEx(hdc, cx - radius, cy, NULL); LineTo(hdc, cx + radius, cy);
     MoveToEx(hdc, cx, cy - radius, NULL); LineTo(hdc, cx, cy + radius);
-    SetTextColor(hdc, RGB(90, 90, 90));
+    SelectObject(hdc, oldPg);
+    DeleteObject(penAxis);
+
+    SetTextColor(hdc, RGB(120, 120, 120));
+    for (int el = 15; el <= 75; el += 15) {
+        char t[8];
+        snprintf(t, sizeof(t), "%d", el);
+        int r = (int)((90.0 - el) / 90.0 * radius);
+        TextOut(hdc, cx + 3, cy - r - 14, t, (int)strlen(t));
+    }
+    SetTextColor(hdc, RGB(30, 30, 30));
     TextOut(hdc, cx - 4, cy - radius - 16, "N", 1);
     TextOut(hdc, cx + radius + 4, cy - 7, "E", 1);
     TextOut(hdc, cx - 4, cy + radius + 3, "S", 1);
     TextOut(hdc, cx - radius - 14, cy - 7, "W", 1);
     SelectObject(hdc, oldBg);
-    SelectObject(hdc, oldPg);
-    DeleteObject(penGrid);
 
     /* ── Track mode: per-dot ROTI colours, 5x5 so they read ───────── */
     if (!state->ionoSkyHeatmap) {
@@ -273,6 +287,51 @@ static void isky_paint(HWND hwnd, AppState *state)
     }
     TextOut(hdc, lx + 6, 38, "(TECU/min)", 10);
 
+    /* ── Satellite labels, track mode only ────────────────────────────
+     * The letter+PRN traces a coloured trail back to its row in the
+     * Ionosphere table.  Text only: the track loop above already drew
+     * the live marker at its usual size, and an extra anchor dot on top
+     * of it read as a smaller satellite.  The heatmap deliberately shows
+     * no satellites at all -- it is a picture of the sky, not of the
+     * constellation. */
+    if (!state->ionoSkyHeatmap) {
+        static const char gletter[8] =
+            { '?', 'G', 'R', 'E', 'J', 'C', 'S', 'I' };
+        SetTextColor(hdc, RGB(30, 30, 30));
+        for (int g = 1; g < SV_EPH_MAX_GNSS; g++) {
+            for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++) {
+                const SkySat *sv = &state->skyState.sats[g][p];
+                if (!sv->valid) continue;
+                if (sv->el_deg < 0.0f || sv->el_deg > 90.0f) continue;
+                double azr = sv->az_deg * M_PI / 180.0;
+                double rr = (90.0 - sv->el_deg) / 90.0 * radius;
+                int x = cx + (int)(rr * sin(azr) + 0.5);
+                int y = cy - (int)(rr * cos(azr) + 0.5);
+                char lbl[8];
+                snprintf(lbl, sizeof(lbl), "%c%02d", gletter[g], p + 1);
+                TextOut(hdc, x + 6, y - 7, lbl, (int)strlen(lbl));
+            }
+        }
+    }
+
+    /* ── Footer: wall clock left, mountpoint right, as the Sky Plot ── */
+    {
+        char foot[96];
+        time_t now_t = time(NULL);
+        struct tm *lt = localtime(&now_t);
+        if (lt) strftime(foot, sizeof(foot), "%Y-%m-%d %H:%M:%S local", lt);
+        else    snprintf(foot, sizeof(foot), "-");
+        SetTextColor(hdc, RGB(120, 120, 120));
+        TextOut(hdc, 8, h - 18, foot, (int)strlen(foot));
+        if (state->config.MOUNTPOINT[0]) {
+            SIZE sz;
+            GetTextExtentPoint32(hdc, state->config.MOUNTPOINT,
+                                 (int)strlen(state->config.MOUNTPOINT), &sz);
+            TextOut(hdc, w - sz.cx - 8, h - 18, state->config.MOUNTPOINT,
+                    (int)strlen(state->config.MOUNTPOINT));
+        }
+    }
+
     BitBlt(hdcWin, 0, 0, w, h, hdc, 0, 0, SRCCOPY);
     SelectObject(hdc, oldF);
     SelectObject(hdc, oldBmp);
@@ -306,8 +365,15 @@ static LRESULT CALLBACK IonoSkyProc(HWND hwnd, UINT msg,
             InvalidateRect(hwnd, NULL, FALSE);
             return 0;
         }
-        if (wParam == 'S') {            /* same PNG path as the Sky Plot */
-            SkySavePngWithPrompt(hwnd, state);
+        if (wParam == 'S') {
+            /* Shared save flow, but this window's own suffix: the Sky
+             * Plot's saver names files by the Sky Plot's mode, which is
+             * a different window's state entirely. */
+            SaveWindowPngWithPrompt(hwnd, state->hEditLog,
+                                    "Save Ionosphere Sky as PNG",
+                                    state->ionoSkyHeatmap
+                                        ? "ROTI-Heatmap" : "ROTI-Tracks",
+                                    "Ionosphere sky");
             return 0;
         }
         break;
@@ -316,7 +382,18 @@ static LRESULT CALLBACK IonoSkyProc(HWND hwnd, UINT msg,
         return 0;
     case WM_DESTROY:
         KillTimer(hwnd, IDT_IONOSKY);
-        if (state && state->hIonoSkyWnd == hwnd) state->hIonoSkyWnd = NULL;
+        if (state) {
+            /* Remember the un-minimised placement, exactly as the Sky
+             * Plot does, so the next open restores the user's size. */
+            WINDOWPLACEMENT wp;
+            ZeroMemory(&wp, sizeof(wp));
+            wp.length = sizeof(wp);
+            if (GetWindowPlacement(hwnd, &wp)) {
+                state->ionoSkyWndRect      = wp.rcNormalPosition;
+                state->ionoSkyWndRectValid = TRUE;
+            }
+            if (state->hIonoSkyWnd == hwnd) state->hIonoSkyWnd = NULL;
+        }
         return 0;
     }
     return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -344,10 +421,38 @@ HWND IonoSkyWindowOpen(HINSTANCE hInst, HWND parent, AppState *state)
         registered = TRUE;
     }
     state->ionoSkyHeatmap = TRUE;       /* heatmap is the readable default */
+    /* Open at the Sky Plot's size, so the two polar views sit side by
+     * side at the same scale.  "Its size" means the size it actually is:
+     * the live window if open, else the placement it saved on closing,
+     * and only then the shared factory default -- the Sky Plot remembers
+     * its size across opens, so matching the define alone would only
+     * match a Sky Plot nobody ever resized. */
+    int x = CW_USEDEFAULT, y = CW_USEDEFAULT;
+    int w = SKY_WIN_DEF_W,  h = SKY_WIN_DEF_H;
+    RECT r;
+    if (state->ionoSkyWndRectValid) {
+        /* The user's own last size for this window wins over anything
+         * derived from the Sky Plot. */
+        x = state->ionoSkyWndRect.left;
+        y = state->ionoSkyWndRect.top;
+        w = state->ionoSkyWndRect.right  - state->ionoSkyWndRect.left;
+        h = state->ionoSkyWndRect.bottom - state->ionoSkyWndRect.top;
+    } else if (state->hSkyWnd && GetWindowRect(state->hSkyWnd, &r)) {
+        w = r.right - r.left;
+        h = r.bottom - r.top;
+        x = r.left + 32;          /* offset so it does not stack exactly */
+        y = r.top  + 32;
+    } else if (state->skyWndRectValid) {
+        w = state->skyWndRect.right  - state->skyWndRect.left;
+        h = state->skyWndRect.bottom - state->skyWndRect.top;
+    }
+    if (w < 240) w = SKY_WIN_DEF_W;
+    if (h < 240) h = SKY_WIN_DEF_H;
+
     state->hIonoSkyWnd = CreateWindowEx(WS_EX_TOOLWINDOW, IONOSKY_CLASS,
         "Ionosphere Sky - NTRIP-Analyser",
         WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-        CW_USEDEFAULT, CW_USEDEFAULT, 560, 620,
+        x, y, w, h,
         parent, NULL, hInst, state);
     return state->hIonoSkyWnd;
 }

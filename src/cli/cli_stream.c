@@ -14,6 +14,8 @@
  */
 
 #include "cli/cli_stream.h"
+
+bool cli_auto_reconnect = false;   /* set by --reconnect in main.c */
 #include "session/ntrip_session.h"
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"
@@ -140,7 +142,7 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
     opt.config           = *c->config;
     opt.stats_interval_s = 0.0;
     opt.send_gga         = false;   /* driven below, with the "GGA " echo */
-    opt.auto_reconnect   = false;
+    opt.auto_reconnect   = cli_auto_reconnect;
     opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
 
     NtripSession *sess = ns_open(&opt, cli_on_event, c);
@@ -401,7 +403,7 @@ int run_eph_stream(const NTRIP_Config *config,
             sizeof(opt.config.PASSWORD) - 1);
     opt.stats_interval_s = 0.0;
     opt.send_gga         = false;
-    opt.auto_reconnect   = false;
+    opt.auto_reconnect   = cli_auto_reconnect;
     opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
 
     NtripSession *sess = ns_open(&opt, eph_cli_on_event, &ctx);
