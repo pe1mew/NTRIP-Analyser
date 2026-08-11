@@ -58,6 +58,7 @@ typedef struct {
     char content_type[64];     /**< Content-Type: header                */
     char ntrip_version_hdr[32];/**< Ntrip-Version: header, if echoed    */
     bool chunked;              /**< Transfer-Encoding: chunked          */
+    char raw[2048];            /**< full header text, for diagnostics   */
 } NsHandshake;
 
 /**

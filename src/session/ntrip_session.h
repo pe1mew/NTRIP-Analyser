@@ -52,6 +52,7 @@ typedef enum {
     NS_EV_CONNECTING = 0, /**< a connection attempt started            */
     NS_EV_HANDSHAKE,      /**< the caster answered; handshake parsed   */
     NS_EV_STREAMING,      /**< first frame decoded; the stream is live */
+    NS_EV_RAW,            /**< payload bytes, before framing           */
     NS_EV_FRAME,          /**< one RTCM frame with a valid CRC         */
     NS_EV_FRAME_BAD,      /**< a frame was rejected                    */
     NS_EV_STATS,          /**< periodic statistics snapshot            */
@@ -86,6 +87,12 @@ typedef struct {
     NsEventType type;
     double      t_rel;                 /**< seconds since session start */
     union {
+        /** NS_EV_RAW: every payload byte as received, before the RTCM
+         *  framer sees it.  This is what lets a consumer recognise a
+         *  non-RTCM stream (UBX, SBF, RT27, LB2): the session only
+         *  understands RTCM framing, so on such a stream NS_EV_FRAME
+         *  never fires and raw bytes are all there is. */
+        struct { const unsigned char *data; int len; } raw;
         struct {
             const unsigned char *data; /**< whole frame, preamble to CRC */
             int      len;
@@ -177,6 +184,30 @@ const NsStatsSnapshot *ns_stats(const NtripSession *s);
 
 /** @brief The caster's handshake, or NULL if not yet received. */
 const NsHandshake *ns_handshake(const NtripSession *s);
+
+/**
+ * @brief Send one GGA sentence now, at the given position.
+ *
+ * For consumers that manage the uplink themselves -- the GUI's VRS test
+ * features move the reported position and pause the uplink interactively,
+ * a cadence the built-in @ref NsOptions::send_gga timer cannot express.
+ * Use one mechanism or the other, not both.
+ *
+ * @return true if the sentence was handed to the socket.  Always false
+ *         on a replay session, which has nothing to send to.
+ */
+bool ns_send_gga(NtripSession *s, double lat, double lon);
+
+/**
+ * @brief Enable or disable RTCM framing (default: enabled).
+ *
+ * A consumer that identifies the stream as a non-RTCM format (via
+ * @ref NS_EV_RAW) disables framing so the payload is not fed through the
+ * RTCM state machine -- arbitrary binary contains 0xD3 often enough that
+ * leaving it on inflates the CRC-error counters of a stream that is not
+ * malfunctioning.  Raw events and byte counting continue.
+ */
+void ns_set_framing_enabled(NtripSession *s, bool enabled);
 
 /** @brief Seconds since the session was opened. */
 double ns_uptime(const NtripSession *s);

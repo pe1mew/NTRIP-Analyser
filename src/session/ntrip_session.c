@@ -99,6 +99,7 @@ struct NtripSession {
     bool       connected;
     bool       header_done;
     bool       announced_streaming;
+    bool       framing_enabled;    /**< ns_set_framing_enabled          */
 
     double     t0;             /**< session start (monotonic)          */
     double     t_start_unix;   /**< session start (wall clock)         */
@@ -351,6 +352,18 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
     double now = ns_now();
     s->stats.bytes_total += (uint64_t)len;
 
+    /* Raw first: format sniffing needs the bytes even when -- especially
+     * when -- they will never assemble into an RTCM frame. */
+    {
+        NsEvent ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.type       = NS_EV_RAW;
+        ev.u.raw.data = data;
+        ev.u.raw.len  = len;
+        emit(s, &ev);
+    }
+    if (!s->framing_enabled) return;
+
     for (int i = 0; i < len; i++) {
         unsigned char b = data[i];
 
@@ -598,6 +611,7 @@ static NtripSession *alloc_session(const NsOptions *opt, NsEventFn cb, void *use
     s->cb   = cb;
     s->user = user;
     s->sock = NS_INVALID_SOCK;
+    s->framing_enabled = true;
     s->t0   = ns_now();
     s->t_start_unix  = (double)time(NULL);
     s->last_stats_t  = s->t0;
@@ -743,6 +757,29 @@ const NsHandshake *ns_handshake(const NtripSession *s)
 {
     if (!s || !s->handshake.valid) return NULL;
     return &s->handshake;
+}
+
+bool ns_send_gga(NtripSession *s, double lat, double lon)
+{
+    if (!s || s->is_file || !s->connected || s->sock == NS_INVALID_SOCK)
+        return false;
+
+    char gga[256];
+    create_gngga_sentence(lat, lon, gga);
+
+    char line[300];
+    size_t n = strlen(gga);
+    if (n && gga[n - 1] != '\n')
+        snprintf(line, sizeof(line), "%s\r\n", gga);
+    else
+        snprintf(line, sizeof(line), "%s", gga);
+
+    return send(s->sock, line, (int)strlen(line), 0) > 0;
+}
+
+void ns_set_framing_enabled(NtripSession *s, bool enabled)
+{
+    if (s) s->framing_enabled = enabled;
 }
 
 double ns_uptime(const NtripSession *s)

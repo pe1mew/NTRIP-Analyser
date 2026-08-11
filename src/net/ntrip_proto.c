@@ -163,6 +163,8 @@ bool ns_proto_parse_response(const char *header, NsHandshake *out)
     memset(out, 0, sizeof(*out));
     if (!header || !*header) return false;
 
+    strncpy(out->raw, header, sizeof(out->raw) - 1);
+
     /* Status line = up to the first CR or LF. */
     size_t n = 0;
     while (header[n] && header[n] != '\r' && header[n] != '\n' &&

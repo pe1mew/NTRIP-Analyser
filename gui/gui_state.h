@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include "ntrip_handler.h"
 #include "sv_ephemeris.h"
+#include "net/ntrip_proto.h"
 
 /* ── Application constants ────────────────────────────────── */
 #define APP_TITLE       "NTRIP-Analyser"
@@ -211,34 +212,10 @@ enum {
     HEALTH_BAD  = 3,  /* a real fault */
 };
 
-/** @brief Which NTRIP protocol version the caster answered with. */
-enum {
-    NTRIP_VER_UNKNOWN = 0,
-    NTRIP_VER_1       = 1,  /* "ICY 200 OK" -- the legacy, non-HTTP reply */
-    NTRIP_VER_2       = 2,  /* "HTTP/1.x 200 OK" */
-};
-
-/**
- * @struct NtripHandshake
- * @brief What the caster said when the stream was opened.
- *
- * The GUI worker already reads the whole response header before the RTCM
- * bytes start; this is that header, parsed. Useful as a caster-compliance
- * record: version and header differences explain a whole class of "works
- * with one client but not another" reports.
- */
-typedef struct {
-    BOOL valid;                /**< TRUE once a response header was parsed */
-    int  version;              /**< NTRIP_VER_* */
-    int  status;               /**< 200, 401, 404, ... 0 if unparsed */
-    char reason[64];           /**< status reason phrase, e.g. "OK" */
-    char statusLine[128];      /**< the raw first line */
-    char server[96];           /**< Server: header, i.e. the caster software */
-    char contentType[64];      /**< Content-Type: header */
-    char ntripVersionHdr[32];  /**< Ntrip-Version: header, if echoed back */
-    BOOL chunked;              /**< Transfer-Encoding: chunked */
-    char raw[2048];            /**< full header text, for the log */
-} NtripHandshake;
+/* The caster handshake is the session layer's NsHandshake
+ * (src/net/ntrip_proto.h).  The GUI's own duplicate of it was deleted
+ * when the obs worker moved onto the session layer -- see
+ * design/architecture.md par. 9, step 4. */
 
 /** @brief How the connected mountpoint serves corrections.
  *
@@ -521,7 +498,7 @@ typedef struct {
 
     /* Caster handshake, parsed from the response header the worker
      * already reads before the RTCM bytes begin. */
-    NtripHandshake handshake;
+    NsHandshake handshake;
     LONG           streamBytesLast;   /* snapshot for rate calc (UI side) */
     double         streamRateTime;    /* timestamp of last rate calc */
 
@@ -732,20 +709,6 @@ int ParseAdvertisedTypes(const char *details, float *out);
  */
 const char *stristr(const char *haystack, const char *needle);
 
-/**
- * @brief Parse an NTRIP caster's response header.
- *
- * Recognises both replies a caster can give: the legacy NTRIP 1.0
- * "ICY 200 OK", which is not HTTP at all, and NTRIP 2.0's ordinary
- * "HTTP/1.x 200 OK".  Reads the status line properly rather than
- * searching the whole header for "200" -- a 404 response carrying
- * "Content-Length: 200" would otherwise look like success.
- *
- * @param header Full response header text (NUL-terminated).
- * @param out    [out] Parsed result; zeroed by this call.
- * @return TRUE if a status line was recognised.
- */
-BOOL ParseNtripResponse(const char *header, NtripHandshake *out);
 
 /* gui_events.c — config helpers */
 void GuiToConfig(AppState *state);

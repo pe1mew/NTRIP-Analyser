@@ -539,22 +539,22 @@ static void RefreshStreamHealth(AppState *state)
     char v[64], d[256];
 
     /* ── Caster handshake ─────────────────────────────────────── */
-    const NtripHandshake *hs = &state->handshake;
+    const NsHandshake *hs = &state->handshake;
     if (!hs->valid) {
         HealthSetRow(hLv, 0, "NTRIP version", "-",
                      "No stream opened yet", HEALTH_OK);
         HealthSetRow(hLv, 1, "Response", "-", "", HEALTH_OK);
         HealthSetRow(hLv, 2, "Caster software", "-", "", HEALTH_OK);
     } else {
-        if (hs->version == NTRIP_VER_1) {
+        if (hs->version == NS_PROTO_V1) {
             snprintf(d, sizeof(d),
                      "Ntrip-Version: Ntrip/2.0 was requested but the caster "
                      "replied ICY, so it is running NTRIP 1.0");
             HealthSetRow(hLv, 0, "NTRIP version", "1.0 (ICY)", d, HEALTH_INFO);
         } else {
             snprintf(d, sizeof(d), "Replied over HTTP%s%s%s%s",
-                     hs->contentType[0] ? "; Content-Type " : "",
-                     hs->contentType[0] ? hs->contentType : "",
+                     hs->content_type[0] ? "; Content-Type " : "",
+                     hs->content_type[0] ? hs->content_type : "",
                      hs->chunked ? "; " : "",
                      hs->chunked ? "chunked transfer" : "");
             HealthSetRow(hLv, 0, "NTRIP version", "2.0 (HTTP)", d, HEALTH_OK);
@@ -562,7 +562,7 @@ static void RefreshStreamHealth(AppState *state)
 
         char resp[96];
         snprintf(resp, sizeof(resp), "%d %s", hs->status, hs->reason);
-        HealthSetRow(hLv, 1, "Response", resp, hs->statusLine, HEALTH_OK);
+        HealthSetRow(hLv, 1, "Response", resp, hs->status_line, HEALTH_OK);
 
         /* Put the full Server string in the Detail column: it is the
          * interesting part and routinely longer than the Value column,
