@@ -268,6 +268,12 @@ add_dependencies(release ntrip-analyser)
 add_custom_command(TARGET release POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:ntrip-analyser>"
         "${NTRIP_DIST_DIR}/ntrip-analyser-${NTRIP_REL_TAG}${CMAKE_EXECUTABLE_SUFFIX}"
+    # A ready-to-edit configuration ships beside the binaries: the
+    # programs read config.json from the working directory, and a new
+    # user's first hurdle is knowing what that file should contain.
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/bin/exampleConfig.json"
+        "${NTRIP_DIST_DIR}/exampleConfig.json"
     VERBATIM)
 
 if(TARGET ntrip-analyser-gui)

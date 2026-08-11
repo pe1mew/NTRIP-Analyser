@@ -12,6 +12,12 @@ The program will emulate a rover using preconfigured (static) coordinates. At co
 
 ### 1. Configuration File (`config.json`)
 
+A ready-to-edit example ships as [`bin/exampleConfig.json`](../bin/exampleConfig.json)
+(and beside the binaries in each release). It points at the Dutch
+Kadaster open caster, including its ephemeris mountpoint for the sky
+plot — replace the username and password with your own free Kadaster
+registration. `--generate` writes a template too.
+
 Before using the program, you must create a configuration file named `config.json` in the working directory. This file contains all necessary connection and authentication details as well as teh coordinates of the rover emulated. *The program will not work without it.* 
 
 Generating a default `config.json` with dummy values is done by using the `-g` argument when running the program:

@@ -11,6 +11,7 @@
 # Needed on top of *.exe because the Linux binaries carry no extension.
 bin/*
 !bin/readme.md
+!bin/exampleConfig.json
 
 # Build artifacts
 gui_main.o

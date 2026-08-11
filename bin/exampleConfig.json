@@ -1,0 +1,14 @@
+{
+	"NTRIP_CASTER":	"ntrip.kadaster.nl",
+	"NTRIP_PORT":	2101,
+	"MOUNTPOINT":	"APEL00NLD0",
+	"USERNAME":	"ntrip-analyser",
+	"PASSWORD":	"password",
+	"LATITUDE":	52.230481,
+	"LONGITUDE":	5.942016,
+	"EPH_CASTER":	"ntrip.kadaster.nl",
+	"EPH_PORT":	2101,
+	"EPH_MOUNTPOINT":	"BCEP00KAD0",
+	"EPH_USERNAME":	"ntrip-analyser",
+	"EPH_PASSWORD":	"password"
+}
