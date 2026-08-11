@@ -18,6 +18,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Load &Ephemerides (RINEX)...",     IDM_FILE_LOAD_EPH
         MENUITEM "Save Sky &Plot as PNG...",         IDM_FILE_SAVE_SKYPLOT
+        MENUITEM "&Export Statistics...",             IDM_FILE_EXPORT_STATS
         MENUITEM SEPARATOR
         MENUITEM "Start &RTCM Capture...",           IDM_FILE_RTCM_START
         MENUITEM "Stop RTCM Capture",                IDM_FILE_RTCM_STOP
@@ -42,6 +43,7 @@ BEGIN
     POPUP "&Tools"
     BEGIN
         MENUITEM "Toggle &auto-send GGA",             IDM_TOOLS_VRS_GGA_TOGGLE
+        MENUITEM "Auto-&reconnect on drop",           IDM_TOOLS_AUTO_RECONNECT
     END
     POPUP "&Help"
     BEGIN

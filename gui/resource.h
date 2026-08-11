@@ -22,6 +22,9 @@
 #define IDM_FILE_RTCM_START     9007
 #define IDM_FILE_RTCM_STOP      9008
 #define IDM_FILE_RTCM_REPLAY    9009
+/* 9010-9012 belong to the Connection block below, so this File item
+ * takes the next free id rather than colliding with Get Mountpoints. */
+#define IDM_FILE_EXPORT_STATS   9013
 
 /* ── Menu items: Connection ───────────────────────────────── */
 #define IDM_CONN_MOUNTPOINTS    9010
@@ -36,6 +39,7 @@
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
+#define IDM_TOOLS_AUTO_RECONNECT   9041  /* reconnect with backoff on drop */
 /* The VRS position-shift / reset controls were moved into the VRS
  * Monitor window itself (in-plot N/E/S/W buttons + Reset top-left),
  * see resource IDs IDC_VRS_BTN_* below. */

@@ -578,6 +578,33 @@ static void RefreshStreamHealth(AppState *state)
         }
     }
 
+    /* Reconnects.  Set here rather than with the other connection rows
+     * because this function returns early when no ARP has arrived, and a
+     * row written after that point would never appear on a stream that
+     * broadcasts no 1005/1006. */
+    if (state->haveStats) {
+        snprintf(v, sizeof(v), "%d", state->lastStats.reconnects);
+        if (state->lastStats.reconnects > 0)
+            snprintf(d, sizeof(d),
+                     "The stream dropped and was re-established %d time%s; "
+                     "corrections were unavailable across each gap",
+                     state->lastStats.reconnects,
+                     state->lastStats.reconnects == 1 ? "" : "s");
+        else
+            snprintf(d, sizeof(d), "%s",
+                     state->autoReconnect
+                       ? "Auto-reconnect is on; the link has not dropped"
+                       : "Auto-reconnect is off (Tools menu)");
+        HealthSetRow(hLv, 14, "Reconnects", v, d,
+                     state->lastStats.reconnects > 0 ? HEALTH_WARN : HEALTH_OK);
+    } else {
+        HealthSetRow(hLv, 14, "Reconnects", "-",
+                     state->autoReconnect
+                       ? "Auto-reconnect is on (Tools menu)"
+                       : "Auto-reconnect is off (Tools menu)",
+                     HEALTH_OK);
+    }
+
     snprintf(v, sizeof(v), "%ld", (long)attempted);
     HealthSetRow(hLv, 3, "Frames checked", v,
                  "Complete RTCM 3.x frames with a CRC-24Q test applied", HEALTH_OK);
@@ -2330,6 +2357,102 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             return 0;
 
+        case IDM_FILE_EXPORT_STATS: {
+            /* Writes the session layer's own snapshot through the same
+             * serialisers the monitoring daemon uses, so an exported file
+             * and a Munin sample describe a stream identically instead of
+             * in two dialects that drift apart. */
+            if (!state->haveStats) {
+                MessageBox(hwnd,
+                    "No statistics yet.\n\n"
+                    "Open a stream and let it run for a second or two, "
+                    "then export.",
+                    APP_TITLE, MB_OK | MB_ICONINFORMATION);
+                return 0;
+            }
+
+            char filename[MAX_PATH] = "";
+            snprintf(filename, sizeof(filename), "%s_stats.json",
+                     state->config.MOUNTPOINT[0] ? state->config.MOUNTPOINT
+                                                 : "ntrip");
+
+            OPENFILENAME ofn;
+            ZeroMemory(&ofn, sizeof(ofn));
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner   = hwnd;
+            ofn.lpstrFilter =
+                "JSON snapshot (*.json)\0*.json\0"
+                "CSV row (*.csv)\0*.csv\0";
+            ofn.lpstrFile   = filename;
+            ofn.nMaxFile    = MAX_PATH;
+            ofn.lpstrTitle  = "Export Statistics";
+            ofn.Flags       = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
+            ofn.lpstrDefExt = "json";
+            ofn.nFilterIndex = 1;
+
+            if (!GetSaveFileName(&ofn)) return 0;   /* cancelled */
+
+            /* Honour the extension the user actually typed: someone who
+             * names a file .csv means CSV whatever the filter said. */
+            const char *dot = strrchr(filename, '.');
+            bool as_csv = (dot && _stricmp(dot, ".csv") == 0)
+                          || (!dot && ofn.nFilterIndex == 2);
+
+            /* One buffer for either form.  The serialisers are
+             * snprintf-style: a return >= cap means truncation, which
+             * must not be written out as though it were complete. */
+            static char out[16384];
+            int need;
+            if (as_csv) {
+                int hdr = ns_stats_csv_header(out, sizeof(out));
+                if (hdr < 0 || (size_t)hdr >= sizeof(out)) { need = -1; }
+                else {
+                    out[hdr] = '\n';
+                    int row = ns_stats_to_csv_row(&state->lastStats,
+                                                  out + hdr + 1,
+                                                  sizeof(out) - hdr - 1);
+                    need = (row < 0 || (size_t)row >= sizeof(out) - hdr - 1)
+                           ? -1 : hdr + 1 + row;
+                }
+            } else {
+                need = ns_stats_to_json(&state->lastStats, out, sizeof(out));
+                if (need < 0 || (size_t)need >= sizeof(out)) need = -1;
+            }
+
+            if (need < 0) {
+                MessageBox(hwnd,
+                    "The statistics did not fit the export buffer, so "
+                    "nothing was written.\n\n"
+                    "Please report this: it means a stream carried more "
+                    "message types or constellations than the buffer "
+                    "allows for.",
+                    APP_TITLE, MB_OK | MB_ICONERROR);
+                return 0;
+            }
+
+            FILE *f = fopen(filename, "wb");
+            if (!f) {
+                char err[MAX_PATH + 96];
+                snprintf(err, sizeof(err), "Could not open for writing:\n%s",
+                         filename);
+                MessageBox(hwnd, err, APP_TITLE, MB_OK | MB_ICONERROR);
+                return 0;
+            }
+            size_t wrote = fwrite(out, 1, (size_t)need, f);
+            if (as_csv) fputc('\n', f);
+            bool ok = (wrote == (size_t)need) && (fclose(f) == 0);
+
+            char msg[MAX_PATH + 128];
+            snprintf(msg, sizeof(msg), "%s\n%s",
+                     ok ? "Statistics exported to:" : "Export FAILED writing:",
+                     filename);
+            AppendLog(state->hEditLog, ok ? "[INFO] Statistics exported\r\n"
+                                          : "[ERROR] Statistics export failed\r\n");
+            MessageBox(hwnd, msg, APP_TITLE,
+                       MB_OK | (ok ? MB_ICONINFORMATION : MB_ICONERROR));
+            return 0;
+        }
+
         case IDM_FILE_RTCM_START: {
             if (state->hRtcmDump) {
                 AppendLog(state->hEditLog,
@@ -2650,6 +2773,25 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 "seconds.",
                 state->ggaSendEnabled ? "ON" : "OFF");
             MessageBox(hwnd, msg, "VRS Test: GGA auto-send",
+                       MB_ICONINFORMATION | MB_OK);
+            return 0;
+        }
+
+        case IDM_TOOLS_AUTO_RECONNECT: {
+            state->autoReconnect = !state->autoReconnect;
+            CheckMenuItem(GetMenu(hwnd), IDM_TOOLS_AUTO_RECONNECT,
+                          MF_BYCOMMAND |
+                          (state->autoReconnect ? MF_CHECKED : MF_UNCHECKED));
+            char msg[420];
+            snprintf(msg, sizeof(msg),
+                "Auto-reconnect is now %s.\n\n"
+                "When on, a dropped stream is re-established automatically "
+                "with a backoff delay, the same mechanism the monitoring "
+                "service uses.\n\n"
+                "This takes effect the next time a stream is opened; the "
+                "current session keeps the setting it started with.",
+                state->autoReconnect ? "ON" : "OFF");
+            MessageBox(hwnd, msg, "Auto-reconnect",
                        MB_ICONINFORMATION | MB_OK);
             return 0;
         }

@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — File > Export Statistics
+
+Writes the session's statistics snapshot as JSON or CSV, chosen by the
+extension you type rather than only by the filter dropdown.
+
+It uses the same `ns_stats_to_json()` / `ns_stats_to_csv_row()`
+serialisers the monitoring daemon publishes through, so an exported file
+and a Munin sample describe a stream identically instead of in two
+dialects that drift apart.  The GUI now takes the session snapshot once
+a second (`stats_interval_s = 1.0`) to have something to write; it keeps
+its own per-message statistics as before.
+
+Truncation is treated as failure rather than written out as though it
+were complete: the serialisers are snprintf-style, and a half-written
+JSON object is worse than none.
+
+### Added — auto-reconnect in the GUI (Tools > Auto-reconnect on drop)
+
+The session layer has always reconnected with backoff -- the monitoring
+service depends on it -- but the GUI opted out at both worker sites with
+`auto_reconnect = false`.  It is now a menu toggle.
+
+**Off by default**, deliberately: the GUI has always required a manual
+reconnect, and silently re-establishing a stream changes what an
+unattended run means.  The setting applies to the next stream opened,
+not the running one.
+
+The Stream Health tab gains a **Reconnects** row so a re-established
+link is visible rather than showing up only as an unexplained gap in the
+history plot.
+
 ### Fixed — a config file missing one key crashed the program
 
 `load_config()` read required fields as

@@ -511,10 +511,10 @@ All items in this section are tagged `[design.md]`.
 | 4.1 | Real-time message rate graph | **Shipped** | Delivered as the Message rate panel of the item 2.1 Session History window — one charting path, not two |
 | 4.2 | Map widget showing base and rover positions | Partial | The browser-based map picker covers coordinate entry, and the VRS Monitor polar plot covers the base/rover relationship live. An in-window map remains unbuilt — reassess whether it is still wanted |
 | 4.3 | Multi-connection support | Partial | A second NTRIP connection exists but is purpose-built for ephemeris-only casters (`WorkerOpenEphStream`, `gui/gui_state.h:443`, commit `320f412`). Generalising it to N arbitrary streams for side-by-side base comparison is the remaining work |
-| 4.4 | Export analysis results to CSV / JSON | Open, **re-priced down** | `gui/gui_snapshot.c` exports the window as **PNG** only. The serialisers already exist and are in use by the daemon — `ns_stats_to_json()` and `ns_stats_to_csv_row()` (`src/core/ns_stats.c`). The remaining work is a menu item and a file dialog calling them on `ns_stats()`, not a format to design |
+| 4.4 | Export analysis results to CSV / JSON | **Shipped** | File > Export Statistics writes the session snapshot as JSON or CSV through  /  — the same serialisers the daemon publishes through, so an export and a Munin sample agree by construction. Format follows the typed extension, not just the filter. Truncation is a failure, not a partial write |
 | 4.5 | Dark mode / theme support | Open | Verified: no theme handling in `gui/` |
 | 4.6 | Tray icon for background monitoring | Open | Verified: no `Shell_NotifyIcon` call |
-| 4.7 | Auto-reconnect on connection drop | Open, **re-priced down** | Reconnect is manual only (`gui/gui_events.c:894`), but the mechanism exists: the session layer reconnects with backoff and the daemon relies on it. `gui/gui_thread.c` sets `opt.auto_reconnect = false` at two sites, "manual reconnect, as before". The work is a user-visible setting plus surfacing the reconnect on the item 2.1 timeline, not new reconnection logic |
+| 4.7 | Auto-reconnect on connection drop | **Shipped** | Tools > Auto-reconnect on drop, off by default so an unattended run means what it always did. Uses the session layer backoff the daemon relies on; applies to the next stream opened. Stream Health gains a Reconnects row, set before the function early-returns on a missing ARP so it shows on streams without 1005/1006 |
 
 ---
 

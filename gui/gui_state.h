@@ -475,6 +475,20 @@ typedef struct {
     NsGnssStats gnssStats[NS_MAX_GNSS];
     int         nGnssStats;
 
+    /* The session's full statistics snapshot, refreshed once a second
+     * from NS_EV_STATS.  Kept so File > Export Statistics writes exactly
+     * what the monitoring daemon publishes, through the same serialisers
+     * -- an exported file and a Munin sample describe the stream the
+     * same way rather than in two dialects. */
+    NsStatsSnapshot lastStats;
+    BOOL            haveStats;
+
+    /* Reconnect automatically after a drop, using the session layer's
+     * backoff.  Off by default: the GUI has always required a manual
+     * reconnect, and silently re-establishing a stream would change what
+     * an unattended run means. */
+    BOOL autoReconnect;
+
     /* ── Stream info (set by worker, read by UI) ─────────── */
     volatile LONG  streamBytes;       /* total data bytes received */
     volatile LONG  streamFormat;      /* 0=none, 1=RTCM3, 2=UBX, 3=SBF, 4=RT27, 5=LB2, 6=Unknown */

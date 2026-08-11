@@ -512,6 +512,15 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
         }
         break;
 
+    case NS_EV_STATS:
+        /* Kept whole so File > Export Statistics writes the same record
+         * the daemon publishes, through the same serialisers. */
+        if (ev->u.stats) {
+            state->lastStats = *ev->u.stats;
+            state->haveStats = TRUE;
+        }
+        break;
+
     case NS_EV_LOG:
         printf("[%s] %s\n",
                ev->u.log.level == NS_LOG_ERROR ? "ERROR" :
@@ -630,9 +639,12 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     NsOptions opt;
     ns_options_default(&opt);
     opt.config           = state->config;
-    opt.stats_interval_s = 0.0;    /* the GUI keeps its own statistics  */
+    /* The GUI keeps its own per-message statistics, but takes the
+     * session's snapshot once a second so Export Statistics has
+     * something to write. */
+    opt.stats_interval_s = 1.0;
     opt.send_gga         = false;  /* GGA is driven interactively below */
-    opt.auto_reconnect   = false;  /* manual reconnect, as before       */
+    opt.auto_reconnect   = state->autoReconnect ? true : false;
     opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI);
 
     NtripSession *sess = ns_open(&opt, ObsOnEvent, &ctx);
