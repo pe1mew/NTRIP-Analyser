@@ -110,6 +110,9 @@ typedef struct {
     bool decode_active;      /* true once a supported format is confirmed */
     bool unsupported_logged;
     bool first_data_check;   /* true until the first data byte is checked */
+    bool print_types;        /* live prints "1077 1087 ..."; replay would
+                              * flood the log at disk speed, so it doesn't */
+    long frames;             /* accepted frames, for the replay summary */
 } ObsCtx;
 
 /**
@@ -414,8 +417,11 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
         }
     }
 
-    printf("%d ", msg_type);
-    fflush(stdout);
+    c->frames++;
+    if (c->print_types) {
+        printf("%d ", msg_type);
+        fflush(stdout);
+    }
 }
 
 /** @brief Session events → the GUI's counters, log lines and messages. */
@@ -553,6 +559,7 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     ctx.state            = state;
     ctx.detected_format  = FMT_NONE;
     ctx.first_data_check = true;
+    ctx.print_types      = true;
 
     /* ── Pre-seed format from the sourcetable ─────────────────────────
      * RAW streams (RT27, LB2) are wrapped inside RTCM 3.x framing, so
@@ -697,12 +704,12 @@ static void eph_log(AppState *state, const char *fmt, ...)
     }
 }
 
-/* ── Ephemeris-only stream worker ─────────────────────────────────────────
+/* ── Ephemeris-only stream worker (session-layer adapter) ────────────────
  *
  * Runs in parallel with WorkerOpenStream when EPH_MOUNTPOINT is configured.
  * Connects to a separate caster (typically a public ephemeris service such
- * as Onocoy EPH or BKG BCEP00BKG0), parses RTCM frames, and feeds only
- * the ephemeris cache by calling decode_rtcm_1019 / 1045 / 1046 directly.
+ * as BKG BCEP00BKG0 or Kadaster BCEP00KAD0) and feeds only the ephemeris
+ * cache by calling the decode_rtcm_10xx ephemeris decoders directly.
  *
  * Deliberately does NOT:
  *   - send GGA (eph streams don't need a rover position),
@@ -711,9 +718,61 @@ static void eph_log(AppState *state, const char *fmt, ...)
  *   - post WM_APP_MSG_RAW (detail-window machinery is for the obs stream),
  *   - touch the byte-rate / status-bar counters.
  *
- * Lifetime is controlled via state->bStopRequestedEph; cleanup is via
- * WM_APP_STREAM_DONE from the obs worker tearing both down at once.
+ * Lifetime is controlled via state->bStopRequestedEph.
  */
+
+/** @brief Context for the ephemeris session's event handler. */
+typedef struct {
+    AppState *state;
+    int       eph_count;   /* ephemerides cached so far */
+} EphCtx;
+
+/** @brief Ephemeris session events: cache eph frames, log via eph_log. */
+static void EphOnEvent(const NsEvent *ev, void *user)
+{
+    EphCtx   *c     = (EphCtx *)user;
+    AppState *state = c->state;
+
+    switch (ev->type) {
+    case NS_EV_HANDSHAKE:
+        if (ev->u.handshake->status == 200) {
+            eph_log(state,
+                    "[EPH] Stream accepted by %s/%s -- decoding ephemerides\r\n",
+                    state->config.EPH_CASTER,
+                    state->config.EPH_MOUNTPOINT);
+        }
+        /* Rejection detail arrives via NS_EV_LOG; the session then ends. */
+        break;
+
+    case NS_EV_FRAME: {
+        const unsigned char *frame = ev->u.frame.data;
+        int payload_len = ev->u.frame.len - 6;
+
+        switch (ev->u.frame.msg_type) {
+        case 1019: decode_rtcm_1019(frame + 3, payload_len); c->eph_count++; break;
+        case 1020: decode_rtcm_1020(frame + 3, payload_len); c->eph_count++; break;
+        case 1041: decode_rtcm_1041(frame + 3, payload_len); c->eph_count++; break;
+        case 1042: decode_rtcm_1042(frame + 3, payload_len); c->eph_count++; break;
+        case 1044: decode_rtcm_1044(frame + 3, payload_len); c->eph_count++; break;
+        case 1045: decode_rtcm_1045(frame + 3, payload_len); c->eph_count++; break;
+        case 1046: decode_rtcm_1046(frame + 3, payload_len); c->eph_count++; break;
+        default:
+            /* Silently drop everything else -- including 1005/1006, which
+             * must not overwrite the obs caster's ARP. */
+            break;
+        }
+        break;
+    }
+
+    case NS_EV_LOG:
+        eph_log(state, "[EPH] %s\r\n", ev->u.log.text);
+        break;
+
+    default:
+        break;
+    }
+}
+
 DWORD WINAPI WorkerOpenEphStream(LPVOID param)
 {
     AppState *state = (AppState *)param;
@@ -727,207 +786,66 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
             state->config.EPH_PORT,
             state->config.EPH_MOUNTPOINT);
 
-    /* Refuse to start if no mountpoint is configured */
     if (state->config.EPH_MOUNTPOINT[0] == '\0' ||
         state->config.EPH_CASTER[0]     == '\0') {
         eph_log(state, "[EPH] Disabled (no caster/mountpoint configured)\r\n");
         return 0;
     }
 
-    /* ── DNS resolve ─────────────────────────────────────── */
-    struct addrinfo hints, *result = NULL;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
+    /* The session reads the primary connection fields, so map the EPH_*
+     * block onto a private copy of the config. */
+    EphCtx ctx;
+    ctx.state     = state;
+    ctx.eph_count = 0;
 
-    if (getaddrinfo(state->config.EPH_CASTER, NULL, &hints, &result) != 0) {
-        eph_log(state, "[EPH] DNS resolution failed for %s\r\n",
-                state->config.EPH_CASTER);
+    NsOptions opt;
+    ns_options_default(&opt);
+    opt.config = state->config;
+    strncpy(opt.config.NTRIP_CASTER, state->config.EPH_CASTER,
+            sizeof(opt.config.NTRIP_CASTER) - 1);
+    opt.config.NTRIP_PORT = state->config.EPH_PORT;
+    strncpy(opt.config.MOUNTPOINT, state->config.EPH_MOUNTPOINT,
+            sizeof(opt.config.MOUNTPOINT) - 1);
+    strncpy(opt.config.USERNAME, state->config.EPH_USERNAME,
+            sizeof(opt.config.USERNAME) - 1);
+    strncpy(opt.config.PASSWORD, state->config.EPH_PASSWORD,
+            sizeof(opt.config.PASSWORD) - 1);
+    opt.stats_interval_s = 0.0;
+    opt.send_gga         = false;
+    opt.auto_reconnect   = false;
+    opt.user_agent       = "NTRIP " NTRIP_ARTEFACT_GUI "/" NTRIP_VERSION_STRING;
+
+    NtripSession *sess = ns_open(&opt, EphOnEvent, &ctx);
+    if (!sess) {
+        eph_log(state, "[EPH] Out of memory opening the eph session\r\n");
         return 1;
     }
 
-    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (sock == INVALID_SOCKET) {
-        eph_log(state, "[EPH] Failed to create socket\r\n");
-        freeaddrinfo(result);
-        return 1;
-    }
-
-    struct sockaddr_in server;
-    server.sin_family = AF_INET;
-    server.sin_port   = htons(state->config.EPH_PORT);
-    server.sin_addr   = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
-    memset(&server.sin_zero, 0, 8);
-    freeaddrinfo(result);
-
-    if (connect(sock, (struct sockaddr *)&server, sizeof(server)) == SOCKET_ERROR) {
-        eph_log(state, "[EPH] Connection failed to %s:%d\r\n",
-                state->config.EPH_CASTER, state->config.EPH_PORT);
-        closesocket(sock);
-        return 1;
-    }
-
-    DWORD timeout_ms = 200;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
-               (const char *)&timeout_ms, sizeof(timeout_ms));
-
-    /* ── NTRIP GET ───────────────────────────────────────── */
-    char request[1024];
-    snprintf(request, sizeof(request),
-             "GET /%s HTTP/1.1\r\n"
-             "Host: %s\r\n"
-             "Ntrip-Version: Ntrip/2.0\r\n"
-             "User-Agent: NTRIP CClient/1.0\r\n"
-             "Authorization: Basic %s\r\n"
-             "\r\n",
-             state->config.EPH_MOUNTPOINT,
-             state->config.EPH_CASTER,
-             state->config.EPH_AUTH_BASIC);
-
-    if (send(sock, request, (int)strlen(request), 0) <= 0) {
-        eph_log(state, "[EPH] Failed to send NTRIP request\r\n");
-        closesocket(sock);
-        return 1;
-    }
-
-    eph_log(state, "[EPH] HTTP GET sent to %s:%d/%s; awaiting response...\r\n",
+    eph_log(state, "[EPH] Connecting to %s:%d/%s...\r\n",
             state->config.EPH_CASTER, state->config.EPH_PORT,
             state->config.EPH_MOUNTPOINT);
 
-    /* ── Receive loop (RTCM 3.x framing only) ────────────── */
-    unsigned char recv_buf[GUI_BUFFER_SIZE];
-    unsigned char msg_buf[GUI_BUFFER_SIZE];
-    int  msg_pos    = 0;
-    int  msg_target = 0;
-    bool header_done = false;
-    char header_buf[4096];
-    int  header_pos = 0;
-    int  eph_count = 0;   /* total ephemerides cached so far */
-
     while (!state->bStopRequestedEph) {
-        int n = recv(sock, (char *)recv_buf, sizeof(recv_buf), 0);
-        if (n == 0) {
-            eph_log(state, "[EPH] Server closed connection\r\n");
+        if (ns_pump(sess, 200) < 0)
             break;
-        }
-        if (n < 0) {
-            int err = WSAGetLastError();
-            if (err == WSAETIMEDOUT) continue;
-            eph_log(state, "[EPH] recv error %d\r\n", err);
-            break;
-        }
-
-        int start = 0;
-        if (!header_done) {
-            for (int i = 0; i < n && !header_done; i++) {
-                if (header_pos < (int)sizeof(header_buf) - 1)
-                    header_buf[header_pos++] = recv_buf[i];
-                if (header_pos >= 4 &&
-                    header_buf[header_pos - 4] == '\r' &&
-                    header_buf[header_pos - 3] == '\n' &&
-                    header_buf[header_pos - 2] == '\r' &&
-                    header_buf[header_pos - 1] == '\n') {
-                    header_done = true;
-                    start = i + 1;
-                    header_buf[header_pos] = '\0';
-                    if (!strstr(header_buf, "200") &&
-                        !strstr(header_buf, "ICY")) {
-                        eph_log(state, "[EPH] Server response:\r\n%s\r\n",
-                                header_buf);
-                        closesocket(sock);
-                        return 1;
-                    }
-                    eph_log(state,
-                            "[EPH] Stream accepted by %s/%s -- decoding ephemerides\r\n",
-                            state->config.EPH_CASTER,
-                            state->config.EPH_MOUNTPOINT);
-                }
-            }
-            if (!header_done) continue;
-        }
-
-        for (int i = start; i < n; i++) {
-            unsigned char b = recv_buf[i];
-
-            if (msg_pos == 0) {
-                if (b == 0xD3) msg_buf[msg_pos++] = b;
-                continue;
-            }
-            msg_buf[msg_pos++] = b;
-
-            if (msg_pos == 3) {
-                int msg_length = ((msg_buf[1] & 0x03) << 8) | msg_buf[2];
-                msg_target = msg_length + 6;
-                if (msg_target > GUI_BUFFER_SIZE) {
-                    msg_pos = 0; msg_target = 0;
-                    continue;
-                }
-            }
-
-            if (msg_target > 0 && msg_pos >= msg_target) {
-                /* Peek message number (first 12 bits of payload, which
-                 * starts at byte index 3 of the frame).  RTCM packs the
-                 * 12-bit field across bytes 3 and 4. */
-                int payload_len = msg_target - 6;
-                int mt = ((int)msg_buf[3] << 4) | ((int)msg_buf[4] >> 4);
-
-                switch (mt) {
-                case 1019:
-                    decode_rtcm_1019(&msg_buf[3], payload_len);
-                    eph_count++;
-                    break;
-                case 1020:
-                    decode_rtcm_1020(&msg_buf[3], payload_len);
-                    eph_count++;
-                    break;
-                case 1041:
-                    decode_rtcm_1041(&msg_buf[3], payload_len);
-                    eph_count++;
-                    break;
-                case 1042:
-                    decode_rtcm_1042(&msg_buf[3], payload_len);
-                    eph_count++;
-                    break;
-                case 1044:
-                    decode_rtcm_1044(&msg_buf[3], payload_len);
-                    eph_count++;
-                    break;
-                case 1045:
-                    decode_rtcm_1045(&msg_buf[3], payload_len);
-                    eph_count++;
-                    break;
-                case 1046:
-                    decode_rtcm_1046(&msg_buf[3], payload_len);
-                    eph_count++;
-                    break;
-                default:
-                    /* Silently drop everything else -- including 1005/1006
-                     * which we must not let overwrite the obs ARP. */
-                    break;
-                }
-
-                msg_pos = 0; msg_target = 0;
-            }
-        }
     }
 
-    closesocket(sock);
+    ns_close(sess);
 
     eph_log(state, "[EPH] Stream worker finished (%d ephemerides processed)\r\n",
-            eph_count);
+            ctx.eph_count);
 
     return 0;
 }
 
-/* ── RTCM replay worker ───────────────────────────────────────────────────
+/* ── RTCM replay worker (session-layer adapter) ──────────────────────────
  *
- * Reads a .rtcm3 capture file (raw RTCM frames concatenated) and feeds
- * each frame through the same UI-update pipeline the obs worker uses --
- * stats, satellites, raw-msg detail, sky-plot updates.  Pacing comes from
- * the 30-bit GPS epoch_time field in MSM headers: between consecutive
- * frames carrying a valid epoch_time we sleep by the diff, capped at 1 s
- * to skip over recording gaps.  Non-MSM frames advance the cursor without
- * sleeping.
+ * Replays a .rtcm3 capture through ns_open_file(), which feeds the frames
+ * through the identical framing, validation and event path as a live
+ * stream -- and through the same ObsOnEvent handler as the live worker,
+ * so replay and live analysis cannot diverge.  Frames arrive as fast as
+ * disk and CPU allow; there is no pacing, because for analysis the point
+ * is to get the whole picture into the UI immediately.
  *
  * Lifetime is shared with WorkerOpenStream via hWorkerThread /
  * bWorkerRunning / bStopRequested so Close Stream stops replay.  The eph
@@ -940,232 +858,42 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
     printf("[INFO] Replay: opening %s\n", state->replayPath);
     fflush(stdout);
 
-    FILE *f = fopen(state->replayPath, "rb");
-    if (!f) {
-        printf("[ERROR] Replay: cannot open file\n");
+    ObsCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.state           = state;
+    ctx.detected_format = FMT_RTCM3;   /* a capture is RTCM by definition */
+    ctx.decode_active   = true;
+    ctx.print_types     = false;       /* disk-speed replay would flood the log */
+
+    /* Status-bar label, even though no caster is involved. */
+    InterlockedExchange(&state->streamFormat, FMT_RTCM3);
+    PostMessage(state->hMain, WM_APP_STREAM_INFO, 0, 0);
+
+    NsOptions opt;
+    ns_options_default(&opt);
+    opt.config           = state->config;
+    opt.stats_interval_s = 0.0;
+
+    NtripSession *sess = ns_open_file(state->replayPath, &opt,
+                                      ObsOnEvent, &ctx);
+    if (!sess) {
+        printf("[ERROR] Replay: out of memory\n");
         fflush(stdout);
         PostMessage(state->hMain, WM_APP_STREAM_DONE, 0, 0);
         return 1;
     }
-
-    /* Tell the UI we're decoding "RTCM 3.x" so the status bar gets a sane
-     * label even though no caster is involved. */
-    InterlockedExchange(&state->streamFormat, 1 /* FMT_RTCM3 */);
-    PostMessage(state->hMain, WM_APP_STREAM_INFO, 0, 0);
-
-    unsigned char msg_buf[GUI_BUFFER_SIZE];
-    int  frames_decoded = 0;
-    long total_bytes    = 0;
+    ctx.sess = sess;
 
     while (!state->bStopRequested) {
-        /* Find the next 0xD3 preamble.  Re-sync if the file ends or has
-         * stray bytes between frames. */
-        int b;
-        do {
-            b = fgetc(f);
-            if (b == EOF) goto eof;
-        } while (b != 0xD3);
-
-        msg_buf[0] = (unsigned char)b;
-        int got = (int)fread(msg_buf + 1, 1, 2, f);   /* length bytes */
-        if (got < 2) break;
-
-        int msg_length = ((msg_buf[1] & 0x03) << 8) | msg_buf[2];
-        int frame_len  = msg_length + 6;              /* preamble + len + crc */
-        if (frame_len > GUI_BUFFER_SIZE) {
-            /* Bogus length -- try to resync from next byte. */
-            InterlockedIncrement(&state->healthResyncs);
-            continue;
-        }
-
-        got = (int)fread(msg_buf + 3, 1, frame_len - 3, f);
-        if (got < frame_len - 3) break;
-
-        /* ── Process the frame ── */
-        int msg_type = analyze_rtcm_message(msg_buf, frame_len, true,
-                                            &state->config);
-
-        /* Stream-health accounting -- see the live-stream worker above. */
-        if (msg_type == 0)
-            InterlockedIncrement(&state->healthCrcErrors);
-        else if (msg_type < 0)
-            InterlockedIncrement(&state->healthMalformed);
-        else
-            InterlockedIncrement(&state->healthFramesOk);
-
-        if (msg_type > 0 && msg_type < GUI_MAX_MSG_TYPES) {
-            frames_decoded++;
-            total_bytes += frame_len;
-            InterlockedExchangeAdd(&state->streamBytes, (LONG)frame_len);
-
-            /* Per-MSM-type stats -- epoch-sampled, see the obs worker. */
-            double now = gui_get_time_seconds();
-            GuiMsgStat *s = &state->msgStats[msg_type];
-
-            uint32_t epoch = 0;
-            bool has_epoch = msm_get_epoch(msg_buf + 3, msg_length,
-                                           msg_type, &epoch) != 0;
-            bool new_epoch = !has_epoch || !s->has_epoch || epoch != s->last_epoch;
-            if (has_epoch) {
-                s->last_epoch = epoch;
-                s->has_epoch  = true;
-            }
-
-            if (new_epoch) {
-                if (!s->seen) {
-                    s->seen = true;
-                    s->last_time = now;
-                    s->min_dt = s->max_dt = s->sum_dt = 0.0;
-                } else {
-                    double dt = now - s->last_time;
-                    s->last_time = now;
-                    s->sum_dt += dt;
-                    if (dt < s->min_dt || s->min_dt == 0.0) s->min_dt = dt;
-                    if (dt > s->max_dt) s->max_dt = dt;
-                }
-                s->epochs++;
-            }
-            s->count++;
-            PostMessage(state->hMain, WM_APP_STAT_UPDATE,
-                        (WPARAM)msg_type, (LPARAM)s->count);
-
-            /* Satellite stats + sky-plot update (same logic as obs worker) */
-            int payload_len_inner = msg_length;
-            extract_satellites(msg_buf + 3, payload_len_inner,
-                               msg_type, &state->satStats);
-            PostMessage(state->hMain, WM_APP_SAT_UPDATE, 0, 0);
-
-            /* Update per-band CNR cache for MSM7 frames so SV detail
-             * windows show live per-signal values from the replay. */
-            if ((msg_type % 10) == 7)
-                msm7_update_per_band_cnr(msg_buf + 3, payload_len_inner, msg_type);
-
-            /* Sky-plot pipeline: same gate as the obs worker. */
-            {
-                bool   arp_valid = false;
-                double sx = 0, sy = 0, sz = 0;
-                rtcm_get_station_arp(&arp_valid, &sx, &sy, &sz,
-                                     NULL, NULL, NULL);
-                if (!arp_valid &&
-                    (state->config.LATITUDE != 0.0 ||
-                     state->config.LONGITUDE != 0.0)) {
-                    geodetic_to_ecef(state->config.LATITUDE,
-                                     state->config.LONGITUDE,
-                                     0.0, &sx, &sy, &sz);
-                    arp_valid = true;
-                }
-
-                int prns[64];
-                int gnss_id = 0;
-                int n_prns = arp_valid
-                    ? msm_extract_prns(msg_buf + 3, payload_len_inner,
-                                       msg_type, prns, 64, &gnss_id)
-                    : 0;
-
-                int   cnr_n = 0, cnr_prn_list[64];
-                float cnr_prns[64];
-                if (n_prns > 0 && (msg_type % 10) == 7)
-                    cnr_n = msm7_extract_cnr(msg_buf + 3, payload_len_inner,
-                                             msg_type,
-                                             cnr_prn_list, cnr_prns, 64, NULL);
-                else
-                    for (int i = 0; i < 64; i++) cnr_prns[i] = 0.0f;
-
-                float cnr_by_prn[SV_EPH_MAX_SATS_PER_GNSS + 1];
-                for (int i = 0; i <= SV_EPH_MAX_SATS_PER_GNSS; i++)
-                    cnr_by_prn[i] = 0.0f;
-                for (int i = 0; i < cnr_n; i++) {
-                    int p = cnr_prn_list[i];
-                    if (p >= 1 && p <= SV_EPH_MAX_SATS_PER_GNSS)
-                        cnr_by_prn[p] = cnr_prns[i];
-                }
-
-                int upd_count = 0;
-                SkySatUpdate *upd = NULL;
-
-                if (n_prns > 0 &&
-                    (gnss_id == 1 || gnss_id == 2 ||
-                     gnss_id == 3 || gnss_id == 4 || gnss_id == 5 ||
-                     gnss_id == 7)) {
-                    int    gps_week;
-                    double gps_tow;
-                    sky_get_gps_time(&gps_week, &gps_tow);
-                    double glo_tod = sky_get_glo_tod();
-                    double t_prop  = (gnss_id == 2) ? glo_tod : gps_tow;
-
-                    uint64_t obs_mask = 0;
-                    for (int i = 0; i < n_prns; i++) {
-                        int p = prns[i];
-                        if (p >= 1 && p <= 64) obs_mask |= 1ULL << (p - 1);
-                    }
-
-                    upd = (SkySatUpdate *)HeapAlloc(GetProcessHeap(), 0,
-                        sizeof(SkySatUpdate) * SV_EPH_MAX_SATS_PER_GNSS);
-                    if (upd) {
-                        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++) {
-                            const SvEphemeris *eph = sv_eph_get(gnss_id, p);
-                            if (!eph) continue;
-                            if (!sv_eph_is_valid_at(eph, gps_week, t_prop))
-                                continue;
-                            double svx, svy, svz;
-                            if (!sv_to_ecef(eph, gps_week, t_prop,
-                                            &svx, &svy, &svz))
-                                continue;
-                            double az_d, el_d;
-                            azel_from_ecef(sx, sy, sz,
-                                           svx, svy, svz, &az_d, &el_d);
-                            if (el_d <= 0.0) continue;
-
-                            int observed_flag = (p >= 1 && p <= 64)
-                                ? ((obs_mask >> (p - 1)) & 1ULL) ? 1 : 0
-                                : 0;
-                            float cnr_dbhz = 0.0f;
-                            if (observed_flag &&
-                                p <= SV_EPH_MAX_SATS_PER_GNSS)
-                                cnr_dbhz = cnr_by_prn[p];
-
-                            upd[upd_count].gnss_id       = gnss_id;
-                            upd[upd_count].prn           = p;
-                            upd[upd_count].az_deg        = (float)az_d;
-                            upd[upd_count].el_deg        = (float)el_d;
-                            upd[upd_count].cnr_dbhz      = cnr_dbhz;
-                            upd[upd_count].observed_flag = observed_flag;
-                            upd_count++;
-                        }
-                    }
-                }
-
-                if (!PostMessage(state->hMain, WM_APP_SKY_UPDATE,
-                                 (WPARAM)upd_count, (LPARAM)upd)) {
-                    if (upd) HeapFree(GetProcessHeap(), 0, upd);
-                }
-            }
-
-            /* Raw-frame post for the detail window pipeline. */
-            RtcmRawMsg *raw = (RtcmRawMsg *)HeapAlloc(
-                GetProcessHeap(), 0, sizeof(RtcmRawMsg));
-            if (raw) {
-                raw->msg_type = msg_type;
-                raw->length   = frame_len;
-                memcpy(raw->data, msg_buf, frame_len);
-                if (!PostMessage(state->hMain, WM_APP_MSG_RAW,
-                                 (WPARAM)msg_type, (LPARAM)raw)) {
-                    HeapFree(GetProcessHeap(), 0, raw);
-                }
-            }
-
-            /* No pacing: replay parses frames as fast as the disk + CPU
-             * allow.  Real-time playback is only useful when the file
-             * has gaps we want to honour; for analysis we want to get
-             * the full picture into the UI immediately. */
-        }
+        if (ns_pump(sess, 0) < 0)
+            break;
     }
 
-eof:
-    fclose(f);
+    unsigned long long total = ns_stats(sess)->bytes_total;
+    ns_close(sess);
 
-    printf("\n[INFO] Replay finished: %d frames, %ld bytes from %s\n",
-           frames_decoded, total_bytes, state->replayPath);
+    printf("\n[INFO] Replay finished: %ld frames, %llu bytes from %s\n",
+           ctx.frames, total, state->replayPath);
     fflush(stdout);
 
     PostMessage(state->hMain, WM_APP_STREAM_DONE, 0, 0);
