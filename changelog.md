@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-11
+
+Major, because an executable was renamed: scripts calling `ntripanalyse`
+or `ntripanalyser` must be updated.  Everything else in this release is
+additive or a fix.
+
+### Fixed — the version number did not follow `version.h` either
+
+`v2.0.1` was tagged on a tree whose `version.h` still said `2.0.0`, so
+binaries built from that tag report the wrong release and its assets
+would have been named `2.0.0`.  Having made every *displayed* version
+derive from `version.h`, nothing was bumping `version.h` itself.
+
+The `release` target now refuses to package when the git tag on HEAD
+disagrees with `version.h` — packaging is the one moment where both
+facts are present at once, so it is the right place to check.  Bump the
+version in the commit that earns it, not at release time.
+
 ### Changed — the CLI is now `ntrip-analyser`
 
 It previously answered to four names: the artefact constant said

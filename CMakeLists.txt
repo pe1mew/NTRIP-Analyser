@@ -197,6 +197,12 @@ set(NTRIP_REL_TAG  "${PROJECT_VERSION}-${NTRIP_REL_OS}-${NTRIP_REL_ARCH}")
 set(NTRIP_DIST_DIR "${CMAKE_BINARY_DIR}/dist")
 
 add_custom_target(release
+    # Checked first, so a mismatch fails before anything is packaged.
+    COMMAND ${CMAKE_COMMAND}
+            -DVERSION=${PROJECT_VERSION}
+            -DSRC_DIR=${CMAKE_SOURCE_DIR}
+            -DNTRIP_ALLOW_TAG_MISMATCH=$<BOOL:${NTRIP_ALLOW_TAG_MISMATCH}>
+            -P "${CMAKE_SOURCE_DIR}/cmake/CheckReleaseTag.cmake"
     COMMAND ${CMAKE_COMMAND} -E remove_directory "${NTRIP_DIST_DIR}"
     COMMAND ${CMAKE_COMMAND} -E make_directory   "${NTRIP_DIST_DIR}"
     COMMENT "Packaging ${PROJECT_VERSION} for ${NTRIP_REL_OS}-${NTRIP_REL_ARCH}"

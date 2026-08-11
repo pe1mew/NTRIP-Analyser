@@ -26,33 +26,39 @@
  * single number makes a bug report unambiguous: "2.0.0" identifies the
  * exact source of every binary in the release.
  *
- * MAJOR — a user-visible contract breaks: a CLI option removed or given
- *         a new meaning, an incompatible config schema, a field removed
- *         or repurposed in the statistics snapshot, a renamed Munin
- *         field.
+ * MAJOR — a user-visible contract breaks: an executable or a CLI option
+ *         renamed or removed, an incompatible config schema, a field
+ *         removed or repurposed in the statistics snapshot, a renamed
+ *         Munin field.
  * MINOR — new capability, backward compatible.
  * PATCH — fixes only, no new capability.
+ *
+ * **Bump this in the same commit as the change that earns it, not at
+ * release time.**  v2.0.1 was tagged on a tree that still said 2.0.0
+ * here, so binaries built from that tag report the wrong release.  The
+ * `release` target now refuses to package when the git tag on HEAD and
+ * this file disagree (cmake/CheckReleaseTag.cmake).
  */
-#define NTRIP_VERSION_MAJOR   2
+#define NTRIP_VERSION_MAJOR   3
 #define NTRIP_VERSION_MINOR   0
 #define NTRIP_VERSION_PATCH   0
 
 /** Human-readable version.  Keep in step with the three numbers above. */
-#define NTRIP_VERSION_STRING  "2.0.0"
+#define NTRIP_VERSION_STRING  "3.0.0"
 
 /** Comma-separated form required by the Win32 VERSIONINFO resource. */
-#define NTRIP_VERSION_RC      2,0,0,0
+#define NTRIP_VERSION_RC      3,0,0,0
 
 /** Dotted four-part form for the Win32 resource string fields. */
-#define NTRIP_VERSION_RC_STR  "2.0.0.0"
+#define NTRIP_VERSION_RC_STR  "3.0.0.0"
 
 /**
  * Android requires a monotonically increasing integer independent of the
  * display name.  Derived as MAJOR*10000 + MINOR*100 + PATCH, which keeps
- * ordering correct while remaining readable: 2.0.0 is 20000, 2.1.3 is
- * 20103.  Minor and patch are therefore capped at 99.
+ * ordering correct while remaining readable: 3.0.0 is 30000, 3.1.3 is
+ * 30103.  Minor and patch are therefore capped at 99.
  */
-#define NTRIP_ANDROID_VERSION_CODE 20000
+#define NTRIP_ANDROID_VERSION_CODE 30000
 
 /* ── Product identity ─────────────────────────────────────────────── */
 #define NTRIP_PRODUCT_NAME    "NTRIP-Analyser"
