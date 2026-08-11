@@ -39,6 +39,7 @@ Set the various parameters
 - **USERNAME**: Username for HTTP Basic Authentication.
 - **PASSWORD**: Password for HTTP Basic Authentication.
 - **LATITUDE**/**LONGITUDE**: latitude and longitude of the rover ocation being emulated.
+
 ---
 
 ### 2. Command-Line Arguments
@@ -110,6 +111,7 @@ ntrip-analyser [options]
   ```sh
   ntrip-analyser -v -d
   ```
+
 ---
 
 ## Using NTRIP analyser
