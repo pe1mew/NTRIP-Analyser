@@ -5,6 +5,7 @@
 
 #include <winres.h>
 #include "resource.h"
+#include "core/version.h"
 
 /* ── Menu Bar ─────────────────────────────────────────────── */
 IDR_MAIN_MENU MENU
@@ -53,10 +54,13 @@ END
 /* This enables modern themed controls (XP+ visual styles)     */
 1 24 "gui/ntrip-gui.exe.manifest"
 
-/* ── Version Information ──────────────────────────────────── */
+/* ── Version Information ──────────────────────────────────────
+ * Values come from src/core/version.h so the GUI, CLI, service and
+ * Android app cannot drift apart.  windres resolves these macros; the
+ * header is deliberately free of #includes and types so it can. */
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,1,0,0
- PRODUCTVERSION 0,1,0,0
+ FILEVERSION NTRIP_VERSION_RC
+ PRODUCTVERSION NTRIP_VERSION_RC
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS 0x40004L
@@ -67,14 +71,14 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName",      "PE1MEW"
+            VALUE "CompanyName",      NTRIP_COMPANY_NAME
             VALUE "FileDescription",  "NTRIP RTCM 3.x Stream Analyser - GUI"
-            VALUE "FileVersion",      "0.1.0.0"
-            VALUE "InternalName",     "ntrip-analyser-gui"
+            VALUE "FileVersion",      NTRIP_VERSION_RC_STR
+            VALUE "InternalName",     NTRIP_ARTEFACT_GUI
             VALUE "LegalCopyright",   "Copyright (C) Remko Welling, PE1MEW"
             VALUE "OriginalFilename", "ntrip-analyser-gui.exe"
-            VALUE "ProductName",      "NTRIP-Analyser"
-            VALUE "ProductVersion",   "0.1.0.0"
+            VALUE "ProductName",      NTRIP_PRODUCT_NAME
+            VALUE "ProductVersion",   NTRIP_VERSION_RC_STR
         END
     END
     BLOCK "VarFileInfo"

@@ -4,7 +4,7 @@ A tool for analysing NTRIP RTCM 3.x data streams, available as both a command-li
 
 ## Screenshots
 
-![NTRIP-Analyser main window](manual/images/MainScreen.png)
+![NTRIP-Analyser main window](docs/images/MainScreen.png)
 
 *The main window. The Stream Health tab is flagging a real problem: this
 mountpoint advertises seven message types but one of them never arrives,
@@ -12,8 +12,8 @@ and the station has not broadcast its position at all.*
 
 <table>
 <tr>
-<td width="50%"><img src="manual/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks"></td>
-<td width="50%"><img src="manual/images/20260810134221_SignalQuality.png" alt="Signal quality: C/N0 bars and elevation scatter"></td>
+<td width="50%"><img src="docs/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks"></td>
+<td width="50%"><img src="docs/images/20260810134221_SignalQuality.png" alt="Signal quality: C/N0 bars and elevation scatter"></td>
 </tr>
 <tr>
 <td valign="top"><b>Sky Plot</b> — every tracked satellite at its azimuth and
@@ -24,8 +24,8 @@ elevation over the whole session. A healthy antenna rises steadily from
 horizon to zenith; obstructions show as a dip.</td>
 </tr>
 <tr>
-<td width="50%"><img src="manual/images/20260810134225_SessionHistory.png" alt="Session history strip charts"></td>
-<td width="50%"><img src="manual/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap"></td>
+<td width="50%"><img src="docs/images/20260810134225_SessionHistory.png" alt="Session history strip charts"></td>
+<td width="50%"><img src="docs/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap"></td>
 </tr>
 <tr>
 <td valign="top"><b>Session History</b> — throughput, message rate, CRC errors,
@@ -70,7 +70,7 @@ and in what they can show.
 - **Not on Windows** — the CLI is your only option; the GUI is Win32-native.
 
 Both are documented in full: **[GUI User Guide](docs/gui.md)** and
-**[CLI Documentation](docs/readme.md)**.
+**[CLI Manual](docs/cli.md)**.
 
 ### Command-Line Interface (CLI)
 
@@ -95,7 +95,7 @@ file via `-R`. It can also replay a capture offline:
 ntripanalyse --sky --rtcm-stdin -R nav.rnx < capture.rtcm3
 ```
 
-See the [CLI documentation](docs/readme.md) for the full option list.
+See the [CLI manual](docs/cli.md) for the full option list.
 
 ### Windows GUI Application
 
@@ -163,11 +163,14 @@ The analyser can perform the following operations on NTRIP streams:
 
 ## Documentation
 
+- **[Documentation Index](docs/readme.md)** — Which application, which page
 - **[Compilation Guide](docs/compile.md)** — Build instructions for Windows and Linux
 - **[GUI User Guide](docs/gui.md)** — Complete Windows GUI documentation
-- **[General Documentation](docs/readme.md)** — CLI usage and configuration
+- **[CLI Manual](docs/cli.md)** — Command-line usage and configuration
+- **[Service Manual](docs/service.md)** — ntrip-monitord and the Munin graphs
 - **[Feature Backlog](design/todo.md)** — What is shipped, what is planned, and why
-- **[GUI Design Document](gui/design.md)** — Architecture and design decisions
+- **[Architecture](design/architecture.md)** — Structure for sharing one core across the CLI, GUI, monitoring service and Android app
+- **[GUI Design Document](design/gui-design.md)** — Windows GUI design decisions
 
 ## Quick Start
 
@@ -175,7 +178,7 @@ The analyser can perform the following operations on NTRIP streams:
 
 **Windows CLI:**
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Ilib/cJSON -lws2_32 -lm -Wall
+gcc -g -o bin/ntripanalyse.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 **Windows GUI:**
@@ -186,7 +189,7 @@ build-gui.bat
 **Linux CLI:**
 ```bash
 mkdir -p bin
-gcc -g -o bin/ntripanalyser src/*.c lib/cjson/cJSON.c -Ilib/cjson -Wall -lm -lpthread
+gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
 ```
 
 See [compilation guide](docs/compile.md) for complete build instructions.

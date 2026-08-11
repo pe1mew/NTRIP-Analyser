@@ -21,8 +21,8 @@
 #include "gui_sky_window.h"
 #include "gui_sv_detail.h"
 #include "gui_snapshot.h"
-#include "rtcm3x_parser.h"
-#include "sv_ephemeris.h"
+#include "core/rtcm3x_parser.h"
+#include "core/sv_ephemeris.h"
 
 #include <math.h>
 #include <stdio.h>

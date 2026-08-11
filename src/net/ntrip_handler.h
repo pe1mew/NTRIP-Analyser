@@ -16,8 +16,7 @@
  *   - Fill an NTRIP_Config struct with connection and authentication details.
  *   - Use base64_encode() to prepare the AUTH_BASIC field.
  *   - Use receive_mount_table() to fetch the sourcetable from the caster.
- *   - Use start_ntrip_stream() or start_ntrip_stream_with_filter() to connect and process RTCM data.
- *   - Use analyze_message_types() or analyze_satellites_stream() for analysis.
+ *   - Stream consumption moved to src/session/ (see cli_stream.h for the CLI modes).
  *
  * For more information, see the project README and LICENSE files.
  */
@@ -138,39 +137,8 @@ void base64_encode(const char *input, char *output);
  */
 char* receive_mount_table(const NTRIP_Config *config);
 
-/**
- * @brief Starts the NTRIP stream from the configured mountpoint and prints RTCM message types.
- *
- * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,
- * and processes messages using the RTCM parser.
- *
- * @param config Pointer to NTRIP_Config struct with connection details.
- */
-void start_ntrip_stream(const NTRIP_Config *config);
 
-/**
- * @brief Starts the NTRIP stream with a filter for specific RTCM message types.
- *
- * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,
- * and processes messages using the RTCM parser, but only for the message types specified in the filter.
- *
- * @param config Pointer to NTRIP_Config struct with connection details.
- * @param filter_list Array of RTCM message type IDs to filter (e.g., {1005, 1006, 1007}).
- * @param filter_count Number of message types in the filter_list.
- * @param debug If true, print debug information including server response after login.
- */
-void start_ntrip_stream_with_filter(const NTRIP_Config *config, const int *filter_list, int filter_count, bool debug);
 
-/**
- * @brief Analyze RTCM message types for a given duration and print a summary table.
- *
- * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,
- * and analyzes the message types received for the specified duration.
- *
- * @param config Pointer to NTRIP_Config struct with connection details.
- * @param analysis_time Duration in seconds to analyze message types.
- */
-void analyze_message_types(const NTRIP_Config *config, int analysis_time);
 
 /**
  * @brief Returns the GNSS system ID from an RTCM message type.
@@ -192,16 +160,6 @@ int get_gnss_id_from_rtcm(int msg_type);
  */
 void extract_satellites(const unsigned char *data, int len, int msg_type, SatStatsSummary *summary);
 
-/**
- * @brief Opens NTRIP stream and analyzes satellites for a period.
- *
- * Connects to the NTRIP caster and mountpoint specified in the config, receives RTCM 3.x data,
- * and analyzes the satellites seen for the specified duration.
- *
- * @param config Pointer to NTRIP_Config struct with connection details.
- * @param analysis_time Duration in seconds to analyze satellites.
- */
-void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time);
 
 /**
  * @brief Returns the GNSS system name string for a given GNSS ID.
@@ -211,27 +169,6 @@ void analyze_satellites_stream(const NTRIP_Config *config, int analysis_time);
  */
 const char* gnss_name_from_id(int gnss_id);
 
-/**
- * @brief Run a secondary ephemeris-only NTRIP stream until @p stop_flag is set.
- *
- * Connects to the EPH_* mountpoint defined in @p config (a separate caster
- * from the obs mountpoint -- for example BKG's BCEP00BKG0 or Kadaster's
- * BCEP00KAD0) and decodes any RTCM 1019 / 1020 / 1041 / 1042 / 1044 /
- * 1045 / 1046 frames it receives, populating the per-SV ephemeris cache
- * used by sv_to_ecef().  No observation messages are touched.
- *
- * Intended to be called from a worker thread by the CLI `-s --sky` mode.
- *
- * @param config    NTRIP_Config with EPH_* fields populated and AUTH_BASIC
- *                  already computed for the EPH credentials.
- * @param stop_flag Volatile int pointer polled each iteration; the function
- *                  returns cleanly when *stop_flag becomes non-zero.
- * @param verbose   If true, log each ephemeris frame to stdout; otherwise
- *                  only connection-level messages are printed.
- * @return 0 on normal stop, -1 on connection / authentication failure.
- */
-int run_eph_stream(const NTRIP_Config *config,
-                   const volatile int *stop_flag, bool verbose);
 
 /**
  * @brief Formats a RINEX satellite ID for a given GNSS and PRN.

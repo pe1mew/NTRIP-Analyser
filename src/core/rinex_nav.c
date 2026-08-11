@@ -19,8 +19,8 @@
  * License: Apache License 2.0 with Commons Clause
  */
 
-#include "rinex_nav.h"
-#include "sv_ephemeris.h"
+#include "core/rinex_nav.h"
+#include "core/sv_ephemeris.h"
 
 #include <stdio.h>
 #include <stdlib.h>

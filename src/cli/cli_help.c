@@ -1,5 +1,5 @@
-#include "cli_help.h"
-#include "config.h"
+#include "cli/cli_help.h"
+#include "core/config.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>

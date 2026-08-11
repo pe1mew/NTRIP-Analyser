@@ -6,3 +6,12 @@ ntripanalyse.exe
 gui_main.o
 build_output.txt
 
+
+# Service build artifacts
+service/ntrip-monitord
+service/ntrip-monitord.exe
+!service/monitord.example.json
+
+# CMake build directories
+build/
+build-win/

@@ -54,7 +54,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "ntrip_handler.h"
+#include "net/ntrip_handler.h"
 
 #ifdef __cplusplus
 extern "C" {

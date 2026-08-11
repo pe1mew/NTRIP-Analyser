@@ -1,0 +1,7 @@
+# Files that execute on Linux must keep LF endings even on a Windows
+# checkout: a shell script whose shebang line ends in CRLF fails with
+# "bad interpreter", and systemd/sysusers parse best without CR.
+service/munin/ntrip_monitor  text eol=lf
+service/Makefile             text eol=lf
+service/*.service            text eol=lf
+service/*.sysusers           text eol=lf

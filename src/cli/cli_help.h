@@ -12,14 +12,19 @@
 #ifndef CLI_HELP_H
 #define CLI_HELP_H
 
-/** Single-source-of-truth version string for the CLI. */
-#define NTRIP_ANALYSER_VERSION  "0.3.0-dev"
+#include "core/version.h"
+
+/** @brief CLI version string.
+ *
+ * Retained as an alias so existing call sites keep compiling; the version
+ * itself now lives in `src/core/version.h`, shared by every artefact. */
+#define NTRIP_ANALYSER_VERSION  NTRIP_VERSION_STRING
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "config.h"
+#include "core/config.h"
 #include <stdbool.h>
 
 /**

@@ -12,7 +12,7 @@
  * License: Apache License 2.0 with Commons Clause
  */
 
-#include "sky_render.h"
+#include "core/sky_render.h"
 
 #include <ctype.h>
 #include <math.h>

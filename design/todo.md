@@ -222,6 +222,14 @@ The scatter is fed by its own accumulator (`SigCnrState`) on every MSM epoch rat
 trail buffer — the 60 s trail sampling yields one point per satellite per minute, far too sparse to
 read as a cloud.
 
+### 0.1 Displayed version numbers must follow `src/core/version.h` — **Open**
+
+The product version was unified at 2.0.0 in `src/core/version.h`, and the CLI banner and the GUI's
+Win32 version resource follow it — but the **About dialog still says "NTRIP-Analyser v0.1.0"**
+(`gui/gui_events.c:2625`, hardcoded). Sweep every user-visible version string onto
+`NTRIP_VERSION_STRING` so a release bump is one edit. Check the docs while at it: anything printing
+a literal version is a future lie.
+
 ### 1.4b Per-constellation C/N0 columns in the Satellites tab — **Open**
 
 The Satellites ListView still shows only `GNSS` / `Sats Seen` / `Satellites`
@@ -359,6 +367,9 @@ constellations, which item 1.4 would make detectable.
 
 ## Reference
 
+- [`design/architecture.md`](architecture.md) — how one core is to be shared across the CLI, the
+  Windows GUI, the planned monitoring service and the Android app. Several items here (4.4 export,
+  and anything the service or phone needs) depend on the statistics-snapshot schema defined there.
 - RTCM Standard: RTCM 10403.3 — Differential GNSS Services Version 3
 - NTRIP Protocol: [BKG NTRIP Documentation](https://igs.bkg.bund.de/ntrip/about)
-- GUI design document: [`gui/design.md`](../gui/design.md)
+- GUI design document: [`gui/design.md`](gui-design.md)

@@ -24,7 +24,7 @@
 
 #include "gui_vrs_window.h"
 #include "resource.h"
-#include "rtcm3x_parser.h"
+#include "core/rtcm3x_parser.h"
 
 #include <math.h>
 #include <stdio.h>

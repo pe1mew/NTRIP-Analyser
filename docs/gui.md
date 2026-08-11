@@ -59,14 +59,17 @@ It shares the same core library with the CLI application:
                          │  calls ↓         ↑ posts WM_APP+n
 ┌────────────────────────┴─────────────────────────────────────────────┐
 │                       Shared Core Library                             │
-│  src/ntrip_handler  .c/.h — NTRIP client, socket, analysis           │
-│  src/rtcm3x_parser  .c/.h — RTCM decoding, CRC, geodetic, az/el      │
-│  src/sv_ephemeris   .c/.h — Per-(GNSS,PRN) eph cache, TOW validity   │
-│  src/sv_orbit       .c/.h — Kepler + GLONASS RK4 propagators         │
-│  src/rinex_nav      .c/.h — RINEX 3 multi-GNSS NAV loader (GUI only) │
-│  src/config         .c/.h — JSON config load / generate              │
-│  src/nmea_parser    .c/.h — GGA sentence generation                  │
-│  lib/cJSON/cJSON    .c/.h — JSON parser                              │
+│  src/session/ntrip_session — the stream loop, shared by all four     │
+│  src/net/ntrip_proto       — NTRIP request/response text             │
+│  src/net/ntrip_handler     — sourcetable fetch, socket helpers       │
+│  src/core/ns_stats         — the statistics snapshot schema          │
+│  src/core/rtcm3x_parser    — RTCM decoding, CRC, geodetic, az/el     │
+│  src/core/sv_ephemeris     — Per-(GNSS,PRN) eph cache, TOW validity  │
+│  src/core/sv_orbit         — Kepler + GLONASS RK4 propagators        │
+│  src/core/rinex_nav        — RINEX 3 multi-GNSS NAV loader           │
+│  src/core/config           — JSON config load / generate             │
+│  src/core/nmea_parser      — GGA sentence generation                 │
+│  lib/cJSON/cJSON           — JSON parser                             │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -74,8 +77,10 @@ It shares the same core library with the CLI application:
 
 - **UI thread** — owns all `HWND`s, runs the message loop, paints the
   Sky Plot.
-- **Obs worker** — `WorkerOpenStream`, reads MSM4/MSM7 + 1005/1006 from
-  the primary NTRIP mountpoint, posts `WM_APP_*` updates.
+- **Obs worker** — `WorkerOpenStream`, drives an `NtripSession` and
+  translates its events into `WM_APP_*` updates.  The transport itself
+  (connect, framing, CRC) lives in `src/session/`, shared with the CLI
+  and the monitoring service.
 - **Eph worker** — `WorkerOpenEphStream`, reads 1019/1020/1042/1044/
   1045/1046 from the optional second NTRIP mountpoint, fills the
   shared ephemeris cache. Logs to the UI via `WM_APP_LOG_LINE`.
@@ -135,8 +140,10 @@ gcc -g -mwindows -std=c99 -D_USE_MATH_DEFINES -o bin/ntrip-analyser-gui.exe ^
     gui/gui_log.c gui/gui_parsers.c gui/gui_detail.c ^
     gui/gui_sky_window.c gui/gui_snapshot.c gui/gui_sv_detail.c ^
     gui/gui_vrs_window.c gui/gui_signal_window.c gui/gui_hist_window.c ^
-    src/ntrip_handler.c src/rtcm3x_parser.c src/config.c src/nmea_parser.c ^
-    src/sv_ephemeris.c src/sv_orbit.c src/rinex_nav.c ^
+    src/session/ntrip_session.c src/net/ntrip_proto.c src/net/ntrip_handler.c ^
+    src/core/ns_stats.c src/core/rtcm3x_parser.c src/core/config.c ^
+    src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c ^
+    src/core/rinex_nav.c ^
     lib/cJSON/cJSON.c gui/resource.o ^
     -Isrc -Ilib/cJSON -Igui ^
     -lws2_32 -lcomctl32 -lcomdlg32 -lgdiplus -lm -Wall
@@ -800,5 +807,5 @@ as disk and CPU allow.
 
 - [Main README](../readme.md) — Project overview and CLI information
 - [Compilation Guide](compile.md) — Detailed build instructions
-- [RTCM Parser Documentation](../src/rtcm3x_parser.h) — Message decoder API
-- [GUI Design Document](../gui/design.md) — Detailed architecture and design decisions
+- [RTCM Parser Documentation](../src/core/rtcm3x_parser.h) — Message decoder API
+- [GUI Design Document](../design/gui-design.md) — Detailed architecture and design decisions

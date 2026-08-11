@@ -1,0 +1,17 @@
+{
+  "_comment": "ntrip-monitord configuration. Copy to /etc/ntrip-monitord/monitord.json and edit. output_dir must match the Munin plugin's env.statedir (default /var/lib/ntrip-monitor).",
+  "output_dir": "/var/lib/ntrip-monitor",
+  "interval_s": 10,
+  "mountpoints": [
+    {
+      "caster": "rfsee.net",
+      "port": 2101,
+      "mountpoint": "RFSEE01",
+      "username": "user",
+      "password": "password",
+      "send_gga": false,
+      "latitude": 52.0,
+      "longitude": 6.0
+    }
+  ]
+}

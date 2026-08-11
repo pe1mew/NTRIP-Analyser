@@ -7,11 +7,11 @@
  * License: Apache License 2.0 with Commons Clause
  */
 
-#include "sky_collect.h"
-#include "sky_render.h"
-#include "rtcm3x_parser.h"
-#include "sv_ephemeris.h"
-#include "sv_orbit.h"
+#include "core/sky_collect.h"
+#include "core/sky_render.h"
+#include "core/rtcm3x_parser.h"
+#include "core/sv_ephemeris.h"
+#include "core/sv_orbit.h"
 
 #include <math.h>
 #include <stdint.h>

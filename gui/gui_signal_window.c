@@ -21,7 +21,7 @@
 #include "gui_signal_window.h"
 #include "gui_snapshot.h"
 #include "resource.h"
-#include "ntrip_handler.h"
+#include "net/ntrip_handler.h"
 
 #include <math.h>
 #include <stdio.h>

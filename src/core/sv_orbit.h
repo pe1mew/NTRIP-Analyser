@@ -15,7 +15,7 @@
 #define SV_ORBIT_H
 
 #include <stdbool.h>
-#include "sv_ephemeris.h"
+#include "core/sv_ephemeris.h"
 
 /**
  * @brief Propagate a broadcast ephemeris to ECEF position at GPS/Galileo time.
