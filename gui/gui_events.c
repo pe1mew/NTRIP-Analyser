@@ -16,9 +16,9 @@
 #include "gui_vrs_window.h"
 #include "gui_signal_window.h"
 #include "gui_hist_window.h"
-#include "rtcm3x_parser.h"
-#include "rinex_nav.h"
-#include "config.h"
+#include "core/rtcm3x_parser.h"
+#include "core/rinex_nav.h"
+#include "core/config.h"
 #include "cJSON.h"
 
 #include <stdio.h>

@@ -13,7 +13,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "ntrip_handler.h"
+#include "net/ntrip_handler.h"
 
 #ifdef __cplusplus
 extern "C" {

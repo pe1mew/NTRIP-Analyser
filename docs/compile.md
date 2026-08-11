@@ -8,22 +8,44 @@ The CLI executable links these `src/` modules:
 
 | Module | Purpose |
 |---|---|
-| `main.c` | Entry point, argument parsing, sky-mode dispatcher |
-| `ntrip_handler.c` | NTRIP client + TCP socket I/O; `run_eph_stream()` worker |
-| `rtcm3x_parser.c` | RTCM 3.x decoder (1005/1006/1019/1020/1041/1042/1044/1045/1046/MSM4/MSM7, etc.) |
-| `sv_ephemeris.c` | Per-(GNSS,PRN) ephemeris cache, TOW-only validity |
-| `sv_orbit.c` | Keplerian + GLONASS RK4 orbit propagators |
-| `rinex_nav.c` | RINEX 3 multi-GNSS NAV loader (used by both CLI `-R` and GUI) |
-| `sky_collect.c` | Per-MSM sector accumulator for the heatmap (`-s --sky`) |
-| `sky_render.c` | Portable polar heatmap renderer + embedded PNG encoder |
-| `config.c` | JSON config load/save |
-| `cli_help.c` | Help text + verbose-config table |
-| `nmea_parser.c` | NMEA GGA sentence generation |
+| `cli/main.c` | Entry point, argument parsing, sky-mode dispatcher |
+| `cli/cli_stream.c` | The `-d`/`-t`/`-s` modes and the `--sky` eph stream, as session event handlers |
+| `session/ntrip_session.c` | The NTRIP stream loop, shared by CLI, GUI and service |
+| `net/ntrip_proto.c` | NTRIP request construction and response parsing |
+| `net/ntrip_handler.c` | Sourcetable fetch and socket helpers |
+| `core/ns_stats.c` | Statistics snapshot and its JSON/CSV serialisers |
+| `core/rtcm3x_parser.c` | RTCM 3.x decoder (1005/1006/1019/1020/1041/1042/1044/1045/1046/MSM4/MSM7, etc.) |
+| `core/sv_ephemeris.c` | Per-(GNSS,PRN) ephemeris cache, TOW-only validity |
+| `core/sv_orbit.c` | Keplerian + GLONASS RK4 orbit propagators |
+| `core/rinex_nav.c` | RINEX 3 multi-GNSS NAV loader (used by both CLI `-R` and GUI) |
+| `core/sky_collect.c` | Per-MSM sector accumulator for the heatmap (`-s --sky`) |
+| `core/sky_render.c` | Portable polar heatmap renderer + embedded PNG encoder |
+| `core/config.c` | JSON config load/save |
+| `cli/cli_help.c` | Help text + verbose-config table |
+| `core/nmea_parser.c` | NMEA GGA sentence generation |
 
-The CLI no longer has any "GUI-only" sources; `rinex_nav.c` is now
-shared, and the new `sky_*.c` modules together with the embedded PNG
-encoder in `sky_render.c` mean the CLI can generate the same
-heatmap-snapshot PNG as the GUI without GDI+ or libpng.
+`src/` is layered: `core/` is pure computation with no I/O and no
+platform headers, so it compiles for the Android NDK unchanged; `net/`
+and `session/` add the NTRIP protocol and the shared stream loop; `cli/`
+holds only what is CLI-specific.  The GUI and the monitoring service link
+the same libraries.
+
+### CMake (all artefacts)
+
+The whole project also builds with CMake, which is what the Android NDK
+will use:
+
+```bash
+cmake -B build && cmake --build build
+```
+
+It produces `ntrip_core` and `ntrip_session` as static libraries and
+whichever executables the platform supports: the CLI everywhere, the GUI
+on Windows, `ntrip-monitord` on UNIX.  The project version is parsed out
+of `src/core/version.h`, so the build system cannot disagree with the
+binaries about the release number.
+
+The hand-written commands below remain for a quick compiler-only build.
 
 ### Windows
 This code was originally developed on Windows using the Mingw compiler that comes with Code::Blocks. For this the primary compiler was configured in Visual Studio Code. See [tasks.json](../.vscode/tasks.json).
@@ -32,7 +54,7 @@ For Windows: install Code::Blocks with Mingw compiler and Visual Studio Code. In
 
 Direct command line:
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli_stream.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
+gcc -g -o bin/ntripanalyse.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 ### Linux
@@ -48,7 +70,7 @@ mkdir -p bin
 
 To compile, in the root of the repository execute: 
 ```bash
-gcc -g -o bin/ntripanalyser src/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
+gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
 ```
 
 This command will:
@@ -84,7 +106,7 @@ on top of the CLI core:
 | `gui/gui_snapshot.c` | GDI+ PNG export helper and the shared save-with-prompt flow |
 | `gui/gui_sv_detail.c` | Per-SV detail popup (PRN, az/el, per-band CNR) |
 | `gui/resource.rc` | Menu bar, version info, manifest |
-| `src/rinex_nav.c` | RINEX 3 multi-GNSS NAV loader |
+| `src/core/rinex_nav.c` | RINEX 3 multi-GNSS NAV loader |
 
 Required link libraries: `-lws2_32 -lcomctl32 -lcomdlg32 -lgdiplus -lm`.
 `-lgdiplus` is needed for the PNG snapshot support in the Sky Plot,

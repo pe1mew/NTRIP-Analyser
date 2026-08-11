@@ -22,7 +22,7 @@
 #define CLI_STREAM_H
 
 #include <stdbool.h>
-#include "ntrip_handler.h"   /* NTRIP_Config */
+#include "net/ntrip_handler.h"   /* NTRIP_Config */
 
 #ifdef __cplusplus
 extern "C" {

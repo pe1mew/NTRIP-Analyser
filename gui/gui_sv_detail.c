@@ -14,7 +14,7 @@
 #include "gui_sv_detail.h"
 #include "resource.h"
 #include "gui_state.h"
-#include "rtcm3x_parser.h"
+#include "core/rtcm3x_parser.h"
 
 #include <stdio.h>
 #include <string.h>

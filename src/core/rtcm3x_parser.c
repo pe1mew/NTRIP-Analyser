@@ -19,8 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include "rtcm3x_parser.h"
-#include "sv_ephemeris.h"
+#include "core/rtcm3x_parser.h"
+#include "core/sv_ephemeris.h"
 
 /* ── Redirectable output buffer for decode functions ──────── */
 

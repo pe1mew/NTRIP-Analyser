@@ -170,7 +170,7 @@ The analyser can perform the following operations on NTRIP streams:
 - **[Service Manual](docs/service.md)** — ntrip-monitord and the Munin graphs
 - **[Feature Backlog](design/todo.md)** — What is shipped, what is planned, and why
 - **[Architecture](design/architecture.md)** — Structure for sharing one core across the CLI, GUI, monitoring service and Android app
-- **[GUI Design Document](gui/design.md)** — Windows GUI design decisions
+- **[GUI Design Document](design/gui-design.md)** — Windows GUI design decisions
 
 ## Quick Start
 
@@ -178,7 +178,7 @@ The analyser can perform the following operations on NTRIP streams:
 
 **Windows CLI:**
 ```batch
-gcc -g -o bin/ntripanalyse.exe src/main.c lib/cJSON/cJSON.c src/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli_stream.c src/ntrip_handler.c src/config.c src/cli_help.c src/nmea_parser.c src/sv_ephemeris.c src/sv_orbit.c src/sky_collect.c src/sky_render.c src/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
+gcc -g -o bin/ntripanalyse.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
 ```
 
 **Windows GUI:**
@@ -189,7 +189,7 @@ build-gui.bat
 **Linux CLI:**
 ```bash
 mkdir -p bin
-gcc -g -o bin/ntripanalyser src/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
+gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
 ```
 
 See [compilation guide](docs/compile.md) for complete build instructions.

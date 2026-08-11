@@ -13,10 +13,10 @@
  * License: Apache License 2.0 with Commons Clause
  */
 
-#include "cli_stream.h"
+#include "cli/cli_stream.h"
 #include "session/ntrip_session.h"
 #include "core/version.h"
-#include "rtcm3x_parser.h"
+#include "core/rtcm3x_parser.h"
 
 #include <stdio.h>
 #include <stdlib.h>

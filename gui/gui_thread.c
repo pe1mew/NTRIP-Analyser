@@ -12,10 +12,10 @@
 
 #include "resource.h"
 #include "gui_state.h"
-#include "rtcm3x_parser.h"
-#include "nmea_parser.h"
-#include "sv_ephemeris.h"
-#include "sv_orbit.h"
+#include "core/rtcm3x_parser.h"
+#include "core/nmea_parser.h"
+#include "core/sv_ephemeris.h"
+#include "core/sv_orbit.h"
 #include "session/ntrip_session.h"
 #include "core/version.h"
 

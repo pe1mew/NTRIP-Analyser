@@ -18,8 +18,8 @@
 #include <commctrl.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include "ntrip_handler.h"
-#include "sv_ephemeris.h"
+#include "net/ntrip_handler.h"
+#include "core/sv_ephemeris.h"
 #include "net/ntrip_proto.h"
 
 /* ── Application constants ────────────────────────────────── */

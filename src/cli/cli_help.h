@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-#include "config.h"
+#include "core/config.h"
 #include <stdbool.h>
 
 /**

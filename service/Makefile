@@ -18,11 +18,11 @@ SRC = ntrip-monitord.c \
       ../src/session/ntrip_session.c \
       ../src/net/ntrip_proto.c \
       ../src/core/ns_stats.c \
-      ../src/rtcm3x_parser.c \
-      ../src/nmea_parser.c \
-      ../src/sv_ephemeris.c \
-      ../src/sv_orbit.c \
-      ../src/rinex_nav.c \
+      ../src/core/rtcm3x_parser.c \
+      ../src/core/nmea_parser.c \
+      ../src/core/sv_ephemeris.c \
+      ../src/core/sv_orbit.c \
+      ../src/core/rinex_nav.c \
       ../lib/cJSON/cJSON.c
 
 BIN = ntrip-monitord

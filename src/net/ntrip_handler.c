@@ -1,6 +1,6 @@
-#include "ntrip_handler.h"
-#include "nmea_parser.h"
-#include "rtcm3x_parser.h"
+#include "net/ntrip_handler.h"
+#include "core/nmea_parser.h"
+#include "core/rtcm3x_parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -38,7 +38,7 @@
 
 #include "core/ns_stats.h"
 #include "net/ntrip_proto.h"
-#include "ntrip_handler.h"   /* NTRIP_Config */
+#include "net/ntrip_handler.h"   /* NTRIP_Config */
 
 #ifdef __cplusplus
 extern "C" {

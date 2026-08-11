@@ -26,15 +26,15 @@
 #include <sys/select.h>
 #endif
 #include "cJSON.h" // Include cJSON library
-#include "rtcm3x_parser.h" // Include RTCM parser header
-#include "ntrip_handler.h"
-#include "cli_stream.h"
-#include "config.h"
-#include "cli_help.h"
-#include "sky_collect.h"
-#include "sky_render.h"
-#include "rinex_nav.h"
-#include "nmea_parser.h"
+#include "core/rtcm3x_parser.h" // Include RTCM parser header
+#include "net/ntrip_handler.h"
+#include "cli/cli_stream.h"
+#include "core/config.h"
+#include "cli/cli_help.h"
+#include "core/sky_collect.h"
+#include "core/sky_render.h"
+#include "core/rinex_nav.h"
+#include "core/nmea_parser.h"
 
 #define BUFFER_SIZE 4096
 #define MAX_MSG_TYPES 4096

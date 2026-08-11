@@ -19,7 +19,7 @@
 #ifndef SKY_COLLECT_H
 #define SKY_COLLECT_H
 
-#include "sky_render.h"
+#include "core/sky_render.h"
 
 #ifdef __cplusplus
 extern "C" {

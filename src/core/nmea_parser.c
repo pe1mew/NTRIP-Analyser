@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <time.h>
-#include "nmea_parser.h"
+#include "core/nmea_parser.h"
 
 // Helper to calculate NMEA checksum
 static unsigned char nmea_checksum(const char *sentence) {

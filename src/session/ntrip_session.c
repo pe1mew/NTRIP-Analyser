@@ -21,8 +21,8 @@
 
 #include "session/ntrip_session.h"
 #include "core/version.h"
-#include "rtcm3x_parser.h"   /* crc24q, msm_get_epoch, get_bits */
-#include "nmea_parser.h"     /* GGA construction */
+#include "core/rtcm3x_parser.h"   /* crc24q, msm_get_epoch, get_bits */
+#include "core/nmea_parser.h"     /* GGA construction */
 
 #include <stdio.h>
 #include <stdarg.h>

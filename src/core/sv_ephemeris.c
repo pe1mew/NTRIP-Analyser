@@ -33,7 +33,7 @@
  * License: Apache License 2.0 with Commons Clause
  */
 
-#include "sv_ephemeris.h"
+#include "core/sv_ephemeris.h"
 
 #include <math.h>
 #include <string.h>

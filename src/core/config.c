@@ -7,7 +7,7 @@
  * License: Apache License 2.0 with Commons Clause (see LICENSE for details)
  */
 
-#include "config.h"
+#include "core/config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
