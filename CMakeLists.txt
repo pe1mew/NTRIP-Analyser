@@ -142,7 +142,14 @@ if(WIN32)
     # found.  Keeping resource.rc's path root-relative means both build
     # systems work from one file.
     set_source_files_properties(gui/resource.rc PROPERTIES
-        COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}/src -I${CMAKE_CURRENT_SOURCE_DIR}")
+        COMPILE_FLAGS "-I${CMAKE_CURRENT_SOURCE_DIR}/src -I${CMAKE_CURRENT_SOURCE_DIR}"
+        # CMake scans .rc files for #include, but ICON and the manifest
+        # reference their files by a bare path, which the scanner does not
+        # see.  Without these, editing the icon leaves windres thinking it
+        # is up to date and the executable keeps the previous one -- a
+        # stale-build trap that looks like the icon change silently
+        # failing.
+        OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gui/ntrip-analyser.ico;${CMAKE_CURRENT_SOURCE_DIR}/gui/ntrip-gui.exe.manifest")
 endif()
 
 # ── Monitoring service ────────────────────────────────────────────────
