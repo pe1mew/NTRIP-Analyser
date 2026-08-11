@@ -714,27 +714,161 @@ static inline AppState* GetAppState(HWND hwnd) {
     return (AppState*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 }
 
-/* ── Function declarations (implemented across gui_*.c files) */
+/* ── Function declarations (implemented across gui_*.c files) ────────
+ *
+ * @note **Threading.**  Everything here runs on the UI thread except the
+ *       four `Worker*` entry points, which run on their own thread and
+ *       communicate only by `PostMessage`.  The rule that keeps this
+ *       safe: a worker never touches a control handle, and the UI thread
+ *       never blocks on a worker.  The few AppState fields written by a
+ *       worker and read by the UI are marked where they are declared.
+ */
 
-/* gui_layout.c */
+/* ── gui_layout.c ──────────────────────────────────────────────────── */
+
+/**
+ * @brief Create every child control of the main window.
+ *
+ * Called once from `WM_CREATE`.  Stores each control's handle in
+ * @p state, which is how the rest of the program reaches them.
+ *
+ * @param hwnd  Main window.
+ * @param state Application state; receives the control handles.
+ */
 void CreateControls(HWND hwnd, AppState *state);
+
+/**
+ * @brief Reposition the child controls after a resize.
+ *
+ * Called from `WM_SIZE`.  Layout is computed rather than stored, so the
+ * window has no minimum-size assumptions beyond `WM_GETMINMAXINFO`.
+ *
+ * @param hwnd   Main window.
+ * @param state  Application state holding the control handles.
+ * @param width  New client-area width, pixels.
+ * @param height New client-area height, pixels.
+ */
 void ResizeControls(HWND hwnd, AppState *state, int width, int height);
 
-/* gui_events.c */
+/* ── gui_events.c ──────────────────────────────────────────────────── */
+
+/**
+ * @brief Main window procedure.
+ *
+ * Handles the window lifecycle, the menu and buttons, the 1 Hz status
+ * timer, and every `WM_APP_*` message the worker threads post.
+ *
+ * @return Result for the handled message, or `DefWindowProc` otherwise.
+ */
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-/* gui_thread.c */
+/* ── gui_thread.c ──────────────────────────────────────────────────────
+ *
+ * Each worker takes the AppState pointer as its `LPVOID param`, returns
+ * 0, and reports progress by posting to `state->hMain`.  None of them
+ * touches a control directly.
+ */
+
+/**
+ * @brief Fetch the caster's sourcetable and hand it to the UI.
+ *
+ * Posts `WM_APP_MOUNT_RESULT` with the raw table as a heap string, which
+ * the UI thread parses and frees.
+ *
+ * @param param AppState pointer.
+ * @return 0 always; failure is reported through the posted message.
+ */
 DWORD WINAPI WorkerGetMountpoints(LPVOID param);
+
+/**
+ * @brief Run the observation stream until stopped.
+ *
+ * Drives an @ref NtripSession and posts `WM_APP_STREAM_INFO` as the
+ * stream is characterised, `WM_APP_SOURCETABLE` if it fetched one to
+ * resolve a typed-in mountpoint, and `WM_APP_STREAM_DONE` on exit.
+ *
+ * @param param AppState pointer.
+ * @return 0 always.
+ */
 DWORD WINAPI WorkerOpenStream(LPVOID param);
+
+/**
+ * @brief Run the optional secondary ephemeris stream.
+ *
+ * Feeds only the `sv_ephemeris` cache, which the sky plot needs when the
+ * observation mountpoint broadcasts no ephemeris messages.  Reports
+ * through the log rather than the stream messages, since it has no
+ * bearing on the observation stream's state.
+ *
+ * @param param AppState pointer.
+ * @return 0 always.
+ */
 DWORD WINAPI WorkerOpenEphStream(LPVOID param);
+
+/**
+ * @brief Replay a captured `.rtcm3` file through the live code path.
+ *
+ * Uses the same session layer and the same event handler as
+ * @ref WorkerOpenStream, so a capture is analysed exactly as a live
+ * stream is, and posts the same messages.
+ *
+ * @param param AppState pointer; the path is `state->replayPath`.
+ * @return 0 always.
+ */
 DWORD WINAPI WorkerReplayRtcm(LPVOID param);
 
-/* gui_log.c */
+/* ── gui_log.c ─────────────────────────────────────────────────────────
+ *
+ * The decoders write to stdout with printf.  Rather than rewrite them
+ * for the GUI, stdout and stderr are redirected into a pipe and drained
+ * into the Log tab, so the CLI and the GUI show identical decoder text.
+ */
+
+/**
+ * @brief Redirect stdout and stderr into a pipe for the Log tab.
+ *
+ * Silently does nothing if the pipe cannot be created; the program still
+ * runs, it just shows no decoder output.
+ *
+ * @param state Application state; receives the pipe descriptors.
+ */
 void LogRedirectStart(AppState *state);
+
+/**
+ * @brief Restore stdout and stderr and close the pipe.
+ *
+ * Safe to call when redirection is not active.
+ *
+ * @param state Application state.
+ */
 void LogRedirectStop(AppState *state);
+
+/**
+ * @brief Drain whatever is waiting in the pipe into the Log control.
+ *
+ * Called from the log timer and again after bursts of message activity:
+ * `WM_TIMER` is low priority, so at high message rates Windows may not
+ * deliver it for long stretches and output would otherwise sit in the
+ * pipe. Reads only what is already available, so it never blocks the UI.
+ *
+ * @param state Application state.
+ */
 void LogPumpTimer(AppState *state);
 
-/* gui_parsers.c */
+/* ── gui_parsers.c ─────────────────────────────────────────────────── */
+
+/**
+ * @brief Parse a raw sourcetable into the mountpoint ListView.
+ *
+ * Fills one row per STR entry and computes each mountpoint's distance
+ * from the supplied position, which is what makes the list sortable by
+ * proximity — the usual way of choosing a base.
+ *
+ * @param raw      Raw sourcetable text from the caster.
+ * @param listview Destination ListView; cleared first.
+ * @param userLat  Reference latitude, degrees, for the distance column.
+ * @param userLon  Reference longitude, degrees.
+ */
 void ParseMountTable(const char *raw, HWND listview, double userLat, double userLon);
 
 /**
@@ -772,14 +906,66 @@ int ParseAdvertisedTypes(const char *details, float *out);
 const char *stristr(const char *haystack, const char *needle);
 
 
-/* gui_events.c — config helpers */
+/* ── gui_events.c — config helpers ─────────────────────────────────────
+ *
+ * The edit fields are the authority while the user is typing, and
+ * `state->config` is the authority once anything acts on it.  These two
+ * move the values across, and are called at the boundaries: read the
+ * fields before connecting, write them after loading a file.
+ */
+
+/**
+ * @brief Copy the connection edit fields into `state->config`.
+ *
+ * Call before anything reads the config -- connecting, saving, or
+ * launching a worker -- so edits made since the last sync are included.
+ *
+ * @param state Application state; `config` is overwritten from the fields.
+ */
 void GuiToConfig(AppState *state);
+
+/**
+ * @brief Fill the connection edit fields from `state->config`.
+ *
+ * The reverse of @ref GuiToConfig, used after loading a configuration
+ * file or generating a template.
+ *
+ * @param state Application state; the fields are overwritten.
+ */
 void ConfigToGui(AppState *state);
 
-/* gui_events.c — RTCM message description lookup */
+/* ── gui_events.c — RTCM message description lookup ────────────────── */
+
+/**
+ * @brief Human-readable description of an RTCM message type.
+ *
+ * For example 1077 gives "MSM7 GPS".  Used for the Msg Stats
+ * Description column and for detail-window titles.
+ *
+ * @param msg_type RTCM message number.
+ * @return A static string, never NULL; an empty string for an unknown
+ *         type, so callers can print it unconditionally.
+ */
 const char* RtcmMsgDescription(int msg_type);
 
-/* gui_detail.c */
+/* ── gui_detail.c ──────────────────────────────────────────────────── */
+
+/**
+ * @brief Open a live detail window for one RTCM message type.
+ *
+ * The window shows each frame of that type as it arrives, decoded.  It
+ * registers its class on first use and titles itself from
+ * @ref RtcmMsgDescription, e.g. "RTCM 1077 - MSM7 GPS".
+ *
+ * The caller records the handle in `state->hDetailWnds[msg_type]`; the
+ * window posts `WM_APP_DETAIL_CLOSED` when it closes so that slot can be
+ * cleared.
+ *
+ * @param hInst    Module instance.
+ * @param hParent  Owner window.
+ * @param msg_type RTCM message number to follow.
+ * @return The new window, or NULL if creation failed.
+ */
 HWND CreateDetailWindow(HINSTANCE hInst, HWND hParent, int msg_type);
 
 #endif /* GUI_STATE_H */

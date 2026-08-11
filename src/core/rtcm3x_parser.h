@@ -321,18 +321,6 @@ uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len);
 uint32_t crc24q(const uint8_t *data, size_t length);
 
 /**
- * @brief Extract a signed 38-bit integer from a buffer.
- * 
- * Extracts a 38-bit signed integer value from the buffer and properly handles
- * two's complement negative numbers.
- *
- * @param buf        Pointer to the buffer.
- * @param start_bit  Start bit index (0 = first bit of buf[0]).
- * @return Extracted signed 38-bit integer as int64_t.
- */
-int64_t extract_signed38(const unsigned char *buf, int start_bit);
-
-/**
  * @brief Extract a signed N-bit integer from a buffer.
  * 
  * Generic function to extract signed integers of any bit length from the buffer,
@@ -444,17 +432,6 @@ void decode_rtcm_1019(const unsigned char *payload, int payload_len);
 void decode_rtcm_1077(const unsigned char *payload, int payload_len);
 
 /**
- * @brief Decode and print the contents of an RTCM 3.x Type 1084 message (MSM4 GPS).
- *
- * Decodes and prints summary information for RTCM 1084 MSM4 (GPS) messages,
- * including satellite and signal masks, and the first few cell data.
- *
- * @param payload     Pointer to the message payload (after header).
- * @param payload_len Length of the payload in bytes.
- */
-void decode_rtcm_1084(const unsigned char *payload, int payload_len);
-
-/**
  * @brief Decode and print the contents of an RTCM 3.x Type 1087 message (MSM7 GLONASS).
  * 
  * MSM7 for GLONASS constellation providing full precision multi-signal observations
@@ -468,17 +445,6 @@ void decode_rtcm_1084(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1087(const unsigned char *payload, int payload_len);
-
-/**
- * @brief Decode and print the contents of an RTCM 3.x Type 1094 message (MSM4 GLONASS).
- *
- * Decodes and prints summary information for RTCM 1094 MSM4 (GLONASS) messages,
- * including satellite and signal masks, and the first few cell data.
- *
- * @param payload     Pointer to the message payload (after header).
- * @param payload_len Length of the payload in bytes.
- */
-void decode_rtcm_1094(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1097 message (MSM7 Galileo).
@@ -508,17 +474,6 @@ void decode_rtcm_1097(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1117(const unsigned char *payload, int payload_len);
-
-/**
- * @brief Decode and print the contents of an RTCM 3.x Type 1124 message (MSM4 QZSS).
- *
- * Decodes and prints summary information for RTCM 1124 MSM4 (QZSS) messages,
- * including satellite and signal masks, and the first few cell data.
- *
- * @param payload     Pointer to the message payload (after header).
- * @param payload_len Length of the payload in bytes.
- */
-void decode_rtcm_1124(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1127 message (MSM7 BeiDou).
@@ -742,16 +697,6 @@ void decode_rtcm_1230(const unsigned char *payload, int payload_len);
  * @param payload_len Length of the payload in bytes.
  */
 void decode_rtcm_1012(const unsigned char *payload, int payload_len);
-
-/**
- * @brief Decode RTCM 1074 MSM4 (GPS) message.
- *
- * Decodes and prints summary information for RTCM 1074 MSM4 (GPS) messages.
- *
- * @param payload Pointer to the RTCM message payload (after header).
- * @param payload_len Length of the payload in bytes.
- */
-void decode_rtcm_1074(const unsigned char *payload, int payload_len);
 
 /**
  * @brief Generic decoder for RTCM MSM4 messages (shared for GPS, GLONASS, Galileo, QZSS, etc.).

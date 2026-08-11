@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Removed — dead code in the RTCM parser
+
+`decode_rtcm_1074`, `_1084`, `_1094` and `_1124` were per-type MSM4
+decoders superseded by `decode_rtcm_msm4_generic()`, which the dispatcher
+has called for some time.  `extract_signed38()` had no caller at all.
+365 lines, none of them reachable.
+
+Found by linking with `--gc-sections --print-gc-sections` and taking the
+functions discarded by both Linux targets, then checking each candidate
+against the whole tree — a function used only by the Windows GUI looks
+dead from a Linux link, so the linker's verdict alone would have removed
+live code.
+
+Everything else the sweep flagged is deliberate public API with no
+current consumer: `ns_run()`, `ns_handshake()`, `ns_uptime()`,
+`ns_stats_gnss()`, `sky_collect_reset()` and
+`msm_get_multiple_message_bit()`.  `ns_run()` in particular is justified
+in `design/architecture.md` §3.2, and `msm_get_multiple_message_bit()` is
+recorded in the backlog as deliberately exposed.  Removing those would
+reverse recorded decisions, so they stay.
+
+Replaying the reference capture gives byte-identical results either way:
+206 frames, 39 satellites, 45.46 dB-Hz.  `-Wall -Wextra` reports nothing
+across `core/`, `net/`, `session/` and `cli/`.
+
+### Documented — every header declaration now carries a Doxygen block
+
+The gaps were all in `gui/gui_state.h`, whose cross-module declaration
+block used `/* gui_layout.c */` group comments in place of
+documentation: fifteen functions, including all four worker-thread entry
+points and the whole log-redirection mechanism.
+
+The block now also states the threading contract, which was the part
+that could not be inferred from the signatures: everything runs on the
+UI thread except the four `Worker*` functions, which communicate only by
+`PostMessage`, never touch a control handle, and are never blocked on.
+
 ### Fixed — `SHA256SUMS` could not be checked on Linux
 
 CMake's `file(WRITE)` opens in text mode on Windows and turns each LF
