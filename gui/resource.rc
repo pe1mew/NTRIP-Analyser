@@ -39,6 +39,8 @@ BEGIN
         MENUITEM "&VRS Monitor...",                   IDM_VIEW_VRS_MONITOR
         MENUITEM "Signal &Quality...",                IDM_VIEW_SIGNAL_QUALITY
         MENUITEM "Session &History...",               IDM_VIEW_HISTORY
+        MENUITEM "&Ionosphere...",                    IDM_VIEW_IONO
+        MENUITEM "Ionosphere S&ky...",                IDM_VIEW_IONO_SKY
     END
     POPUP "&Tools"
     BEGIN

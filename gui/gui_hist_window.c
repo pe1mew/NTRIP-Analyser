@@ -40,6 +40,7 @@
 #define HW_SATS          RGB(180,  40, 160)   /* magenta*/
 #define HW_CNR           RGB(220, 130,  20)   /* orange */
 #define HW_DRIFT         RGB( 30, 170, 180)   /* teal   */
+#define HW_ROTI          RGB(140,  60, 200)   /* purple */
 
 #define HW_HEADER_H      52
 #define HW_FOOTER_H      38    /* tick labels + axis caption */
@@ -110,6 +111,7 @@ typedef enum {
     HW_SERIES_SATS,
     HW_SERIES_CNR,
     HW_SERIES_DRIFT,
+    HW_SERIES_ROTI,
     HW_SERIES_COUNT
 } HwSeries;
 
@@ -133,6 +135,9 @@ static const struct {
     { "Satellites tracked",  "count",   HW_SATS,       0.0,  0.0  },
     { "Mean C/N0",           "dB-Hz",   HW_CNR,        20.0, 60.0 },
     { "Reference drift",     "m",       HW_DRIFT,      0.0,  0.0  },
+    /* Auto-ranged from zero: quiet days sit near 0.05 TECU/min and the
+     * panel's value is seeing a rise, whatever its absolute size. */
+    { "Ionosphere ROTI",     "TECU/min", HW_ROTI,     0.0,  0.0  },
 };
 
 /** @brief Pull one series' value out of a sample, or NAN if not applicable. */
@@ -144,6 +149,7 @@ static double series_value(const HistSample *s, HwSeries which)
     case HW_SERIES_CRC:    return (double)s->crc_errors;
     case HW_SERIES_SATS:   return (double)s->sats;
     case HW_SERIES_CNR:    return s->cnr_mean > 0.0f ? s->cnr_mean : NAN;
+    case HW_SERIES_ROTI:   return s->roti >= 0.0f ? s->roti : NAN;
     case HW_SERIES_DRIFT:  return s->arp_delta_m >= 0.0f ? s->arp_delta_m : NAN;
     default:               return NAN;
     }

@@ -125,6 +125,8 @@
                 "gui/gui_vrs_window.c",
                 "gui/gui_signal_window.c",
                 "gui/gui_hist_window.c",
+                "gui/gui_iono_window.c",
+                "gui/gui_iono_sky_window.c",
                 "src/core/ns_stats.c",
                 "src/net/ntrip_proto.c",
                 "src/session/ntrip_session.c",

@@ -16,6 +16,8 @@
 #include "gui_vrs_window.h"
 #include "gui_signal_window.h"
 #include "gui_hist_window.h"
+#include "gui_iono_window.h"
+#include "gui_iono_sky_window.h"
 #include "core/rtcm3x_parser.h"
 #include "core/rinex_nav.h"
 #include "core/config.h"
@@ -464,6 +466,7 @@ static void HistorySample(AppState *state, double now)
     }
     s.sats     = (uint8_t)(nsat > 255 ? 255 : nsat);
     s.cnr_mean = cnr_n ? (float)(cnr_sum / cnr_n) : 0.0f;
+    s.roti     = state->haveStats ? state->lastStats.iono_roti_median : -1.0f;
 
     /* Reference-point drift from the first ARP of the session.  The
      * reference is latched once and never moved: re-centring on the
@@ -690,6 +693,29 @@ static void RefreshStreamHealth(AppState *state)
                      state->autoReconnect
                        ? "Auto-reconnect is on (Tools menu)"
                        : "Auto-reconnect is off (Tools menu)",
+                     HEALTH_OK);
+    }
+
+    /* Ionosphere.  Set here for the same reason as Reconnects: rows
+     * written after the no-ARP early return would never appear on a
+     * stream that broadcasts no 1005/1006. */
+    if (state->haveStats && state->lastStats.iono_roti_median >= 0.0f) {
+        const NsStatsSnapshot *ls = &state->lastStats;
+        snprintf(v, sizeof(v), "%s", iono_verdict_name(ls->iono_verdict));
+        snprintf(d, sizeof(d),
+                 "Median ROTI %.2f TECU/min (worst SV %.2f) over %d "
+                 "dual-frequency satellites, %d slips. Temporal proxy at "
+                 "the base, not the base-rover gradient itself",
+                 ls->iono_roti_median, ls->iono_roti_max,
+                 ls->iono_sats_dualfreq, ls->iono_slips);
+        HealthSetRow(hLv, 15, "Ionosphere", v, d,
+                     ls->iono_verdict == IONO_DISTURBED ? HEALTH_BAD :
+                     ls->iono_verdict == IONO_UNSETTLED ? HEALTH_WARN
+                                                        : HEALTH_OK);
+    } else {
+        HealthSetRow(hLv, 15, "Ionosphere", "-",
+                     "Needs MSM7 with two frequencies per satellite and a "
+                     "minute of unbroken carrier phase",
                      HEALTH_OK);
     }
 
@@ -2875,6 +2901,18 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             return 0;
 
+        case IDM_VIEW_IONO: {
+            HINSTANCE hi = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+            IonoWindowOpen(hi, hwnd, state);
+            return 0;
+        }
+
+        case IDM_VIEW_IONO_SKY: {
+            HINSTANCE hi = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+            IonoSkyWindowOpen(hi, hwnd, state);
+            return 0;
+        }
+
         case IDM_VIEW_HISTORY:
             if (state->hHistWnd) {
                 if (IsIconic(state->hHistWnd))
@@ -3271,6 +3309,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                      * still governed by last_seen_ts. */
                     if (upd[i].cnr_dbhz > 0.0f)
                         s->cnr_dbhz = upd[i].cnr_dbhz;
+                    s->roti         = upd[i].roti;
                     s->last_seen_ts = now;
                     s->valid        = true;
 
@@ -3315,6 +3354,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         tb->pts[tb->head].az_deg   = upd[i].az_deg;
                         tb->pts[tb->head].el_deg   = upd[i].el_deg;
                         tb->pts[tb->head].cnr_dbhz = upd[i].cnr_dbhz;
+                        tb->pts[tb->head].roti     = upd[i].roti;
                         tb->pts[tb->head].ts_rel   = now_rel;
                         tb->head = (tb->head + 1) % SKY_TRACK_CAP;
                         if (tb->count < SKY_TRACK_CAP) tb->count++;

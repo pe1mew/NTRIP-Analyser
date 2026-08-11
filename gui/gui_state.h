@@ -21,6 +21,7 @@
 #include "net/ntrip_handler.h"
 #include "core/sv_ephemeris.h"
 #include "core/ns_stats.h"
+#include "core/iono.h"
 #include "net/ntrip_proto.h"
 #include "resource.h"    /* IDI_APP_ICON; pure #defines, also fed to windres */
 
@@ -136,15 +137,18 @@ typedef struct {
     float az_deg;
     float el_deg;
     float cnr_dbhz;       /**< C/N0 at this sample (0 = unknown) */
+    float roti;           /**< ROTI at this sample, TECU/min; -1 = unknown */
     float ts_rel;         /**< seconds since SkyPlotState.sessionT0 */
 } SkyTrackPoint;
 
 /* Compile-time guard on the size above.  The trail buffer holds
- * SKY_TRACK_CAP * 8 * 64 of these, so a silent widening to 24 bytes --
- * which is what reintroducing a double would do -- would cost 5.6 MB
- * without anyone noticing.  C99 has no _Static_assert, hence the
- * negative-array-size idiom. */
-typedef char sky_track_point_is_16_bytes[(sizeof(SkyTrackPoint) == 16) ? 1 : -1];
+ * SKY_TRACK_CAP * 8 * 64 of these, so a silent widening -- a double slips
+ * in, say -- costs megabytes without anyone noticing.   20 bytes was a
+ * deliberate 16->20 widening (2026-08): carrying ROTI per point is what
+ * makes the trail a timelapse of ionospheric structure, ~2.9 MB for the
+ * whole buffer.  C99 has no _Static_assert, hence the negative-array-size
+ * idiom. */
+typedef char sky_track_point_is_20_bytes[(sizeof(SkyTrackPoint) == 20) ? 1 : -1];
 
 /** @brief Sampling interval (seconds) between track-buffer points.
  *
@@ -203,6 +207,7 @@ typedef struct {
     float    frames_per_s; /**< RTCM frames decoded this interval */
     float    cnr_mean;     /**< mean C/N0 over tracked SVs, 0 = unknown */
     float    arp_delta_m;  /**< metres from the session's first ARP, -1 = unknown */
+    float    roti;         /**< median ROTI, TECU/min; -1 = unknown */
     uint16_t crc_errors;   /**< CRC failures in this interval */
     uint8_t  sats;         /**< satellites tracked */
     uint8_t  reserved;
@@ -289,6 +294,7 @@ typedef struct {
     double el_deg;        /**< -90..+90, +90 = zenith */
     double last_seen_ts;  /**< gui_get_time_seconds() at last update */
     float  cnr_dbhz;      /**< best CNR this epoch (0 = unknown) */
+    float  roti;          /**< ROTI, TECU/min; -1 = unknown */
     bool   valid;
     SkyTrackBuffer track; /**< history of observed positions since stream open */
 } SkySat;
@@ -398,6 +404,7 @@ typedef struct {
     float az_deg;
     float el_deg;
     float cnr_dbhz;
+    float roti;            /* median-window ROTI, TECU/min; -1 = unknown */
     int   observed_flag;   /* 1 = was in this MSM frame's sat-mask; 0 = expected via eph only */
 } SkySatUpdate;
 
@@ -499,6 +506,18 @@ typedef struct {
      * repaint, which is not worth a critical section on the frame path. */
     NsGnssStats gnssStats[NS_MAX_GNSS];
     int         nGnssStats;
+
+    /* Per-satellite ionospheric view, copied from the session by the
+     * worker each frame; read by the Ionosphere window and the sky
+     * overlay on the UI thread.  Same lock-free single-writer contract
+     * as gnssStats above.  The sig_a/sig_b labels point at static tables
+     * in the parser, so they are safe to read from any thread. */
+    IonoSatView ionoView[64];
+    int         nIonoView;
+
+    /* Ionosphere sky window: heatmap vs per-dot track presentation,
+     * toggled with the space bar in that window. */
+    BOOL ionoSkyHeatmap;
 
     /* The session's full statistics snapshot, refreshed once a second
      * from NS_EV_STATS.  Kept so File > Export Statistics writes exactly
@@ -701,6 +720,8 @@ typedef struct {
     /* Session History window (floating, optional) -- same lifecycle
      * convention as the other floating windows. */
     HWND hHistWnd;
+    HWND hIonoWnd;
+    HWND hIonoSkyWnd;
     RECT histWndRect;
     BOOL histWndRectValid;
     HistState hist;       /**< session-history ring buffer */

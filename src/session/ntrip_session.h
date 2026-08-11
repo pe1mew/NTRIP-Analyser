@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>    /* FILE, for ns_open_stream() */
+#include "core/iono.h"     /* IonoSatView, for ns_iono_view() */
 #include <stddef.h>
 
 #include "core/ns_stats.h"
@@ -207,6 +208,20 @@ void ns_close(NtripSession *s);
  * @ref NsStatsSnapshot is a plain value type.
  */
 const NsStatsSnapshot *ns_stats(const NtripSession *s);
+
+/**
+ * @brief Per-satellite ionospheric measurements for display.
+ *
+ * Fills @p out from the session's arc state, judged for staleness
+ * against the session's own clock -- which is why this exists instead of
+ * exposing the raw @ref IonoState to callers with a different clock.
+ *
+ * @param s       Session to read.
+ * @param out     [out] Destination array.
+ * @param max_out Capacity of @p out.
+ * @return Entries written; 0 when nothing is measurable yet.
+ */
+int ns_iono_view(const NtripSession *s, IonoSatView *out, int max_out);
 
 /** @brief The caster's handshake, or NULL if not yet received. */
 const NsHandshake *ns_handshake(const NtripSession *s);

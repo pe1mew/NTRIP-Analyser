@@ -187,6 +187,16 @@ typedef struct {
     /* ── Timeliness ───────────────────────────────────────────────── */
     double   latency_s;           /**< newest MSM epoch vs system clock;
                                    *   NS_UNSET until computed           */
+
+    /* ── Ionosphere ───────────────────────────────────────────────────
+     * ROTI from dual-frequency MSM7 (see core/iono.h).  Additive fields:
+     * existing JSON consumers read by key, so the schema version stays.
+     */
+    int      iono_verdict;        /**< IonoVerdict; 0 = unknown          */
+    float    iono_roti_median;    /**< TECU/min; -1 until measurable     */
+    float    iono_roti_max;       /**< worst satellite; -1 until known   */
+    int      iono_sats_dualfreq;  /**< satellites with a usable pair     */
+    int      iono_slips;          /**< arcs broken this session          */
 } NsStatsSnapshot;
 
 /**

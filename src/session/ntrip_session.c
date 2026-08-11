@@ -24,6 +24,7 @@
 #include "core/rtcm3x_parser.h"   /* crc24q, msm_get_epoch, get_bits */
 #include "core/nmea_parser.h"     /* GGA construction */
 #include "core/sv_track.h"        /* satellites and C/N0 per constellation */
+#include "core/iono.h"            /* ionospheric ROTI from dual-freq MSM7 */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -130,6 +131,9 @@ struct NtripSession {
      * rather than in a frontend so that every consumer -- the daemon's
      * snapshot, the GUI, Android -- reports the same numbers. */
     SvTrack    sv;
+
+    /* Ionospheric phase arcs, for the same reason. */
+    IonoState  iono;
 
     /* Per-type epoch tracking, so intervals are measured per epoch.
      * Indexed by the position in stats.types[]. */
@@ -336,6 +340,24 @@ static void stats_refresh(NtripSession *s, double now)
     sv_track_summarise(&s->sv, now, SV_TRACK_STALE_S,
                        s->stats.gnss, NS_MAX_GNSS, &s->stats.n_gnss,
                        &s->stats.sats_total, &s->stats.cnr_mean_all);
+
+    IonoSummary is;
+    iono_summarise(&s->iono, now, &is);
+    s->stats.iono_verdict       = is.verdict;
+    s->stats.iono_roti_median   = is.roti_median;
+    s->stats.iono_roti_max      = is.roti_max;
+    s->stats.iono_sats_dualfreq = is.sats_dualfreq;
+    s->stats.iono_slips         = is.slips_total;
+}
+
+int ns_iono_view(const NtripSession *s, IonoSatView *out, int max_out)
+{
+    /* Implemented here rather than by handing the IonoState out: the
+     * staleness test inside iono_sat_view() compares against the clock
+     * iono_feed() was driven with, which is this session's ns_now() --
+     * a caller using its own clock would misjudge staleness. */
+    if (!s) return 0;
+    return iono_sat_view(&s->iono, ns_now(), out, max_out);
 }
 
 static void maybe_emit_stats(NtripSession *s, double now)
@@ -441,9 +463,11 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                     bool new_epoch = stats_frame(s, msg_type, epoch,
                                                  has_epoch, now);
 
-                    /* Ignores non-MSM types, so no classification here. */
+                    /* Both ignore non-MSM types, so no classification here. */
                     sv_track_feed(&s->sv, s->frame + 3, payload_len,
                                   msg_type, now);
+                    iono_feed(&s->iono, s->frame + 3, payload_len,
+                              msg_type, now);
 
                     if (!s->announced_streaming) {
                         s->announced_streaming = true;

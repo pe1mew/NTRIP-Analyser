@@ -119,6 +119,18 @@ cnr_mean.label mean C/N0
 cnr_mean.type GAUGE
 cnr_mean.warning 35:
 
+multigraph ntrip_iono_${name}
+graph_title NTRIP ${mount} ionosphere (ROTI)
+graph_category ntrip
+graph_vlabel TECU/min
+graph_info Rate of TEC Index from dual-frequency carrier phase. Under 0.5 is quiet, over 1.0 disturbed. Requires MSM7 with two frequencies; reads U on single-frequency streams.
+roti_median.label median ROTI
+roti_median.type GAUGE
+roti_median.warning :0.5
+roti_median.critical :1.0
+roti_max.label worst satellite
+roti_max.type GAUGE
+
 multigraph ntrip_availability_${name}
 graph_title NTRIP ${mount} availability
 graph_category ntrip
@@ -150,6 +162,7 @@ emit_values() {
         # "connected:true" must not keep a green light on.
         bytes="U"; crc="U"; malformed="U"; resyncs="U"
         sats="U"; cnr="U"; conn="U"; reconn="U"
+        roti_med="U"; roti_max="U"
     else
         bytes=$(scalar "$f" bytes_per_s)
         crc=$(scalar "$f" frames_crc_error)
@@ -157,6 +170,8 @@ emit_values() {
         resyncs=$(scalar "$f" framing_resyncs)
         sats=$(scalar "$f" sats_total)
         cnr=$(scalar "$f" cnr_mean_all)
+        roti_med=$(scalar "$f" iono_roti_median)
+        roti_max=$(scalar "$f" iono_roti_max)
         reconn=$(scalar "$f" reconnects)
         case "$(scalar "$f" connected)" in
             true)  conn=1 ;;
@@ -179,6 +194,10 @@ sats_total.value ${sats}
 
 multigraph ntrip_cnr_${name}
 cnr_mean.value ${cnr}
+
+multigraph ntrip_iono_${name}
+roti_median.value ${roti_med}
+roti_max.value ${roti_max}
 
 multigraph ntrip_availability_${name}
 connected.value ${conn}

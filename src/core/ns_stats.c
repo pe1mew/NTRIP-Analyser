@@ -328,6 +328,24 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_str(&o, ",");
     out_key(&o, "latency_s"); out_json_num(&o, s->latency_s, 3);
 
+    /* Ionosphere.  -1 means "not measurable yet"; serialised as null so
+     * a consumer cannot mistake it for a real (and impossible) rate. */
+    out_str(&o, ",");
+    out_key(&o, "iono_verdict"); out_fmt(&o, "%d", s->iono_verdict);
+    out_str(&o, ",");
+    out_key(&o, "iono_roti_median");
+    out_json_num(&o, s->iono_roti_median >= 0.0f ? s->iono_roti_median
+                                                 : NS_UNSET, 3);
+    out_str(&o, ",");
+    out_key(&o, "iono_roti_max");
+    out_json_num(&o, s->iono_roti_max >= 0.0f ? s->iono_roti_max
+                                              : NS_UNSET, 3);
+    out_str(&o, ",");
+    out_key(&o, "iono_sats_dualfreq");
+    out_fmt(&o, "%d", s->iono_sats_dualfreq);
+    out_str(&o, ",");
+    out_key(&o, "iono_slips"); out_fmt(&o, "%d", s->iono_slips);
+
     out_ch(&o, '}');
     return (int)o.len;
 }
@@ -344,7 +362,7 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     "crc_error_rate,advertised_count,types_missing,types_offrate," \
     "types_extra,sats_total,cnr_mean_all,station_type,arp_valid," \
     "arp_lat,arp_lon,arp_alt,arp_drift_m,arp_moves," \
-    "sourcetable_offset_m,latency_s"
+    "sourcetable_offset_m,latency_s,"     "iono_verdict,iono_roti_median,iono_roti_max,iono_sats_dualfreq,"     "iono_slips"
 
 int ns_stats_csv_header(char *out, size_t cap)
 {
@@ -419,7 +437,16 @@ int ns_stats_to_csv_row(const NsStatsSnapshot *s, char *out, size_t cap)
     out_csv_num(&o, s->arp_drift_m, 3);           out_ch(&o, ',');
     out_fmt(&o, "%d", s->arp_moves);              out_ch(&o, ',');
     out_csv_num(&o, s->sourcetable_offset_m, 1);  out_ch(&o, ',');
-    out_csv_num(&o, s->latency_s, 3);
+    out_csv_num(&o, s->latency_s, 3);             out_ch(&o, ',');
+    out_fmt(&o, "%d", s->iono_verdict);           out_ch(&o, ',');
+    out_csv_num(&o, s->iono_roti_median >= 0.0f ? s->iono_roti_median
+                                                : NS_UNSET, 3);
+    out_ch(&o, ',');
+    out_csv_num(&o, s->iono_roti_max >= 0.0f ? s->iono_roti_max
+                                             : NS_UNSET, 3);
+    out_ch(&o, ',');
+    out_fmt(&o, "%d", s->iono_sats_dualfreq);     out_ch(&o, ',');
+    out_fmt(&o, "%d", s->iono_slips);
 
     return (int)o.len;
 }

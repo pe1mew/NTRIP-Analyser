@@ -130,6 +130,8 @@ if(WIN32)
         gui/gui_vrs_window.c
         gui/gui_signal_window.c
         gui/gui_hist_window.c
+        gui/gui_iono_window.c
+        gui/gui_iono_sky_window.c
         gui/resource.rc
     )
     target_include_directories(ntrip-analyser-gui PRIVATE gui)

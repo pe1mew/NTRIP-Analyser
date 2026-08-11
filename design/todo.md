@@ -484,7 +484,7 @@ Remaining work:
 
 ## 3. Tier 3 — Flagship, high effort
 
-### 3.1 Ionospheric monitor — **Partial**
+### 3.1 Ionospheric monitor — **Shipped**
 
 Build a geometry-free code and carrier-phase combination from dual-frequency MSM7 observations,
 and map slant delay to vertical delay at a thin-shell pierce point.
@@ -510,7 +510,7 @@ pair preferred. Two validation-caught traps live in the changelog: rates must be
 epoch in the frame, and ROT sampled at 30 s — per-epoch differencing measures phase noise, not the
 ionosphere, and misreports a quiet day as DISTURBED.
 
-**Remaining: the four surfaces** agreed on 2026-08-11 — Stream Health row, Session History ROTI
+**Shipped 2026-08-11: all four surfaces** — Stream Health row, Session History ROTI panel, sky-plot ROTI colouring (I key; the trail is a per-dot ROTI timelapse), View > Ionosphere table — plus the snapshot fields and a `ntrip_iono` Munin graph. Previously remaining: the four surfaces agreed on 2026-08-11 — Stream Health row, Session History ROTI
 chart, sky-plot overlay (including painting the existing 24 h trail buffer by ROTI, which is a
 timelapse in one image; note `SkyTrackPoint` widens 16→20 B, ~11.8→14.7 MB), and the dedicated
 Ionosphere window. Plus `sats_dualfreq`/`roti_median` in the snapshot for the daemon and Munin.

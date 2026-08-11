@@ -36,6 +36,8 @@
 #define IDM_VIEW_VRS_MONITOR    9021
 #define IDM_VIEW_SIGNAL_QUALITY 9022
 #define IDM_VIEW_HISTORY        9023
+#define IDM_VIEW_IONO           9024  /* per-satellite ROTI table */
+#define IDM_VIEW_IONO_SKY       9025  /* polar ROTI heatmap / tracks */
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */

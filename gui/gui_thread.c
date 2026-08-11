@@ -306,6 +306,9 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
             memcpy(state->gnssStats, snap->gnss, sizeof(state->gnssStats));
             state->nGnssStats = snap->n_gnss;
         }
+        state->nIonoView = ns_iono_view(c->sess, state->ionoView,
+                                        (int)(sizeof(state->ionoView) /
+                                              sizeof(state->ionoView[0])));
     }
     PostMessage(state->hMain, WM_APP_SAT_UPDATE, 0, 0);
 
@@ -406,6 +409,16 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
                     upd[upd_count].az_deg        = (float)az_d;
                     upd[upd_count].el_deg        = (float)el_d;
                     upd[upd_count].cnr_dbhz      = cnr_dbhz;
+                    /* ROTI from the per-SV view refreshed above; linear
+                     * scan, but nIonoView is at most a few dozen. */
+                    upd[upd_count].roti = -1.0f;
+                    for (int vi = 0; vi < state->nIonoView; vi++) {
+                        if (state->ionoView[vi].gnss_id == gnss_id &&
+                            state->ionoView[vi].prn == p) {
+                            upd[upd_count].roti = state->ionoView[vi].roti;
+                            break;
+                        }
+                    }
                     upd[upd_count].observed_flag = observed_flag;
                     upd_count++;
                 }

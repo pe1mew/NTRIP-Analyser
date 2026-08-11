@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-08-11
+
+Minor: the ionospheric monitor, end to end.  A ROTI measurement core in
+the session layer, validated against live data and the published noise
+budget, surfaced in Stream Health, Session History, a per-satellite
+table, a dedicated polar sky view with heatmap and 24 h timelapse
+presentations, the statistics snapshot, and a Munin graph.
+
+### Added — the ionospheric monitor is wired into every surface
+
+The ROTI core now lives in the session layer, so the daemon, the GUI and
+any future frontend report identical numbers.
+
+- **Stream Health** gains an Ionosphere row: verdict, median and worst
+  ROTI, dual-frequency satellite count, slips — with the caveat stated in
+  the row itself that this is a temporal proxy at the base, not the
+  base-rover gradient.
+- **Session History** gains a seventh panel, ROTI on the shared time
+  axis: a scintillation event reads as ROTI rising while C/N0 falls and
+  CRC errors climb.
+- **View > Ionosphere Sky**: a separate polar window -- the Sky Plot
+  itself is untouched, since its 3-px trail dots are too small to read a
+  colour from.  Space toggles two presentations: a **sector heatmap**
+  (each sky sector filled with the verdict colour of the most recent
+  ROTI measured there, same sector geometry as the coverage heatmap) and
+  **24 h tracks** with every dot the ROTI at that moment -- the
+  timelapse.  Verdict, mode description and a colour legend are in the
+  header, and S saves a PNG.  SkyTrackPoint deliberately widened 16 to
+  20 bytes to carry ROTI per trail point (~2.9 MB buffer).
+- **View > Ionosphere**: per-satellite table — signal pair, ROTI,
+  relative slant TEC, arc length, slips — refreshed each second.
+- **Snapshot / daemon**: five iono_* fields in the JSON and CSV
+  (additive, schema unchanged), and a new Munin graph `ntrip_iono` with
+  warning at 0.5 and critical at 1.0 TECU/min.  Stale snapshots read U,
+  as every other graph does.
+
+Verified by replaying the 9-minute capture through the full session
+path: identical results to the standalone core (QUIET, median 0.043
+TECU/min, 32 satellites), JSON and CSV carrying the new fields with
+36 columns matching 36 values.
+
+
 ### Added — ionospheric disturbance monitoring (core module)
 
 `src/core/iono.c` measures how unsettled the ionosphere is above the
