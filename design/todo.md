@@ -510,9 +510,9 @@ All items in this section are tagged `[design.md]`.
 | # | Item | Status | Notes |
 |---|---|---|---|
 | 4.1 | Real-time message rate graph | **Shipped** | Delivered as the Message rate panel of the item 2.1 Session History window — one charting path, not two |
-| 4.2 | Map widget showing base and rover positions | Partial | The browser-based map picker covers coordinate entry, and the VRS Monitor polar plot covers the base/rover relationship live. An in-window map remains unbuilt — reassess whether it is still wanted |
-| 4.3 | Multi-connection support | Partial | A second NTRIP connection exists but is purpose-built for ephemeris-only casters (`WorkerOpenEphStream`, `gui/gui_state.h:443`, commit `320f412`). Generalising it to N arbitrary streams for side-by-side base comparison is the remaining work |
-| 4.4 | Export analysis results to CSV / JSON | **Shipped** | File > Export Statistics writes the session snapshot as JSON or CSV through  /  — the same serialisers the daemon publishes through, so an export and a Munin sample agree by construction. Format follows the typed extension, not just the filter. Truncation is a failure, not a partial write. Filenames carry the same yyyymmddhhmmss_ prefix as the PNG snapshots so a folder of exports sorts by capture time |
+| 4.2 | Map widget showing base and rover positions | **Dropped** | No use case. Reasoning in §5 |
+| 4.3 | Multi-connection support | **Dropped** | No use case. Reasoning in §5 |
+| 4.4 | Export analysis results to CSV / JSON | **Shipped** | File > Export Statistics writes the session snapshot as JSON or CSV through `ns_stats_to_json()` / `ns_stats_to_csv_row()` — the same serialisers the daemon publishes through, so an export and a Munin sample agree by construction. Format follows the typed extension, not just the filter. Truncation is a failure, not a partial write. Filenames carry the same `yyyymmddhhmmss_` prefix as the PNG snapshots so a folder of exports sorts by capture time |
 | 4.5 | Dark mode / theme support | **Dropped** | Not a requirement. Reasoning in §5 |
 | 4.6 | Tray icon for background monitoring | **Shipped** | Tools > Minimise to notification area, off by default. The icon exists only while the window is hidden, so it never duplicates the taskbar button. Tooltip carries mountpoint, satellite count and rate, refreshed each second — it is the whole UI in that state. Removed first in `WM_DESTROY` so no ghost icon survives; disabling the option while hidden restores the window rather than stranding it |
 | 4.7 | Auto-reconnect on connection drop | **Shipped** | Tools > Auto-reconnect on drop, off by default so an unattended run means what it always did. Uses the session layer backoff the daemon relies on; applies to the next stream opened. Stream Health gains a Reconnects row, set before the function early-returns on a missing ARP so it shows on streams without 1005/1006 |
@@ -531,6 +531,26 @@ output, GNSS module NVM commands, OTA firmware update.
 from proprietary receiver output. They are **not carried in RTCM**, so they are unobtainable by a
 stream consumer. The nearest derivable proxy is a simultaneous collapse of C/N0 across all
 constellations, which item 1.4 would make detectable.
+
+### 4.2 Map widget showing base and rover positions — **Dropped** `[design.md]`
+
+Dropped in August 2026: no use case. This tool assesses **fixed** RTK bases and casters, so the
+map would show a stationary dot and never change — a map earns its place by showing movement or
+spatial relationships, and there is neither here. The two things a map was imagined to answer are
+already answered better elsewhere: the browser-based picker handles coordinate entry, and the VRS
+Monitor's polar plot shows the base/rover relationship live, which is the only part that actually
+moves.
+
+### 4.3 Multi-connection support — **Dropped** `[design.md]`
+
+Dropped in August 2026: no use case. The idea was N streams side by side for base comparison, but
+that is not how the tool is used — an assessment is of one base at a time, and when two really need
+comparing, two instances of the program do it without a windowing problem to solve. The session
+layer already supports arbitrary concurrent sessions, so this was only ever GUI work, and it is GUI
+work in the least rewarding place: tab-and-pane management rather than anything about GNSS.
+
+The ephemeris stream stays as it is — a second connection purpose-built for eph-only casters
+(`WorkerOpenEphStream`), which is a supporting role rather than a second subject of analysis.
 
 ### 4.5 Dark mode / theme support — **Dropped** `[design.md]`
 

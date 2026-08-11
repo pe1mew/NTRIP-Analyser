@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-11
+
+Minor: everything here is additive or a fix.  Two of the fixes matter
+more than the new features — a config file missing a single key used to
+crash every artefact, and the monitoring service's satellite and C/N0
+graphs had read zero since the day it was deployed.
+
+This release also completes the migration begun in 2.0.0: the session
+layer is now the only RTCM framer in the tree.
+
 ### Changed — CMake now puts executables in `bin/`
 
 The same directory `build-gui.bat` and the VS Code tasks have always
