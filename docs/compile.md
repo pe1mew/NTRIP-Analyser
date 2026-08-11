@@ -79,15 +79,15 @@ mkdir -p bin
 
 To compile, in the root of the repository execute: 
 ```bash
-gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
+gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cJSON/cJSON.c -Isrc -Ilib/cJSON -Wall -lm -lpthread
 ```
 
 This command will:
 - Compile all C source files in `src/` and its `core/`, `net/` and
   `session/` subdirectories — the subdirectory globs are required, since
   `src/*.c` alone does not descend into them
-- Include the cJSON library from `lib/cjson/cJSON.c`
-- Add the cJSON headers to include path (`-Ilib/cjson`)
+- Include the cJSON library from `lib/cJSON/cJSON.c`
+- Add the cJSON headers to include path (`-Ilib/cJSON`)
 - Enable debug symbols (`-g`) and all warnings (`-Wall`)
 - Link the math library (`-lm`)
 - Link POSIX threads (`-lpthread`) — required by the CLI `-s --sky`

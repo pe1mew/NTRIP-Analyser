@@ -45,7 +45,7 @@ core logic — networking (`ntrip_handler`), RTCM parsing (`rtcm3x_parser`), con
 │  src/config        .c/.h  — JSON config load / generate      │
 │  src/nmea_parser   .c/.h  — GGA sentence generation          │
 │  src/cli_help      .c/.h  — (not used by GUI)                │
-│  lib/cjson/cJSON   .c/.h  — JSON parser                      │
+│  lib/cJSON/cJSON   .c/.h  — JSON parser                      │
 └──────────────────────────────────────────────────────────────┘
 ```
 

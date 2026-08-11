@@ -189,7 +189,7 @@ build-gui.bat
 **Linux CLI:**
 ```bash
 mkdir -p bin
-gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cjson/cJSON.c -Isrc -Ilib/cjson -Wall -lm -lpthread
+gcc -g -o bin/ntripanalyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cJSON/cJSON.c -Isrc -Ilib/cJSON -Wall -lm -lpthread
 ```
 
 See [compilation guide](docs/compile.md) for complete build instructions.

@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — the repository could not be built on Linux from a clone
+
+`lib/` was tracked as `lib/cjson` while every build file referenced
+`lib/cJSON`.  Windows' case-insensitive filesystem hid this completely;
+on Linux a fresh clone failed with "No rule to make target
+`../lib/cJSON/cJSON.c`".  It survived undetected because every Linux
+build during development was fed by copying files from a Windows
+checkout, which carried the capitalised name — never from a clone.
+
+The directory is now tracked as `lib/cJSON`, matching upstream and every
+reference.  `.gitmodules` is also removed: it declared `lib/cJSON` as a
+submodule that does not exist — cJSON's 161 files are committed directly
+— so `git submodule update --init` silently did nothing, which made the
+real fault look like a submodule problem.
+
+
 ### Added — Stream health analysis
 
 A new **Stream Health** tab answering "is this mountpoint healthy", not
