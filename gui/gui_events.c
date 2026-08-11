@@ -2489,10 +2489,20 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 return 0;
             }
 
+            /* Same yyyymmddhhmmss_ prefix as the PNG snapshots, so a
+             * folder of exports sorts by capture time -- and so repeated
+             * exports from one mountpoint do not all propose the same
+             * name and invite overwriting the previous one. */
             char filename[MAX_PATH] = "";
-            snprintf(filename, sizeof(filename), "%s_stats.json",
-                     state->config.MOUNTPOINT[0] ? state->config.MOUNTPOINT
-                                                 : "ntrip");
+            {
+                time_t now_t = time(NULL);
+                struct tm *lt = localtime(&now_t);
+                char ts[16] = "00000000000000";
+                if (lt) strftime(ts, sizeof(ts), "%Y%m%d%H%M%S", lt);
+                snprintf(filename, sizeof(filename), "%s_%s_stats.json",
+                         ts, state->config.MOUNTPOINT[0]
+                               ? state->config.MOUNTPOINT : "ntrip");
+            }
 
             OPENFILENAME ofn;
             ZeroMemory(&ofn, sizeof(ofn));

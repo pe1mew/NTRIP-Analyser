@@ -57,6 +57,12 @@ instead of exiting from under it.
 Writes the session's statistics snapshot as JSON or CSV, chosen by the
 extension you type rather than only by the filter dropdown.
 
+The proposed name carries a `yyyymmddhhmmss_` prefix, matching the PNG
+snapshots — `20260811170056_RFSEE01_stats.json`.  A folder of exports
+then sorts by capture time, and repeated exports from one mountpoint no
+longer all propose the same name and invite overwriting the previous
+one.
+
 It uses the same `ns_stats_to_json()` / `ns_stats_to_csv_row()`
 serialisers the monitoring daemon publishes through, so an exported file
 and a Munin sample describe a stream identically instead of in two
