@@ -2812,11 +2812,16 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     "[ERROR] Failed to open RINEX nav file:\r\n  %s\r\n",
                     filename);
             } else {
+                /* NavIC is loaded like the rest and was the only one the
+                 * tally left out, which read as though the file carried
+                 * none. */
                 snprintf(msg, sizeof(msg),
                     "[INFO] Loaded %d ephemerides from %s\r\n"
-                    "       (GPS:%d  GLONASS:%d  Galileo:%d  QZSS:%d  BeiDou:%d)\r\n",
+                    "       (GPS:%d  GLONASS:%d  Galileo:%d  QZSS:%d  "
+                    "BeiDou:%d  NavIC:%d)\r\n",
                     total, filename,
-                    counts[1], counts[2], counts[3], counts[4], counts[5]);
+                    counts[1], counts[2], counts[3], counts[4], counts[5],
+                    counts[7]);
             }
             int len = GetWindowTextLength(state->hEditLog);
             SendMessage(state->hEditLog, EM_SETSEL, (WPARAM)len, (LPARAM)len);

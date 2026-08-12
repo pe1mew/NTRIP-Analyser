@@ -66,7 +66,7 @@ ntrip-analyser [options]
 | -s    | --sat        | [seconds]        | count satellites received for N seconds (default: 60)                       |
 | -t    | --types      | [seconds]        | Analyze message types for N seconds (default: 60)                           |
 | -v    | --verbose    |                  | Print configuration and action details before running                       |
-| &nbsp; | --check      | &nbsp;           | Station acceptance test: seven KPIs, ~90 s (exit 0/6/1)                     |
+| &nbsp; | --check      | &nbsp;           | Station acceptance test: eight KPIs, ~90 s (exit 0/6/1)                     |
 | &nbsp; | --check-vrs  | &nbsp;           | As --check plus the network-RTK assertions and GGA gate test                |
 | -g    | --generate   |                  | Geerate default config.json with dummy values and exit.                     |
 |       | --latitude   | value            | Override latitude in config                                                 |
@@ -172,32 +172,40 @@ ntrip-analyser [options]
 ## Acceptance testing
 
 `--check` answers one question: **does this station meet the basic KPIs for RTK service?**  It
-watches the stream for about ninety seconds and prints a seven-row verdict.
+watches the stream for about ninety seconds and prints an eight-row verdict.
 
 ```
 ntrip-analyser --check
 ```
 
 ```
-1 Connected and producing    PASS   1665.39  Authenticated, connected, data flowing
-2 RTCM 3.x format            PASS    633.00  CRC-valid RTCM 3.x frames decoded
+1 Connected and producing    PASS   1695.40  Authenticated, connected, data flowing
+2 RTCM 3.x format            PASS    543.00  CRC-valid RTCM 3.x frames decoded
 3 Reference position (ARP)   PASS      1.00  1005/1006 received with non-zero coordinates
 4 Multi-GNSS observations    PASS      3.00  GPS and Galileo MSM at 0.5 Hz or faster
-5 Satellites in view         PASS     41.00  At or above the 25-SV threshold
-6 Median C/N0                PASS     45.73  Antenna and LNA chain healthy
+5 Satellites in view         PASS     40.00  At or above the 25-SV threshold
+6 Median C/N0                PASS     45.02  Antenna and LNA chain healthy
 7 Frame integrity (CRC)      PASS      0.00  Fewer than 1 error per 1000 frames
+8 Advertised versus actual   WARN      1.00  Streaming a constellation the sourcetable omits
 
-== STATION OK ==  exit=0
+== CAUTION ==  exit=6
 ```
 
-Every KPI must hold PASS for sixty continuous seconds before the verdict is STATION OK, so a
-station that flickers cannot pass by being briefly healthy at the right moment.
+KPI 8 compares what the sourcetable promises against what arrives: message types, their
+rates, and the constellations in the NavSys field. Streaming something never advertised is
+an observation, not a fault — it warns rather than fails, because the data is right and only
+the metadata is wrong. Advertising a constellation that is not currently streamed is not even
+that: QZSS is advertised across Europe and visible from none of it.
+
+The verdict, not each row, is what must hold: it has to stay unchanged for sixty continuous
+seconds before it is reported, so a station that flickers cannot pass by being briefly healthy
+at the right moment.
 
 The exit code makes it scriptable — an installer's sign-off, or a cron check:
 
 | Exit | Meaning |
 |---|---|
-| 0 | STATION OK — all seven held for the full window |
+| 0 | STATION OK — all eight held for the full window |
 | 6 | CAUTION — a marginal reading, or a soft KPI (satellite count, C/N0) failing |
 | 1 | FAILED — a hard KPI failed: connectivity, format, ARP, multi-GNSS, or CRC |
 

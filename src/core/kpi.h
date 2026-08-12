@@ -1,6 +1,6 @@
 /**
  * @file kpi.h
- * @brief Station acceptance test: the seven KPIs as a verdict engine.
+ * @brief Station acceptance test: the eight KPIs as a verdict engine.
  *
  * Implements the Normal-mode check from `android/design/sandBox.md`:
  * seven pass/warn/fail criteria over a live stream, rolled into one
@@ -134,7 +134,7 @@ typedef struct {
 void kpi_run_start(KpiRun *run, double now);
 
 /**
- * @brief Evaluate the seven KPIs against the latest snapshot.
+ * @brief Evaluate the eight KPIs against the latest snapshot.
  *
  * Call once per snapshot refresh (typically 1 Hz).  The report is
  * rebuilt in full on every call; the only memory between calls is the
