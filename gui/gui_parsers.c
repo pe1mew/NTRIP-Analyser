@@ -109,7 +109,8 @@ void ParseMountTable(const char *raw, HWND listview, double userLat, double user
 
 BOOL SourcetableFindMountpoint(const char *raw, const char *mountpoint,
                                char *fmt_out, size_t fmt_sz,
-                               char *det_out, size_t det_sz)
+                               char *det_out, size_t det_sz,
+                               char *nav_out, size_t nav_sz)
 {
     if (!raw || !mountpoint || !*mountpoint) return FALSE;
 
@@ -129,7 +130,7 @@ BOOL SourcetableFindMountpoint(const char *raw, const char *mountpoint,
                 buf[lineLen] = '\0';
 
                 /* Split on ';' -- field 1 is the mountpoint, 3 the format,
-                 * 4 the format-details list we are after. */
+                 * 4 the format-details list, 6 the nav-system claim. */
                 char *fields[20];
                 int nFields = 0;
                 char *tok = buf;
@@ -152,6 +153,16 @@ BOOL SourcetableFindMountpoint(const char *raw, const char *mountpoint,
                         if (det_out && det_sz) {
                             strncpy(det_out, fields[4], det_sz - 1);
                             det_out[det_sz - 1] = '\0';
+                        }
+                        if (nav_out && nav_sz) {
+                            /* Short STR lines exist in the wild; an
+                             * absent nav-system field is empty, not
+                             * whatever happened to be in the buffer. */
+                            nav_out[0] = '\0';
+                            if (nFields > 6) {
+                                strncpy(nav_out, fields[6], nav_sz - 1);
+                                nav_out[nav_sz - 1] = '\0';
+                            }
                         }
                         free(buf);
                         return TRUE;

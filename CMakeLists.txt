@@ -154,6 +154,7 @@ if(WIN32)
         gui/gui_snapshot.c
         gui/gui_sv_detail.c
         gui/gui_vrs_window.c
+        gui/gui_check_window.c
         gui/gui_signal_window.c
         gui/gui_hist_window.c
         gui/gui_iono_window.c

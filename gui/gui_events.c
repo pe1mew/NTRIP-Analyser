@@ -14,6 +14,7 @@
 #include "gui_state.h"
 #include "gui_sky_window.h"
 #include "gui_vrs_window.h"
+#include "gui_check_window.h"
 #include "gui_signal_window.h"
 #include "gui_hist_window.h"
 #include "gui_iono_window.h"
@@ -1297,6 +1298,7 @@ static void OnOpenStream(HWND hwnd, AppState *state)
      * since some configs store it with or without the slash. */
     state->sourceFormat[0]  = '\0';
     state->sourceDetails[0] = '\0';
+    state->sourceNav[0]     = '\0';
     state->sourceNetwork[0] = '\0';
     state->sourceLat        = 0.0;
     state->sourceLon        = 0.0;
@@ -1332,6 +1334,8 @@ static void OnOpenStream(HWND hwnd, AppState *state)
                                  state->sourceFormat, sizeof(state->sourceFormat));
             ListView_GetItemText(state->hLvMountpoints, found, 3,
                                  state->sourceDetails, sizeof(state->sourceDetails));
+            ListView_GetItemText(state->hLvMountpoints, found, 5,
+                                 state->sourceNav, sizeof(state->sourceNav));
             ListView_GetItemText(state->hLvMountpoints, found, 6,
                                  state->sourceNetwork, sizeof(state->sourceNetwork));
 
@@ -2886,6 +2890,21 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 state->hVrsWnd = CreateVrsWindow(hInst, hwnd, state);
                 if (!state->hVrsWnd) {
                     MessageBox(hwnd, "Failed to create VRS Monitor window.",
+                               APP_TITLE, MB_ICONERROR | MB_OK);
+                }
+            }
+            return 0;
+
+        case IDM_VIEW_STATION_CHECK:
+            if (state->hCheckWnd) {
+                if (IsIconic(state->hCheckWnd))
+                    ShowWindow(state->hCheckWnd, SW_RESTORE);
+                SetForegroundWindow(state->hCheckWnd);
+            } else {
+                HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+                state->hCheckWnd = CreateCheckWindow(hInst, hwnd, state);
+                if (!state->hCheckWnd) {
+                    MessageBox(hwnd, "Failed to create Station Check window.",
                                APP_TITLE, MB_ICONERROR | MB_OK);
                 }
             }

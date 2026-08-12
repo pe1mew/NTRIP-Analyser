@@ -17,7 +17,9 @@
 #include "core/sv_ephemeris.h"
 #include "core/sv_orbit.h"
 #include "session/ntrip_session.h"
+#include "core/sourcetable.h"
 #include "core/version.h"
+#include "gui_check_window.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -493,6 +495,7 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
             state->ggaCurrentLat = lat;
             state->ggaCurrentLon = lon;
             if (ns_send_gga(c->sess, lat, lon)) {
+                CheckNoteGga(state, lat, lon);
                 printf("[GGA] Sent initial GGA\n");
                 fflush(stdout);
                 InterlockedIncrement(&state->ggaSendCount);
@@ -531,6 +534,11 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
         if (ev->u.stats) {
             state->lastStats = *ev->u.stats;
             state->haveStats = TRUE;
+            /* A station check in progress advances here rather than on a
+             * window timer: the data is what justifies a verdict, so the
+             * KPI clock steps once per snapshot -- never twice, never
+             * skipping one. */
+            CheckOnStats(state, ev->u.stats);
         }
         break;
 
@@ -570,7 +578,9 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                                           state->sourceFormat,
                                           sizeof(state->sourceFormat),
                                           state->sourceDetails,
-                                          sizeof(state->sourceDetails))) {
+                                          sizeof(state->sourceDetails),
+                                          state->sourceNav,
+                                          sizeof(state->sourceNav))) {
                 state->advCount = ParseAdvertisedTypes(state->sourceDetails,
                                                        state->advInterval);
                 state->advValid = (state->advCount > 0);
@@ -669,6 +679,24 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     }
     ctx.sess = sess;
 
+    /* ── Hand the session what the mountpoint advertises ──────────────
+     * KPI 8 compares promise against delivery, and it reads the promise
+     * from the session -- as the CLI and the Android bridge already do.
+     * Without this the station check would evaluate against an empty
+     * advertisement and pass everything.
+     *
+     * Constellations come from the STR nav-system field, not from the
+     * 1005/1006 indicator bits: those cover GPS, GLONASS and Galileo
+     * only, so a BeiDou-capable base cannot declare it there. */
+    if (state->sourceDetails[0]) {
+        SourcetableType adv[64];
+        int nt = sourcetable_parse_types(state->sourceDetails, adv,
+                                         (int)(sizeof(adv) / sizeof(adv[0])));
+        if (nt > 0) ns_set_advertised(sess, adv, nt);
+    }
+    if (state->sourceNav[0])
+        ns_set_advertised_gnss(sess, sourcetable_navsys_mask(state->sourceNav));
+
     /* Detected-but-undecoded formats bypass the RTCM framer entirely. */
     if (ctx.detected_format != FMT_NONE && !ctx.decode_active)
         ns_set_framing_enabled(sess, false);
@@ -695,6 +723,7 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
                 fflush(stdout);
             }
             if (ns_send_gga(sess, cur_lat, cur_lon)) {
+                CheckNoteGga(state, cur_lat, cur_lon);
                 printf("[GGA] Sent GGA\n");
                 fflush(stdout);
                 InterlockedIncrement(&state->ggaSendCount);

@@ -39,6 +39,7 @@
 #define IDM_VIEW_IONO           9024  /* per-satellite ROTI table */
 #define IDM_VIEW_IONO_SKY       9025  /* polar ROTI heatmap / tracks */
 #define IDM_VIEW_RESET_LAYOUT   9026  /* windows back to default size/pos */
+#define IDM_VIEW_STATION_CHECK  9027  /* bounded acceptance test, ~90 s */
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
@@ -130,6 +131,7 @@
 #define WM_APP_SKY_UPDATE       (WM_APP + 12)   /* sky-plot SV update: wParam=count, lParam=SkySatUpdate* */
 #define WM_APP_SOURCETABLE      (WM_APP + 13)   /* sourcetable fetched on connect: lParam=heap string, UI frees */
 #define WM_APP_TRAY             (WM_APP + 14)   /* notification-area callback: lParam=mouse message */
+#define WM_APP_CHECK_UPDATE     (WM_APP + 15)   /* station check advanced: repaint its window */
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700
@@ -141,6 +143,11 @@
 #define IDC_VRS_BTN_S           1802
 #define IDC_VRS_BTN_W           1803
 #define IDC_VRS_BTN_RESET       1804
+
+/* ── Station Check window ────────────────────────────────── */
+#define IDC_CHECK_LIST          1900
+#define IDC_CHECK_BTN_RUN       1901
+#define IDC_CHECK_CHK_GATE      1902
 
 /* ── Context menu IDs ────────────────────────────────────── */
 #define IDM_CTX_SELECT_ALL      3001

@@ -21,6 +21,8 @@
 #include "net/ntrip_handler.h"
 #include "core/sv_ephemeris.h"
 #include "core/ns_stats.h"
+#include "core/kpi.h"
+#include "core/vrs_check.h"
 #include "core/iono.h"
 #include "net/ntrip_proto.h"
 #include "resource.h"    /* IDI_APP_ICON; pure #defines, also fed to windres */
@@ -527,6 +529,39 @@ typedef struct {
     NsStatsSnapshot lastStats;
     BOOL            haveStats;
 
+    /* ── Station check (View > Station Check) ──────────────────────
+     * A bounded acceptance run: the same engine the CLI's --check and
+     * the Android station mode use, over the stream that is already
+     * open.
+     *
+     * The run state lives here rather than in the window because it
+     * must outlive it.  Closing the window mid-run would otherwise
+     * abandon a ninety-second test silently, and the sustain clocks
+     * inside KpiRun cannot be rebuilt from a repaint.
+     *
+     * checkSettled freezes checkReport: a verdict that keeps moving is
+     * not a sign-off, and this is what makes the result quotable. */
+    KpiRun     checkRun;
+    KpiReport  checkReport;
+    BOOL       checkActive;
+    BOOL       checkSettled;
+    BOOL       checkHaveReport;
+    /* Stopped by the user before a verdict settled.  Without this the
+     * header kept reading "35 s elapsed, verdict held 4 of 60 s" over a
+     * run that had been abandoned -- indistinguishable from one still
+     * counting. */
+    BOOL       checkAbandoned;
+    double     checkStartedAt;        /* seconds, same clock as checkNow() */
+    double     checkElapsedS;         /* frozen at settle, else live       */
+
+    /* VRS assertions, advanced only when the station is a VRS.  The
+     * gate test moves the rover and so is opt-in; see checkGateWanted. */
+    VrsRun     checkVrs;
+    VrsReport  checkVrsReport;
+    BOOL       checkVrsActive;
+    BOOL       checkGateWanted;       /* user ticked "include gate test"   */
+    BOOL       checkGateStarted;
+
     /* Reconnect automatically after a drop, using the session layer's
      * backoff.  Off by default: the GUI has always required a manual
      * reconnect, and silently re-establishing a stream would change what
@@ -549,6 +584,11 @@ typedef struct {
     volatile LONG  streamFormat;      /* 0=none, 1=RTCM3, 2=UBX, 3=SBF, 4=RT27, 5=LB2, 6=Unknown */
     char           sourceFormat[32];  /* Format string from sourcetable (e.g. "RTCM 3.2", "RT27") */
     char           sourceDetails[256]; /* Details string from sourcetable */
+    /* The STR record's nav-system field ("GPS+GLO+GAL"), which is the
+     * station's actual claim about constellations.  The 1005/1006
+     * indicator bits cannot express BeiDou, so this is what KPI 8
+     * compares against. */
+    char           sourceNav[64];
 
     /* ── Advertised message types (parsed from sourceDetails) ──────
      * The sourcetable STR format-details field lists what the mountpoint
@@ -732,6 +772,13 @@ typedef struct {
     BOOL histWndRectValid;
     HistState hist;       /**< session-history ring buffer */
 
+    /* Station Check window (floating, optional) -- same lifecycle
+     * convention as the other floating windows.  The run it displays
+     * lives in the check* fields above and outlives this handle. */
+    HWND hCheckWnd;
+    RECT checkWndRect;
+    BOOL checkWndRectValid;
+
 } AppState;
 
 /**
@@ -910,7 +957,8 @@ void ParseMountTable(const char *raw, HWND listview, double userLat, double user
  */
 BOOL SourcetableFindMountpoint(const char *raw, const char *mountpoint,
                                char *fmt_out, size_t fmt_sz,
-                               char *det_out, size_t det_sz);
+                               char *det_out, size_t det_sz,
+                               char *nav_out, size_t nav_sz);
 
 /**
  * @brief Parse a sourcetable format-details string into advertised intervals.

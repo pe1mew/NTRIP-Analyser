@@ -35,6 +35,8 @@ BEGIN
     END
     POPUP "&View"
     BEGIN
+        MENUITEM "Station &Check...",                 IDM_VIEW_STATION_CHECK
+        MENUITEM SEPARATOR
         MENUITEM "&Sky Plot...",                      IDM_VIEW_SKY_PLOT
         MENUITEM "&VRS Monitor...",                   IDM_VIEW_VRS_MONITOR
         MENUITEM "Signal &Quality...",                IDM_VIEW_SIGNAL_QUALITY
