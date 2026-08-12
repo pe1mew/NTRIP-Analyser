@@ -230,3 +230,32 @@ JNI_FN(nativeEphFrames)(JNIEnv *env, jobject thiz, jlong handle)
     (void)env; (void)thiz;
     return (jint)bridge_eph_frames((const NtripBridge *)(intptr_t)handle);
 }
+
+JNIEXPORT jint JNICALL
+JNI_FN(nativeLoadRinex)(JNIEnv *env, jobject thiz, jlong handle, jstring path)
+{
+    (void)thiz;
+    const char *c_path = str_in(env, path);
+    jint n = (jint)bridge_load_rinex((NtripBridge *)(intptr_t)handle,
+                                     c_path ? c_path : "");
+    str_free(env, path, c_path);
+    return n;
+}
+
+JNIEXPORT jint JNICALL
+JNI_FN(nativePlaceable)(JNIEnv *env, jobject thiz, jlong handle)
+{
+    (void)env; (void)thiz;
+    int tracked = 0;
+    int have = bridge_placeable((const NtripBridge *)(intptr_t)handle, &tracked);
+    /* Two counts in one call: placeable in the low half, tracked in the
+     * high half, so the policy needs a single crossing per second. */
+    return (jint)((tracked << 16) | (have & 0xFFFF));
+}
+
+JNIEXPORT void JNICALL
+JNI_FN(nativeCloseEph)(JNIEnv *env, jobject thiz, jlong handle)
+{
+    (void)env; (void)thiz;
+    bridge_close_eph((NtripBridge *)(intptr_t)handle);
+}

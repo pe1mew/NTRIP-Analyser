@@ -1,5 +1,32 @@
 # The Android views — specification
 
+## Two modes
+
+**Station mode** is the sixty-second check: connect, watch the seven
+KPIs, produce a verdict. It answers *does this station meet the basic
+KPIs for RTK service?* and then stops.
+
+**Analysis mode** is everything else — the sky view, the signal-quality
+bars, C/N0 against elevation. It answers *what is this station actually
+doing?*
+
+| | Free | Pro |
+|---|---|---|
+| Station mode | yes, unlimited | yes |
+| Analysis mode | **static**: shows what station mode captured | **live**: started and stopped on its own, runs as long as wanted |
+
+The distinction is what the free edition sells on and what the paid one
+improves. A free user gets the full picture of one capture and can study
+it for as long as they like; a paid user can keep the instrument running
+and watch the picture change — which is the only way to see a fault that
+comes and goes.
+
+This also settles what the views draw from. In free they render the
+measurements accumulated during the station check, frozen at its end,
+with C/N0 as the session mean. In pro they render the live session, with
+C/N0 as the current epoch.
+
+
 **Specified 2026-08-12**, correcting an earlier misreading: what was built
 first was the sector *coverage heatmap* (`sky_render`), which answers
 "which parts of the sky are being received well". What is wanted is the
@@ -19,8 +46,18 @@ footer — as the desktop Sky Plot draws it.
 | | Free | Pro |
 |---|---|---|
 | When | **once, full screen, after the 90 s capture** | continuously updating |
-| Position source | phone GNSS | phone GNSS, ephemeris stream, or downloaded RINEX |
+| Position source | phone GNSS, imported RINEX | ephemeris stream, imported RINEX (phone GNSS as fallback) |
 | Satellites without a position | counted and named in the header | same |
+
+Both editions draw a complete sky: free from the phone's GNSS and from a
+RINEX file the user supplies, pro from a live ephemeris mountpoint and
+from the same RINEX file. The **live stream is the paid capability** --
+it fills the cache in seconds from the caster the user is already
+connected to, where the free edition asks for a file obtained once a day.
+
+Phone GNSS remains available in pro as a fallback: removing a working
+source from the paid product would only make it worse when a user has
+neither a file nor a mountpoint.
 
 ### Where the positions come from
 
@@ -71,10 +108,93 @@ delivered that constellation. The view states it —
 tracking poorly. That distinction is the whole point of the view: an
 absent marker must never be readable as a missing satellite.
 
-**Ephemeris stream** (pro) and **downloaded RINEX** (pro) compute the
-position from the orbit and the base's own ARP, so they are exact and
-independent of where the phone is. They are also what makes the pro
-edition usable away from the site.
+**A RINEX navigation file the user supplies** (both editions) and an
+**ephemeris stream** (both editions, on demand) compute the position from
+the orbit and the base's own ARP. They are exact, independent of the
+handset, and cover every constellation the base tracks.
+
+### Why phone GNSS is a fallback, not the foundation
+
+Measured on a Huawei SNE-LX1 against a Kadaster base: **23 of 46
+satellites placed, and no Galileo at all** — the handset simply does not
+report that constellation. Coverage is a property of the phone, not of
+anything the app or the user controls, so it cannot be what the sky view
+rests on. It stays as a fallback because it needs no file and no
+connection, and on a better handset it is genuinely useful.
+
+### Why the observation stream is not enough either
+
+Some casters interleave ephemerides with observations. Measured on
+APEL00NLD0: **7 satellites in five minutes**, against 46 tracked. RFSEE01
+carries none at all. Useful as a free supplement, never a source.
+
+## Where the orbits actually come from
+
+### A RINEX navigation file, supplied by the user
+
+The user downloads a broadcast navigation file themselves and imports it
+into the app. Verified end to end: BKG's daily merged file
+(`BRDC00WRD_R_YYYYDDD0000_01D_MN.rnx.gz`) is **0.2 MB compressed, 1.7 MB
+open, 156 satellites across all seven constellations**, and
+`src/core/rinex_nav.c` parses it as it stands — 1730 records, 113
+satellites into the cache.
+
+**The app does not download it.** That is deliberate, and the reason is
+recorded below.
+
+### An ephemeris stream, opened on demand and closed again
+
+Where a caster publishes an ephemeris mountpoint, it fills the cache in
+about thirty seconds. The app treats it as a resource to borrow, not to
+hold:
+
+- **Open only when the cache cannot place the satellites being tracked.**
+  A run with a fresh RINEX file, or with a cache from an earlier run,
+  never opens it at all.
+- **Close as soon as it has what it needs** — every tracked satellite
+  placed — or after a bounded attempt if the caster is not delivering.
+- **Do not reopen until the cache has aged**, at which point the orbits
+  are no longer trustworthy and a refill is genuinely warranted.
+
+A connection held open for hours to receive a few messages an hour is
+rude to the caster and pointless to the user; this keeps it to what the
+work requires.
+
+**On ageing:** a broadcast ephemeris is nominally good for two to four
+hours for positioning. A sky plot is far more forgiving — a kilometre of
+orbit error at 20 000 km is about 0.01° of azimuth — so an ephemeris
+hours past its fit interval still places a marker perfectly well. The
+cache is therefore aged on what the *view* needs, not on what a
+positioning engine would demand, and the difference is stated wherever
+the age is shown.
+
+## Why the app does not download the navigation file
+
+An earlier plan had the app fetch the daily file from BKG or ESA. Both
+serve it over open HTTPS with no account, and the data is IGS broadcast
+ephemeris under a long-standing free and open policy. That plan is
+**paused**, unbuilt, for reasons that were checked rather than assumed:
+
+- BKG's site exposes no data-licence statement beyond an *Impressum*, so
+  the terms covering **commercial use** could not be established — and one
+  edition of this app is paid.
+- Nor could the terms covering **automated bulk fetching by a distributed
+  app**. A researcher pulling a file is not thousands of installs pulling
+  daily, and BKG requires free registration for its NTRIP services
+  specifically to manage load, which suggests the distinction matters to
+  them.
+
+Rather than proceed on an assumption, the app asks the user to obtain the
+file themselves. The user then holds the relationship with the data
+provider and is responsible for complying with its licence and usage
+rules — which is both the honest arrangement and the one that needs no
+permission from anyone.
+
+If those terms are later confirmed in writing, the download can be added
+behind the mitigations that would apply anyway: one file per device per
+day, never per run; the app identified in the `User-Agent`, as it already
+identifies itself to NTRIP casters; `If-Modified-Since` so most fetches
+cost a 304; and the source attributed in the app.
 
 ## 2. Signal quality — C/N0 per satellite
 
@@ -111,6 +231,20 @@ receiver.
 
 Requires elevation per sample, so it depends on the same position source
 as the sky view.
+
+## Outstanding: the views must use the orbits, not only the phone
+
+Measured on the device: the orbit cache reported **47 of 47 tracked
+satellites placeable**, while the sky view drew **23 of 47** — because
+the join still takes azimuth and elevation from the phone alone. The C
+side holds everything needed to do better: the ephemerides, the station
+ARP in ECEF, and `sv_orbit` to turn them into azimuth and elevation.
+
+Until that is wired, the imported RINEX file and the ephemeris stream
+improve the *count in the orbits card* but not the *plot*, which is the
+wrong way round. The order of preference should be: ephemeris or RINEX
+orbits where available, phone GNSS only for satellites they cannot
+place.
 
 ## What this means for the work already done
 

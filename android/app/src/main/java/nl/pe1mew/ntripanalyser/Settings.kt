@@ -15,6 +15,7 @@ import android.content.Context
 object Settings {
 
     private const val FILE = "caster"
+    private const val RINEX = "brdc.rnx"
 
     fun load(context: Context): CasterSettings {
         val p = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -48,5 +49,50 @@ object Settings {
             putString("eph_mp", s.ephMountpoint)
             apply()
         }
+    }
+
+    /** Where the imported navigation file lives. */
+    fun rinexFile(context: Context): java.io.File =
+        java.io.File(context.filesDir, RINEX)
+
+    /** The name of the imported file, or null when none has been. */
+    fun rinexName(context: Context): String? =
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .getString("rinex_name", null)
+            ?.takeIf { rinexFile(context).exists() }
+
+    /**
+     * Import a navigation file the user picked.
+     *
+     * Copied into app storage because `rinex_nav_load()` takes a path and
+     * a `content://` URI is not one. Gzip is unwrapped on the way in,
+     * since archives serve these files compressed and asking the user to
+     * decompress on a phone would be a poor joke.
+     *
+     * @return the display name on success, null when it could not be read.
+     */
+    fun importRinex(context: Context, uri: android.net.Uri): String? {
+        val name = context.contentResolver.query(uri, null, null, null, null)
+            ?.use { c ->
+                val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (i >= 0 && c.moveToFirst()) c.getString(i) else null
+            } ?: uri.lastPathSegment ?: "navigation file"
+
+        return runCatching {
+            context.contentResolver.openInputStream(uri)!!.use { raw ->
+                val head = java.io.BufferedInputStream(raw)
+                head.mark(2)
+                val b0 = head.read()
+                val b1 = head.read()
+                head.reset()
+                // 0x1f 0x8b is the gzip magic; anything else is plain text.
+                val src = if (b0 == 0x1f && b1 == 0x8b)
+                    java.util.zip.GZIPInputStream(head) else head
+                rinexFile(context).outputStream().use { out -> src.copyTo(out) }
+            }
+            context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+                .putString("rinex_name", name).apply()
+            name
+        }.getOrNull()
     }
 }

@@ -122,16 +122,12 @@ class MonitorService : Service() {
 
             Log.i(TAG, "run started: ${settings.caster}:${settings.port}/${settings.mountpoint}")
 
-            // The sky plot needs orbits, which the observation stream
-            // does not carry.  Optional: without it everything else runs
-            // and the sky screen simply reports it has nothing to place.
-            if (settings.hasEph) {
-                val ok = bridge.openEph(
-                    settings.ephCaster, settings.ephPort,
-                    settings.ephMountpoint, settings.user, settings.password,
-                )
-                Log.i(TAG, "ephemeris stream ${if (ok) "attached" else "FAILED"}: " +
-                    "${settings.ephCaster}:${settings.ephPort}/${settings.ephMountpoint}")
+            // A user-supplied RINEX file, if one has been imported. Read
+            // before any stream is considered: a current file means there
+            // is nothing to fetch.
+            rinexPath?.let { path ->
+                val n = bridge.loadRinex(path)
+                Log.i(TAG, "RINEX '$path': $n records")
             }
 
             liveBridge = bridge
@@ -140,6 +136,9 @@ class MonitorService : Service() {
                 val t0 = SystemClock.elapsedRealtime()
                 var lastPublish = -1L
                 var endedAtS = -1.0
+                var ephOpen = false
+                var ephOpenedAtS = 0.0
+                var ephRetryAtS = 0.0
 
                 // Publishing is a named action because the final
                 // document must be forced out below.  Rate-limiting it
@@ -176,6 +175,39 @@ class MonitorService : Service() {
                     // a station that passes now and fails in an hour is
                     // exactly what the mode exists to catch.  It ends only
                     // when the user stops it.
+                    // ── Ephemeris policy ────────────────────────────
+                    // Open the stream only when the cache cannot place
+                    // what is being tracked; close it the moment it can.
+                    // A connection held open for hours to receive a few
+                    // messages is rude to the caster and pointless to the
+                    // user, so it is borrowed and returned.
+                    if (Features.HAS_EPH_STREAM && settings.hasEph) {
+                        val (tracked, placeable) = b.coverage()
+                        val complete = tracked > 0 && placeable >= tracked
+
+                        if (!ephOpen && !complete && nowS >= ephRetryAtS) {
+                            ephOpen = b.openEph(
+                                settings.ephCaster, settings.ephPort,
+                                settings.ephMountpoint,
+                                settings.user, settings.password,
+                            )
+                            ephOpenedAtS = nowS
+                            Log.i(TAG, "ephemeris stream opened: $placeable of " +
+                                "$tracked satellites placeable")
+                        } else if (ephOpen &&
+                                   (complete || nowS - ephOpenedAtS > EPH_MAX_OPEN_S)) {
+                            b.closeEph()
+                            ephOpen = false
+                            // Do not reopen until the orbits have aged;
+                            // an incomplete cache is not a reason to keep
+                            // dialling a caster that is not delivering.
+                            ephRetryAtS = nowS + EPH_RETRY_S
+                            Log.i(TAG, "ephemeris stream closed after " +
+                                "${(nowS - ephOpenedAtS).toInt()} s: " +
+                                "$placeable of $tracked placeable")
+                        }
+                    }
+
                     val verdict = b.overall()
                     if (!watchMode &&
                         (verdict == RunVerdict.OK.ordinal || verdict == RunVerdict.FAILED.ordinal)) {
@@ -333,6 +365,16 @@ class MonitorService : Service() {
         /** How long to keep evaluating after the stream ends,
          *  so the KPI engine can reach a FAILED verdict. */
         private const val STREAM_END_GRACE_S = 15.0
+
+        /** Longest a borrowed ephemeris stream is held before giving up. */
+        private const val EPH_MAX_OPEN_S = 120.0
+
+        /** How long before an incomplete cache is worth another attempt. */
+        private const val EPH_RETRY_S = 900.0
+
+        /** A RINEX navigation file the user imported, if any. */
+        @Volatile
+        var rinexPath: String? = null
 
         private const val TAG = "ntrip_android"
 

@@ -43,6 +43,27 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
     ): Boolean = handle != 0L &&
         nativeOpenEph(handle, caster, port, mountpoint, user, password)
 
+    /**
+     * Load orbits from a RINEX navigation file the user supplied.
+     *
+     * The app never downloads it: the user obtains the file and so holds
+     * the relationship with the data provider and its licence terms.
+     *
+     * @return records accepted, or < 0 when the file could not be read.
+     */
+    fun loadRinex(path: String): Int =
+        if (handle == 0L) -1 else nativeLoadRinex(handle, path)
+
+    /** Satellites tracked by the stream, and how many can be placed. */
+    fun coverage(): Pair<Int, Int> {
+        if (handle == 0L) return 0 to 0
+        val packed = nativePlaceable(handle)
+        return (packed shr 16) to (packed and 0xFFFF)
+    }
+
+    /** Close the ephemeris stream, keeping the orbits it delivered. */
+    fun closeEph() { if (handle != 0L) nativeCloseEph(handle) }
+
     /** Frames seen on the ephemeris stream, for diagnosis. */
     fun ephFrames(): Int = if (handle == 0L) -1 else nativeEphFrames(handle)
 
@@ -131,6 +152,9 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         ): Boolean
         @JvmStatic private external fun nativeEphCount(h: Long): Int
         @JvmStatic private external fun nativeEphFrames(h: Long): Int
+        @JvmStatic private external fun nativeLoadRinex(h: Long, path: String): Int
+        @JvmStatic private external fun nativePlaceable(h: Long): Int
+        @JvmStatic private external fun nativeCloseEph(h: Long)
         @JvmStatic private external fun nativeSkyPixels(
             h: Long, pixels: IntArray, width: Int, height: Int,
         ): Boolean

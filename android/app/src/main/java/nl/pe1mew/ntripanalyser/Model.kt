@@ -112,6 +112,24 @@ data class TypeStat(
     @SerialName("avg_dt") val avgDt: Double? = null,
 )
 
+/**
+ * One satellite as the stream carries it.
+ *
+ * No position: an observation stream never carries one. The views join
+ * azimuth and elevation from whatever source is available, by
+ * (gnss, prn) -- see `android/design/views.md`.
+ */
+@Serializable
+data class SatEntry(
+    val gnss: Int = 0,
+    val prn: Int = 0,
+    /** Most recent C/N0; 0 when the stream carries none (MSM4/5/6). */
+    val cn0: Float = 0f,
+    /** Session mean, averaged in power rather than in decibels. */
+    @SerialName("cn0_mean") val cn0Mean: Float = 0f,
+    val samples: Int = 0,
+)
+
 /** One constellation's contribution. */
 @Serializable
 data class GnssStat(
@@ -121,12 +139,8 @@ data class GnssStat(
     @SerialName("cnr_median") val cnrMedian: Double? = null,
     @SerialName("cnr_min") val cnrMin: Double? = null,
 ) {
-    /** RTCM constellation numbering, as used throughout the core. */
-    val label: String get() = when (gnssId) {
-        0 -> "GPS"; 1 -> "GLONASS"; 2 -> "Galileo"; 3 -> "BeiDou"
-        4 -> "QZSS"; 5 -> "NavIC"; 6 -> "SBAS"
-        else -> "GNSS $gnssId"
-    }
+    /** One mapping for the whole app; see [Gnss]. */
+    val label: String get() = Gnss.label(gnssId)
 }
 
 /**
@@ -150,11 +164,41 @@ data class Watch(
     @SerialName("last_degrade_s") val lastDegradeS: Double? = null,
 )
 
+/**
+ * How well the orbit cache serves this stream, and how old it is.
+ *
+ * Shown in the app rather than left implicit: a sky view drawn from
+ * stale or partial orbits looks exactly like one drawn from fresh,
+ * complete ones.
+ */
+@Serializable
+data class EphState(
+    /** Satellites the stream is carrying. */
+    val tracked: Int = 0,
+    /** Of those, how many have an orbit and can be drawn. */
+    val placeable: Int = 0,
+    /** Satellites in the cache, tracked or not. */
+    val cached: Int = 0,
+    /** Seconds since the newest orbit was issued; null when empty. */
+    @SerialName("age_s") val ageS: Double? = null,
+) {
+    val isComplete: Boolean get() = tracked > 0 && placeable >= tracked
+
+    /**
+     * A sky plot tolerates far older orbits than positioning does -- a
+     * kilometre of orbit error at 20 000 km is about 0.01 degrees -- so
+     * this is generous next to the two-to-four-hour fit interval.
+     */
+    val isStale: Boolean get() = (ageS ?: 0.0) > 6 * 3600
+}
+
 @Serializable
 data class BridgeDocument(
     val stats: Stats = Stats(),
     val kpi: KpiReport = KpiReport(),
     val watch: Watch? = null,
+    val sats: List<SatEntry> = emptyList(),
+    val eph: EphState = EphState(),
 )
 
 /** Tolerant by policy: an added C field must never crash the phone. */

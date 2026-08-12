@@ -186,6 +186,50 @@ bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
  */
 int bridge_eph_count(const NtripBridge *b);
 
+/**
+ * @brief Load orbits from a RINEX navigation file the user supplied.
+ *
+ * The app never downloads this file.  The user obtains it themselves and
+ * so holds the relationship with the data provider, including its
+ * licence and usage rules -- see `android/design/views.md`.
+ *
+ * @param b    Bridge handle (may be NULL: the cache is process-wide).
+ * @param path Readable path to a RINEX 3 NAV file, already decompressed.
+ * @return Records accepted, or <0 when the file could not be read.
+ */
+int bridge_load_rinex(NtripBridge *b, const char *path);
+
+/**
+ * @brief How many of the tracked satellites can currently be placed.
+ *
+ * The question the ephemeris policy turns on: with every tracked
+ * satellite placed there is nothing to fetch, and a stream should not be
+ * opened at all.
+ *
+ * @param b       Bridge handle.
+ * @param tracked [out, optional] satellites the stream is carrying.
+ * @return Satellites both tracked and holding a usable ephemeris.
+ */
+int bridge_placeable(const NtripBridge *b, int *tracked);
+
+/** @brief Satellites holding an orbit, whether tracked or not. */
+int bridge_eph_cached(const NtripBridge *b);
+
+/**
+ * @brief Seconds since the newest orbit in the cache was issued.
+ *
+ * Measured from the newest rather than the oldest: this answers "how
+ * long since the app last learned anything about the orbits", which is
+ * what decides whether to refill. The oldest entry answers a different
+ * question and reads alarmingly for a cache that is mostly fresh.
+ *
+ * @return Age in seconds, or <0 when the cache is empty.
+ */
+double bridge_eph_age_s(const NtripBridge *b);
+
+/** @brief Close the ephemeris side-stream, keeping what it delivered. */
+void bridge_close_eph(NtripBridge *b);
+
 /** @brief Frames seen on the ephemeris stream; -1 if no bridge.
  *  Distinguishes "stream not delivering" from "delivering but
  *  nothing decodable", which look identical from the count. */

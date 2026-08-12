@@ -28,7 +28,7 @@ The paid edition therefore shows **more**, never **different**.
 | Sourcetable | **viewable, not selectable** | browse and tap to use |
 | Watch mode | **not available** | yes, unlimited |
 | Sky plot (coverage heatmap) | yes | yes |
-| Ephemeris source | live stream only | live stream **or downloaded RINEX** |
+| Ephemeris source | imported RINEX, on-demand stream, phone GNSS | same |
 | Session history | — | yes |
 | Per-SV / per-band C/N0 | — | yes |
 | Ionosphere (ROTI) | — | yes |
@@ -46,7 +46,26 @@ must be typed by hand. Convenience across many mountpoints is precisely
 the paid proposition, so the free edition gives the information and
 withholds the workflow. Nothing is hidden; the work is manual.
 
-### Why the RINEX download is paid
+### Why the position sources are not a paid feature
+
+They were going to be: the RINEX download was to be pro-only. Two
+measurements changed that. Phone GNSS placed **23 of 46 satellites and no
+Galileo** on the test handset, and the observation stream yielded **7
+ephemerides in five minutes** on a caster that carries them at all. A
+free edition restricted to those would ship a sky view that is mostly
+empty through no fault of the user — which sells nothing and teaches the
+user to distrust the plot.
+
+So both editions get the same sources. The free edition is limited by
+*time*, as it always was: one capture, then it stops. That is a limit the
+user understands and can work with, rather than a measurement that
+quietly under-reports.
+
+The app does not download the navigation file in either edition — see
+`views.md` for why the terms could not be established, and why the user
+supplying the file is the honest arrangement.
+
+### (paused) Why an app-side RINEX download would have been paid
 
 The sky plot needs orbits, and orbits reach the app one of two ways: a
 live ephemeris mountpoint, or a broadcast RINEX navigation file

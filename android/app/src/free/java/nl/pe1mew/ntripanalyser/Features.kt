@@ -25,6 +25,17 @@ object Features {
     const val HAS_WATCH = false
 
     /** One saved mountpoint; the paid edition keeps several. */
+
+    /**
+     * A live ephemeris mountpoint, opened on demand for orbits.
+     *
+     * The paid capability among the position sources. Both editions read
+     * a RINEX navigation file the user supplies, and both fall back to
+     * the phone's own GNSS; only pro may borrow a second connection from
+     * the caster to fill the cache in seconds.
+     */
+    const val HAS_EPH_STREAM = false
+
     const val MAX_MOUNTPOINTS = 1
 
     /**

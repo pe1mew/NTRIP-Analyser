@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,8 +20,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +89,21 @@ private fun runColour(v: RunVerdict): Color = when (v) {
     RunVerdict.RUNNING -> Color(0xFF5A7DAF)
 }
 
+/** Which full-screen destination is showing. */
+/**
+ * The two modes.
+ *
+ * **Station** is the sixty-second check: does this station meet the
+ * basic KPIs? **Analysis** is everything else -- what is it actually
+ * doing? Free renders analysis from what the station check captured,
+ * frozen at its end; pro runs analysis as a session of its own, started
+ * and stopped at will, and that session is what watch mode measures.
+ */
+enum class Screen { STATION, ANALYSIS }
+
+/** Which analysis view is showing. */
+enum class AnalysisTab { SKY, SIGNAL, ELEVATION }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
@@ -97,7 +113,181 @@ fun MainScreen() {
     var settings by remember { mutableStateOf(Settings.load(context)) }
     var showSettings by remember { mutableStateOf(!Settings.load(context).isComplete) }
     var showSourcetable by remember { mutableStateOf(false) }
-    var showSky by remember { mutableStateOf(false) }
+    var screen by remember { mutableStateOf(Screen.STATION) }
+    var tab by remember { mutableStateOf(AnalysisTab.SKY) }
+
+    // Positions come from the phone's own GNSS -- what both editions
+    // share, and all the free edition has. Permission is asked when the
+    // sky view is first opened, never at launch.
+    val phoneGnss = remember { PhoneGnss(context) }
+    val positions by phoneGnss.positions.collectAsStateWithLifecycle(emptyMap())
+    var haveLocation by remember { mutableStateOf(hasLocationPermission(context)) }
+    var openSky by remember { mutableStateOf(false) }
+    var rinexName by remember { mutableStateOf(Settings.rinexName(context)) }
+
+    // The app never downloads a navigation file: the user obtains it and
+    // so holds the relationship with the data provider, including its
+    // licence and usage rules (android/design/views.md).
+    val pickRinex = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val name = Settings.importRinex(context, uri)
+            if (name != null) {
+                rinexName = name
+                MonitorService.rinexPath = Settings.rinexFile(context).absolutePath
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (Settings.rinexFile(context).exists()) {
+            MonitorService.rinexPath = Settings.rinexFile(context).absolutePath
+        }
+    }
+
+    val askLocation = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        haveLocation = granted
+        if (granted) screen = Screen.ANALYSIS
+    }
+
+    LaunchedEffect(openSky) {
+        if (!openSky) return@LaunchedEffect
+        openSky = false
+        if (haveLocation) screen = Screen.ANALYSIS
+        else askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
+
+    DisposableEffect(haveLocation) {
+        if (haveLocation) phoneGnss.start()
+        onDispose { phoneGnss.stop() }
+    }
+
+    // Satellites the stream measured, joined to a position where one
+    // exists. Free shows the session mean, pro the live value.
+    val liveDoc = runState.document
+    val plotted = remember(liveDoc, positions) {
+        liveDoc?.sats.orEmpty().mapNotNull { sat ->
+            val pos = positions[PhoneGnss.key(sat.gnss, sat.prn)]
+                ?: return@mapNotNull null
+            PlottedSat(
+                gnss = sat.gnss, prn = sat.prn,
+                cn0 = if (Features.IS_PRO) sat.cn0 else sat.cn0Mean,
+                azimuthDeg = pos.azimuthDeg, elevationDeg = pos.elevationDeg,
+            )
+        }
+    }
+
+    // The elevation scatter accumulates over the session. Elevation comes
+    // from the phone and C/N0 from the stream, so the join -- and so the
+    // accumulation -- can only happen here.
+    val elevSamples = remember { mutableStateListOf<ElevationSample>() }
+    LaunchedEffect(plotted) {
+        plotted.forEach { p ->
+            if (p.cn0 > 0f) {
+                elevSamples.add(ElevationSample(p.gnss, p.elevationDeg, p.cn0))
+            }
+        }
+        // A long watch would grow this without bound.
+        while (elevSamples.size > 20000) elevSamples.removeAt(0)
+    }
+
+    if (screen == Screen.ANALYSIS) {
+        val footer = liveDoc?.stats?.let { st ->
+            buildString {
+                append(st.mountpoint)
+                if (st.arpValid && st.arpLat != null && st.arpLon != null) {
+                    append("  ARP: %.6f, %.6f".format(st.arpLat, st.arpLon))
+                }
+            }
+        }.orEmpty()
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.mode_analysis)) },
+                    navigationIcon = {
+                        TextButton(onClick = { screen = Screen.STATION }) {
+                            Text(stringResource(R.string.action_back))
+                        }
+                    },
+                )
+            }
+        ) { pad ->
+            Column(Modifier.padding(pad).fillMaxSize()) {
+
+                // Pro runs analysis as its own session; free shows what
+                // the station check captured, frozen at its end.
+                if (Features.HAS_WATCH) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Button(onClick = {
+                            if (runState.running) MonitorService.stop(context)
+                            else MonitorService.start(context, settings, watch = true)
+                        }) {
+                            Text(stringResource(
+                                if (runState.running) R.string.action_stop
+                                else R.string.action_analyse
+                            ))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        liveDoc?.watch?.let { w ->
+                            Text(
+                                stringResource(R.string.analysis_running, dur(w.elapsedS)),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        stringResource(R.string.analysis_static),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+
+                liveDoc?.watch?.let { WatchCard(it) }
+
+                TabRow(selectedTabIndex = tab.ordinal) {
+                    AnalysisTab.entries.forEach { t ->
+                        Tab(
+                            selected = tab == t,
+                            onClick = { tab = t },
+                            text = {
+                                Text(stringResource(when (t) {
+                                    AnalysisTab.SKY -> R.string.view_sky
+                                    AnalysisTab.SIGNAL -> R.string.view_bars
+                                    AnalysisTab.ELEVATION -> R.string.view_elev
+                                }))
+                            },
+                        )
+                    }
+                }
+
+                Box(Modifier.weight(1f)) {
+                    when (tab) {
+                        AnalysisTab.SKY -> SkyView(
+                            sats = plotted,
+                            missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
+                                .coerceAtLeast(0),
+                            source = if (haveLocation) PositionSource.PHONE_GNSS
+                                     else PositionSource.NONE,
+                            footer = footer,
+                        )
+                        AnalysisTab.SIGNAL ->
+                            SignalBars(plotted, liveValues = Features.IS_PRO)
+                        AnalysisTab.ELEVATION -> ElevationView(elevSamples.toList())
+                    }
+                }
+            }
+        }
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -165,24 +355,22 @@ fun MainScreen() {
                             if (doc != null) R.string.action_again else R.string.action_run
                         ))
                     }
-                    // Watch is a paid capability: the free edition does
-                    // not offer it at all rather than offering a
-                    // crippled version (android/design/editions.md).
-                    if (Features.HAS_WATCH) {
-                        OutlinedButton(
-                            onClick = { MonitorService.start(context, settings, watch = true) },
-                            enabled = settings.isComplete,
-                            modifier = Modifier.weight(1f),
-                        ) { Text(stringResource(R.string.action_watch)) }
-                    }
+                    // Analysis is a mode, not a second kind of run. In
+                    // pro it starts its own session; in free it shows
+                    // what this check captured.
+                    OutlinedButton(
+                        onClick = { openSky = true },
+                        enabled = doc != null && doc.sats.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.mode_analysis)) }
                 }
             }
 
-            if (settings.hasEph && runState.skyAvailable) {
-                TextButton(onClick = { showSky = true }) {
-                    Text(stringResource(R.string.action_sky))
-                }
-            }
+            // Where the orbits stand: incompleteness and age are shown,
+            // never left implicit.
+            doc?.eph?.let { EphCard(it, rinexName) { pickRinex.launch(arrayOf("*/*")) } }
+
+
 
             if (!settings.isComplete) {
                 Text(
@@ -191,10 +379,6 @@ fun MainScreen() {
                 )
             }
         }
-    }
-
-    if (showSky) {
-        SkyDialog(onDismiss = { showSky = false })
     }
 
     if (showSourcetable) {
@@ -620,14 +804,6 @@ private fun SettingsDialog(
     )
 }
 
-@Composable
-private fun stringResource(id: Int): String =
-    androidx.compose.ui.res.stringResource(id)
-
-@Composable
-private fun stringResource(id: Int, vararg args: Any): String =
-    androidx.compose.ui.res.stringResource(id, *args)
-
 /** Compact duration: "45 s", "12 min", "3 h 07 m". */
 private fun dur(seconds: Double): String {
     val s = seconds.toInt()
@@ -799,65 +975,58 @@ private fun SourceRow(e: SourceEntry, onPick: (String) -> Unit) {
     HorizontalDivider()
 }
 
+/** Whether the phone's GNSS may be read for satellite positions. */
+fun hasLocationPermission(context: android.content.Context): Boolean =
+    ContextCompat.checkSelfPermission(
+        context, Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+
 /**
- * The sky-coverage heatmap, rendered by the C core.
+ * Where the orbits stand.
  *
- * The pixels come from `sky_render`, the same code that draws the
- * desktop's `--sky` PNG -- verified pixel-identical -- so the phone
- * cannot show a different sky from the one a report would carry.
- *
- * Refreshed every two seconds: sector coverage changes slowly, and
- * redrawing a 700x700 image more often would cost battery for nothing.
+ * A sky view drawn from partial or stale orbits looks exactly like one
+ * drawn from fresh, complete ones, so the difference is stated here
+ * rather than left for the user to infer from a sparse plot.
  */
 @Composable
-private fun SkyDialog(onDismiss: () -> Unit) {
-    val size = MonitorService.SKY_SIZE
-    val pixels = remember { IntArray(size * size) }
-    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var eph by remember { mutableStateOf(0) }
+private fun EphCard(eph: EphState, rinexName: String?, onImport: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                stringResource(R.string.eph_title),
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            val drawn = withContext(Dispatchers.Default) {
-                MonitorService.renderSky(pixels, size, size)
+            Text(
+                stringResource(R.string.eph_coverage, eph.placeable, eph.tracked, eph.cached),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (eph.isComplete) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.error,
+            )
+
+            val age = eph.ageS
+            Text(
+                when {
+                    age == null -> stringResource(R.string.eph_none)
+                    age < 3600 -> stringResource(R.string.eph_age_min, (age / 60).toInt())
+                    else -> stringResource(R.string.eph_age_hour, age / 3600.0)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (eph.isStale) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(4.dp))
+            Text(
+                rinexName?.let { stringResource(R.string.eph_file, it) }
+                    ?: stringResource(R.string.eph_no_file),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onImport) {
+                Text(stringResource(R.string.action_import_rinex))
             }
-            eph = MonitorService.ephCount()
-            if (drawn) {
-                bitmap = android.graphics.Bitmap.createBitmap(
-                    pixels, size, size, android.graphics.Bitmap.Config.ARGB_8888
-                )
-            }
-            kotlinx.coroutines.delay(2000)
         }
     }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.sky_title)) },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val bmp = bitmap
-                if (bmp == null) {
-                    Text(
-                        stringResource(R.string.sky_waiting, eph),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                } else {
-                    androidx.compose.foundation.Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = stringResource(R.string.sky_title),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        stringResource(R.string.sky_eph, eph),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
-        },
-    )
 }

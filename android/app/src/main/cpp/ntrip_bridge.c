@@ -16,6 +16,7 @@
 #include "core/sky_collect.h"
 #include "core/sky_render.h"
 #include "core/sv_ephemeris.h"
+#include "core/rinex_nav.h"
 #include "net/ntrip_handler.h"   /* receive_mount_table */
 #include "core/version.h"
 
@@ -23,6 +24,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <math.h>
 
 static void bridge_on_event(const NsEvent *ev, void *user);
 static void bridge_eph_event(const NsEvent *ev, void *user);
@@ -269,6 +272,22 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
 
     app(out, cap, &pos, "]}");
 
+    /* How well the orbit cache can serve the satellites being tracked,
+     * and how old it is.  Incompleteness and age are shown in the app
+     * rather than left implicit: a sky view drawn from stale or partial
+     * orbits looks exactly like one drawn from fresh, complete ones. */
+    {
+        int tracked = 0;
+        int placeable = bridge_placeable(b, &tracked);
+        double age = bridge_eph_age_s(b);
+
+        app(out, cap, &pos,
+            ",\"eph\":{\"tracked\":%d,\"placeable\":%d,\"cached\":%d,",
+            tracked, placeable, bridge_eph_cached(b));
+        if (age >= 0.0) app(out, cap, &pos, "\"age_s\":%.0f}", age);
+        else            app(out, cap, &pos, "\"age_s\":null}");
+    }
+
     /* The satellites, for the sky view and the C/N0 bars.  Positions are
      * absent by design: the caller joins them from its own source. */
     {
@@ -427,4 +446,80 @@ bool bridge_sky_rgb(NtripBridge *b, unsigned char *rgb,
     return sky_render_heatmap_rgb(rgb, width, height, &b->sky[0][0],
                                   s->arp_valid, s->arp_lat, s->arp_lon,
                                   s->arp_alt, b->mountpoint, "");
+}
+
+int bridge_load_rinex(NtripBridge *b, const char *path)
+{
+    (void)b;                       /* the ephemeris cache is process-wide */
+    if (!path || !*path) return -1;
+    return rinex_nav_load(path, NULL);
+}
+
+int bridge_placeable(const NtripBridge *b, int *tracked)
+{
+    if (tracked) *tracked = 0;
+    if (!b || !b->sess) return 0;
+
+    SvTrackEntry sats[128];
+    int n = ns_sat_list(b->sess, sats, 128);
+    if (tracked) *tracked = n;
+
+    int have = 0;
+    for (int i = 0; i < n; i++)
+        if (sv_eph_get(sats[i].gnss_id, sats[i].prn)) have++;
+    return have;
+}
+
+void bridge_close_eph(NtripBridge *b)
+{
+    if (!b || !b->eph) return;
+    ns_close(b->eph);
+    b->eph = NULL;              /* the orbits it delivered stay cached */
+}
+
+int bridge_eph_cached(const NtripBridge *b)
+{
+    (void)b;                       /* the cache is process-wide */
+    int n = 0;
+    for (int g = 0; g < SV_EPH_MAX_GNSS; g++)
+        for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++)
+            if (sv_eph_get(g, p)) n++;
+    return n;
+}
+
+double bridge_eph_age_s(const NtripBridge *b)
+{
+    (void)b;
+
+    /* Age is measured from the newest ephemeris in the cache: that is
+     * what says how long ago the app last learned anything about the
+     * orbits.  The oldest entry would answer a different question --
+     * how stale the worst satellite is -- and would read alarmingly for
+     * a cache that is mostly fresh. */
+    const SvEphemeris *newest = NULL;
+    for (int g = 0; g < SV_EPH_MAX_GNSS; g++) {
+        for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++) {
+            const SvEphemeris *e = sv_eph_get(g, p);
+            if (!e) continue;
+            if (!newest ||
+                e->week > newest->week ||
+                (e->week == newest->week && e->toe > newest->toe))
+                newest = e;
+        }
+    }
+    if (!newest) return -1.0;
+
+    /* GPS time began 1980-01-06; the 18 s offset from UTC has held since
+     * 2017 and is what every constellation here is aligned to. */
+    time_t now = time(NULL);
+    double gps_now = (double)(now - 315964800) + 18.0;
+    double eph_t = (double)newest->week * 604800.0 + newest->toe;
+
+    /* The week number rolls over (10-bit for GPS); compare within the
+     * current epoch rather than trusting the raw week across a rollover. */
+    double age = fmod(gps_now, 604800.0) - newest->toe;
+    if (age < -302400.0) age += 604800.0;
+    if (age >  302400.0) age -= 604800.0;
+    (void)eph_t;
+    return age;
 }
