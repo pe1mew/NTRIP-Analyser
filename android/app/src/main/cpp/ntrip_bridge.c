@@ -11,6 +11,9 @@
 
 #include "session/ntrip_session.h"
 #include "core/kpi.h"
+#include "core/sourcetable.h"
+#include "net/ntrip_handler.h"   /* receive_mount_table */
+#include "core/version.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -204,4 +207,55 @@ void bridge_close(NtripBridge *b)
     if (!b) return;
     if (b->sess) ns_close(b->sess);
     free(b);
+}
+
+/** @brief How many sourcetable records to carry across the bridge. */
+#define BRIDGE_MAX_ENTRIES 512
+
+int bridge_sourcetable_json(const char *caster, int port,
+                            const char *user, const char *password,
+                            char *out, size_t cap)
+{
+    if (!out || cap < 32) return -1;
+
+    NTRIP_Config cfg;
+    memset(&cfg, 0, sizeof(cfg));
+    snprintf(cfg.NTRIP_CASTER, sizeof(cfg.NTRIP_CASTER), "%s", caster ? caster : "");
+    snprintf(cfg.USERNAME,     sizeof(cfg.USERNAME),     "%s", user ? user : "");
+    snprintf(cfg.PASSWORD,     sizeof(cfg.PASSWORD),     "%s", password ? password : "");
+    cfg.NTRIP_PORT = port;
+
+    char *raw = receive_mount_table(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
+    if (!raw) return -1;
+
+    SourcetableEntry *e = (SourcetableEntry *)
+        calloc(BRIDGE_MAX_ENTRIES, sizeof(SourcetableEntry));
+    if (!e) { free(raw); return -1; }
+
+    int n = sourcetable_parse(raw, e, BRIDGE_MAX_ENTRIES);
+    free(raw);
+
+    int pos = 0;
+    app(out, cap, &pos, "{\"entries\":[");
+    for (int i = 0; i < n; i++) {
+        app(out, cap, &pos, "%s{\"mountpoint\":\"", i ? "," : "");
+        app_escaped(out, cap, &pos, e[i].mountpoint);
+        app(out, cap, &pos, "\",\"identifier\":\"");
+        app_escaped(out, cap, &pos, e[i].identifier);
+        app(out, cap, &pos, "\",\"format\":\"");
+        app_escaped(out, cap, &pos, e[i].format);
+        app(out, cap, &pos, "\",\"nav_systems\":\"");
+        app_escaped(out, cap, &pos, e[i].nav_systems);
+        app(out, cap, &pos, "\",\"country\":\"");
+        app_escaped(out, cap, &pos, e[i].country);
+        app(out, cap, &pos,
+            "\",\"lat\":%.5f,\"lon\":%.5f,\"carrier\":%d,\"nmea\":%s}",
+            e[i].latitude, e[i].longitude, e[i].carrier,
+            e[i].nmea ? "true" : "false");
+    }
+    app(out, cap, &pos, "]}");
+
+    free(e);
+    if (pos < 0 || (size_t)pos >= cap) return -1;   /* truncated */
+    return pos;
 }

@@ -31,6 +31,7 @@ add_library(ntrip_android SHARED
     ${REPO_ROOT}/src/core/sv_orbit.c
     ${REPO_ROOT}/src/core/sv_track.c
     ${REPO_ROOT}/src/core/kpi.c
+    ${REPO_ROOT}/src/core/sourcetable.c
     ${REPO_ROOT}/src/core/vrs_check.c
     ${REPO_ROOT}/src/core/iono.c
     ${REPO_ROOT}/src/core/rinex_nav.c

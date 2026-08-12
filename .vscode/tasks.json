@@ -24,6 +24,7 @@
                 "src/core/sv_orbit.c",
                 "src/core/sv_track.c",
                 "src/core/kpi.c",
+                "src/core/sourcetable.c",
                 "src/core/vrs_check.c",
                 "src/core/iono.c",
                 "src/core/sky_collect.c",

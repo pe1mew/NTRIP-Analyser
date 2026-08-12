@@ -124,3 +124,32 @@ JNI_FN(nativeClose)(JNIEnv *env, jobject thiz, jlong handle)
     (void)env; (void)thiz;
     bridge_close((NtripBridge *)(intptr_t)handle);
 }
+
+JNIEXPORT jstring JNICALL
+JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
+                          jstring caster, jint port,
+                          jstring user, jstring password)
+{
+    (void)thiz;
+    const char *c_caster = str_in(env, caster);
+    const char *c_user   = str_in(env, user);
+    const char *c_pass   = str_in(env, password);
+
+    /* A national caster's table runs to tens of kilobytes. */
+    const size_t cap = 262144;
+    char *buf = (char *)malloc(cap);
+    jstring outv = NULL;
+
+    if (buf) {
+        int n = bridge_sourcetable_json(c_caster ? c_caster : "", (int)port,
+                                        c_user ? c_user : "",
+                                        c_pass ? c_pass : "", buf, cap);
+        if (n >= 0) outv = (*env)->NewStringUTF(env, buf);
+        free(buf);
+    }
+
+    str_free(env, caster, c_caster);
+    str_free(env, user, c_user);
+    str_free(env, password, c_pass);
+    return outv;
+}

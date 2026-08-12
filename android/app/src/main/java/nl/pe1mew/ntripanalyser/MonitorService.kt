@@ -71,7 +71,8 @@ class MonitorService : Service() {
         // caster settings say what to connect to, the run mode says how
         // to test it.  So it arrives with the start request and is never
         // persisted alongside credentials.
-        val watchMode = intent.getBooleanExtra(EXTRA_WATCH, false)
+        val watchMode = intent.getBooleanExtra(EXTRA_WATCH, false) &&
+            Features.HAS_WATCH
 
         val settings = CasterSettings(
             caster = intent.getStringExtra(EXTRA_CASTER).orEmpty(),
@@ -163,17 +164,6 @@ class MonitorService : Service() {
                     // that verdict rather than leaving the failure
                     // invisible.  The pump stays cheap: it returns
                     // immediately once the session is finished.
-                    // The free edition caps a watch.  A product boundary,
-                    // not a security control -- the project is open
-                    // source, so no effort goes into obfuscating it
-                    // (android/design/editions.md).
-                    if (watchMode && Features.WATCH_LIMIT_S > 0.0 &&
-                        nowS >= Features.WATCH_LIMIT_S) {
-                        Log.i(TAG, "free watch limit reached at ${nowS.toInt()} s")
-                        publish(false, Outcome.LIMIT_REACHED)
-                        break
-                    }
-
                     if (!alive) {
                         if (endedAtS < 0.0) {
                             endedAtS = nowS

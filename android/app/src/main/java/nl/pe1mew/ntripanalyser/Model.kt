@@ -83,6 +83,24 @@ data class Stats(
     val gnss: List<GnssStat> = emptyList(),
 )
 
+/** One `STR` record from a caster's sourcetable. */
+@Serializable
+data class SourceEntry(
+    val mountpoint: String = "",
+    val identifier: String = "",
+    val format: String = "",
+    @SerialName("nav_systems") val navSystems: String = "",
+    val country: String = "",
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+    val carrier: Int = 0,
+    /** The caster expects a GGA uplink: a network-RTK mountpoint. */
+    val nmea: Boolean = false,
+)
+
+@Serializable
+data class Sourcetable(val entries: List<SourceEntry> = emptyList())
+
 /** One RTCM message type as the stream actually delivers it. */
 @Serializable
 data class TypeStat(

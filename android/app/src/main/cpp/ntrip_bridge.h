@@ -121,6 +121,36 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s);
  */
 int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap);
 
+/**
+ * @brief Fetch and parse a caster's sourcetable, as JSON.
+ *
+ * **Blocking**: this opens a connection and waits for the caster, so it
+ * must not be called on a UI thread.
+ *
+ * Independent of any session -- a user browses a caster before deciding
+ * what to check, so this takes credentials directly rather than needing
+ * a bridge handle.
+ *
+ * ```json
+ * {"entries":[{"mountpoint":"APEL00NLD0","identifier":"Apeldoorn",
+ *              "format":"RTCM 3.3","nav_systems":"GPS+GLO+GAL+BDS",
+ *              "country":"NLD","lat":52.23,"lon":5.94,
+ *              "carrier":2,"nmea":false}, ...]}
+ * ```
+ *
+ * @param caster   Caster hostname.
+ * @param port     Caster port.
+ * @param user     Username; "" for none.
+ * @param password Password; "" for none.
+ * @param out      Destination buffer.
+ * @param cap      Capacity; a large caster needs 64 kB or more.
+ * @return Bytes written excluding the terminator, or <0 on failure
+ *         (unreachable caster, or a buffer too small for the table).
+ */
+int bridge_sourcetable_json(const char *caster, int port,
+                            const char *user, const char *password,
+                            char *out, size_t cap);
+
 /** @brief Overall verdict as @ref KpiRunVerdict, for a cheap poll. */
 int bridge_overall(const NtripBridge *b);
 

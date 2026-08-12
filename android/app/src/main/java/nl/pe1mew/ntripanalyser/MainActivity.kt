@@ -9,6 +9,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +25,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -91,6 +95,7 @@ fun MainScreen() {
 
     var settings by remember { mutableStateOf(Settings.load(context)) }
     var showSettings by remember { mutableStateOf(!Settings.load(context).isComplete) }
+    var showSourcetable by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -119,6 +124,12 @@ fun MainScreen() {
             // What this run is (or would be) pointed at, without making
             // the user open the settings screen to find out.
             ConfigSummary(settings) { showSettings = true }
+
+            if (settings.caster.isNotBlank()) {
+                TextButton(onClick = { showSourcetable = true }) {
+                    Text(stringResource(R.string.action_browse))
+                }
+            }
 
             doc?.let { StreamChips(it) }
 
@@ -152,11 +163,16 @@ fun MainScreen() {
                             if (doc != null) R.string.action_again else R.string.action_run
                         ))
                     }
-                    OutlinedButton(
-                        onClick = { MonitorService.start(context, settings, watch = true) },
-                        enabled = settings.isComplete,
-                        modifier = Modifier.weight(1f),
-                    ) { Text(stringResource(R.string.action_watch)) }
+                    // Watch is a paid capability: the free edition does
+                    // not offer it at all rather than offering a
+                    // crippled version (android/design/editions.md).
+                    if (Features.HAS_WATCH) {
+                        OutlinedButton(
+                            onClick = { MonitorService.start(context, settings, watch = true) },
+                            enabled = settings.isComplete,
+                            modifier = Modifier.weight(1f),
+                        ) { Text(stringResource(R.string.action_watch)) }
+                    }
                 }
             }
 
@@ -167,6 +183,18 @@ fun MainScreen() {
                 )
             }
         }
+    }
+
+    if (showSourcetable) {
+        SourcetableDialog(
+            settings = settings,
+            onDismiss = { showSourcetable = false },
+            onPick = { mp ->
+                settings = settings.copy(mountpoint = mp)
+                Settings.save(context, settings)
+                showSourcetable = false
+            },
+        )
     }
 
     if (showSettings) {
@@ -594,4 +622,133 @@ private fun WatchCard(w: Watch) {
             )
         }
     }
+}
+
+/**
+ * A caster's mountpoint list.
+ *
+ * Fetching blocks on the network, so it runs on Dispatchers.IO; the
+ * dialog shows a spinner until it returns.
+ *
+ * In the free edition the list is readable but inert: the mountpoint
+ * must be typed into settings by hand. That is deliberate rather than
+ * mean -- the information is what makes the free app useful, and the
+ * workflow of picking among many mountpoints is what the paid edition
+ * sells (android/design/editions.md).
+ */
+@Composable
+private fun SourcetableDialog(
+    settings: CasterSettings,
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit,
+) {
+    var entries by remember { mutableStateOf<List<SourceEntry>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var filter by remember { mutableStateOf("") }
+
+    LaunchedEffect(settings.caster, settings.port) {
+        val json = withContext(Dispatchers.IO) {
+            NtripBridge.sourcetable(
+                settings.caster, settings.port, settings.user, settings.password
+            )
+        }
+        if (json == null) {
+            error = "unreachable"
+        } else {
+            runCatching { bridgeJson.decodeFromString<Sourcetable>(json) }
+                .onSuccess { entries = it.entries }
+                .onFailure { error = it.message }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.sourcetable_title, settings.caster)) },
+        text = {
+            Column {
+                when {
+                    error != null -> Text(
+                        stringResource(R.string.sourcetable_failed),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    entries == null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.sourcetable_loading))
+                    }
+                    else -> {
+                        val all = entries.orEmpty()
+                        val shown = if (filter.isBlank()) all else all.filter {
+                            it.mountpoint.contains(filter, true) ||
+                                it.identifier.contains(filter, true)
+                        }
+                        OutlinedTextField(
+                            filter, { filter = it },
+                            label = { Text(stringResource(R.string.sourcetable_filter)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.sourcetable_count, shown.size, all.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (!Features.SOURCETABLE_SELECTABLE) {
+                            Text(
+                                stringResource(R.string.sourcetable_readonly),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                            items(shown.size) { i -> SourceRow(shown[i], onPick) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
+    )
+}
+
+@Composable
+private fun SourceRow(e: SourceEntry, onPick: (String) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .then(
+                if (Features.SOURCETABLE_SELECTABLE)
+                    Modifier.clickable { onPick(e.mountpoint) }
+                else Modifier
+            )
+            .padding(vertical = 6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                e.mountpoint,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+            )
+            if (e.nmea) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.sourcetable_gga),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        Text(
+            listOf(e.identifier, e.format, e.navSystems)
+                .filter { it.isNotBlank() }
+                .joinToString("  ·  "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    HorizontalDivider()
 }

@@ -66,6 +66,17 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
             return if (h == 0L) null else NtripBridge(h)
         }
 
+        /**
+         * Fetch and parse a caster's sourcetable.
+         *
+         * **Blocking** - opens a connection and waits for the caster, so
+         * call it off the main thread. Returns null when the caster
+         * cannot be reached.
+         */
+        fun sourcetable(
+            caster: String, port: Int, user: String, password: String,
+        ): String? = nativeSourcetable(caster, port, user, password)
+
         /** Open a session replaying a captured `.rtcm3` file. */
         fun openFile(path: String, watch: Boolean = false): NtripBridge? {
             val h = nativeOpenFile(path, watch)
@@ -80,6 +91,9 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         ): Long
 
         @JvmStatic private external fun nativeOpenFile(path: String, watch: Boolean): Long
+        @JvmStatic private external fun nativeSourcetable(
+            caster: String, port: Int, user: String, password: String,
+        ): String?
         @JvmStatic private external fun nativePump(h: Long, timeoutMs: Int, nowS: Double): Int
         @JvmStatic private external fun nativeSnapshotJson(h: Long): String?
         @JvmStatic private external fun nativeOverall(h: Long): Int
