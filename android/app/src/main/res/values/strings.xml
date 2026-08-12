@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">NTRIP Analyser</string>
 
     <string name="verdict_idle">READY</string>
     <string name="sustained_of">%1$d of %2$d s sustained</string>
 
     <string name="sustained_held">Held for %1$s</string>
+    <string name="run_limit">Watched %1$d s — free edition limit</string>
     <string name="run_finished">Finished after %1$d s</string>
     <string name="run_stopped">Stopped after %1$d s — measurement incomplete</string>
 
@@ -24,6 +24,13 @@
     <string name="watch_clean">No degradation yet; worst %1$s</string>
     <string name="run_watching">Watching — stop when you have seen enough</string>
 
+    <string name="no_evidence">No detail recorded for this check yet.</string>
+    <string name="config_none">No caster configured — tap to set one.</string>
+    <string name="config_user">as %1$s (%2$s)</string>
+    <string name="config_pw">password set</string>
+    <string name="config_nopw">no password</string>
+    <string name="config_anon">no credentials</string>
+    <string name="config_gga">GGA uplink from %1$.5f, %2$.5f</string>
     <string name="hint_configure">Set the caster and mountpoint first (⚙).</string>
     <string name="err_open">Could not open the session.</string>
 

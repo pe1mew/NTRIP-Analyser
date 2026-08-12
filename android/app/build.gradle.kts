@@ -44,6 +44,23 @@ android {
         }
     }
 
+    // Two Play listings from one source tree (android/design/editions.md).
+    // Each flavor supplies its own Features object, so gating is
+    // compile-time: the free APK does not contain the paid screens and
+    // cannot be unlocked by flipping a boolean.
+    flavorDimensions += "edition"
+    productFlavors {
+        create("free") {
+            dimension = "edition"
+            applicationIdSuffix = ".free"
+            versionNameSuffix = "-free"
+        }
+        create("pro") {
+            dimension = "edition"
+            applicationIdSuffix = ".pro"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

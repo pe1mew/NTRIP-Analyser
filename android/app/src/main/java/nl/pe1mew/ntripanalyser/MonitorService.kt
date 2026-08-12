@@ -40,7 +40,7 @@ class MonitorService : Service() {
      * calling that "stopped" borrows the word for aborting and tells the
      * user their measurement was cut short when it was not.
      */
-    enum class Outcome { IDLE, RUNNING, FINISHED, STOPPED }
+    enum class Outcome { IDLE, RUNNING, FINISHED, STOPPED, LIMIT_REACHED }
 
     /** What the UI observes. */
     data class RunState(
@@ -51,6 +51,7 @@ class MonitorService : Service() {
     )
 
     private var worker: Thread? = null
+    private var lastNotificationText: String? = null
     @Volatile private var stopRequested = false
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -87,6 +88,7 @@ class MonitorService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notif_connecting)))
 
         stopRequested = false
+        lastNotificationText = null
         _state.value = RunState(running = true, outcome = Outcome.RUNNING)
 
         worker = thread(name = "ntrip-pump") {
@@ -161,6 +163,17 @@ class MonitorService : Service() {
                     // that verdict rather than leaving the failure
                     // invisible.  The pump stays cheap: it returns
                     // immediately once the session is finished.
+                    // The free edition caps a watch.  A product boundary,
+                    // not a security control -- the project is open
+                    // source, so no effort goes into obfuscating it
+                    // (android/design/editions.md).
+                    if (watchMode && Features.WATCH_LIMIT_S > 0.0 &&
+                        nowS >= Features.WATCH_LIMIT_S) {
+                        Log.i(TAG, "free watch limit reached at ${nowS.toInt()} s")
+                        publish(false, Outcome.LIMIT_REACHED)
+                        break
+                    }
+
                     if (!alive) {
                         if (endedAtS < 0.0) {
                             endedAtS = nowS
@@ -219,7 +232,7 @@ class MonitorService : Service() {
         )
     }
 
-    private fun buildNotification(text: String): Notification {
+    private fun buildNotification(text: String, ongoing: Boolean = true): Notification {
         val open = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
@@ -232,7 +245,7 @@ class MonitorService : Service() {
             // Only the optional GGA keep-alive goes the other way.
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentIntent(open)
-            .setOngoing(true)
+            .setOngoing(ongoing)
             .setSilent(true)
             .build()
     }
@@ -251,6 +264,12 @@ class MonitorService : Service() {
             )
             else -> doc.kpi.overallName
         }
+        // Only re-post when the text actually changes.  Posting every
+        // second ran to 1500+ notifications in a session, which EMUI
+        // starts demoting as spam -- and the text only changes once a
+        // second at most anyway.
+        if (text == lastNotificationText) return
+        lastNotificationText = text
         getSystemService(NotificationManager::class.java)
             .notify(NOTIFICATION_ID, buildNotification(text))
     }
@@ -262,6 +281,12 @@ class MonitorService : Service() {
         } else {
             stopForeground(true)
         }
+        // stopForeground detaches the service from the notification, but
+        // the notification was also posted directly through notify() to
+        // carry progress -- and that posting outlives the detachment on
+        // EMUI, leaving an ongoing download icon animating with no run
+        // behind it.  Cancel it explicitly.
+        getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
     }
 
     companion object {

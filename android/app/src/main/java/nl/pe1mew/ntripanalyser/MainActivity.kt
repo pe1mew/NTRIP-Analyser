@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
@@ -115,6 +116,10 @@ fun MainScreen() {
 
             VerdictBadge(doc, runState.running, runState.outcome)
 
+            // What this run is (or would be) pointed at, without making
+            // the user open the settings screen to find out.
+            ConfigSummary(settings) { showSettings = true }
+
             doc?.let { StreamChips(it) }
 
             runState.error?.let {
@@ -123,7 +128,9 @@ fun MainScreen() {
 
             doc?.watch?.let { WatchCard(it) }
 
-            doc?.kpi?.items?.forEachIndexed { i, item -> KpiRow(i + 1, item) }
+            doc?.kpi?.items?.forEachIndexed { i, item ->
+                KpiRow(i + 1, item, doc.stats)
+            }
 
             Spacer(Modifier.height(4.dp))
 
@@ -233,6 +240,7 @@ private fun VerdictBadge(
                         stringResource(
                             when (outcome) {
                                 MonitorService.Outcome.STOPPED -> R.string.run_stopped
+                                MonitorService.Outcome.LIMIT_REACHED -> R.string.run_limit
                                 else -> R.string.run_finished
                             },
                             k.elapsedS.toInt(),
@@ -241,6 +249,63 @@ private fun VerdictBadge(
                         fontSize = 13.sp,
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The configured target, shown on the main screen.
+ *
+ * The password is deliberately never displayed -- only whether one is
+ * set. A screen someone may hold up to show a colleague, or photograph
+ * for a report, should not carry a credential.
+ */
+@Composable
+private fun ConfigSummary(s: CasterSettings, onEdit: () -> Unit) {
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onEdit() }
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            if (!s.isComplete) {
+                Text(
+                    stringResource(R.string.config_none),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                return@Column
+            }
+            Text(
+                "${s.caster}:${s.port}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+            )
+            Text(
+                s.mountpoint,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+            )
+            Text(
+                if (s.user.isBlank()) stringResource(R.string.config_anon)
+                else stringResource(
+                    R.string.config_user,
+                    s.user,
+                    stringResource(
+                        if (s.password.isBlank()) R.string.config_nopw
+                        else R.string.config_pw
+                    ),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (s.sendGga) {
+                Text(
+                    stringResource(R.string.config_gga, s.latitude, s.longitude),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -263,9 +328,73 @@ private fun StreamChips(doc: BridgeDocument) {
     }
 }
 
+/**
+ * The evidence behind one KPI's verdict.
+ *
+ * The verdict line says *what* was decided; these lines say *from what*.
+ * They are read straight out of the snapshot the C engine judged, so the
+ * user is looking at the same numbers the verdict came from rather than
+ * a second, possibly disagreeing, calculation.
+ */
+private fun evidenceFor(index: Int, s: Stats): List<Pair<String, String>> {
+    fun f(v: Double?, unit: String, dp: Int = 1) =
+        if (v == null) "not measured" else "%.${dp}f %s".format(v, unit).trim()
+
+    return when (index) {
+        1 -> listOf(
+            "Connected" to if (s.connected) "yes" else "no",
+            "Throughput" to f(s.bytesPerS, "B/s", 0),
+            "Received" to "%.1f kB".format(s.bytesTotal / 1024.0),
+            "Uptime" to f(s.uptimeS, "s", 0),
+            "Reconnects" to "${s.reconnects}",
+        )
+        2 -> listOf(
+            "CRC-valid frames" to "${s.framesOk}",
+            "Message types seen" to "${s.types.size}",
+            "Latency" to f(s.latencyS, "s", 2),
+        )
+        3 -> listOf(
+            "ARP received" to if (s.arpValid) "yes" else "no",
+            "Latitude" to (s.arpLat?.let { "%.6f°".format(it) } ?: "—"),
+            "Longitude" to (s.arpLon?.let { "%.6f°".format(it) } ?: "—"),
+            "Height" to f(s.arpAlt, "m", 2),
+        )
+        4 -> s.types.filter { it.type in 1071..1237 && (it.type % 10) in 4..7 }
+                .sortedBy { it.type }
+                .map { t ->
+                    "MSM ${t.type}" to
+                        (t.avgDt?.let { "%.1f s (%d epochs)".format(it, t.epochs) }
+                            ?: "${t.epochs} epochs")
+                }
+                .ifEmpty { listOf("MSM messages" to "none seen") }
+        5 -> s.gnss.filter { it.satsTracked > 0 }
+                .map { it.label to "${it.satsTracked} SV" }
+                .plus("Total" to "${s.satsTotal} SV")
+        6 -> s.gnss.filter { (it.cnrMedian ?: 0.0) > 0.0 }
+                .map { g ->
+                    g.label to "median %.1f, min %.1f dB-Hz".format(
+                        g.cnrMedian ?: 0.0, g.cnrMin ?: 0.0)
+                }
+                .ifEmpty { listOf("C/N0" to "not carried (MSM7 required)") }
+                .plus("All constellations" to f(s.cnrMeanAll, "dB-Hz mean"))
+        7 -> listOf(
+            "Frames checked" to "${s.framesOk + s.framesCrcError}",
+            "CRC failures" to "${s.framesCrcError}",
+            "Error rate" to (s.crcErrorRate?.let { "%.4f%%".format(it * 100) } ?: "—"),
+        )
+        else -> emptyList()
+    }
+}
+
 @Composable
-private fun KpiRow(index: Int, item: KpiItem) {
-    Card(Modifier.fillMaxWidth()) {
+private fun KpiRow(index: Int, item: KpiItem, stats: Stats) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+    ) {
         Row(
             Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -291,6 +420,42 @@ private fun KpiRow(index: Int, item: KpiItem) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            Text(
+                if (expanded) "▴" else "▾",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        if (expanded) {
+            Column(
+                Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+            ) {
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                val rows = evidenceFor(index, stats)
+                if (rows.isEmpty()) {
+                    Text(
+                        stringResource(R.string.no_evidence),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                rows.forEach { (k, v) ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                        Text(
+                            k,
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            v,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                }
             }
         }
     }

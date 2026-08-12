@@ -71,7 +71,45 @@ data class Stats(
     @SerialName("arp_valid") val arpValid: Boolean = false,
     @SerialName("arp_lat") val arpLat: Double? = null,
     @SerialName("arp_lon") val arpLon: Double? = null,
+    @SerialName("arp_alt") val arpAlt: Double? = null,
+    @SerialName("uptime_s") val uptimeS: Double? = null,
+    @SerialName("bytes_total") val bytesTotal: Long = 0,
+    @SerialName("frames_crc_error") val framesCrcError: Long = 0,
+    @SerialName("crc_error_rate") val crcErrorRate: Double? = null,
+    @SerialName("latency_s") val latencyS: Double? = null,
+    val reconnects: Int = 0,
+    @SerialName("cnr_mean_all") val cnrMeanAll: Double? = null,
+    val types: List<TypeStat> = emptyList(),
+    val gnss: List<GnssStat> = emptyList(),
 )
+
+/** One RTCM message type as the stream actually delivers it. */
+@Serializable
+data class TypeStat(
+    val type: Int = 0,
+    val frames: Long = 0,
+    val epochs: Long = 0,
+    @SerialName("min_dt") val minDt: Double? = null,
+    @SerialName("max_dt") val maxDt: Double? = null,
+    @SerialName("avg_dt") val avgDt: Double? = null,
+)
+
+/** One constellation's contribution. */
+@Serializable
+data class GnssStat(
+    @SerialName("gnss_id") val gnssId: Int = 0,
+    @SerialName("sats_tracked") val satsTracked: Int = 0,
+    @SerialName("cnr_mean") val cnrMean: Double? = null,
+    @SerialName("cnr_median") val cnrMedian: Double? = null,
+    @SerialName("cnr_min") val cnrMin: Double? = null,
+) {
+    /** RTCM constellation numbering, as used throughout the core. */
+    val label: String get() = when (gnssId) {
+        0 -> "GPS"; 1 -> "GLONASS"; 2 -> "Galileo"; 3 -> "BeiDou"
+        4 -> "QZSS"; 5 -> "NavIC"; 6 -> "SBAS"
+        else -> "GNSS $gnssId"
+    }
+}
 
 /**
  * Long-run health, present only in watch mode.
