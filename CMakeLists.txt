@@ -78,6 +78,7 @@ add_library(ntrip_core STATIC
     src/core/sv_ephemeris.c
     src/core/sv_orbit.c
     src/core/sv_track.c
+    src/core/kpi.c
     src/core/iono.c
     src/core/rinex_nav.c
     src/core/sky_collect.c

@@ -630,6 +630,34 @@ void calc_distance_heading(double lat1, double lon1, double lat2, double lon2, d
 }
 
     
+int rtcm_extract_arp(const unsigned char *payload, int payload_len,
+                     int msg_type, double *lat_deg, double *lon_deg,
+                     double *alt_m)
+{
+    if (!payload || (msg_type != 1005 && msg_type != 1006)) return 0;
+    if (payload_len < 19) return 0;      /* 1005 needs 152 bits to ECEF-Z */
+
+    int bit = 12 + 12 + 6 + 1 + 1 + 1 + 1;        /* skip to DF025 */
+    int64_t xyz[3];
+    for (int i = 0; i < 3; i++) {
+        uint64_t raw = get_bits(payload, bit, 38); bit += 38;
+        xyz[i] = (raw & ((uint64_t)1 << 37))
+                 ? (int64_t)(raw | ~((uint64_t)0x3FFFFFFFFF))
+                 : (int64_t)raw;
+        bit += 2;   /* reserved / oscillator bits between the coordinates */
+    }
+
+    double x = xyz[0] * 0.0001, y = xyz[1] * 0.0001, z = xyz[2] * 0.0001;
+    if (x == 0.0 && y == 0.0 && z == 0.0) return 0;
+
+    double la, lo, al;
+    ecef_to_geodetic(x, y, z, 0.0, &la, &lo, &al);
+    if (lat_deg) *lat_deg = la;
+    if (lon_deg) *lon_deg = lo;
+    if (alt_m)   *alt_m   = al;
+    return 1;
+}
+
 void decode_rtcm_1005(const unsigned char *payload, int payload_len, const NTRIP_Config *config) {
     if (payload_len < 19) { // 12+12+6+1+1+1+1+38+1+1+38+2+38+2 = 200 bits = 25 bytes
         rtcm_printf("Type 1005: Payload too short!\n");

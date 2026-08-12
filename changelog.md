@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the station acceptance test (Android Phase 0)
+
+`src/core/kpi.c`: the seven-KPI verdict engine from the Android design,
+in shared core per design-review D1 so the phone, a future CLI `--check`
+and anything else judge a station identically.  Each KPI evaluates
+PASS/warn/FAIL/pending against the session snapshot; the overall verdict
+follows the design's rule — every KPI green for 60 continuous seconds is
+STATION OK, a hard-KPI failure (connectivity, format, ARP, multi-GNSS,
+CRC) is FAILED, the rest is CAUTION.
+
+Validated live against RFSEE01: STATION OK with all seven PASS after the
+full 60 s sustain window.
+
+### Fixed — the snapshot's ARP block was never populated
+
+`arp_valid`, `arp_lat/lon/alt` existed in the schema from the start, are
+serialised into every JSON snapshot, and were filled by nothing: the
+daemon has published `arp_valid: false` for every station since
+deployment, unnoticed because no Munin graph reads it.  The KPI engine's
+first live run failed KPI 3 on a station that demonstrably broadcasts
+1005 every 30 s, which is how it surfaced.
+
+The session now extracts the ARP itself via a new quiet parser
+accessor, `rtcm_extract_arp()` — unlike `decode_rtcm_1005()` it prints
+nothing and touches no globals, so it is safe on the daemon's frame
+path.
+
+
 ## [3.3.0] - 2026-08-11
 
 Minor, because it adds capability: a window-layout reset, an

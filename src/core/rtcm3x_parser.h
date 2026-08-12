@@ -222,6 +222,27 @@ void get_sv_per_band_cnr(int gnss_id, int prn, float out_cnr[32]);
 const char *msm_signal_label(int gnss_id, int sig_idx);
 
 /**
+ * @brief Quietly extract the antenna reference point from a 1005/1006.
+ *
+ * Unlike @ref decode_rtcm_1005 this prints nothing and touches no
+ * globals, so the session layer can call it on every frame.  The bit
+ * layout skips the 2 reserved/oscillator bits between each 38-bit ECEF
+ * coordinate (DF025/DF026/DF027).
+ *
+ * @param payload     Frame payload after the 3-byte header.
+ * @param payload_len Payload length in bytes.
+ * @param msg_type    RTCM message number; only 1005/1006 are accepted.
+ * @param lat_deg     [out, optional] Latitude, degrees.
+ * @param lon_deg     [out, optional] Longitude, degrees.
+ * @param alt_m       [out, optional] Ellipsoidal height, metres.
+ * @return 1 when an ARP was extracted; 0 otherwise (wrong type, runt
+ *         frame, or an all-zero position).
+ */
+int rtcm_extract_arp(const unsigned char *payload, int payload_len,
+                     int msg_type, double *lat_deg, double *lon_deg,
+                     double *alt_m);
+
+/**
  * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.
  * @param x ECEF X (meters)
  * @param y ECEF Y (meters)

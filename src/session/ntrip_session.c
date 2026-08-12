@@ -469,6 +469,22 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                     iono_feed(&s->iono, s->frame + 3, payload_len,
                               msg_type, now);
 
+                    /* The broadcast reference position.  These snapshot
+                     * fields existed since the schema was written but
+                     * nothing filled them -- the daemon published
+                     * arp_valid:false for every station until the KPI
+                     * engine's first live run tripped over it. */
+                    if (msg_type == 1005 || msg_type == 1006) {
+                        double la, lo, al;
+                        if (rtcm_extract_arp(s->frame + 3, payload_len,
+                                             msg_type, &la, &lo, &al)) {
+                            s->stats.arp_valid = true;
+                            s->stats.arp_lat = la;
+                            s->stats.arp_lon = lo;
+                            s->stats.arp_alt = al;
+                        }
+                    }
+
                     if (!s->announced_streaming) {
                         s->announced_streaming = true;
                         NsEvent ev;
