@@ -602,11 +602,11 @@ Moved to the project-wide feature backlog: [`design/todo.md`](../design/todo.md)
 
 ---
 
-## 13. Station Check (planned)
+## 13. Station Check
 
 The CLI has `--check` and the Android app has a station mode; the GUI has
-neither. It never links `kpi.c`. This section is the agreed design for
-closing that gap.
+neither, and never linked `kpi.c`. This section is the design that
+closed that gap, as built.
 
 ### 13.1 What it is
 
@@ -680,21 +680,49 @@ ListView rows, and the two can no longer disagree.
 
 ### 13.6 The gate test needs consent
 
-`vrs_begin_gate_test()` moves the rover position to prove the network
-hands over. That is an action with an effect on the caster session, not
-an observation, and it must not happen because someone pressed "Run
-Check". It gets its own checkbox in the window, off by default, labelled
-with what it will do. The other four VRS assertions are passive and run
-whenever the station is a VRS.
+Assertion A5 asks whether the service is gated: `vrs_begin_gate_test()`
+stops the keep-alive GGA and watches for the caster to drop the stream,
+which a real network service does and a fixed base does not. So the test
+ends the session it is testing. That is an action, not an observation,
+and it must not happen because someone pressed "Run Check". It gets its
+own checkbox in the window, off by default, labelled with what it will
+do, and it starts only once the passive assertions have their answer.
+
+The other four assertions are passive and run whenever the station is a
+VRS. Note that A5 is a *classification*, not a failure: a station that
+keeps streaming is a fixed base, which is a fact about what it is rather
+than a fault in what it does.
+
+(The rover-position shift is a different thing entirely and stays where
+it is — the manual N/E/S/W controls in the VRS Monitor window. An
+earlier draft of this section confused the two.)
 
 ### 13.7 Preconditions
 
 - **The stream must be open.** The Run Check button is disabled
   otherwise, and says why.
-- **The sourcetable must have been fetched**, or KPI 8 has nothing to
-  compare against. The GUI already fetches it on connect; if it has not,
-  the check fetches it before starting rather than reporting a KPI that
-  was never evaluated.
+- **The sourcetable decides whether KPI 8 can be judged at all.** The
+  GUI fetches it when a stream opens on a mountpoint it does not already
+  have an entry for, so in practice it is there. When it is not — a
+  mountpoint the caster does not list — KPI 8 reports *no sourcetable
+  entry to compare against* and stays pending, deliberately: "we could
+  not check" and "we checked and it was fine" are different statements.
+
+  A pending KPI keeps the roll-up at RUNNING, so such a run can never
+  settle. It is bounded instead by the same **300-second ceiling the
+  CLI applies**, after which the window reports *no verdict inside the
+  time limit* and stops. A bounded test that cannot end is not bounded.
+
+### 13.7a How a run ends
+
+Three ways, and the window distinguishes them, because rows left on
+screen from an unfinished test read exactly like a finished one:
+
+| End | Header |
+|---|---|
+| The verdict held for `KPI_SUSTAIN_S` | `settled after 91 s, held 60 s` |
+| The user pressed Stop | `RUNNING (stopped)` — `stopped after 20 s -- no verdict` |
+| The stream closed, or the ceiling was reached | `... the stream closed after 42 s -- no verdict` |
 
 ### 13.8 Work
 

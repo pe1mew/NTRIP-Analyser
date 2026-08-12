@@ -546,11 +546,12 @@ typedef struct {
     BOOL       checkActive;
     BOOL       checkSettled;
     BOOL       checkHaveReport;
-    /* Stopped by the user before a verdict settled.  Without this the
-     * header kept reading "35 s elapsed, verdict held 4 of 60 s" over a
-     * run that had been abandoned -- indistinguishable from one still
-     * counting. */
+    /* Ended before a verdict settled.  Without this the header kept
+     * reading "35 s elapsed, verdict held 4 of 60 s" over a run that had
+     * been abandoned -- indistinguishable from one still counting.
+     * checkEndWhy names which of the three ways it ended. */
     BOOL       checkAbandoned;
+    char       checkEndWhy[64];
     double     checkStartedAt;        /* seconds, same clock as checkNow() */
     double     checkElapsedS;         /* frozen at settle, else live       */
 

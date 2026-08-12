@@ -29,6 +29,9 @@
 /* Height of the button strip below it. */
 #define CHECK_FOOTER_H  40
 
+/* Absolute ceiling on one run, matching the CLI's --check. */
+#define CHECK_MAX_S     300.0
+
 double CheckNow(void)
 {
     /* Monotonic and unaffected by the wall clock being adjusted mid-run,
@@ -48,6 +51,7 @@ void CheckStart(AppState *state)
     state->checkHaveReport = FALSE;
     state->checkSettled    = FALSE;
     state->checkAbandoned  = FALSE;
+    state->checkEndWhy[0]  = '\0';
     state->checkActive     = TRUE;
     state->checkStartedAt  = now;
     state->checkElapsedS   = 0.0;
@@ -62,13 +66,21 @@ void CheckStart(AppState *state)
         vrs_run_start(&state->checkVrs, now);
 }
 
-void CheckStop(AppState *state)
+/* End a run that will not produce a verdict, and record which way. */
+static void CheckEnd(AppState *state, const char *why)
 {
-    if (!state) return;
-    if (state->checkActive && !state->checkSettled)
+    if (!state || !state->checkActive) return;
+    if (!state->checkSettled) {
         state->checkAbandoned = TRUE;
+        snprintf(state->checkEndWhy, sizeof(state->checkEndWhy), "%s", why);
+    }
     state->checkActive    = FALSE;
     state->checkVrsActive = FALSE;
+}
+
+void CheckStop(AppState *state)
+{
+    CheckEnd(state, "stopped");
 }
 
 void CheckNoteGga(AppState *state, double lat, double lon)
@@ -257,12 +269,13 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
                  state->config.NTRIP_CASTER, state->config.MOUNTPOINT,
                  state->checkElapsedS, state->checkReport.sustained_s);
     } else if (state->checkAbandoned) {
-        /* Whatever is on the rows was true when it stopped, and is not
-         * a verdict.  Saying so is the difference between an unfinished
+        /* Whatever is on the rows was true when it ended, and is not a
+         * verdict.  Saying so is the difference between an unfinished
          * test and a finished one that happened to read this way. */
         snprintf(line, sizeof(line),
-                 "%s / %s   stopped after %.0f s -- no verdict",
+                 "%s / %s   %s after %.0f s -- no verdict",
                  state->config.NTRIP_CASTER, state->config.MOUNTPOINT,
+                 state->checkEndWhy[0] ? state->checkEndWhy : "ended",
                  state->checkElapsedS);
     } else {
         snprintf(line, sizeof(line),
@@ -420,8 +433,18 @@ static LRESULT CALLBACK CheckWndProc(HWND hwnd, UINT msg,
             /* A stream that stops sends no more statistics, so a run
              * left "active" would count seconds up beside rows that had
              * quietly stopped changing.  It is over; say so. */
-            if (!state->bWorkerRunning) CheckStop(state);
-            else state->checkElapsedS = CheckNow() - state->checkStartedAt;
+            if (!state->bWorkerRunning) {
+                CheckEnd(state, "the stream closed");
+            } else {
+                state->checkElapsedS = CheckNow() - state->checkStartedAt;
+                /* The same ceiling the CLI applies.  Without it a run
+                 * can never end: a mountpoint absent from the caster's
+                 * sourcetable leaves KPI 8 pending for ever -- rightly,
+                 * since "we could not check" is not a pass -- and a
+                 * pending KPI keeps the roll-up at RUNNING. */
+                if (state->checkElapsedS > CHECK_MAX_S)
+                    CheckEnd(state, "no verdict inside the time limit");
+            }
         }
         SyncControls(hwnd, state);
         {
