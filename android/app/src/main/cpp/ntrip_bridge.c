@@ -190,6 +190,8 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                 int nt = sourcetable_parse_types(e[i].format_details,
                                                  t, NS_MAX_TYPES);
                 if (nt > 0) ns_set_advertised(b->sess, t, nt);
+                ns_set_advertised_gnss(b->sess,
+                    sourcetable_navsys_mask(e[i].nav_systems));
                 break;
             }
             free(e);

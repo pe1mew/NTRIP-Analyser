@@ -22,7 +22,7 @@ const char *kpi_verdict_name(int v)
 {
     switch (v) {
     case KPI_PASS: return "PASS";
-    case KPI_WARN: return "warn";
+    case KPI_WARN: return "WARN";
     case KPI_FAIL: return "FAIL";
     default:       return "...";
     }
@@ -233,20 +233,27 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         k[7].detail  = "Advertised message types are not being sent";
     } else {
         int obs = s->types_offrate + s->types_extra;
-        /* The station describing itself as serving fewer systems than
-         * it streams is an observation of the same kind: the metadata
-         * is wrong, the data is not. */
-        bool gnss_mismatch = false;
-        if (s->arp_valid) {
+
+        /* Constellations are judged against the sourcetable's NavSys
+         * field, which is the actual advertisement.  The 1005/1006
+         * indicator bits are not used: they cover GPS, GLONASS and
+         * Galileo only, so a station streaming BeiDou cannot declare it
+         * there and would be faulted for a gap in the message format.
+         *
+         * Only the one direction is an observation.  Streaming a system
+         * that was never advertised misleads anyone choosing the
+         * mountpoint; advertising one that is not currently streamed is
+         * ordinary -- QZSS is advertised across Europe and visible from
+         * none of it. */
+        int undeclared = 0;
+        if (s->advertised_gnss) {
             for (int i = 0; i < s->n_gnss; i++) {
                 if (s->gnss[i].sats_tracked <= 0) continue;
-                int id = s->gnss[i].gnss_id;
-                if (id == 1 && !s->arp_says_gps)     gnss_mismatch = true;
-                if (id == 2 && !s->arp_says_glonass) gnss_mismatch = true;
-                if (id == 3 && !s->arp_says_galileo) gnss_mismatch = true;
+                unsigned bit = 1u << s->gnss[i].gnss_id;
+                if (!(s->advertised_gnss & bit)) undeclared++;
             }
         }
-        if (gnss_mismatch) obs++;
+        obs += undeclared;
 
         k[7].value = (double)obs;
         if (obs == 0) {
@@ -258,7 +265,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
                 ? "Some types arrive off their advertised rate"
                 : (s->types_extra > 0
                    ? "Sending types the sourcetable does not advertise"
-                   : "Station describes fewer systems than it streams");
+                   : "Streaming a constellation the sourcetable omits");
         }
     }
 

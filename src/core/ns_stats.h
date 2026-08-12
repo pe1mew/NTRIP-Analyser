@@ -167,6 +167,15 @@ typedef struct {
     int      types_missing;       /**< advertised, never received        */
     int      types_offrate;       /**< arriving, but not at rate         */
     int      types_extra;         /**< received, not advertised          */
+    /**
+     * Constellations the sourcetable advertises, by @ref NsGnssStats id.
+     *
+     * The NavSys field, not the 1005/1006 indicator bits: the message
+     * has flags for GPS, GLONASS and Galileo only, so it cannot state
+     * BeiDou and judging a station by it would fault every
+     * BeiDou-capable base.
+     */
+    unsigned advertised_gnss;
 
     /* ── Satellites and signal ────────────────────────────────────── */
     NsGnssStats gnss[NS_MAX_GNSS];

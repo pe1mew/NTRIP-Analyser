@@ -960,3 +960,8 @@ static void compare_advertised(NtripSession *s)
         if (!promised) s->stats.types_extra++;
     }
 }
+
+void ns_set_advertised_gnss(NtripSession *s, unsigned mask)
+{
+    if (s) s->stats.advertised_gnss = mask;
+}

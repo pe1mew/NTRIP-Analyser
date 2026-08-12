@@ -78,6 +78,21 @@ int sourcetable_parse_types(const char *details,
                             SourcetableType *out, int max);
 
 /**
+ * @brief Parse a NavSys field into a constellation bitmask.
+ *
+ * `GPS+GLO+GAL+BDS+QZS` becomes bits by core constellation id, so
+ * `1 << 1` is GPS, `1 << 2` GLONASS and so on. This field, not the
+ * 1005/1006 indicator bits, is what a mountpoint advertises: the
+ * message carries flags for GPS, GLONASS and Galileo only and cannot
+ * state BeiDou at all, so judging a station by it would fault every
+ * BeiDou-capable base in existence.
+ *
+ * @param navsys Field text; NULL or empty yields 0.
+ * @return Bitmask of advertised constellations.
+ */
+unsigned sourcetable_navsys_mask(const char *navsys);
+
+/**
  * @brief Parse `STR` records out of a raw sourcetable.
  *
  * Lines that are not `STR;` records -- `CAS;`, `NET;`, the terminating

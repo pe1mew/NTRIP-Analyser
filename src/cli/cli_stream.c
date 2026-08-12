@@ -498,6 +498,8 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
                                                      t, NS_MAX_TYPES);
                     if (nt > 0) {
                         ns_set_advertised(sess, t, nt);
+                        ns_set_advertised_gnss(sess,
+                            sourcetable_navsys_mask(e[i].nav_systems));
                         fprintf(stderr, "[CHECK] %s advertises %d message types\n",
                                 config->MOUNTPOINT, nt);
                     }

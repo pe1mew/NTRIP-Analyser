@@ -167,6 +167,25 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
         return NULL; // -4
     }
 
+    /* AUTH_BASIC is precomputed by whoever loaded the config file, and
+     * a caller that builds NTRIP_Config by hand has no way to know that
+     * it must.  Deriving it here when it is empty makes the omission
+     * harmless: an open caster tolerates a blank Authorization header,
+     * while a caster that requires login answers with an empty
+     * sourcetable -- which reads as "this caster has no mountpoints"
+     * rather than as "you did not log in". */
+    char auth[512];
+    if (config->AUTH_BASIC[0]) {
+        snprintf(auth, sizeof(auth), "%s", config->AUTH_BASIC);
+    } else if (config->USERNAME[0]) {
+        char userpass[512];
+        snprintf(userpass, sizeof(userpass), "%s:%s",
+                 config->USERNAME, config->PASSWORD);
+        base64_encode(userpass, auth);
+    } else {
+        auth[0] = '\0';
+    }
+
     /* The caller names itself: this is reachable from both the CLI and
      * the GUI, and a caster operator should see which one asked. */
     snprintf(request, sizeof(request),
@@ -177,7 +196,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
              "\r\n",
              config->NTRIP_CASTER,
              agent ? agent : NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
-             config->AUTH_BASIC);
+             auth);
 
 #ifdef _WIN32
     int sent = send(sock, request, strlen(request), 0);

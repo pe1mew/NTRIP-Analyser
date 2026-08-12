@@ -243,6 +243,14 @@ int ns_sat_list(const NtripSession *s, SvTrackEntry *out, int max);
 void ns_set_advertised(NtripSession *s, const SourcetableType *list, int n);
 
 /**
+ * @brief Tell the session which constellations the sourcetable claims.
+ *
+ * @param s    Session.
+ * @param mask From @ref sourcetable_navsys_mask.
+ */
+void ns_set_advertised_gnss(NtripSession *s, unsigned mask);
+
+/**
  * @brief Per-satellite ionospheric measurements for display.
  *
  * Fills @p out from the session's arc state, judged for staleness

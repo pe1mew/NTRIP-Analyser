@@ -79,6 +79,14 @@ data class Stats(
     @SerialName("latency_s") val latencyS: Double? = null,
     val reconnects: Int = 0,
     @SerialName("cnr_mean_all") val cnrMeanAll: Double? = null,
+    /* The advertised-versus-observed roll-up, behind KPI 8. */
+    @SerialName("advertised_known") val advertisedKnown: Boolean = false,
+    @SerialName("advertised_count") val advertisedCount: Int = 0,
+    @SerialName("types_missing") val typesMissing: Int = 0,
+    @SerialName("types_offrate") val typesOffrate: Int = 0,
+    @SerialName("types_extra") val typesExtra: Int = 0,
+    /** Constellations the sourcetable advertises, as a bitmask by id. */
+    @SerialName("advertised_gnss") val advertisedGnss: Int = 0,
     val types: List<TypeStat> = emptyList(),
     val gnss: List<GnssStat> = emptyList(),
 )

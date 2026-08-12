@@ -421,10 +421,11 @@ fun MainScreen() {
                 ConfigSummary(settings) { showSettings = true }
             }
 
-            if (settings.caster.isNotBlank()) {
-                TextButton(onClick = { showSourcetable = true }) {
-                    Text(stringResource(R.string.action_browse))
-                }
+            if (settings.caster.isNotBlank() && !runState.running) {
+                OutlinedButton(
+                    onClick = { showSourcetable = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.action_browse)) }
             }
 
             doc?.let { StreamChips(it) }
@@ -482,7 +483,9 @@ fun MainScreen() {
 
             // Where the orbits stand: incompleteness and age are shown,
             // never left implicit.
-            doc?.eph?.let { EphCard(it, rinexName) }
+            if (!runState.running) {
+                doc?.eph?.let { EphCard(it, rinexName) }
+            }
 
 
 
@@ -770,6 +773,49 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
             "CRC failures" to "${s.framesCrcError}",
             "Error rate" to (s.crcErrorRate?.let { "%.4f%%".format(it * 100) } ?: "—"),
         )
+        8 -> buildList {
+            if (!s.advertisedKnown) {
+                add("Sourcetable" to "no entry for this mountpoint")
+                return@buildList
+            }
+            add("Types advertised" to "${s.advertisedCount}")
+            add("Not being sent" to "${s.typesMissing}")
+            add("Off advertised rate" to "${s.typesOffrate}")
+            add("Sent but not advertised" to "${s.typesExtra}")
+
+            // The sourcetable's NavSys field is the actual
+            // advertisement, and what the verdict is judged against.
+            val advertised = (1..7).filter { (s.advertisedGnss shr it) and 1 == 1 }
+                .joinToString("+") { Gnss.label(it) }
+            if (advertised.isNotEmpty()) {
+                add("Sourcetable advertises" to advertised)
+            }
+            val streaming = s.gnss.filter { it.satsTracked > 0 }
+                .joinToString("+") { Gnss.label(it.gnssId) }
+            if (streaming.isNotEmpty()) add("Streaming now" to streaming)
+
+            // The systems the station claims against the ones it sends.
+            //
+            // Only three are comparable: 1005/1006 carries indicator
+            // bits for GPS, GLONASS and Galileo and for nothing else, so
+            // a station streaming BeiDou cannot advertise it there.
+            // Listing those alongside as though they were undeclared
+            // would show a mismatch the verdict rightly ignores.
+            if (arp != null) {
+                val comparable = setOf(Gnss.GPS, Gnss.GLONASS, Gnss.GALILEO)
+                val streamed = s.gnss.filter { it.satsTracked > 0 }
+                val shown = streamed.filter { it.gnssId in comparable }
+                    .joinToString("+") { Gnss.label(it.gnssId) }
+                val others = streamed.filterNot { it.gnssId in comparable }
+                    .joinToString("+") { Gnss.label(it.gnssId) }
+
+                add("1005/1006 states" to arp.serves)
+                add("Streams, of those" to (shown.ifEmpty { "none" }))
+                if (others.isNotEmpty()) {
+                    add("Also streams" to "$others (1005/1006 cannot state these)")
+                }
+            }
+        }
         else -> emptyList()
     }
 }

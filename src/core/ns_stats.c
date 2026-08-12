@@ -240,6 +240,7 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_str(&o, ",");
     out_key(&o, "advertised_count"); out_fmt(&o, "%d", s->advertised_count);
     out_str(&o, ",");
+    out_key(&o, "advertised_gnss"); out_fmt(&o, "%u", s->advertised_gnss);
     out_key(&o, "types_missing"); out_fmt(&o, "%d", s->types_missing);
     out_str(&o, ",");
     out_key(&o, "types_offrate"); out_fmt(&o, "%d", s->types_offrate);

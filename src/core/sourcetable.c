@@ -10,6 +10,9 @@
 #include "core/sourcetable.h"
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#  define strncasecmp _strnicmp
+#endif
 
 /**
  * @brief Copy field @p idx of a semicolon-separated record into @p dst.
@@ -134,4 +137,34 @@ int sourcetable_parse_types(const char *details, SourcetableType *out, int max)
         }
     }
     return n;
+}
+
+unsigned sourcetable_navsys_mask(const char *navsys)
+{
+    if (!navsys) return 0;
+
+    /* Casters spell these several ways; match the prefixes that
+     * actually appear in the wild rather than an exhaustive table. */
+    static const struct { const char *tag; int gnss; } names[] = {
+        { "GPS",     1 }, { "GLO",     2 }, { "GAL",     3 },
+        { "QZS",     4 }, { "BDS",     5 }, { "BEIDOU",  5 },
+        { "COMPASS", 5 }, { "SBAS",    6 }, { "IRNSS",   7 },
+        { "NAVIC",   7 },
+    };
+
+    unsigned mask = 0;
+    for (const char *p = navsys; *p; ) {
+        while (*p == '+' || *p == ' ' || *p == ',') p++;
+        if (!*p) break;
+
+        for (unsigned i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+            size_t n = strlen(names[i].tag);
+            if (strncasecmp(p, names[i].tag, n) == 0) {
+                mask |= 1u << names[i].gnss;
+                break;
+            }
+        }
+        while (*p && *p != '+' && *p != ' ' && *p != ',') p++;
+    }
+    return mask;
 }
