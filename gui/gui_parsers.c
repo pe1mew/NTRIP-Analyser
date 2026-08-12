@@ -12,6 +12,7 @@
 
 #include "resource.h"
 #include "gui_state.h"
+#include "core/sourcetable.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -42,94 +43,66 @@ static double haversine_km(double lat1, double lon1, double lat2, double lon2)
 
 /* Documented in gui_state.h -- the contract lives with the declaration.
  *
- * Implementation note: each STR line is semicolon-separated,
- *   STR;Mountpoint;Identifier;Format;Details;Carrier;NavSys;Network;Country;Lat;Lon;...
- * and the response may still carry HTTP headers, which are skipped. */
+ * Implementation note: the STR records are parsed by
+ * `sourcetable_parse()` in the core, the same function the Android app
+ * and any future frontend use.  This function is now only presentation:
+ * fill the ListView, and compute the distance column the core has no
+ * business knowing about.  It previously carried its own tokeniser,
+ * which meant two implementations of one format could disagree. */
 void ParseMountTable(const char *raw, HWND listview, double userLat, double userLon)
 {
     if (!raw || !listview) return;
 
     ListView_DeleteAllItems(listview);
 
-    const char *p = raw;
-    int row = 0;
+    int n = sourcetable_parse(raw, NULL, 0);
+    if (n <= 0) return;
 
-    while (*p) {
-        /* Find end of current line */
-        const char *lineEnd = p;
-        while (*lineEnd && *lineEnd != '\r' && *lineEnd != '\n')
-            lineEnd++;
+    SourcetableEntry *e = (SourcetableEntry *)calloc((size_t)n, sizeof(*e));
+    if (!e) return;
+    n = sourcetable_parse(raw, e, n);
 
-        int lineLen = (int)(lineEnd - p);
+    for (int row = 0; row < n; row++) {
+        char buf[32];
 
-        /* Only process STR lines */
-        if (lineLen > 4 && strncmp(p, "STR;", 4) == 0) {
-            /* Copy line into a temporary buffer for tokenizing */
-            char *buf = (char *)malloc(lineLen + 1);
-            if (buf) {
-                memcpy(buf, p, lineLen);
-                buf[lineLen] = '\0';
+        LVITEM lvi;
+        ZeroMemory(&lvi, sizeof(lvi));
+        lvi.mask    = LVIF_TEXT;
+        lvi.iItem   = row;
+        lvi.pszText = e[row].mountpoint;
+        ListView_InsertItem(listview, &lvi);
 
-                /* Split by ';' into fields */
-                char *fields[20];
-                int nFields = 0;
-                char *tok = buf;
+        ListView_SetItemText(listview, row, 1, e[row].identifier);
+        ListView_SetItemText(listview, row, 2, e[row].format);
+        ListView_SetItemText(listview, row, 3, e[row].format_details);
 
-                while (nFields < 20) {
-                    fields[nFields++] = tok;
-                    char *sep = strchr(tok, ';');
-                    if (!sep) break;
-                    *sep = '\0';
-                    tok = sep + 1;
-                }
+        snprintf(buf, sizeof(buf), "%d", e[row].carrier);
+        ListView_SetItemText(listview, row, 4, buf);
 
-                /* Need at least 11 fields: STR + 10 data columns */
-                if (nFields >= 11) {
-                    LVITEM lvi;
-                    ZeroMemory(&lvi, sizeof(lvi));
-                    lvi.mask    = LVIF_TEXT;
-                    lvi.iItem   = row;
-                    lvi.pszText = fields[1];  /* Mountpoint */
-                    ListView_InsertItem(listview, &lvi);
+        ListView_SetItemText(listview, row, 5, e[row].nav_systems);
+        ListView_SetItemText(listview, row, 6, e[row].network);
+        ListView_SetItemText(listview, row, 7, e[row].country);
 
-                    ListView_SetItemText(listview, row, 1, fields[2]);   /* Identifier */
-                    ListView_SetItemText(listview, row, 2, fields[3]);   /* Format */
-                    ListView_SetItemText(listview, row, 3, fields[4]);   /* Details */
-                    ListView_SetItemText(listview, row, 4, fields[5]);   /* Carrier */
-                    ListView_SetItemText(listview, row, 5, fields[6]);   /* Nav Sys */
-                    ListView_SetItemText(listview, row, 6, fields[7]);   /* Network */
-                    ListView_SetItemText(listview, row, 7, fields[8]);   /* Country */
-                    ListView_SetItemText(listview, row, 8, fields[9]);   /* Lat */
-                    ListView_SetItemText(listview, row, 9, fields[10]);  /* Lon */
+        snprintf(buf, sizeof(buf), "%.2f", e[row].latitude);
+        ListView_SetItemText(listview, row, 8, buf);
+        snprintf(buf, sizeof(buf), "%.2f", e[row].longitude);
+        ListView_SetItemText(listview, row, 9, buf);
 
-                    /* Column 10: Distance (km) from user position */
-                    double mpLat = atof(fields[9]);
-                    double mpLon = atof(fields[10]);
-                    char distBuf[32];
-
-                    if (userLat == 0.0 && userLon == 0.0) {
-                        /* No user position configured */
-                        snprintf(distBuf, sizeof(distBuf), "-");
-                    } else if (mpLat == 0.0 && mpLon == 0.0) {
-                        /* Mountpoint has no coordinates */
-                        snprintf(distBuf, sizeof(distBuf), "-");
-                    } else {
-                        double dist = haversine_km(userLat, userLon, mpLat, mpLon);
-                        snprintf(distBuf, sizeof(distBuf), "%.1f", dist);
-                    }
-                    ListView_SetItemText(listview, row, 10, distBuf);
-
-                    row++;
-                }
-
-                free(buf);
-            }
+        /* Distance from the configured rover position.  A dash where
+         * either end of the pair is unknown, rather than a confident
+         * distance measured from 0N 0E. */
+        if ((userLat == 0.0 && userLon == 0.0) ||
+            (e[row].latitude == 0.0 && e[row].longitude == 0.0)) {
+            snprintf(buf, sizeof(buf), "-");
+        } else {
+            snprintf(buf, sizeof(buf), "%.1f",
+                     haversine_km(userLat, userLon,
+                                  e[row].latitude, e[row].longitude));
         }
-
-        /* Advance past end-of-line characters */
-        p = lineEnd;
-        while (*p == '\r' || *p == '\n') p++;
+        ListView_SetItemText(listview, row, 10, buf);
     }
+
+    free(e);
 }
 
 /* ── Advertised message types (sourcetable STR field 4) ──────────────────── */

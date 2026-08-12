@@ -68,11 +68,13 @@ int sourcetable_parse(const char *raw, SourcetableEntry *out, int max)
                 SourcetableEntry *e = &out[n];
                 memset(e, 0, sizeof(*e));
 
-                field(p, line_end, 1, e->mountpoint,  sizeof(e->mountpoint));
-                field(p, line_end, 2, e->identifier,  sizeof(e->identifier));
-                field(p, line_end, 3, e->format,      sizeof(e->format));
-                field(p, line_end, 6, e->nav_systems, sizeof(e->nav_systems));
-                field(p, line_end, 8, e->country,     sizeof(e->country));
+                field(p, line_end, 1, e->mountpoint,     sizeof(e->mountpoint));
+                field(p, line_end, 2, e->identifier,     sizeof(e->identifier));
+                field(p, line_end, 3, e->format,         sizeof(e->format));
+                field(p, line_end, 4, e->format_details, sizeof(e->format_details));
+                field(p, line_end, 6, e->nav_systems,    sizeof(e->nav_systems));
+                field(p, line_end, 7, e->network,        sizeof(e->network));
+                field(p, line_end, 8, e->country,        sizeof(e->country));
 
                 e->carrier   = (int)field_num(p, line_end, 5);
                 e->latitude  = field_num(p, line_end, 9);

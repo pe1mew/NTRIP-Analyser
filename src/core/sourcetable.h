@@ -40,7 +40,14 @@ typedef struct {
     char   mountpoint[64];
     char   identifier[64];   /**< human-readable site name       */
     char   format[32];       /**< "RTCM 3.3", "RAW", ...          */
+    /**
+     * Format details: the advertised message types and rates, e.g.
+     * `1005(10),1077(1),1087(1)`.  Long lists from a generous caster
+     * are truncated rather than rejected.
+     */
+    char   format_details[256];
     char   nav_systems[64];  /**< "GPS+GLO+GAL+BDS"               */
+    char   network[64];
     char   country[8];
     double latitude;         /**< degrees; 0 when absent          */
     double longitude;
