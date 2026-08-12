@@ -130,3 +130,30 @@ int sky_collect_feed_msm(SkyRenderSector *sectors,
     }
     return contributed;
 }
+
+bool sky_azel_for_sat(int gnss_id, int prn,
+                      double sx, double sy, double sz,
+                      double *az_deg, double *el_deg)
+{
+    const SvEphemeris *eph = sv_eph_get(gnss_id, prn);
+    if (!eph) return false;
+
+    int gps_week;
+    double gps_tow;
+    sky_get_gps_time_now(&gps_week, &gps_tow);
+
+    /* GLONASS propagates on Moscow time-of-day, everything else on
+     * seconds of the GPS week. */
+    double t_prop = (gnss_id == 2) ? sky_get_glo_tod_now() : gps_tow;
+
+    if (!sv_eph_is_valid_at(eph, gps_week, t_prop)) return false;
+
+    double svx, svy, svz;
+    if (!sv_to_ecef(eph, gps_week, t_prop, &svx, &svy, &svz)) return false;
+
+    double az, el;
+    azel_from_ecef(sx, sy, sz, svx, svy, svz, &az, &el);
+    if (az_deg) *az_deg = az;
+    if (el_deg) *el_deg = el;
+    return true;
+}

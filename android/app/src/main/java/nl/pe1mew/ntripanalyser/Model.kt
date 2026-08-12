@@ -128,6 +128,15 @@ data class SatEntry(
     /** Session mean, averaged in power rather than in decibels. */
     @SerialName("cn0_mean") val cn0Mean: Float = 0f,
     val samples: Int = 0,
+    /**
+     * Azimuth and elevation from the station's cached orbit, or null
+     * when no orbit is available for this satellite.
+     *
+     * Null rather than zero: a satellite at 0,0 would be drawn on the
+     * horizon due north, and the plot cannot tell that from a fact.
+     */
+    val az: Float? = null,
+    val el: Float? = null,
 )
 
 /** One constellation's contribution. */

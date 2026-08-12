@@ -297,10 +297,23 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
         for (int i = 0; i < n; i++) {
             app(out, cap, &pos,
                 "%s{\"gnss\":%d,\"prn\":%d,\"cn0\":%.1f,"
-                "\"cn0_mean\":%.1f,\"samples\":%u}",
+                "\"cn0_mean\":%.1f,\"samples\":%u",
                 i ? "," : "", sats[i].gnss_id, sats[i].prn,
                 sats[i].cnr_dbhz, sats[i].cnr_mean,
                 (unsigned)sats[i].samples);
+
+            /* Where the satellite is, from the station's point of view.
+             * Absent rather than zero when no orbit is cached: a
+             * satellite at 0,0 would be drawn on the horizon due north,
+             * which is a lie the plot cannot distinguish from a fact. */
+            double az, el;
+            if (b->have_ecef &&
+                sky_azel_for_sat(sats[i].gnss_id, sats[i].prn,
+                                 b->ex, b->ey, b->ez, &az, &el)) {
+                app(out, cap, &pos, ",\"az\":%.1f,\"el\":%.1f}", az, el);
+            } else {
+                app(out, cap, &pos, ",\"az\":null,\"el\":null}");
+            }
         }
         app(out, cap, &pos, "]");
     }

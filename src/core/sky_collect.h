@@ -49,6 +49,28 @@ void sky_collect_reset(SkyRenderSector *sectors);
  * @return number of SVs that contributed an above-horizon update, or 0 if
  *   the frame was ignored (not an MSM4..7, bad station ARP, no eph).
  */
+/**
+ * @brief Azimuth and elevation of one satellite, from its cached orbit.
+ *
+ * The question the sky view asks per satellite, answered from the same
+ * ephemeris cache and the same clock the coverage heatmap uses -- so the
+ * two views cannot place the same satellite differently.
+ *
+ * Independent of where the observer's phone is: this is the satellite as
+ * seen from the *station*, which is what the plot claims to show.
+ *
+ * @param gnss_id  RTCM constellation id (1 GPS, 2 GLONASS, ...).
+ * @param prn      Satellite number within that constellation.
+ * @param sx,sy,sz Station ARP in ECEF metres.
+ * @param az_deg   [out] Azimuth, degrees clockwise from north.
+ * @param el_deg   [out] Elevation, degrees; may be negative (below the
+ *                 horizon), which the caller is left to judge.
+ * @return true when an orbit was available and valid for now.
+ */
+bool sky_azel_for_sat(int gnss_id, int prn,
+                      double sx, double sy, double sz,
+                      double *az_deg, double *el_deg);
+
 int sky_collect_feed_msm(SkyRenderSector *sectors,
                          const unsigned char *payload, int payload_len,
                          int msg_type,

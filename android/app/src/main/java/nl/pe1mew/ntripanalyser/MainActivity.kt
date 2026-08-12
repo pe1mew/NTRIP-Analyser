@@ -168,29 +168,58 @@ fun MainScreen() {
     // Satellites the stream measured, joined to a position where one
     // exists. Free shows the session mean, pro the live value.
     val liveDoc = runState.document
+    // Positions come from the station's own orbits where they exist --
+    // exact, complete, and independent of the handset -- and from the
+    // phone only for satellites no orbit covers. Preferring the phone
+    // would discard the better source: the orbit cache placed 47 of 47
+    // satellites where the phone managed 23.
+    var usedOrbits by remember { mutableStateOf(0) }
     val plotted = remember(liveDoc, positions) {
-        liveDoc?.sats.orEmpty().mapNotNull { sat ->
-            val pos = positions[PhoneGnss.key(sat.gnss, sat.prn)]
-                ?: return@mapNotNull null
+        var fromOrbit = 0
+        val out = liveDoc?.sats.orEmpty().mapNotNull { sat ->
+            val az: Float
+            val el: Float
+            val a = sat.az
+            val e = sat.el
+            if (a != null && e != null) {
+                az = a; el = e; fromOrbit++
+            } else {
+                val pos = positions[PhoneGnss.key(sat.gnss, sat.prn)]
+                    ?: return@mapNotNull null
+                az = pos.azimuthDeg; el = pos.elevationDeg
+            }
+            // Below the horizon the station cannot see it, whatever the
+            // stream carries; a marker there would fall outside the
+            // plot's own geometry.
+            if (el < 0f) return@mapNotNull null
             PlottedSat(
                 gnss = sat.gnss, prn = sat.prn,
                 cn0 = if (Features.IS_PRO) sat.cn0 else sat.cn0Mean,
-                azimuthDeg = pos.azimuthDeg, elevationDeg = pos.elevationDeg,
+                azimuthDeg = az, elevationDeg = el,
             )
         }
+        usedOrbits = fromOrbit
+        out
     }
 
     // The elevation scatter accumulates over the session. Elevation comes
     // from the phone and C/N0 from the stream, so the join -- and so the
     // accumulation -- can only happen here.
     val elevSamples = remember { mutableStateListOf<ElevationSample>() }
-    LaunchedEffect(plotted) {
+
+    // Keyed on the document and gated on the run, not keyed on
+    // `plotted`: keying on `plotted` re-fired every time the phone's
+    // GNSS updated, so a stopped analysis went on adding its last
+    // document's samples for ever -- the scatter grew while nothing was
+    // measuring.
+    LaunchedEffect(liveDoc, runState.running) {
+        if (!runState.running) return@LaunchedEffect
         plotted.forEach { p ->
             if (p.cn0 > 0f) {
                 elevSamples.add(ElevationSample(p.gnss, p.elevationDeg, p.cn0))
             }
         }
-        // A long watch would grow this without bound.
+        // A long analysis would grow this without bound.
         while (elevSamples.size > 20000) elevSamples.removeAt(0)
     }
 
@@ -275,8 +304,11 @@ fun MainScreen() {
                             sats = plotted,
                             missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
                                 .coerceAtLeast(0),
-                            source = if (haveLocation) PositionSource.PHONE_GNSS
-                                     else PositionSource.NONE,
+                            source = when {
+                                usedOrbits > 0 -> PositionSource.EPHEMERIS
+                                haveLocation -> PositionSource.PHONE_GNSS
+                                else -> PositionSource.NONE
+                            },
                             footer = footer,
                         )
                         AnalysisTab.SIGNAL ->

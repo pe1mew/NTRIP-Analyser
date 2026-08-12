@@ -232,19 +232,23 @@ receiver.
 Requires elevation per sample, so it depends on the same position source
 as the sky view.
 
-## Outstanding: the views must use the orbits, not only the phone
+## The orbits place the satellites; the phone fills the gaps
 
-Measured on the device: the orbit cache reported **47 of 47 tracked
-satellites placeable**, while the sky view drew **23 of 47** — because
-the join still takes azimuth and elevation from the phone alone. The C
-side holds everything needed to do better: the ephemerides, the station
-ARP in ECEF, and `sv_orbit` to turn them into azimuth and elevation.
+`sky_azel_for_sat()` answers, per satellite, where it is as seen from the
+station — from the same ephemeris cache and the same clock the coverage
+heatmap uses, so the two views cannot disagree about one satellite. The
+sky view prefers it and falls back to the phone only for satellites no
+orbit covers.
 
-Until that is wired, the imported RINEX file and the ephemeris stream
-improve the *count in the orbits card* but not the *plot*, which is the
-wrong way round. The order of preference should be: ephemeris or RINEX
-orbits where available, phone GNSS only for satellites they cannot
-place.
+Measured on the device, same base, minutes apart: **23 of 47 from the
+phone, 44 of 45 from the ephemeris stream** — and Galileo, which that
+handset does not report at all, appears throughout. Satellites below the
+horizon are dropped rather than drawn, since a marker outside the plot's
+geometry would be a claim the geometry cannot make.
+
+A satellite with no orbit is published with `az` and `el` as null rather
+than zero: zero would place it on the horizon due north, and the plot
+cannot tell that from a fact.
 
 ## What this means for the work already done
 
