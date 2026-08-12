@@ -643,30 +643,63 @@ int rtcm_extract_arp_ecef(const unsigned char *payload, int payload_len,
                           double *alt_m,
                           double *out_x, double *out_y, double *out_z)
 {
-    if (!payload || (msg_type != 1005 && msg_type != 1006)) return 0;
+    RtcmArpInfo info;
+    if (!rtcm_extract_arp_info(payload, payload_len, msg_type, &info)) return 0;
+    if (lat_deg) *lat_deg = info.lat_deg;
+    if (lon_deg) *lon_deg = info.lon_deg;
+    if (alt_m)   *alt_m   = info.alt_m;
+    if (out_x)   *out_x   = info.x;
+    if (out_y)   *out_y   = info.y;
+    if (out_z)   *out_z   = info.z;
+    return 1;
+}
+
+int rtcm_extract_arp_info(const unsigned char *payload, int payload_len,
+                          int msg_type, RtcmArpInfo *out)
+{
+    if (!payload || !out) return 0;
+    if (msg_type != 1005 && msg_type != 1006) return 0;
     if (payload_len < 19) return 0;      /* 1005 needs 152 bits to ECEF-Z */
 
-    int bit = 12 + 12 + 6 + 1 + 1 + 1 + 1;        /* skip to DF025 */
+    memset(out, 0, sizeof(*out));
+    out->msg_type = msg_type;
+
+    int bit = 12;                                  /* past DF002 */
+    out->station_id  = (int)get_bits(payload, bit, 12); bit += 12;
+    out->itrf_year   = (int)get_bits(payload, bit, 6);  bit += 6;
+    out->gps         = get_bits(payload, bit, 1) != 0;  bit += 1;
+    out->glonass     = get_bits(payload, bit, 1) != 0;  bit += 1;
+    out->galileo     = get_bits(payload, bit, 1) != 0;  bit += 1;
+    out->is_reference = get_bits(payload, bit, 1) == 0; bit += 1;
+
     int64_t xyz[3];
     for (int i = 0; i < 3; i++) {
         uint64_t raw = get_bits(payload, bit, 38); bit += 38;
         xyz[i] = (raw & ((uint64_t)1 << 37))
                  ? (int64_t)(raw | ~((uint64_t)0x3FFFFFFFFF))
                  : (int64_t)raw;
-        bit += 2;   /* reserved / oscillator bits between the coordinates */
+        if (i == 0) {
+            /* DF142 single-receiver-oscillator, then one reserved bit. */
+            out->single_osc = get_bits(payload, bit, 1) != 0;
+            bit += 2;
+        } else if (i == 1) {
+            bit += 2;   /* DF364 quarter-cycle indicator */
+        }
     }
 
-    double x = xyz[0] * 0.0001, y = xyz[1] * 0.0001, z = xyz[2] * 0.0001;
-    if (x == 0.0 && y == 0.0 && z == 0.0) return 0;
+    out->x = xyz[0] * 0.0001;
+    out->y = xyz[1] * 0.0001;
+    out->z = xyz[2] * 0.0001;
+    if (out->x == 0.0 && out->y == 0.0 && out->z == 0.0) return 0;
 
-    double la, lo, al;
-    ecef_to_geodetic(x, y, z, 0.0, &la, &lo, &al);
-    if (lat_deg) *lat_deg = la;
-    if (lon_deg) *lon_deg = lo;
-    if (alt_m)   *alt_m   = al;
-    if (out_x)   *out_x   = x;
-    if (out_y)   *out_y   = y;
-    if (out_z)   *out_z   = z;
+    /* 1006 adds the antenna height above the marker. */
+    if (msg_type == 1006 && payload_len >= 21) {
+        out->antenna_height = (double)get_bits(payload, bit, 16) * 0.0001;
+        out->has_height = true;
+    }
+
+    ecef_to_geodetic(out->x, out->y, out->z, 0.0,
+                     &out->lat_deg, &out->lon_deg, &out->alt_m);
     return 1;
 }
 

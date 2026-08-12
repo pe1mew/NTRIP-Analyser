@@ -174,6 +174,41 @@ data class Watch(
 )
 
 /**
+ * What the station says about itself in its 1005/1006.
+ *
+ * More than a position: the station ID it will appear under, the
+ * realisation its coordinates belong to, and which systems it claims to
+ * serve — which is not always what it streams, and that discrepancy is
+ * worth seeing.
+ */
+@Serializable
+data class ArpInfo(
+    /** 1005 or 1006; only 1006 carries an antenna height. */
+    val msg: Int = 0,
+    @SerialName("station_id") val stationId: Int = 0,
+    /** ITRF realisation year; 0 when the station does not state one. */
+    @SerialName("itrf_year") val itrfYear: Int = 0,
+    val gps: Boolean = false,
+    val glonass: Boolean = false,
+    val galileo: Boolean = false,
+    /** A real reference station, rather than a receiver reporting itself. */
+    val reference: Boolean = false,
+    @SerialName("single_osc") val singleOsc: Boolean = false,
+    val x: Double = 0.0,
+    val y: Double = 0.0,
+    val z: Double = 0.0,
+    @SerialName("antenna_height") val antennaHeight: Double? = null,
+) {
+    /** What it advertises, as the sourcetable would phrase it. */
+    val serves: String
+        get() = listOfNotNull(
+            "GPS".takeIf { gps },
+            "GLONASS".takeIf { glonass },
+            "Galileo".takeIf { galileo },
+        ).joinToString("+").ifEmpty { "none stated" }
+}
+
+/**
  * How well the orbit cache serves this stream, and how old it is.
  *
  * Shown in the app rather than left implicit: a sky view drawn from
@@ -208,6 +243,7 @@ data class BridgeDocument(
     val watch: Watch? = null,
     val sats: List<SatEntry> = emptyList(),
     val eph: EphState = EphState(),
+    val arp: ArpInfo? = null,
 )
 
 /** Tolerant by policy: an added C field must never crash the phone. */

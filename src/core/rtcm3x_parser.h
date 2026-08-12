@@ -267,6 +267,43 @@ int rtcm_extract_arp_ecef(const unsigned char *payload, int payload_len,
                           double *x, double *y, double *z);
 
 /**
+ * @struct RtcmArpInfo
+ * @brief Everything a 1005/1006 states about the reference station.
+ *
+ * The position is the part every consumer needs; the rest describes what
+ * kind of station it is and which realisation its coordinates belong to
+ * -- which is what an installer checking a base actually wants to read.
+ */
+typedef struct {
+    int    msg_type;       /**< 1005 or 1006                            */
+    int    station_id;     /**< DF003, the caster's reference-station ID */
+    int    itrf_year;      /**< DF021; 0 when the station does not say   */
+    bool   gps;            /**< DF022: serves GPS                       */
+    bool   glonass;        /**< DF023                                   */
+    bool   galileo;        /**< DF024                                   */
+    bool   is_reference;   /**< DF141: a real reference station rather
+                             *  than a receiver reporting its own place */
+    bool   single_osc;     /**< DF142: one oscillator drives all bands   */
+    double x, y, z;        /**< ECEF metres                             */
+    double lat_deg, lon_deg, alt_m;
+    bool   has_height;     /**< 1006 carries an antenna height          */
+    double antenna_height; /**< DF028 metres above the marker           */
+} RtcmArpInfo;
+
+/**
+ * @brief Decode a 1005/1006 in full.
+ *
+ * @param payload     Frame payload after the 3-byte header.
+ * @param payload_len Payload length in bytes.
+ * @param msg_type    RTCM message number; only 1005/1006 are accepted.
+ * @param out         [out] Filled on success.
+ * @return 1 on success, 0 for a wrong type, a runt frame, or an all-zero
+ *         position.
+ */
+int rtcm_extract_arp_info(const unsigned char *payload, int payload_len,
+                          int msg_type, RtcmArpInfo *out);
+
+/**
  * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.
  * @param x ECEF X (meters)
  * @param y ECEF Y (meters)

@@ -46,6 +46,8 @@ struct NtripBridge {
     RtcmStrBuf sink;           /**< swallows decoder chatter */
     int       eph_frames;      /**< frames seen on the eph stream */
     bool      have_ecef;
+    RtcmArpInfo arp;           /**< the last 1005/1006, decoded in full */
+    bool      have_arp_info;
     double    ex, ey, ez;      /**< station ARP in ECEF metres */
     char      mountpoint[64];
 };
@@ -67,11 +69,12 @@ static void bridge_on_event(const NsEvent *ev, void *user)
     int t = ev->u.frame.msg_type;
 
     if (t == 1005 || t == 1006) {
-        double la, lo, al, x, y, z;
-        if (rtcm_extract_arp_ecef(payload, payload_len, t,
-                                  &la, &lo, &al, &x, &y, &z)) {
-            b->ex = x; b->ey = y; b->ez = z;
+        RtcmArpInfo a;
+        if (rtcm_extract_arp_info(payload, payload_len, t, &a)) {
+            b->ex = a.x; b->ey = a.y; b->ez = a.z;
             b->have_ecef = true;
+            b->arp = a;
+            b->have_arp_info = true;
         }
         return;
     }
@@ -271,6 +274,31 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
     }
 
     app(out, cap, &pos, "]}");
+
+    /* What the station says about itself.  More than the position: an
+     * installer checking a base wants the station ID it will appear
+     * under, the realisation its coordinates belong to, and which
+     * systems it claims to serve -- which is not always what it
+     * streams. */
+    if (b->have_arp_info) {
+        const RtcmArpInfo *a = &b->arp;
+        app(out, cap, &pos,
+            ",\"arp\":{\"msg\":%d,\"station_id\":%d,\"itrf_year\":%d,"
+            "\"gps\":%s,\"glonass\":%s,\"galileo\":%s,"
+            "\"reference\":%s,\"single_osc\":%s,"
+            "\"x\":%.4f,\"y\":%.4f,\"z\":%.4f",
+            a->msg_type, a->station_id, a->itrf_year,
+            a->gps ? "true" : "false",
+            a->glonass ? "true" : "false",
+            a->galileo ? "true" : "false",
+            a->is_reference ? "true" : "false",
+            a->single_osc ? "true" : "false",
+            a->x, a->y, a->z);
+        if (a->has_height)
+            app(out, cap, &pos, ",\"antenna_height\":%.4f}", a->antenna_height);
+        else
+            app(out, cap, &pos, ",\"antenna_height\":null}");
+    }
 
     /* How well the orbit cache can serve the satellites being tracked,
      * and how old it is.  Incompleteness and age are shown in the app

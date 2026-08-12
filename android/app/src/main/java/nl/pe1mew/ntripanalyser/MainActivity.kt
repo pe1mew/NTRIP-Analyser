@@ -376,7 +376,7 @@ fun MainScreen() {
             doc?.watch?.let { WatchCard(it) }
 
             doc?.kpi?.items?.forEachIndexed { i, item ->
-                KpiRow(i + 1, item, doc.stats)
+                KpiRow(i + 1, item, doc.stats, doc.arp)
             }
 
             Spacer(Modifier.height(4.dp))
@@ -613,7 +613,7 @@ private fun StreamChips(doc: BridgeDocument) {
  * user is looking at the same numbers the verdict came from rather than
  * a second, possibly disagreeing, calculation.
  */
-private fun evidenceFor(index: Int, s: Stats): List<Pair<String, String>> {
+private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<String, String>> {
     fun f(v: Double?, unit: String, dp: Int = 1) =
         if (v == null) "not measured" else "%.${dp}f %s".format(v, unit).trim()
 
@@ -625,17 +625,42 @@ private fun evidenceFor(index: Int, s: Stats): List<Pair<String, String>> {
             "Uptime" to f(s.uptimeS, "s", 0),
             "Reconnects" to "${s.reconnects}",
         )
-        2 -> listOf(
-            "CRC-valid frames" to "${s.framesOk}",
-            "Message types seen" to "${s.types.size}",
-            "Latency" to f(s.latencyS, "s", 2),
-        )
-        3 -> listOf(
-            "ARP received" to if (s.arpValid) "yes" else "no",
-            "Latitude" to (s.arpLat?.let { "%.6f°".format(it) } ?: "—"),
-            "Longitude" to (s.arpLon?.let { "%.6f°".format(it) } ?: "—"),
-            "Height" to f(s.arpAlt, "m", 2),
-        )
+        2 -> buildList {
+            add("CRC-valid frames" to "${s.framesOk}")
+            add("Message types seen" to "${s.types.size}")
+            add("Latency" to f(s.latencyS, "s", 2))
+            // The types themselves, not merely how many: knowing a base
+            // sends 1077/1087/1097/1127 and no 1005 is the difference
+            // between a diagnosis and a number.
+            if (Features.IS_PRO && s.types.isNotEmpty()) {
+                add("Types received" to
+                    s.types.map { it.type }.sorted().joinToString(", "))
+            }
+        }
+        3 -> buildList {
+            add("ARP received" to if (s.arpValid) "yes" else "no")
+            add("Latitude" to (s.arpLat?.let { "%.6f°".format(it) } ?: "—"))
+            add("Longitude" to (s.arpLon?.let { "%.6f°".format(it) } ?: "—"))
+            add("Height" to f(s.arpAlt, "m", 2))
+            // Everything else the message states. Only in pro, and only
+            // when a 1005/1006 has actually been decoded.
+            if (Features.IS_PRO && arp != null) {
+                add("Message" to "RTCM ${arp.msg}")
+                add("Station ID" to "${arp.stationId}")
+                add("ITRF year" to
+                    if (arp.itrfYear > 0) "20%02d".format(arp.itrfYear) else "not stated")
+                add("Advertises" to arp.serves)
+                add("Station type" to
+                    if (arp.reference) "reference station" else "receiver, own position")
+                add("Oscillator" to if (arp.singleOsc) "single" else "not single")
+                add("ECEF X" to "%.4f m".format(arp.x))
+                add("ECEF Y" to "%.4f m".format(arp.y))
+                add("ECEF Z" to "%.4f m".format(arp.z))
+                arp.antennaHeight?.let {
+                    add("Antenna height" to "%.4f m".format(it))
+                }
+            }
+        }
         4 -> s.types.filter { it.type in 1071..1237 && (it.type % 10) in 4..7 }
                 .sortedBy { it.type }
                 .map { t ->
@@ -664,7 +689,7 @@ private fun evidenceFor(index: Int, s: Stats): List<Pair<String, String>> {
 }
 
 @Composable
-private fun KpiRow(index: Int, item: KpiItem, stats: Stats) {
+private fun KpiRow(index: Int, item: KpiItem, stats: Stats, arp: ArpInfo? = null) {
     var expanded by remember { mutableStateOf(false) }
 
     Card(
@@ -710,7 +735,7 @@ private fun KpiRow(index: Int, item: KpiItem, stats: Stats) {
             ) {
                 HorizontalDivider()
                 Spacer(Modifier.height(8.dp))
-                val rows = evidenceFor(index, stats)
+                val rows = evidenceFor(index, stats, arp)
                 if (rows.isEmpty()) {
                     Text(
                         stringResource(R.string.no_evidence),
@@ -719,18 +744,37 @@ private fun KpiRow(index: Int, item: KpiItem, stats: Stats) {
                     )
                 }
                 rows.forEach { (k, v) ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                        Text(
-                            k,
-                            Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            v,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                        )
+                    // A long value -- a list of message types, say --
+                    // squeezes the label to nothing when both share a
+                    // row, so it takes a line of its own instead. The
+                    // label is what makes the value mean something.
+                    if (v.length > 20) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Text(
+                                k,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                v,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    } else {
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Text(
+                                k,
+                                Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                v,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
                     }
                 }
             }
