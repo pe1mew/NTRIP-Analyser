@@ -19,6 +19,7 @@
  */
 
 #include <jni.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -152,4 +153,80 @@ JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
     str_free(env, user, c_user);
     str_free(env, password, c_pass);
     return outv;
+}
+
+JNIEXPORT jboolean JNICALL
+JNI_FN(nativeOpenEph)(JNIEnv *env, jobject thiz, jlong handle,
+                      jstring caster, jint port, jstring mountpoint,
+                      jstring user, jstring password)
+{
+    (void)thiz;
+    const char *c_caster = str_in(env, caster);
+    const char *c_mount  = str_in(env, mountpoint);
+    const char *c_user   = str_in(env, user);
+    const char *c_pass   = str_in(env, password);
+
+    jboolean ok = bridge_open_eph((NtripBridge *)(intptr_t)handle,
+                                  c_caster ? c_caster : "", (int)port,
+                                  c_mount ? c_mount : "",
+                                  c_user ? c_user : "",
+                                  c_pass ? c_pass : "") ? JNI_TRUE : JNI_FALSE;
+
+    str_free(env, caster, c_caster);
+    str_free(env, mountpoint, c_mount);
+    str_free(env, user, c_user);
+    str_free(env, password, c_pass);
+    return ok;
+}
+
+JNIEXPORT jint JNICALL
+JNI_FN(nativeEphCount)(JNIEnv *env, jobject thiz, jlong handle)
+{
+    (void)env; (void)thiz;
+    return (jint)bridge_eph_count((const NtripBridge *)(intptr_t)handle);
+}
+
+/**
+ * Render the sky plot into a caller-allocated int array, packed ARGB as
+ * `Bitmap.setPixels` expects.  The array comes from Kotlin so the
+ * bitmap can be reused across refreshes rather than reallocated every
+ * second.
+ */
+JNIEXPORT jboolean JNICALL
+JNI_FN(nativeSkyPixels)(JNIEnv *env, jobject thiz, jlong handle,
+                        jintArray pixels, jint width, jint height)
+{
+    (void)thiz;
+    if (!pixels || width < 100 || height < 100) return JNI_FALSE;
+    if ((*env)->GetArrayLength(env, pixels) < width * height) return JNI_FALSE;
+
+    size_t nbytes = (size_t)width * (size_t)height * 3;
+    unsigned char *rgb = (unsigned char *)malloc(nbytes);
+    if (!rgb) return JNI_FALSE;
+
+    if (!bridge_sky_rgb((NtripBridge *)(intptr_t)handle, rgb, width, height)) {
+        free(rgb);
+        return JNI_FALSE;
+    }
+
+    jint *out = (*env)->GetIntArrayElements(env, pixels, NULL);
+    if (!out) { free(rgb); return JNI_FALSE; }
+
+    for (int i = 0; i < width * height; i++) {
+        out[i] = (jint)(0xFF000000u |
+                        ((uint32_t)rgb[i * 3 + 0] << 16) |
+                        ((uint32_t)rgb[i * 3 + 1] <<  8) |
+                        ((uint32_t)rgb[i * 3 + 2]));
+    }
+
+    (*env)->ReleaseIntArrayElements(env, pixels, out, 0);
+    free(rgb);
+    return JNI_TRUE;
+}
+
+JNIEXPORT jint JNICALL
+JNI_FN(nativeEphFrames)(JNIEnv *env, jobject thiz, jlong handle)
+{
+    (void)env; (void)thiz;
+    return (jint)bridge_eph_frames((const NtripBridge *)(intptr_t)handle);
 }

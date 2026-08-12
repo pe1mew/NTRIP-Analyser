@@ -10,6 +10,7 @@
 #include "core/sv_track.h"
 #include "core/rtcm3x_parser.h"
 
+#include <math.h>
 #include <string.h>
 
 /* MSM message numbers, matching the range msm_get_epoch() accepts. */
@@ -56,8 +57,14 @@ int sv_track_feed(SvTrack *t, const unsigned char *payload, int payload_len,
             for (int i = 0; i < cn; i++) {
                 int p = cnr_prns[i];
                 if (p < 1 || p > SV_TRACK_MAX_PRN) continue;
-                if (cnr_vals[i] > 0.0f)
-                    t->sat[cnr_gnss][p - 1].cnr_dbhz = cnr_vals[i];
+                if (cnr_vals[i] > 0.0f) {
+                    SvTrackSat *sat = &t->sat[cnr_gnss][p - 1];
+                    sat->cnr_dbhz = cnr_vals[i];
+                    /* Accumulate in power, not decibels -- see the note
+                     * on SvTrackSat::cnr_pow_sum. */
+                    sat->cnr_pow_sum += pow(10.0, cnr_vals[i] / 10.0);
+                    sat->cnr_samples++;
+                }
             }
         }
     }
@@ -144,4 +151,39 @@ void sv_track_summarise(const SvTrack *t, double now, double window_s,
     if (sats_total_out) *sats_total_out = sats_total;
     if (cnr_mean_out)
         *cnr_mean_out = cnr_n ? (float)(cnr_sum / (double)cnr_n) : 0.0f;
+}
+
+float sv_track_cnr_mean(const SvTrackSat *sat)
+{
+    if (!sat || sat->cnr_samples == 0) return 0.0f;
+    double mean_pow = sat->cnr_pow_sum / (double)sat->cnr_samples;
+    if (mean_pow <= 0.0) return 0.0f;
+    return (float)(10.0 * log10(mean_pow));
+}
+
+int sv_track_list(const SvTrack *t, double now, double window_s,
+                  SvTrackEntry *out, int max)
+{
+    if (!t) return 0;
+
+    int n = 0;
+    for (int g = 1; g < SV_TRACK_MAX_GNSS; g++) {
+        for (int p = 0; p < SV_TRACK_MAX_PRN; p++) {
+            const SvTrackSat *sat = &t->sat[g][p];
+            if (sat->last_seen <= 0.0) continue;
+            if (now - sat->last_seen > window_s) continue;
+
+            if (!out) { n++; continue; }
+            if (n >= max) return n;
+
+            SvTrackEntry *e = &out[n++];
+            e->gnss_id   = g;
+            e->prn       = p + 1;
+            e->cnr_dbhz  = sat->cnr_dbhz;
+            e->cnr_mean  = sv_track_cnr_mean(sat);
+            e->samples   = sat->cnr_samples;
+            e->last_seen = sat->last_seen;
+        }
+    }
+    return n;
 }

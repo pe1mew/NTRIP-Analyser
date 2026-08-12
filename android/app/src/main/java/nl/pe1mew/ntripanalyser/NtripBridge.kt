@@ -30,6 +30,34 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
     fun snapshotJson(): String? =
         if (handle == 0L) null else nativeSnapshotJson(handle)
 
+    /**
+     * Attach an ephemeris side-stream, enabling the sky plot.
+     *
+     * The observation stream says which satellites are tracked but not
+     * where they are; azimuth and elevation need broadcast ephemerides
+     * from a separate mountpoint.
+     */
+    fun openEph(
+        caster: String, port: Int, mountpoint: String,
+        user: String, password: String,
+    ): Boolean = handle != 0L &&
+        nativeOpenEph(handle, caster, port, mountpoint, user, password)
+
+    /** Frames seen on the ephemeris stream, for diagnosis. */
+    fun ephFrames(): Int = if (handle == 0L) -1 else nativeEphFrames(handle)
+
+    /** Satellites with a usable ephemeris; 0 means nothing to place. */
+    fun ephCount(): Int = if (handle == 0L) 0 else nativeEphCount(handle)
+
+    /**
+     * Render the sky heatmap into [pixels] as ARGB.
+     *
+     * The caller owns the array so the bitmap can be reused between
+     * refreshes. Returns false when there is nothing to draw yet.
+     */
+    fun skyPixels(pixels: IntArray, width: Int, height: Int): Boolean =
+        handle != 0L && nativeSkyPixels(handle, pixels, width, height)
+
     /** Overall verdict as a [RunVerdict] ordinal, without parsing JSON. */
     fun overall(): Int = if (handle == 0L) 0 else nativeOverall(handle)
 
@@ -97,6 +125,15 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         @JvmStatic private external fun nativePump(h: Long, timeoutMs: Int, nowS: Double): Int
         @JvmStatic private external fun nativeSnapshotJson(h: Long): String?
         @JvmStatic private external fun nativeOverall(h: Long): Int
+        @JvmStatic private external fun nativeOpenEph(
+            h: Long, caster: String, port: Int, mountpoint: String,
+            user: String, password: String,
+        ): Boolean
+        @JvmStatic private external fun nativeEphCount(h: Long): Int
+        @JvmStatic private external fun nativeEphFrames(h: Long): Int
+        @JvmStatic private external fun nativeSkyPixels(
+            h: Long, pixels: IntArray, width: Int, height: Int,
+        ): Boolean
         @JvmStatic private external fun nativeClose(h: Long)
     }
 }

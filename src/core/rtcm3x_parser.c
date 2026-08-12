@@ -634,6 +634,15 @@ int rtcm_extract_arp(const unsigned char *payload, int payload_len,
                      int msg_type, double *lat_deg, double *lon_deg,
                      double *alt_m)
 {
+    return rtcm_extract_arp_ecef(payload, payload_len, msg_type,
+                                 lat_deg, lon_deg, alt_m, NULL, NULL, NULL);
+}
+
+int rtcm_extract_arp_ecef(const unsigned char *payload, int payload_len,
+                          int msg_type, double *lat_deg, double *lon_deg,
+                          double *alt_m,
+                          double *out_x, double *out_y, double *out_z)
+{
     if (!payload || (msg_type != 1005 && msg_type != 1006)) return 0;
     if (payload_len < 19) return 0;      /* 1005 needs 152 bits to ECEF-Z */
 
@@ -655,6 +664,9 @@ int rtcm_extract_arp(const unsigned char *payload, int payload_len,
     if (lat_deg) *lat_deg = la;
     if (lon_deg) *lon_deg = lo;
     if (alt_m)   *alt_m   = al;
+    if (out_x)   *out_x   = x;
+    if (out_y)   *out_y   = y;
+    if (out_z)   *out_z   = z;
     return 1;
 }
 

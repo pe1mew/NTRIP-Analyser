@@ -2,6 +2,7 @@
 <resources>
 
     <string name="verdict_idle">READY</string>
+    <string name="verdict_unconfigured">NOT CONFIGURED</string>
     <string name="sustained_of">%1$d of %2$d s sustained</string>
 
     <string name="sustained_held">Held for %1$s</string>
@@ -14,6 +15,14 @@
     <string name="action_watch">Watch</string>
     <string name="action_stop">Stop</string>
     <string name="action_browse">Browse mountpoints…</string>
+    <string name="action_sky">Sky coverage…</string>
+    <string name="sky_title">Sky coverage</string>
+    <string name="sky_waiting">Waiting for a station position and orbits (%1$d ephemerides so far)…</string>
+    <string name="sky_eph">%1$d ephemerides cached</string>
+    <string name="eph_explain">Ephemeris stream — needed for the sky plot, which places satellites the observation stream only counts. Leave blank to skip.</string>
+    <string name="field_eph_caster">Ephemeris caster</string>
+    <string name="field_eph_port">Ephemeris port</string>
+    <string name="field_eph_mp">Ephemeris mountpoint</string>
     <string name="action_close">Close</string>
     <string name="sourcetable_title">%1$s</string>
     <string name="sourcetable_loading">Fetching the sourcetable…</string>

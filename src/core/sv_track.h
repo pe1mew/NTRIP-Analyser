@@ -30,6 +30,7 @@
 #define SV_TRACK_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "core/ns_stats.h"
 
 #ifdef __cplusplus
@@ -57,6 +58,19 @@ extern "C" {
 typedef struct {
     double last_seen;   /**< seconds, caller's clock; 0 = never observed */
     float  cnr_dbhz;    /**< last known C/N0; 0 = never carried one      */
+
+    /**
+     * Sum of C/N0 expressed as linear power, and the sample count.
+     *
+     * The mean must be taken over power, never over decibels.  C/N0 is
+     * logarithmic, so averaging the dB values yields the geometric mean
+     * of the powers, which is biased low -- and the bias grows with the
+     * spread, exactly when the number matters.  A satellite that fades
+     * and recovers would be reported as steadily poor rather than as
+     * intermittently strong.  @ref sv_track_cnr_mean converts back.
+     */
+    double cnr_pow_sum;
+    uint32_t cnr_samples;
 } SvTrackSat;
 
 /**
@@ -110,6 +124,44 @@ int sv_track_feed(SvTrack *t, const unsigned char *payload, int payload_len,
  * @param cnr_mean_out   [out] Mean C/N0 over every satellite reporting one;
  *                       0 when the stream carries no C/N0 at all.
  */
+/**
+ * @brief One satellite, as the frontends want to draw it.
+ *
+ * Positions are not here: an observation stream never carries them, so
+ * azimuth and elevation come from whatever source the caller has (the
+ * phone's own GNSS, an ephemeris stream, a RINEX file) and are joined
+ * to this list by (@ref gnss_id, @ref prn).
+ */
+typedef struct {
+    int   gnss_id;      /**< RTCM constellation numbering              */
+    int   prn;
+    float cnr_dbhz;     /**< most recent C/N0; 0 when never carried    */
+    float cnr_mean;     /**< session mean, averaged in power           */
+    uint32_t samples;   /**< C/N0 samples behind @ref cnr_mean         */
+    double last_seen;   /**< caller's clock                            */
+} SvTrackEntry;
+
+/**
+ * @brief Mean C/N0 of one satellite over the session, in dB-Hz.
+ *
+ * Converts the accumulated power back to decibels.  Returns 0 when the
+ * satellite has never carried a C/N0 (MSM4/5/6 do not).
+ */
+float sv_track_cnr_mean(const SvTrackSat *sat);
+
+/**
+ * @brief List the satellites seen within @p window_s of @p now.
+ *
+ * @param t        Tracker.
+ * @param now      Current time, caller's clock.
+ * @param window_s Staleness window; older satellites are omitted.
+ * @param out      [out] Destination array; NULL to count only.
+ * @param max      Capacity of @p out.
+ * @return Number written, or the total when @p out is NULL.
+ */
+int sv_track_list(const SvTrack *t, double now, double window_s,
+                  SvTrackEntry *out, int max);
+
 void sv_track_summarise(const SvTrack *t, double now, double window_s,
                         NsGnssStats *gnss_out, int max_gnss, int *n_gnss_out,
                         int *sats_total_out, float *cnr_mean_out);

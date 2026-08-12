@@ -12,6 +12,10 @@
 #include "session/ntrip_session.h"
 #include "core/kpi.h"
 #include "core/sourcetable.h"
+#include "core/rtcm3x_parser.h"  /* eph decoders, ARP, output sink */
+#include "core/sky_collect.h"
+#include "core/sky_render.h"
+#include "core/sv_ephemeris.h"
 #include "net/ntrip_handler.h"   /* receive_mount_table */
 #include "core/version.h"
 
@@ -20,6 +24,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void bridge_on_event(const NsEvent *ev, void *user);
+static void bridge_eph_event(const NsEvent *ev, void *user);
+
 struct NtripBridge {
     NtripSession *sess;
     KpiRun    run;
@@ -27,17 +34,95 @@ struct NtripBridge {
     bool      started;   /**< the KPI clock is running */
     bool      watch;     /**< keep going past the first verdict */
     KpiWatch  w;
+
+    /* Sky coverage.  The observation stream cannot place a satellite in
+     * the sky by itself, so this stays empty until an ephemeris
+     * side-stream is attached and has delivered orbits. */
+    NtripSession *eph;
+    SkyRenderSector sky[SKY_RENDER_N_EL_BANDS][SKY_RENDER_MAX_AZ_BINS];
+    RtcmStrBuf sink;           /**< swallows decoder chatter */
+    int       eph_frames;      /**< frames seen on the eph stream */
+    bool      have_ecef;
+    double    ex, ey, ez;      /**< station ARP in ECEF metres */
+    char      mountpoint[64];
 };
 
-/** @brief Events are not surfaced in Phase 1; the snapshot carries all. */
+/**
+ * @brief Observation-stream events.
+ *
+ * The snapshot carries everything the KPI screen needs, so this exists
+ * only for the sky plot: sector accumulation needs the frame itself,
+ * which the snapshot does not retain.
+ */
 static void bridge_on_event(const NsEvent *ev, void *user)
 {
-    (void)ev; (void)user;
+    NtripBridge *b = (NtripBridge *)user;
+    if (!b || !ev || ev->type != NS_EV_FRAME) return;
+
+    const unsigned char *payload = ev->u.frame.data + 3;
+    int payload_len = ev->u.frame.len - 6;      /* header and CRC removed */
+    int t = ev->u.frame.msg_type;
+
+    if (t == 1005 || t == 1006) {
+        double la, lo, al, x, y, z;
+        if (rtcm_extract_arp_ecef(payload, payload_len, t,
+                                  &la, &lo, &al, &x, &y, &z)) {
+            b->ex = x; b->ey = y; b->ez = z;
+            b->have_ecef = true;
+        }
+        return;
+    }
+
+    if (b->have_ecef)
+        sky_collect_feed_msm(&b->sky[0][0], payload, payload_len, t,
+                             b->ex, b->ey, b->ez);
+}
+
+/**
+ * @brief Ephemeris-stream events: decode orbits into the shared cache.
+ *
+ * The cache is a module-level singleton in sv_ephemeris.c, which is why
+ * nothing is passed along here -- decoding is the whole effect.
+ */
+static void bridge_eph_event(const NsEvent *ev, void *user)
+{
+    NtripBridge *b = (NtripBridge *)user;
+    if (!b || !ev || ev->type != NS_EV_FRAME) return;
+
+    b->eph_frames++;
+
+    const unsigned char *p = ev->u.frame.data + 3;
+    int len = ev->u.frame.len - 6;
+
+    /* The decoders print as they decode.  On a phone that output has
+     * nowhere useful to go, so it is swallowed -- the same sink the CLI
+     * uses in --sky mode.  Cleared each frame so an hours-long run
+     * cannot grow it without bound. */
+    rtcm_strbuf_clear(&b->sink);
+    rtcm_set_output_buffer(&b->sink);
+
+    switch (ev->u.frame.msg_type) {
+    case 1019: decode_rtcm_1019(p, len); break;
+    case 1020: decode_rtcm_1020(p, len); break;
+    case 1041: decode_rtcm_1041(p, len); break;
+    case 1042: decode_rtcm_1042(p, len); break;
+    case 1044: decode_rtcm_1044(p, len); break;
+    case 1045: decode_rtcm_1045(p, len); break;
+    case 1046: decode_rtcm_1046(p, len); break;
+    default: break;
+    }
+
+    rtcm_set_output_buffer(NULL);
 }
 
 static NtripBridge *bridge_alloc(void)
 {
     NtripBridge *b = (NtripBridge *)calloc(1, sizeof(*b));
+    if (!b) return NULL;
+    /* The decoder sink needs a real buffer: a zeroed RtcmStrBuf has
+     * nowhere to put the text, and the decoders fall back to stdout --
+     * which on a phone means megabytes of ephemeris dumps in logcat. */
+    rtcm_strbuf_init(&b->sink, 8192);
     return b;
 }
 
@@ -73,6 +158,10 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
      * genuinely broken station still cannot pass. */
     opt.auto_reconnect   = true;
 
+    snprintf(b->mountpoint, sizeof(b->mountpoint), "%s",
+             mountpoint ? mountpoint : "");
+    sky_collect_reset(&b->sky[0][0]);
+
     b->sess = ns_open(&opt, bridge_on_event, b);
     if (!b->sess) { free(b); return NULL; }
     return b;
@@ -104,6 +193,11 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
     }
 
     int r = ns_pump(b->sess, timeout_ms);
+
+    /* The ephemeris stream is pumped on the same thread, briefly: it
+     * carries a few frames a minute, so it needs no time of its own. */
+    if (b->eph) ns_pump(b->eph, 0);
+
     kpi_update(&b->run, ns_stats(b->sess), now_s, &b->rep);
     kpi_watch_update(&b->w, &b->rep, now_s);
     return r;
@@ -175,6 +269,23 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
 
     app(out, cap, &pos, "]}");
 
+    /* The satellites, for the sky view and the C/N0 bars.  Positions are
+     * absent by design: the caller joins them from its own source. */
+    {
+        SvTrackEntry sats[128];
+        int n = ns_sat_list(b->sess, sats, 128);
+        app(out, cap, &pos, ",\"sats\":[");
+        for (int i = 0; i < n; i++) {
+            app(out, cap, &pos,
+                "%s{\"gnss\":%d,\"prn\":%d,\"cn0\":%.1f,"
+                "\"cn0_mean\":%.1f,\"samples\":%u}",
+                i ? "," : "", sats[i].gnss_id, sats[i].prn,
+                sats[i].cnr_dbhz, sats[i].cnr_mean,
+                (unsigned)sats[i].samples);
+        }
+        app(out, cap, &pos, "]");
+    }
+
     if (b->watch) {
         double avail = kpi_watch_availability(&b->w);
         app(out, cap, &pos,
@@ -205,7 +316,9 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
 void bridge_close(NtripBridge *b)
 {
     if (!b) return;
+    if (b->eph)  ns_close(b->eph);
     if (b->sess) ns_close(b->sess);
+    rtcm_strbuf_free(&b->sink);
     free(b);
 }
 
@@ -258,4 +371,60 @@ int bridge_sourcetable_json(const char *caster, int port,
     free(e);
     if (pos < 0 || (size_t)pos >= cap) return -1;   /* truncated */
     return pos;
+}
+
+/* ── Sky coverage ─────────────────────────────────────────────────────
+ * Fed from the observation session's frames via the event callback,
+ * because sector accumulation needs the frame itself, not the snapshot.
+ */
+
+bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
+                     const char *mountpoint,
+                     const char *user, const char *password)
+{
+    if (!b || b->eph) return false;
+
+    NsOptions opt;
+    ns_options_default(&opt);
+    snprintf(opt.config.NTRIP_CASTER, sizeof(opt.config.NTRIP_CASTER),
+             "%s", caster ? caster : "");
+    snprintf(opt.config.MOUNTPOINT, sizeof(opt.config.MOUNTPOINT),
+             "%s", mountpoint ? mountpoint : "");
+    snprintf(opt.config.USERNAME, sizeof(opt.config.USERNAME),
+             "%s", user ? user : "");
+    snprintf(opt.config.PASSWORD, sizeof(opt.config.PASSWORD),
+             "%s", password ? password : "");
+    opt.config.NTRIP_PORT  = port;
+    opt.stats_interval_s   = 0.0;
+    opt.auto_reconnect     = true;
+
+    b->eph = ns_open(&opt, bridge_eph_event, b);
+    return b->eph != NULL;
+}
+
+int bridge_eph_frames(const NtripBridge *b)
+{
+    return b ? b->eph_frames : -1;
+}
+
+int bridge_eph_count(const NtripBridge *b)
+{
+    if (!b || !b->eph) return 0;
+    int n = 0;
+    for (int g = 0; g < SV_EPH_MAX_GNSS; g++)
+        for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++)
+            if (sv_eph_get(g, p)) n++;
+    return n;
+}
+
+bool bridge_sky_rgb(NtripBridge *b, unsigned char *rgb,
+                    int width, int height)
+{
+    if (!b || !rgb) return false;
+    if (!b->have_ecef) return false;      /* no station: nothing to centre on */
+
+    const NsStatsSnapshot *s = ns_stats(b->sess);
+    return sky_render_heatmap_rgb(rgb, width, height, &b->sky[0][0],
+                                  s->arp_valid, s->arp_lat, s->arp_lon,
+                                  s->arp_alt, b->mountpoint, "");
 }

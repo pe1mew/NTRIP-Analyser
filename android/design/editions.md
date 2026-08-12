@@ -27,7 +27,8 @@ The paid edition therefore shows **more**, never **different**.
 | Mountpoint entry | **typed manually, one saved** | multiple saved, switchable |
 | Sourcetable | **viewable, not selectable** | browse and tap to use |
 | Watch mode | **not available** | yes, unlimited |
-| Sky plot | yes | yes |
+| Sky plot (coverage heatmap) | yes | yes |
+| Ephemeris source | live stream only | live stream **or downloaded RINEX** |
 | Session history | — | yes |
 | Per-SV / per-band C/N0 | — | yes |
 | Ionosphere (ROTI) | — | yes |
@@ -44,6 +45,28 @@ offers. What they cannot do is *tap an entry to use it*: the mountpoint
 must be typed by hand. Convenience across many mountpoints is precisely
 the paid proposition, so the free edition gives the information and
 withholds the workflow. Nothing is hidden; the work is manual.
+
+### Why the RINEX download is paid
+
+The sky plot needs orbits, and orbits reach the app one of two ways: a
+live ephemeris mountpoint, or a broadcast RINEX navigation file
+downloaded once and reused. The free edition gets the first, which costs
+nothing to offer and works wherever a caster publishes ephemerides.
+
+The download is the paid alternative because it is what makes the sky
+plot work in the field when the ephemeris mountpoint is unreachable —
+a rack with a firewalled network, a caster that publishes observations
+only, or a site with metered connectivity where a one-off file beats a
+second continuous stream. That is a professional's problem, and the
+solution is worth paying for.
+
+Implementation notes for when it is built: `src/core/rinex_nav.c`
+already parses RINEX 3 NAV and the CLI already preloads from it
+(`-R/--RINEX`), so the new work is fetching, not parsing. The fetch
+needs a source decision — BKG and IGS mirrors are open, NASA CDDIS
+requires an Earthdata login — and the files are usually compressed, so
+the app needs gzip. Neither is hard; both are choices to make
+deliberately rather than to discover halfway through.
 
 ### Why watch is a paid capability, not a capped one
 

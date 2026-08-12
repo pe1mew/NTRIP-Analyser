@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +97,7 @@ fun MainScreen() {
     var settings by remember { mutableStateOf(Settings.load(context)) }
     var showSettings by remember { mutableStateOf(!Settings.load(context).isComplete) }
     var showSourcetable by remember { mutableStateOf(false) }
+    var showSky by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -119,7 +121,7 @@ fun MainScreen() {
         ) {
             val doc = runState.document
 
-            VerdictBadge(doc, runState.running, runState.outcome)
+            VerdictBadge(doc, runState.running, runState.outcome, settings.isComplete)
 
             // What this run is (or would be) pointed at, without making
             // the user open the settings screen to find out.
@@ -176,6 +178,12 @@ fun MainScreen() {
                 }
             }
 
+            if (settings.hasEph && runState.skyAvailable) {
+                TextButton(onClick = { showSky = true }) {
+                    Text(stringResource(R.string.action_sky))
+                }
+            }
+
             if (!settings.isComplete) {
                 Text(
                     stringResource(R.string.hint_configure),
@@ -183,6 +191,10 @@ fun MainScreen() {
                 )
             }
         }
+    }
+
+    if (showSky) {
+        SkyDialog(onDismiss = { showSky = false })
     }
 
     if (showSourcetable) {
@@ -215,12 +227,21 @@ private fun VerdictBadge(
     doc: BridgeDocument?,
     running: Boolean,
     outcome: MonitorService.Outcome,
+    configured: Boolean,
 ) {
     val verdict = doc?.kpi?.overallEnum ?: RunVerdict.RUNNING
-    val label = doc?.kpi?.overallName ?: stringResource(R.string.verdict_idle)
+    // "READY" is a claim, and an app with no mountpoint is not ready for
+    // anything.  Saying so invites the user to tap the settings card
+    // rather than to wonder why the run button does nothing.
+    val label = when {
+        doc != null -> doc.kpi.overallName
+        !configured -> stringResource(R.string.verdict_unconfigured)
+        else -> stringResource(R.string.verdict_idle)
+    }
 
     Surface(
-        color = runColour(verdict),
+        color = if (doc == null && !configured) Color(0xFF9E9E9E)
+                else runColour(verdict),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -503,6 +524,9 @@ private fun SettingsDialog(
     var lat by remember { mutableStateOf(initial.latitude.toString()) }
     var lon by remember { mutableStateOf(initial.longitude.toString()) }
     var gga by remember { mutableStateOf(initial.sendGga) }
+    var ephCaster by remember { mutableStateOf(initial.ephCaster) }
+    var ephPort by remember { mutableStateOf(initial.ephPort.toString()) }
+    var ephMp by remember { mutableStateOf(initial.ephMountpoint) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -546,6 +570,23 @@ private fun SettingsDialog(
                     OutlinedTextField(lon, { lon = it },
                         label = { Text(stringResource(R.string.field_lon)) }, singleLine = true)
                 }
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(
+                    stringResource(R.string.eph_explain),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    ephCaster, { ephCaster = it },
+                    label = { Text(stringResource(R.string.field_eph_caster)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                )
+                OutlinedTextField(ephPort, { ephPort = it.filter(Char::isDigit) },
+                    label = { Text(stringResource(R.string.field_eph_port)) }, singleLine = true)
+                OutlinedTextField(ephMp, { ephMp = it },
+                    label = { Text(stringResource(R.string.field_eph_mp)) }, singleLine = true)
             }
         },
         confirmButton = {
@@ -564,6 +605,11 @@ private fun SettingsDialog(
                         latitude = lat.toDoubleOrNull() ?: 52.0,
                         longitude = lon.toDoubleOrNull() ?: 6.0,
                         sendGga = gga,
+                        ephCaster = ephCaster.filter {
+                            it.isLetterOrDigit() || it == '.' || it == '-'
+                        },
+                        ephPort = ephPort.toIntOrNull() ?: 2101,
+                        ephMountpoint = ephMp.trim(),
                     )
                 )
             }) { Text(stringResource(R.string.action_save)) }
@@ -751,4 +797,67 @@ private fun SourceRow(e: SourceEntry, onPick: (String) -> Unit) {
         )
     }
     HorizontalDivider()
+}
+
+/**
+ * The sky-coverage heatmap, rendered by the C core.
+ *
+ * The pixels come from `sky_render`, the same code that draws the
+ * desktop's `--sky` PNG -- verified pixel-identical -- so the phone
+ * cannot show a different sky from the one a report would carry.
+ *
+ * Refreshed every two seconds: sector coverage changes slowly, and
+ * redrawing a 700x700 image more often would cost battery for nothing.
+ */
+@Composable
+private fun SkyDialog(onDismiss: () -> Unit) {
+    val size = MonitorService.SKY_SIZE
+    val pixels = remember { IntArray(size * size) }
+    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var eph by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val drawn = withContext(Dispatchers.Default) {
+                MonitorService.renderSky(pixels, size, size)
+            }
+            eph = MonitorService.ephCount()
+            if (drawn) {
+                bitmap = android.graphics.Bitmap.createBitmap(
+                    pixels, size, size, android.graphics.Bitmap.Config.ARGB_8888
+                )
+            }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.sky_title)) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                val bmp = bitmap
+                if (bmp == null) {
+                    Text(
+                        stringResource(R.string.sky_waiting, eph),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = stringResource(R.string.sky_title),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        stringResource(R.string.sky_eph, eph),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close)) }
+        },
+    )
 }

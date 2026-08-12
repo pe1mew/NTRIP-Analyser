@@ -154,6 +154,59 @@ int bridge_sourcetable_json(const char *caster, int port,
 /** @brief Overall verdict as @ref KpiRunVerdict, for a cheap poll. */
 int bridge_overall(const NtripBridge *b);
 
+/**
+ * @brief Attach an ephemeris side-stream, enabling the sky plot.
+ *
+ * The observation stream says *which* satellites are being tracked; it
+ * cannot say *where* they are. Azimuth and elevation need broadcast
+ * ephemerides, which casters publish on a separate mountpoint, so the
+ * sky plot needs a second session -- exactly as the desktop's `--sky`
+ * mode does.
+ *
+ * Optional: without it everything else still works and
+ * @ref bridge_sky_rgb reports that it has nothing to draw.
+ *
+ * @param b          Bridge handle.
+ * @param caster     Ephemeris caster hostname.
+ * @param port       Ephemeris caster port.
+ * @param mountpoint Ephemeris mountpoint, e.g. `BCEP00KAD0`.
+ * @param user       Username; "" for none.
+ * @param password   Password; "" for none.
+ * @return true when the side-stream opened.
+ */
+bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
+                     const char *mountpoint,
+                     const char *user, const char *password);
+
+/**
+ * @brief How many satellites currently have a usable ephemeris.
+ *
+ * Zero means the sky plot has nothing to place: either no ephemeris
+ * stream is attached, or it has not yet delivered a full set.
+ */
+int bridge_eph_count(const NtripBridge *b);
+
+/** @brief Frames seen on the ephemeris stream; -1 if no bridge.
+ *  Distinguishes "stream not delivering" from "delivering but
+ *  nothing decodable", which look identical from the count. */
+int bridge_eph_frames(const NtripBridge *b);
+
+/**
+ * @brief Render the sky-coverage heatmap into an RGB buffer.
+ *
+ * Draws the same image the desktop's `--sky` mode saves, from the
+ * sectors accumulated since the run began.
+ *
+ * @param b      Bridge handle.
+ * @param rgb    [out] `width * height * 3` bytes, packed R,G,B.
+ * @param width  At least 100.
+ * @param height At least 100.
+ * @return true when drawn; false when there is nothing to draw yet --
+ *         no station position, or no ephemerides.
+ */
+bool bridge_sky_rgb(NtripBridge *b, unsigned char *rgb,
+                    int width, int height);
+
 /** @brief Close the session and free the bridge.  NULL-safe. */
 void bridge_close(NtripBridge *b);
 

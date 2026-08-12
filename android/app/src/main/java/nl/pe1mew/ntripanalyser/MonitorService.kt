@@ -48,6 +48,14 @@ class MonitorService : Service() {
         val document: BridgeDocument? = null,
         val error: String? = null,
         val outcome: Outcome = Outcome.IDLE,
+        /**
+         * Whether a sky plot can be shown.
+         *
+         * Part of the observed state rather than a function the UI polls:
+         * Compose recomposes on state changes, so a plain `hasSky()`
+         * call would go on returning its first answer for ever.
+         */
+        val skyAvailable: Boolean = false,
     )
 
     private var worker: Thread? = null
@@ -83,6 +91,9 @@ class MonitorService : Service() {
             latitude = intent.getDoubleExtra(EXTRA_LAT, 52.0),
             longitude = intent.getDoubleExtra(EXTRA_LON, 6.0),
             sendGga = intent.getBooleanExtra(EXTRA_GGA, false),
+            ephCaster = intent.getStringExtra(EXTRA_EPH_CASTER).orEmpty(),
+            ephPort = intent.getIntExtra(EXTRA_EPH_PORT, 2101),
+            ephMountpoint = intent.getStringExtra(EXTRA_EPH_MP).orEmpty(),
         )
 
         createChannel()
@@ -90,6 +101,8 @@ class MonitorService : Service() {
 
         stopRequested = false
         lastNotificationText = null
+        lastSky = null            // a new run supersedes the old coverage
+        lastEphCount = 0
         _state.value = RunState(running = true, outcome = Outcome.RUNNING)
 
         worker = thread(name = "ntrip-pump") {
@@ -109,6 +122,20 @@ class MonitorService : Service() {
 
             Log.i(TAG, "run started: ${settings.caster}:${settings.port}/${settings.mountpoint}")
 
+            // The sky plot needs orbits, which the observation stream
+            // does not carry.  Optional: without it everything else runs
+            // and the sky screen simply reports it has nothing to place.
+            if (settings.hasEph) {
+                val ok = bridge.openEph(
+                    settings.ephCaster, settings.ephPort,
+                    settings.ephMountpoint, settings.user, settings.password,
+                )
+                Log.i(TAG, "ephemeris stream ${if (ok) "attached" else "FAILED"}: " +
+                    "${settings.ephCaster}:${settings.ephPort}/${settings.ephMountpoint}")
+            }
+
+            liveBridge = bridge
+
             bridge.use { b ->
                 val t0 = SystemClock.elapsedRealtime()
                 var lastPublish = -1L
@@ -126,7 +153,8 @@ class MonitorService : Service() {
                     b.snapshotJson()?.let { json ->
                         runCatching { bridgeJson.decodeFromString<BridgeDocument>(json) }
                             .onSuccess { doc ->
-                                _state.value = RunState(running, doc, null, outcome)
+                                _state.value = RunState(running, doc, null, outcome,
+                                                        skyAvailable = liveBridge != null)
                                 updateNotification(doc)
                             }
                             .onFailure { Log.w(TAG, "snapshot decode failed", it) }
@@ -175,8 +203,25 @@ class MonitorService : Service() {
                         Thread.sleep(200)   // pump no longer blocks; do not spin
                     }
                 }
+
+                // Render the coverage while the session is still open.
+                // `use` closes the bridge on the way out, and a closed
+                // bridge renders nothing -- placing this after the block
+                // measured a dead handle and reported no ephemerides at
+                // all, which looked like a broken ephemeris stream.
+                runCatching {
+                    val px = IntArray(SKY_SIZE * SKY_SIZE)
+                    val ok = b.skyPixels(px, SKY_SIZE, SKY_SIZE)
+                    if (ok) {
+                        lastSky = px
+                        lastEphCount = b.ephCount()
+                    }
+                    Log.i(TAG, "final sky render: $ok (${b.ephCount()} ephemerides, " +
+                        "${b.ephFrames()} eph frames)")
+                }.onFailure { Log.w(TAG, "final sky render threw", it) }
             }
 
+            liveBridge = null
             Log.i(TAG, "run finished")
 
             // Whatever path got here, the run is no longer running.  Keep
@@ -186,6 +231,7 @@ class MonitorService : Service() {
                 running = false,
                 outcome = if (_state.value.outcome == Outcome.RUNNING) Outcome.STOPPED
                           else _state.value.outcome,
+                skyAvailable = lastSky != null,
             )
             worker = null
             stopForegroundCompat()
@@ -302,6 +348,60 @@ class MonitorService : Service() {
         private const val EXTRA_LON = "lon"
         private const val EXTRA_GGA = "gga"
         private const val EXTRA_WATCH = "watch"
+        private const val EXTRA_EPH_CASTER = "eph_caster"
+        private const val EXTRA_EPH_PORT = "eph_port"
+        private const val EXTRA_EPH_MP = "eph_mp"
+
+        /**
+         * The running bridge, for the sky screen to render from.
+         *
+         * The pump thread owns it; rendering is called from a coroutine
+         * on Dispatchers.Default. The C session is single-threaded, but
+         * sky rendering only reads the accumulated sector grid and never
+         * touches the socket, so this is the one safe exception -- and
+         * the reason it is exposed rather than the handle itself.
+         */
+        @Volatile
+        private var liveBridge: NtripBridge? = null
+
+        /** The size the sky is rendered and retained at. */
+        const val SKY_SIZE = 700
+
+        /** The last completed run's coverage, so it outlives the session. */
+        @Volatile
+        private var lastSky: IntArray? = null
+
+        /** The ephemeris count at the moment [lastSky] was captured. */
+        @Volatile
+        private var lastEphCount: Int = 0
+
+        /**
+         * Render the current sky coverage, or null when there is nothing
+         * to draw: no run, no station position, or no ephemerides yet.
+         */
+        fun renderSky(pixels: IntArray, w: Int, h: Int): Boolean {
+            liveBridge?.let { return it.skyPixels(pixels, w, h) }
+            // No run: show the last coverage measured, rather than
+            // nothing.  Only at the size it was captured.
+            val last = lastSky
+            if (last != null && w == SKY_SIZE && h == SKY_SIZE) {
+                last.copyInto(pixels)
+                return true
+            }
+            return false
+        }
+
+        /** True when there is a sky to show, live or from the last run. */
+        fun hasSky(): Boolean = liveBridge != null || lastSky != null
+
+        /**
+         * Satellites with a usable ephemeris.
+         *
+         * Falls back to the completed run's count: the live bridge is
+         * gone once a run ends, and reporting 0 beneath a sky plot that
+         * plainly has satellites in it reads as a fault.
+         */
+        fun ephCount(): Int = liveBridge?.ephCount() ?: lastEphCount
 
         private val _state = MutableStateFlow(RunState())
 
@@ -320,6 +420,9 @@ class MonitorService : Service() {
                 putExtra(EXTRA_LON, s.longitude)
                 putExtra(EXTRA_GGA, s.sendGga)
                 putExtra(EXTRA_WATCH, watch)
+                putExtra(EXTRA_EPH_CASTER, s.ephCaster)
+                putExtra(EXTRA_EPH_PORT, s.ephPort)
+                putExtra(EXTRA_EPH_MP, s.ephMountpoint)
             }
             context.startForegroundService(i)
         }

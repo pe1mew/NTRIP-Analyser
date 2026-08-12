@@ -49,6 +49,38 @@ typedef struct {
 extern const int sky_render_az_bins_per_band[SKY_RENDER_N_EL_BANDS];
 
 /**
+ * @brief Render the sector heatmap into a caller-supplied RGB buffer.
+ *
+ * The same drawing @ref sky_render_heatmap_png performs, stopping before
+ * the PNG encoder.  A frontend that has its own way to display a bitmap
+ * -- an Android `Bitmap`, a GDI device context -- wants the pixels, not
+ * a file, and should not have to write one to a temporary path and read
+ * it back.
+ *
+ * @param rgb    [out] Destination, `width * height * 3` bytes, packed
+ *               R,G,B per pixel with no row padding.
+ * @param width  Image width, at least 100.
+ * @param height Image height, at least 100.
+ * @param sectors      Sector grid, as for @ref sky_render_heatmap_png.
+ * @param have_arp     Footer prints the ARP when true.
+ * @param arp_lat_deg  ARP latitude, degrees.
+ * @param arp_lon_deg  ARP longitude, degrees.
+ * @param arp_alt_m    ARP height, metres.
+ * @param mountpoint   Footer mountpoint; NULL or "" hides it.
+ * @param utc_label    Footer timestamp; NULL or "" hides it.
+ * @return true when drawn, false on a bad argument.
+ */
+bool sky_render_heatmap_rgb(unsigned char *rgb,
+                            int width, int height,
+                            const SkyRenderSector *sectors,
+                            bool have_arp,
+                            double arp_lat_deg,
+                            double arp_lon_deg,
+                            double arp_alt_m,
+                            const char *mountpoint,
+                            const char *utc_label);
+
+/**
  * @brief Save a sector-heatmap PNG to disk.
  *
  * @param filename     Path of the PNG file to create (overwrites if present).

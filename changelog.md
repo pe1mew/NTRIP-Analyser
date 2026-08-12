@@ -19,6 +19,49 @@ CRC) is FAILED, the rest is CAUTION.
 Validated live against RFSEE01: STATION OK with all seven PASS after the
 full 60 s sustain window.
 
+### Added — the sky-coverage plot on Android
+
+`sky_render` gains an RGB entry point, so a frontend with its own way to
+show a bitmap gets the pixels instead of writing a PNG to a temporary
+file and reading it back.  The drawing is shared with the PNG path and
+verified **pixel-identical over all 490,000 pixels**: the phone and the
+desktop cannot disagree about what the sky looked like.
+
+The plot needs orbits, which observations do not carry -- MSM says which
+satellites are tracked, never where they are -- so the app opens a second
+session against the ephemeris mountpoint, exactly as `--sky` does.
+`rtcm_extract_arp_ecef()` returns the station in ECEF as well as
+geodetic, since sector accumulation needs the frame's own coordinates
+rather than a round trip back through geodetic.
+
+Verified on the device against Kadaster: 66 ephemerides cached from
+2003 frames, and the heatmap drawn on screen with the ARP footer.
+
+Three defects surfaced along the way.  The final render sat *after*
+`bridge.use { }`, so it measured a closed handle and reported no
+ephemerides at all -- which read as a broken ephemeris stream rather
+than as a lifetime mistake.  Sky availability was a function the UI
+called rather than observed state, so Compose never recomposed when a
+finished run produced a plot.  And the plot vanished with the session
+that measured it; the coverage is now retained after the run, since a
+spot check ends in eighty seconds and taking its sky with it is the one
+moment the user wants to look at it.
+
+The decoder chatter is swallowed into the sink the CLI uses: an
+uninitialised `RtcmStrBuf` silently falls back to stdout, which on a
+phone meant megabytes of ephemeris dumps in logcat.
+
+### Added — the sourcetable browser on Android
+
+Fetched off the main thread, filterable, and in the free edition
+readable but inert.
+
+### Changed — the badge no longer claims READY when unconfigured
+
+An app with no mountpoint is not ready for anything; it now says NOT
+CONFIGURED, in grey, which points at the settings card instead of
+leaving the user to wonder why the run button does nothing.
+
 ### Added — the Android app, Normal mode (Phase 1)
 
 `android/` now holds a buildable Android project: one screen, one

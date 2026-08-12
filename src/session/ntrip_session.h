@@ -39,6 +39,7 @@
 #include <stddef.h>
 
 #include "core/ns_stats.h"
+#include "core/sv_track.h"
 #include "net/ntrip_proto.h"
 #include "net/ntrip_handler.h"   /* NTRIP_Config */
 
@@ -208,6 +209,20 @@ void ns_close(NtripSession *s);
  * @ref NsStatsSnapshot is a plain value type.
  */
 const NsStatsSnapshot *ns_stats(const NtripSession *s);
+
+/**
+ * @brief List the satellites the stream is currently carrying.
+ *
+ * Positions are not included: an observation stream never carries them.
+ * The caller joins azimuth and elevation from its own source by
+ * (gnss_id, prn) -- see `android/design/views.md`.
+ *
+ * @param s        Session.
+ * @param out      [out] Destination; NULL to count only.
+ * @param max      Capacity of @p out.
+ * @return Number written, or the total when @p out is NULL.
+ */
+int ns_sat_list(const NtripSession *s, SvTrackEntry *out, int max);
 
 /**
  * @brief Per-satellite ionospheric measurements for display.

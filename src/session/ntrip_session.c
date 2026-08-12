@@ -866,3 +866,9 @@ double ns_uptime(const NtripSession *s)
 {
     return s ? (ns_now() - s->t0) : 0.0;
 }
+
+int ns_sat_list(const NtripSession *s, SvTrackEntry *out, int max)
+{
+    if (!s) return 0;
+    return sv_track_list(&s->sv, ns_now(), NS_SAT_STALE_S, out, max);
+}

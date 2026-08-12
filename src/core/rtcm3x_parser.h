@@ -243,6 +243,30 @@ int rtcm_extract_arp(const unsigned char *payload, int payload_len,
                      double *alt_m);
 
 /**
+ * @brief As @ref rtcm_extract_arp, also returning the raw ECEF position.
+ *
+ * Sky-position work needs the station in ECEF metres (that is what
+ * `sky_collect_feed_msm()` takes), while display needs geodetic.  The
+ * frame carries ECEF, so handing back both avoids converting geodetic
+ * back to what the frame already said.
+ *
+ * @param payload     Frame payload after the 3-byte header.
+ * @param payload_len Payload length in bytes.
+ * @param msg_type    RTCM message number; only 1005/1006 are accepted.
+ * @param lat_deg     [out, optional] Latitude, degrees.
+ * @param lon_deg     [out, optional] Longitude, degrees.
+ * @param alt_m       [out, optional] Ellipsoidal height, metres.
+ * @param x           [out, optional] ECEF X, metres.
+ * @param y           [out, optional] ECEF Y, metres.
+ * @param z           [out, optional] ECEF Z, metres.
+ * @return 1 when an ARP was extracted; 0 otherwise.
+ */
+int rtcm_extract_arp_ecef(const unsigned char *payload, int payload_len,
+                          int msg_type, double *lat_deg, double *lon_deg,
+                          double *alt_m,
+                          double *x, double *y, double *z);
+
+/**
  * @brief Convert ECEF coordinates to geodetic (WGS84) latitude, longitude, altitude.
  * @param x ECEF X (meters)
  * @param y ECEF Y (meters)

@@ -574,6 +574,64 @@ static bool write_png(const char *filename, const RGB *img)
 }
 
 /* ── Public entry point ─────────────────────────────────────────────── */
+/**
+ * @brief The drawing shared by the RGB and PNG entry points.
+ *
+ * Split out so both produce a pixel-identical image: the phone and the
+ * desktop must not be able to disagree about what the sky looked like.
+ */
+static void render_into(RGB *img,
+                        const SkyRenderSector *sectors,
+                        bool have_arp,
+                        double arp_lat_deg, double arp_lon_deg,
+                        double arp_alt_m,
+                        const char *mountpoint, const char *utc_label)
+{
+    int width = img->w, height = img->h;
+
+    fill_all(img, 255, 255, 255);
+
+    /* Geometry: leave 80 px top margin (title + legend), 32 px elsewhere. */
+    int margin_top   = 60;
+    int margin_other = 32;
+    int avail_w = width  - 2 * margin_other;
+    int avail_h = height - margin_top - 60;  /* 60 px bottom (axis label + footer) */
+    int diameter = (avail_w < avail_h) ? avail_w : avail_h;
+    if (diameter < 100) diameter = 100;
+    int cx = width  / 2;
+    int cy = margin_top + diameter / 2;
+    int radius = diameter / 2;
+
+    render_heatmap_disc(img, cx, cy, radius, sectors);
+    draw_compass_rose(img, cx, cy, radius);
+    draw_axis_labels(img, cx, cy, radius);
+    draw_legend_and_footer(img, have_arp, arp_lat_deg, arp_lon_deg,
+                           arp_alt_m, mountpoint, utc_label);
+}
+
+bool sky_render_heatmap_rgb(unsigned char *rgb,
+                            int width, int height,
+                            const SkyRenderSector *sectors,
+                            bool have_arp,
+                            double arp_lat_deg,
+                            double arp_lon_deg,
+                            double arp_alt_m,
+                            const char *mountpoint,
+                            const char *utc_label)
+{
+    if (!rgb || !sectors || width < 100 || height < 100) return false;
+
+    RGB img;
+    img.w = width;
+    img.h = height;
+    img.stride = width * 3;
+    img.pixels = rgb;          /* caller owns the memory */
+
+    render_into(&img, sectors, have_arp, arp_lat_deg, arp_lon_deg,
+                arp_alt_m, mountpoint, utc_label);
+    return true;
+}
+
 bool sky_render_heatmap_png(const char *filename,
                             const SkyRenderSector *sectors,
                             int  width, int height,
@@ -593,24 +651,8 @@ bool sky_render_heatmap_png(const char *filename,
     img.pixels = (uint8_t *)malloc((size_t)img.h * (size_t)img.stride);
     if (!img.pixels) return false;
 
-    fill_all(&img, 255, 255, 255);
-
-    /* Geometry: leave 80 px top margin (title + legend), 32 px elsewhere. */
-    int margin_top   = 60;
-    int margin_other = 32;
-    int avail_w = width  - 2 * margin_other;
-    int avail_h = height - margin_top - 60;  /* 60 px bottom (axis label + footer) */
-    int diameter = (avail_w < avail_h) ? avail_w : avail_h;
-    if (diameter < 100) diameter = 100;
-    int cx = width  / 2;
-    int cy = margin_top + diameter / 2;
-    int radius = diameter / 2;
-
-    render_heatmap_disc(&img, cx, cy, radius, sectors);
-    draw_compass_rose(&img, cx, cy, radius);
-    draw_axis_labels(&img, cx, cy, radius);
-    draw_legend_and_footer(&img, have_arp, arp_lat_deg, arp_lon_deg,
-                           arp_alt_m, mountpoint, utc_label);
+    render_into(&img, sectors, have_arp, arp_lat_deg, arp_lon_deg,
+                arp_alt_m, mountpoint, utc_label);
 
     bool ok = write_png(filename, &img);
     free(img.pixels);

@@ -173,6 +173,18 @@ data class CasterSettings(
     val latitude: Double = 52.0,
     val longitude: Double = 6.0,
     val sendGga: Boolean = false,
+    /**
+     * Ephemeris stream, which the sky plot needs: observations say which
+     * satellites are tracked, not where they are. Blank disables it.
+     */
+    val ephCaster: String = "",
+    val ephPort: Int = 2101,
+    val ephMountpoint: String = "",
 ) {
-    val isComplete: Boolean get() = caster.isNotBlank() && mountpoint.isNotBlank() && port > 0
+    val isComplete: Boolean get() =
+        caster.isNotBlank() && mountpoint.isNotBlank() && port > 0
+
+    /** The sky plot needs an ephemeris source; without one it is hidden. */
+    val hasEph: Boolean get() =
+        ephCaster.isNotBlank() && ephMountpoint.isNotBlank()
 }

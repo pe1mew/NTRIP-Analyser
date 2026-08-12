@@ -27,6 +27,9 @@ object Settings {
             latitude = p.getFloat("lat", 52.0f).toDouble(),
             longitude = p.getFloat("lon", 6.0f).toDouble(),
             sendGga = p.getBoolean("gga", false),
+            ephCaster = p.getString("eph_caster", "").orEmpty(),
+            ephPort = p.getInt("eph_port", 2101),
+            ephMountpoint = p.getString("eph_mp", "").orEmpty(),
         )
     }
 
@@ -40,6 +43,9 @@ object Settings {
             putFloat("lat", s.latitude.toFloat())
             putFloat("lon", s.longitude.toFloat())
             putBoolean("gga", s.sendGga)
+            putString("eph_caster", s.ephCaster)
+            putInt("eph_port", s.ephPort)
+            putString("eph_mp", s.ephMountpoint)
             apply()
         }
     }
