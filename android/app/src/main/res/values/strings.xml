@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NTRIP Analyser</string>
+
+    <string name="verdict_idle">READY</string>
+    <string name="sustained_of">%1$d of %2$d s sustained</string>
+
+    <string name="action_run">Run the check</string>
+    <string name="action_again">Run again</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+
+    <string name="hint_configure">Set the caster and mountpoint first (⚙).</string>
+    <string name="err_open">Could not open the session.</string>
+
+    <string name="settings_title">Caster</string>
+    <string name="field_caster">Caster host</string>
+    <string name="field_port">Port</string>
+    <string name="field_mountpoint">Mountpoint</string>
+    <string name="field_user">Username</string>
+    <string name="field_password">Password</string>
+    <string name="field_gga">Send GGA (network-RTK mountpoints)</string>
+    <string name="field_lat">Latitude</string>
+    <string name="field_lon">Longitude</string>
+
+    <string name="channel_name">Acceptance run</string>
+    <string name="channel_desc">Shown while a station check is in progress.</string>
+    <string name="notif_title">Checking the station</string>
+    <string name="notif_connecting">Connecting…</string>
+    <string name="notif_running">%1$d of %2$d s sustained</string>
+</resources>

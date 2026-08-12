@@ -34,3 +34,14 @@ _pkg/
 
 # Claude Code session state and worktrees
 .claude/
+
+# ── Android ──────────────────────────────────────────────────────────
+# Gradle and the NDK write large trees; local.properties names this
+# machine's SDK path and must never be committed.
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.cxx/
+android/app/.cxx/
+*.apk

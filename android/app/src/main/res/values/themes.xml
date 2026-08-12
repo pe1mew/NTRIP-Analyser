@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose supplies the real theme; this exists so the manifest has
+         something to name and the splash matches the app background. -->
+    <style name="Theme.NtripAnalyser" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

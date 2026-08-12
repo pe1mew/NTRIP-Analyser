@@ -19,6 +19,41 @@ CRC) is FAILED, the rest is CAUTION.
 Validated live against RFSEE01: STATION OK with all seven PASS after the
 full 60 s sustain window.
 
+### Added — the Android app, Normal mode (Phase 1)
+
+`android/` now holds a buildable Android project: one screen, one
+verdict, seven rows.  It connects, watches for about ninety seconds, and
+shows STATION OK, CAUTION or FAILED.
+
+No threshold lives in Kotlin — the verdict comes from `src/core/kpi.c`,
+the same engine behind `--check`, so a station cannot pass on the phone
+and fail in a script.  The NDK compiles the repository's own core and
+session sources rather than a vendored copy; there remains exactly one
+RTCM decoder in the project.
+
+The C side is split deliberately.  `ntrip_bridge.c` holds the session
+lifecycle, the KPI run and the JSON assembly in plain C99, and
+`jni_glue.c` does nothing but marshal parameters.  JNI code cannot be
+compiled without an NDK, so anything living there would escape desktop
+testing — and this bridge was in fact validated before any Android
+toolchain existed: replayed through a capture, then run live against a
+caster for 77 polls, reaching STATION OK with a real broadcast ARP and a
+document that parses as JSON.
+
+The run itself is a foreground service.  A KPI verdict needs sixty
+*continuous* seconds, which is longer than Android reliably lets a
+backgrounded activity hold a socket; without the service the system
+would pause the pump mid-window and the user would see a measurement
+artefact reported as a station fault.
+
+Honest status: the C bridge is verified, and the shared core builds
+clean for Windows and Linux with no platform headers.  The NDK build,
+the JNI glue, the Kotlin and the Compose UI have never been compiled —
+there is no Android SDK on the development machine.  The first APK build
+is the real test of everything above the bridge, and `android/readme.md`
+says so, along with the toolchain setup for VS Code or Android Studio
+and the deployment steps.
+
 ### Added — the VRS assertion set, and `--check` / `--check-vrs`
 
 `src/core/vrs_check.c` turns the desktop's manual network-RTK checks into
