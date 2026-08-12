@@ -46,13 +46,14 @@ backgrounded activity hold a socket; without the service the system
 would pause the pump mid-window and the user would see a measurement
 artefact reported as a station fault.
 
-Honest status: the C bridge is verified, and the shared core builds
-clean for Windows and Linux with no platform headers.  The NDK build,
-the JNI glue, the Kotlin and the Compose UI have never been compiled —
-there is no Android SDK on the development machine.  The first APK build
-is the real test of everything above the bridge, and `android/readme.md`
-says so, along with the toolchain setup for VS Code or Android Studio
-and the deployment steps.
+The toolchain is now installed (JDK 17, SDK 35, NDK 27, CMake 3.22) and
+the project builds: `assembleDebug` produces a 9.4 MB APK carrying
+`libntrip_android.so` for arm64-v8a and x86_64, and every JNI symbol
+exports with the `$Companion` mangling Kotlin's externals expect.  What
+remains untested is runtime behaviour on a device; `android/readme.md`
+records that, the toolchain setup for VS Code or Android Studio, the
+deployment steps, and the two setup traps that cost time here — escaped
+backslashes in `local.properties`, and pinning `ndkVersion`.
 
 ### Added — the VRS assertion set, and `--check` / `--check-vrs`
 

@@ -35,11 +35,14 @@ an Android toolchain existed (below).
 | | Status |
 |---|---|
 | C bridge: open, pump, JSON, verdicts | **Verified** — replayed a capture and ran live against a caster for 77 polls, reaching STATION OK with a real ARP; the document parses as JSON |
-| The shared core on the NDK | **Not yet built** — it compiles clean for Windows and Linux and uses no platform headers, but no NDK build has run |
-| JNI glue, Kotlin, Compose UI, Gradle | **Not yet compiled** — written against the documented APIs, never run |
+| The shared core on the NDK | **Builds** — arm64-v8a and x86_64, two pre-existing warnings, no errors |
+| JNI glue | **Builds and exports correctly** — all six symbols carry the `$Companion` mangling Kotlin's externals expect (`llvm-nm` on the built `.so`) |
+| Kotlin, Compose UI, Gradle | **Builds** — `assembleDebug` produces a 9.4 MB APK carrying `libntrip_android.so` for both ABIs |
+| The app running on a device | **Not yet** — never installed or launched |
 
-Treat the first APK build as the real test of everything below the first
-row. That is the honest state, not a formality.
+Everything compiles and links; what remains untested is runtime behaviour
+on a phone. The first launch is the real test of the UI, the foreground
+service lifecycle and the JNI call path under Android's threading.
 
 ## Building — VS Code, or Android Studio
 
@@ -78,6 +81,18 @@ Either works; the project is plain Gradle with no IDE-specific files.
    ```
 
    After that `./gradlew` works and Gradle itself is self-updating.
+
+Two traps worth knowing, both hit during this setup:
+
+- **`local.properties` is a Java properties file, so backslashes are
+  escapes.** A single-backslash Windows path silently collapses to
+  nonsense and AGP fails with "the syntax of the filename is incorrect"
+  pointing at `NdkLocator`, which looks like a missing NDK. Double them,
+  or use forward slashes.
+- **`ndkVersion` is pinned in `app/build.gradle.kts`.** Left to AGP's
+  default it names whatever version that plugin release expects, and a
+  mismatch surfaces as the same unhelpful path error rather than
+  "NDK not found".
 
 ### VS Code
 

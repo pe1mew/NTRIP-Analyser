@@ -9,6 +9,11 @@ android {
     namespace = "nl.pe1mew.ntripanalyser"
     compileSdk = 35
 
+    // Pinned rather than left to AGP's default: the default version
+    // changes with the plugin, and a mismatch fails at configuration
+    // time with an unhelpful path error rather than "NDK not found".
+    ndkVersion = "27.0.12077973"
+
     defaultConfig {
         applicationId = "nl.pe1mew.ntripanalyser"
         minSdk = 26          // startForegroundService and notification channels
