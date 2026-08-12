@@ -563,7 +563,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
 
         bool done = false;
         if (!vrs_mode) {
-            done = (kr.overall == KPI_RUN_OK || kr.overall == KPI_RUN_FAILED);
+            done = kr.settled;
         } else if (gate_started) {
             done = (vr.gate == VRS_GATE_GATED || vr.gate == VRS_GATE_NOT_GATED);
         } else {

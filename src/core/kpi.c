@@ -15,7 +15,8 @@ void kpi_run_start(KpiRun *run, double now)
     if (!run) return;
     memset(run, 0, sizeof(*run));
     run->t_start        = now;
-    run->all_pass_since = -1.0;
+    run->stable_since   = -1.0;
+    run->stable_verdict = KPI_RUN_RUNNING;
 }
 
 const char *kpi_verdict_name(int v)
@@ -291,19 +292,36 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         }
     }
 
-    if (all_pass) {
-        if (run->all_pass_since < 0.0) run->all_pass_since = now;
-        out->sustained_s = now - run->all_pass_since;
-    } else {
-        run->all_pass_since = -1.0;
-        out->sustained_s = 0.0;
-    }
+    /* The verdict this instant argues for, before any timing. */
+    int candidate;
+    if (hard_fail)                  candidate = KPI_RUN_FAILED;
+    else if (soft_fail || any_warn) candidate = KPI_RUN_CAUTION;
+    else if (all_pass)              candidate = KPI_RUN_OK;
+    else                            candidate = KPI_RUN_RUNNING;
 
-    if (hard_fail)                              out->overall = KPI_RUN_FAILED;
-    else if (soft_fail || any_warn)             out->overall = KPI_RUN_CAUTION;
-    else if (all_pass &&
-             out->sustained_s >= KPI_SUSTAIN_S) out->overall = KPI_RUN_OK;
-    else                                        out->overall = KPI_RUN_RUNNING;
+    /* Time how long that candidate has held.  A run still gathering
+     * evidence does not start the clock; a station alternating between
+     * OK and CAUTION restarts it, which is right -- neither verdict has
+     * held. */
+    if (candidate != run->stable_verdict) {
+        run->stable_verdict = candidate;
+        run->stable_since   = (candidate == KPI_RUN_RUNNING) ? -1.0 : now;
+    }
+    out->sustained_s = (run->stable_since >= 0.0) ? now - run->stable_since : 0.0;
+
+    /* A failure is conclusive at once: nothing is learned by watching a
+     * station keep failing for another minute.  OK and CAUTION are both
+     * claims about steadiness, so both must hold the window. */
+    out->settled = (candidate == KPI_RUN_FAILED) ||
+                   (candidate != KPI_RUN_RUNNING &&
+                    out->sustained_s >= KPI_SUSTAIN_S);
+
+    /* OK is not claimed before it is earned; CAUTION is shown at once,
+     * because a warning the user cannot see yet helps nobody. */
+    if (candidate == KPI_RUN_OK && !out->settled)
+        out->overall = KPI_RUN_RUNNING;
+    else
+        out->overall = candidate;
 
     (void)any_pending;
     (void)dt_gps; (void)dt_gal;

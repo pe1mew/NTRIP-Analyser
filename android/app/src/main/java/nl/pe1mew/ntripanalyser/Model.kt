@@ -38,6 +38,8 @@ data class KpiReport(
     @SerialName("elapsed_s") val elapsedS: Double = 0.0,
     @SerialName("sustained_s") val sustainedS: Double = 0.0,
     @SerialName("sustain_target_s") val sustainTargetS: Double = 60.0,
+    /** The verdict has held its window, or failed outright. */
+    val settled: Boolean = false,
     val items: List<KpiItem> = emptyList(),
 ) {
     val overallEnum: RunVerdict

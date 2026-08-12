@@ -96,7 +96,17 @@ typedef struct {
  */
 typedef struct {
     double t_start;        /**< when the run began (caller's clock)     */
-    double all_pass_since; /**< when all seven last became PASS; <0 none */
+    /**
+     * When the current verdict last became stable; <0 when it has not.
+     *
+     * Stability, not perfection. Timing only unbroken PASS meant a
+     * single warning stopped the clock for ever: the run sat at CAUTION
+     * until something else ended it and never reached a conclusion. A
+     * caution held for a minute is as much a finding as an OK held for
+     * a minute.
+     */
+    double stable_since;
+    int    stable_verdict; /**< the verdict being timed                 */
     bool   arp_ever;       /**< a 1005/1006 has been seen this run      */
 } KpiRun;
 
@@ -105,7 +115,14 @@ typedef struct {
     KpiResult kpi[KPI_COUNT];
     int    overall;        /**< @ref KpiRunVerdict                      */
     double elapsed_s;      /**< since the run began                     */
-    double sustained_s;    /**< how long all seven have held PASS       */
+    double sustained_s;    /**< how long the current verdict has held   */
+    /**
+     * The verdict has held for @ref KPI_SUSTAIN_S, or failed outright.
+     *
+     * What a caller waits for: a run is done when its verdict settles,
+     * whether that verdict is OK or CAUTION.
+     */
+    bool   settled;
 } KpiReport;
 
 /**

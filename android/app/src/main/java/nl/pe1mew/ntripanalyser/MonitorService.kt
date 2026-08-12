@@ -208,10 +208,13 @@ class MonitorService : Service() {
                         }
                     }
 
+                    // Negative means the verdict has settled -- OK or
+                    // CAUTION held its window, or a hard failure. A
+                    // caution used to leave the run going to its ceiling
+                    // because only OK and FAILED counted as done.
                     val verdict = b.overall()
-                    if (!watchMode &&
-                        (verdict == RunVerdict.OK.ordinal || verdict == RunVerdict.FAILED.ordinal)) {
-                        Log.i(TAG, "verdict reached: $verdict after ${nowS.toInt()} s")
+                    if (!watchMode && verdict < 0) {
+                        Log.i(TAG, "verdict settled: ${-verdict - 1} after ${nowS.toInt()} s")
                         publish(false, Outcome.FINISHED)   // the state that matters
                         break
                     }

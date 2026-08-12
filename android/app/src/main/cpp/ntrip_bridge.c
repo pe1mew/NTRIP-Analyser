@@ -240,7 +240,10 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
 
 int bridge_overall(const NtripBridge *b)
 {
-    return b ? b->rep.overall : KPI_RUN_RUNNING;
+    /* Negative when the verdict has settled, so one call answers both
+     * "what is it" and "is it final" without a second crossing. */
+    if (!b) return KPI_RUN_RUNNING;
+    return b->rep.settled ? -b->rep.overall - 1 : b->rep.overall;
 }
 
 /** @brief Append to a bounded buffer, tracking overflow in @p pos. */
@@ -287,9 +290,10 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
     app(out, cap, &pos,
         ",\"kpi\":{\"overall\":%d,\"overall_name\":\"%s\","
         "\"elapsed_s\":%.1f,\"sustained_s\":%.1f,\"sustain_target_s\":%.1f,"
-        "\"items\":[",
+        "\"settled\":%s,\"items\":[",
         b->rep.overall, kpi_run_verdict_name(b->rep.overall),
-        b->rep.elapsed_s, b->rep.sustained_s, (double)KPI_SUSTAIN_S);
+        b->rep.elapsed_s, b->rep.sustained_s, (double)KPI_SUSTAIN_S,
+        b->rep.settled ? "true" : "false");
 
     for (int i = 0; i < KPI_COUNT; i++) {
         const KpiResult *k = &b->rep.kpi[i];
