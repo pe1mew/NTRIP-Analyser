@@ -24,8 +24,20 @@
 
 #include "ntrip_bridge.h"
 
+/*
+ * The externals are declared in a companion object, so the obvious
+ * symbol name is `..._NtripBridge_00024Companion_nativeOpen` -- and that
+ * is wrong.  `@JvmStatic` promotes them to static methods on the
+ * *enclosing* class, and the JVM resolves the name from where the method
+ * ends up, not from where it was written.  Dropping `@JvmStatic` would
+ * make the `$Companion` form correct instead; the two must agree.
+ *
+ * Confirming the symbols exist is not enough to catch this -- they do
+ * exist, under the name nothing looks up.  The check that matters is
+ * that the app calls a native method without an UnsatisfiedLinkError.
+ */
 #define JNI_FN(name) \
-    Java_nl_pe1mew_ntripanalyser_NtripBridge_00024Companion_##name
+    Java_nl_pe1mew_ntripanalyser_NtripBridge_##name
 
 /** @brief Fetch a UTF-8 copy of @p s; returns "" for null. */
 static const char *str_in(JNIEnv *env, jstring s)

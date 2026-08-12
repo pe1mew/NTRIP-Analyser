@@ -10,6 +10,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,14 +79,18 @@ class MonitorService : Service() {
                 settings.latitude, settings.longitude, settings.sendGga,
             )
             if (bridge == null) {
+                Log.e(TAG, "bridge_open returned null")
                 _state.value = RunState(running = false, error = getString(R.string.err_open))
                 stopSelf()
                 return@thread
             }
 
+            Log.i(TAG, "run started: ${settings.caster}:${settings.port}/${settings.mountpoint}")
+
             bridge.use { b ->
                 val t0 = SystemClock.elapsedRealtime()
                 var lastPublish = -1L
+                var endedAtS = -1.0
 
                 while (!stopRequested) {
                     val nowS = (SystemClock.elapsedRealtime() - t0) / 1000.0
@@ -102,14 +107,37 @@ class MonitorService : Service() {
                                     _state.value = RunState(running = true, document = doc)
                                     updateNotification(doc)
                                 }
+                                .onFailure { Log.w(TAG, "snapshot decode failed", it) }
                         }
                     }
 
-                    if (!alive) break
                     val verdict = b.overall()
-                    if (verdict == RunVerdict.OK.ordinal || verdict == RunVerdict.FAILED.ordinal) break
+                    if (verdict == RunVerdict.OK.ordinal || verdict == RunVerdict.FAILED.ordinal) {
+                        Log.i(TAG, "verdict reached: $verdict after ${nowS.toInt()} s")
+                        break
+                    }
+
+                    // A stream that never opens -- a bad hostname, a
+                    // refused login -- used to end the run here, and the
+                    // user saw the screen fall silently back to READY.
+                    // The KPI engine needs about ten seconds to declare
+                    // KPI 1 failed, so keep evaluating until it reaches
+                    // that verdict rather than leaving the failure
+                    // invisible.  The pump stays cheap: it returns
+                    // immediately once the session is finished.
+                    if (!alive) {
+                        if (endedAtS < 0.0) {
+                            endedAtS = nowS
+                            Log.w(TAG, "stream ended at ${nowS.toInt()} s; letting the KPI verdict settle")
+                        } else if (nowS - endedAtS > STREAM_END_GRACE_S) {
+                            break
+                        }
+                        Thread.sleep(200)   // pump no longer blocks; do not spin
+                    }
                 }
             }
+
+            Log.i(TAG, "run finished")
 
             _state.value = _state.value.copy(running = false)
             worker = null
@@ -156,7 +184,9 @@ class MonitorService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notif_title))
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.stat_sys_upload)
+            // The stream flows down: the app receives corrections.
+            // Only the optional GGA keep-alive goes the other way.
+            .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentIntent(open)
             .setOngoing(true)
             .setSilent(true)
@@ -188,6 +218,12 @@ class MonitorService : Service() {
         private const val CHANNEL_ID = "ntrip_run"
         private const val NOTIFICATION_ID = 1
         private const val PUMP_TIMEOUT_MS = 200
+
+        /** How long to keep evaluating after the stream ends,
+         *  so the KPI engine can reach a FAILED verdict. */
+        private const val STREAM_END_GRACE_S = 15.0
+
+        private const val TAG = "ntrip_android"
 
         const val ACTION_START = "nl.pe1mew.ntripanalyser.START"
         const val ACTION_STOP = "nl.pe1mew.ntripanalyser.STOP"

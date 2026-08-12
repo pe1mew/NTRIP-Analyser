@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -209,7 +211,7 @@ private fun StreamChips(doc: BridgeDocument) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         AssistChip(
             onClick = {},
-            label = { Text("${doc.stats.bytesPerS.toInt()} B/s") },
+            label = { Text("${doc.stats.bytesPerS?.toInt() ?: 0} B/s") },
         )
         AssistChip(
             onClick = {},
@@ -277,8 +279,21 @@ private fun SettingsDialog(
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedTextField(caster, { caster = it },
-                    label = { Text(stringResource(R.string.field_caster)) }, singleLine = true)
+                // A URI keyboard, so the IME stops "helping": with a text
+                // keyboard EMUI inserts a space after every full stop and
+                // the field reads "ntrip. kadaster. nl".  Filtering those
+                // out as the user types is worse than it sounds -- it
+                // fights the IME's composing region and duplicates
+                // characters ("ntrip..kadaster.nl").  Choosing a keyboard
+                // that never inserts them avoids the fight entirely;
+                // save-time sanitising below still catches pasted text.
+                OutlinedTextField(
+                    caster,
+                    { caster = it },
+                    label = { Text(stringResource(R.string.field_caster)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                )
                 OutlinedTextField(port, { port = it.filter(Char::isDigit) },
                     label = { Text(stringResource(R.string.field_port)) }, singleLine = true)
                 OutlinedTextField(mountpoint, { mountpoint = it },
@@ -303,7 +318,11 @@ private fun SettingsDialog(
             TextButton(onClick = {
                 onSave(
                     CasterSettings(
-                        caster = caster.trim(),
+                        // Belt and braces: the field filters as typed,
+                        // this catches anything that arrives another way.
+                        caster = caster.filter {
+                            it.isLetterOrDigit() || it == '.' || it == '-'
+                        },
                         port = port.toIntOrNull() ?: 2101,
                         mountpoint = mountpoint.trim(),
                         user = user,

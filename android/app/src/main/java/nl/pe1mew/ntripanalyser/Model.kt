@@ -49,18 +49,28 @@ data class KpiReport(
         else (sustainedS / sustainTargetS).coerceIn(0.0, 1.0).toFloat()
 }
 
-/** The subset of the statistics snapshot Normal mode displays. */
+/**
+ * The subset of the statistics snapshot Normal mode displays.
+ *
+ * **Every double here is nullable, and must stay that way.**
+ * `ns_stats_to_json()` serialises any unmeasured double as JSON `null`
+ * rather than 0, deliberately, so "not measured" is distinguishable from
+ * "measured as zero" — a station with no ARP yet is not a station at
+ * 0°N 0°E. Declaring these non-nullable made the very first document
+ * fail to decode, and because a decode failure publishes nothing, the
+ * screen sat at READY with no error while the run was working fine.
+ */
 @Serializable
 data class Stats(
     @SerialName("schema_version") val schemaVersion: Int = 0,
     val mountpoint: String = "",
     val connected: Boolean = false,
-    @SerialName("bytes_per_s") val bytesPerS: Double = 0.0,
+    @SerialName("bytes_per_s") val bytesPerS: Double? = null,
     @SerialName("frames_ok") val framesOk: Long = 0,
     @SerialName("sats_total") val satsTotal: Int = 0,
     @SerialName("arp_valid") val arpValid: Boolean = false,
-    @SerialName("arp_lat") val arpLat: Double = 0.0,
-    @SerialName("arp_lon") val arpLon: Double = 0.0,
+    @SerialName("arp_lat") val arpLat: Double? = null,
+    @SerialName("arp_lon") val arpLon: Double? = null,
 )
 
 @Serializable

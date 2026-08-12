@@ -46,7 +46,31 @@ backgrounded activity hold a socket; without the service the system
 would pause the pump mid-window and the user would see a measurement
 artefact reported as a station fault.
 
-The toolchain is now installed (JDK 17, SDK 35, NDK 27, CMake 3.22) and
+**Verified on hardware**: installed on a Huawei SNE-LX1 (Android 10,
+arm64-v8a) and reached STATION OK against a live caster, all seven KPIs
+PASS at 1738 B/s and 45 satellites.
+
+Getting there found three defects that compiling could never have
+caught.  `@JvmStatic` promotes companion externals to the enclosing
+class, so the JNI symbol name needed was `..._NtripBridge_nativeOpen`,
+not the `$Companion` form -- and confirming the symbols existed proved
+nothing, since they existed under a name nothing looks up.  The Kotlin
+model declared the snapshot's doubles non-nullable, but
+`ns_stats_to_json()` emits null for anything unmeasured so that "no ARP
+yet" is not "a station at 0N 0E"; the first document failed to decode,
+and because a decode failure publishes nothing, the screen sat at READY
+with no error while the run worked perfectly.  And a stream that never
+opened ended the run immediately, dropping the UI back to READY instead
+of reporting why -- it now keeps evaluating until the KPI engine returns
+FAILED with the reason.
+
+Two fixes came from first use: the caster field uses a URI keyboard,
+because EMUI inserts a space after every full stop and filtering those
+out as the user types fights the IME's composing region and duplicates
+characters; and the ongoing notification shows a download icon, since
+the app receives corrections and only the optional GGA goes up.
+
+The toolchain is installed (JDK 17, SDK 35, NDK 27, CMake 3.22) and
 the project builds: `assembleDebug` produces a 9.4 MB APK carrying
 `libntrip_android.so` for arm64-v8a and x86_64, and every JNI symbol
 exports with the `$Companion` mangling Kotlin's externals expect.  What

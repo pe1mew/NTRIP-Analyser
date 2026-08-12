@@ -38,11 +38,26 @@ an Android toolchain existed (below).
 | The shared core on the NDK | **Builds** — arm64-v8a and x86_64, two pre-existing warnings, no errors |
 | JNI glue | **Builds and exports correctly** — all six symbols carry the `$Companion` mangling Kotlin's externals expect (`llvm-nm` on the built `.so`) |
 | Kotlin, Compose UI, Gradle | **Builds** — `assembleDebug` produces a 9.4 MB APK carrying `libntrip_android.so` for both ABIs |
-| The app running on a device | **Not yet** — never installed or launched |
+| The app running on a device | **Verified** — installed on a Huawei SNE-LX1 (Android 10, arm64-v8a) and reached STATION OK against a live caster, all seven PASS |
 
-Everything compiles and links; what remains untested is runtime behaviour
-on a phone. The first launch is the real test of the UI, the foreground
-service lifecycle and the JNI call path under Android's threading.
+The first device run found three defects that no amount of compiling
+would have caught, all now fixed:
+
+- **`@JvmStatic` changes the JNI symbol name.** The externals are
+  declared in a companion object, but `@JvmStatic` promotes them to the
+  enclosing class, so the runtime looks up `..._NtripBridge_nativeOpen`,
+  not `..._NtripBridge_00024Companion_nativeOpen`. Confirming the symbols
+  existed proved nothing — they existed under the name nothing looks up.
+- **Every double in the snapshot may be JSON `null`.** `ns_stats_to_json()`
+  serialises an unmeasured double as null rather than 0, deliberately, so
+  "no ARP yet" is not "a station at 0°N 0°E". The model declared them
+  non-nullable, so the first document failed to decode — and because a
+  decode failure publishes nothing, the screen sat at READY with no error
+  while the run was working perfectly.
+- **A stream that never opened reported nothing.** The loop broke the
+  moment the pump failed, so a bad hostname or refused login dropped the
+  UI silently back to READY. It now keeps evaluating until the KPI engine
+  reaches its FAILED verdict, which names the reason.
 
 ## Building — VS Code, or Android Studio
 
