@@ -501,8 +501,10 @@ int bridge_eph_count(const NtripBridge *b)
 {
     if (!b || !b->eph) return 0;
     int n = 0;
+    /* PRNs are 1-based: sv_eph_get rejects 0, and a loop ending at
+     * MAX-1 never looks at the last satellite. */
     for (int g = 0; g < SV_EPH_MAX_GNSS; g++)
-        for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++)
+        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++)
             if (sv_eph_get(g, p)) n++;
     return n;
 }
@@ -552,8 +554,10 @@ int bridge_eph_cached(const NtripBridge *b)
 {
     (void)b;                       /* the cache is process-wide */
     int n = 0;
+    /* PRNs are 1-based: sv_eph_get rejects 0, and a loop ending at
+     * MAX-1 never looks at the last satellite. */
     for (int g = 0; g < SV_EPH_MAX_GNSS; g++)
-        for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++)
+        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++)
             if (sv_eph_get(g, p)) n++;
     return n;
 }
@@ -562,35 +566,50 @@ double bridge_eph_age_s(const NtripBridge *b)
 {
     (void)b;
 
-    /* Age is measured from the newest ephemeris in the cache: that is
+    /* Age is measured from the freshest ephemeris in the cache: that is
      * what says how long ago the app last learned anything about the
      * orbits.  The oldest entry would answer a different question --
      * how stale the worst satellite is -- and would read alarmingly for
-     * a cache that is mostly fresh. */
-    const SvEphemeris *newest = NULL;
+     * a cache that is mostly fresh.
+     *
+     * Freshest is found by comparing ages, not by comparing week and
+     * toe.  Those are not on one scale: BeiDou counts weeks from 2006,
+     * GLONASS carries no week at all and puts Moscow seconds-of-day in
+     * toe.  Sorting on the raw pair picked whichever system numbered
+     * highest rather than whichever arrived last.
+     *
+     * GPS time began 1980-01-06; the 18 s offset from UTC has held
+     * since 2017.  Week numbers are ignored on both sides: broadcast
+     * ephemerides live hours, far inside the half-week wrap, and GPS's
+     * 10-bit week would need un-rolling to be trusted anyway. */
+    time_t now = time(NULL);
+    double gps_now  = (double)(now - 315964800) + 18.0;
+    double tow_now  = fmod(gps_now, 604800.0);
+    /* GLONASS reference epochs are Moscow seconds of day: UTC + 3 h. */
+    double glo_now  = fmod((double)(now % 86400) + 10800.0, 86400.0);
+
+    double best = -1.0;
     for (int g = 0; g < SV_EPH_MAX_GNSS; g++) {
-        for (int p = 0; p < SV_EPH_MAX_SATS_PER_GNSS; p++) {
+        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++) {
             const SvEphemeris *e = sv_eph_get(g, p);
             if (!e) continue;
-            if (!newest ||
-                e->week > newest->week ||
-                (e->week == newest->week && e->toe > newest->toe))
-                newest = e;
+
+            bool glo   = (e->gnss_id == 2);
+            double wrap = glo ? 86400.0 : 604800.0;
+            double age  = (glo ? glo_now : tow_now) - e->toe;
+            if (age < -wrap / 2.0) age += wrap;
+            if (age >  wrap / 2.0) age -= wrap;
+
+            /* A reference epoch ahead of now is normal -- NavIC and
+             * Galileo routinely broadcast one hours in advance -- and
+             * means the data is fresh, not missing.  Reported as a
+             * negative age it read as "no orbits at all" and hid a
+             * fully populated cache behind "the sky view cannot place
+             * anything". */
+            if (age < 0.0) age = 0.0;
+
+            if (best < 0.0 || age < best) best = age;
         }
     }
-    if (!newest) return -1.0;
-
-    /* GPS time began 1980-01-06; the 18 s offset from UTC has held since
-     * 2017 and is what every constellation here is aligned to. */
-    time_t now = time(NULL);
-    double gps_now = (double)(now - 315964800) + 18.0;
-    double eph_t = (double)newest->week * 604800.0 + newest->toe;
-
-    /* The week number rolls over (10-bit for GPS); compare within the
-     * current epoch rather than trusting the raw week across a rollover. */
-    double age = fmod(gps_now, 604800.0) - newest->toe;
-    if (age < -302400.0) age += 604800.0;
-    if (age >  302400.0) age -= 604800.0;
-    (void)eph_t;
-    return age;
+    return best;                 /* -1 only when the cache is empty */
 }

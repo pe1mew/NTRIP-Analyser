@@ -121,6 +121,7 @@ class MonitorService : Service() {
             }
 
             Log.i(TAG, "run started: ${settings.caster}:${settings.port}/${settings.mountpoint}")
+            usedEphStream = false
 
             // A user-supplied RINEX file, if one has been imported. Read
             // before any stream is considered: a current file means there
@@ -192,6 +193,7 @@ class MonitorService : Service() {
                                 settings.user, settings.password,
                             )
                             ephOpenedAtS = nowS
+                            if (ephOpen) usedEphStream = true
                             Log.i(TAG, "ephemeris stream opened: $placeable of " +
                                 "$tracked satellites placeable")
                         } else if (ephOpen &&
@@ -378,6 +380,17 @@ class MonitorService : Service() {
         /** A RINEX navigation file the user imported, if any. */
         @Volatile
         var rinexPath: String? = null
+
+        /**
+         * Whether this run's orbits came off an ephemeris stream.
+         *
+         * Both sources fill the same cache, so the plot cannot tell them
+         * apart afterwards -- and the free edition, which has no stream
+         * at all, credited one for orbits that came from the user's own
+         * file. Recorded here at the moment the stream opens.
+         */
+        @Volatile
+        var usedEphStream: Boolean = false
 
         private const val TAG = "ntrip_android"
 

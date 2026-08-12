@@ -365,7 +365,9 @@ fun MainScreen() {
                             missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
                                 .coerceAtLeast(0),
                             source = when {
-                                usedOrbits > 0 -> PositionSource.EPHEMERIS
+                                usedOrbits > 0 && MonitorService.usedEphStream ->
+                                    PositionSource.EPHEMERIS
+                                usedOrbits > 0 -> PositionSource.RINEX
                                 haveLocation -> PositionSource.PHONE_GNSS
                                 else -> PositionSource.NONE
                             },

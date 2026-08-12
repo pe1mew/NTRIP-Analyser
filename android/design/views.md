@@ -136,8 +136,13 @@ The user downloads a broadcast navigation file themselves and imports it
 into the app. Verified end to end: BKG's daily merged file
 (`BRDC00WRD_R_YYYYDDD0000_01D_MN.rnx.gz`) is **0.2 MB compressed, 1.7 MB
 open, 156 satellites across all seven constellations**, and
-`src/core/rinex_nav.c` parses it as it stands — 1730 records, 113
-satellites into the cache.
+`src/core/rinex_nav.c` parses it as it stands — 2131 records, 139
+satellites into the cache, 135 of them usable at the moment of import.
+The remainder are SBAS, which the loader skips by design.
+
+Measured on the phone with the file imported by hand: **46 of 46
+tracked satellites placed, all four constellations the base streams**,
+with the free edition never opening a network connection for orbits.
 
 **The app does not download it.** That is deliberate, and the reason is
 recorded below.

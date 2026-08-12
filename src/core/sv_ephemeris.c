@@ -131,7 +131,14 @@ bool sv_eph_is_valid_at(const SvEphemeris *eph, int week, double tow_s)
     double max_dt;
     switch (eph->gnss_id) {
     case 1:  max_dt = 4.0 * 3600.0; break;  /* GPS:     2 h nominal, 4 h grace */
-    case 2:  max_dt = 2.0 * 3600.0; break;  /* GLONASS: 30 min nominal, 2 h grace */
+    /* GLONASS: 30 min nominal, 4 h grace.  Two hours looked prudent and
+     * was not: a daily RINEX file is typically published a couple of
+     * hours after its last record, so every GLONASS satellite in it fell
+     * outside the window and the constellation vanished from the plot.
+     * Measured against the file's own later records, the state-vector
+     * propagator drifts 0.1 km at 2 h and 1.9 km at 6 h -- 0.006 deg as
+     * seen from the ground, against markers about a degree wide. */
+    case 2:  max_dt = 4.0 * 3600.0; break;
     case 3:  max_dt = 4.0 * 3600.0; break;  /* Galileo: 10 min nominal, 4 h grace */
     case 4:  max_dt = 4.0 * 3600.0; break;  /* QZSS:    2 h nominal, 4 h grace (GPS-like) */
     case 5:  max_dt = 6.0 * 3600.0; break;  /* BeiDou:  ~1 h nominal, 6 h grace */

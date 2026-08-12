@@ -458,7 +458,7 @@ fun ElevationView(samples: List<ElevationSample>, modifier: Modifier = Modifier)
 private fun sourceName(s: PositionSource): String = when (s) {
     PositionSource.PHONE_GNSS -> "phone GNSS"
     PositionSource.EPHEMERIS -> "ephemeris stream"
-    PositionSource.RINEX -> "RINEX"
+    PositionSource.RINEX -> "navigation file"
     PositionSource.NONE -> "no source"
 }
 

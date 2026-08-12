@@ -84,6 +84,46 @@ static void rnx_chomp(char *line)
     while (n > 0 && (line[n-1] == '\n' || line[n-1] == '\r')) line[--n] = '\0';
 }
 
+#define RNX_MAX_CONT   8      /* most lines any record type carries */
+#define RNX_LINE_LEN   256
+
+/**
+ * Read a record's continuation lines, however many it has.
+ *
+ * Counting lines per system does not survive contact with real files:
+ * RINEX 3.05 gives GLONASS a fourth orbit line that 3.04 did not, and a
+ * parser that consumes three leaves the fourth to be read as the next
+ * record.  Misread as an unknown system, it took a fixed skip with it
+ * and the reader never came back into phase -- one GLONASS satellite
+ * survived out of 279 in BKG's daily file.
+ *
+ * The structure of the format is the reliable signal instead: an epoch
+ * line names its system in column 1, a continuation line begins with
+ * spaces.  Read until the next line is not a continuation, and every
+ * record length -- present and future -- reads correctly.
+ *
+ * @return number of continuation lines stored (extras beyond
+ *         @ref RNX_MAX_CONT are consumed and discarded).
+ */
+static int rnx_read_continuations(FILE *f,
+                                  char lines[RNX_MAX_CONT][RNX_LINE_LEN])
+{
+    int n = 0;
+    for (;;) {
+        int c = fgetc(f);
+        if (c == EOF) break;
+        ungetc(c, f);
+        if (c != ' ' && c != '\t') break;      /* next epoch line */
+
+        char scratch[RNX_LINE_LEN];
+        char *dst = (n < RNX_MAX_CONT) ? lines[n] : scratch;
+        if (!fgets(dst, RNX_LINE_LEN, f)) break;
+        rnx_chomp(dst);
+        n++;
+    }
+    return n;
+}
+
 /* Convert a (year, month, day, hour, min, sec) UTC datetime into the
  * GPS week / seconds-of-week pair (no leap-second correction; sky plot
  * doesn't need it).  We only need the seconds-of-week for our TOW-only
@@ -271,12 +311,10 @@ int rinex_nav_load(const char *filename, int *out_counts)
         char sys = line[0];
         if (sys != 'G' && sys != 'R' && sys != 'E' &&
             sys != 'J' && sys != 'C' && sys != 'I') {
-            /* Skip the entire record.  For S and friends we don't know
-             * the line count without spec lookup, so consume a default 4
-             * follow-up lines and resync.  Worst case: a small drift that
-             * a later sat-id line corrects on its own. */
-            for (int i = 0; i < 4; i++)
-                if (!fgets(line, sizeof(line), f)) break;
+            /* SBAS and anything a later revision adds: consume the whole
+             * record whatever its length, and carry on in phase. */
+            char skip[RNX_MAX_CONT][RNX_LINE_LEN];
+            rnx_read_continuations(f, skip);
             continue;
         }
 
@@ -294,36 +332,22 @@ int rinex_nav_load(const char *filename, int *out_counts)
         double af1 = clock0[2];
         double af2 = clock0[3];
 
+        char cont[RNX_MAX_CONT][RNX_LINE_LEN];
+        memset(cont, 0, sizeof(cont));
+        int n_cont = rnx_read_continuations(f, cont);
+
         if (sys == 'R') {
-            char L1[256] = "", L2[256] = "", L3[256] = "";
-            if (!fgets(L1, sizeof(L1), f)) break;
-            rnx_chomp(L1);
-            if (!fgets(L2, sizeof(L2), f)) break;
-            rnx_chomp(L2);
-            if (!fgets(L3, sizeof(L3), f)) break;
-            rnx_chomp(L3);
+            if (n_cont < 3) continue;         /* truncated record */
             if (parse_glonass_record(prn, year, month, day, hour, min, sec,
                                      af0, af1, af2,   /* RINEX names: tau, gamma, msg-frame-time */
-                                     L1, L2, L3)) {
+                                     cont[0], cont[1], cont[2])) {
                 counts[2]++;
             }
         } else {
-            char L1[256]="", L2[256]="", L3[256]="", L4[256]="",
-                 L5[256]="", L6[256]="", L7[256]="";
-            if (!fgets(L1, sizeof(L1), f)) break;
-            rnx_chomp(L1);
-            if (!fgets(L2, sizeof(L2), f)) break;
-            rnx_chomp(L2);
-            if (!fgets(L3, sizeof(L3), f)) break;
-            rnx_chomp(L3);
-            if (!fgets(L4, sizeof(L4), f)) break;
-            rnx_chomp(L4);
-            if (!fgets(L5, sizeof(L5), f)) break;
-            rnx_chomp(L5);
-            if (!fgets(L6, sizeof(L6), f)) break;
-            rnx_chomp(L6);
-            if (!fgets(L7, sizeof(L7), f)) break;
-            rnx_chomp(L7);
+            if (n_cont < 6) continue;         /* truncated record */
+            const char *L1 = cont[0], *L2 = cont[1], *L3 = cont[2],
+                       *L4 = cont[3], *L5 = cont[4], *L6 = cont[5],
+                       *L7 = (n_cont > 6) ? cont[6] : "";
 
             int gnss_id;
             switch (sys) {
