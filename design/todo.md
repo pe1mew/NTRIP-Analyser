@@ -445,7 +445,7 @@ places** (`src/ntrip_handler.c:301` and four further call sites) — worth conso
 GUI worker does not use any of them; it opens its own socket and writes its own request in
 `gui/gui_thread.c`, so that is a sixth copy.
 
-### 2.4 VRS / nearby-service analysis — **Partial**
+### 2.4 VRS / nearby-service analysis — **Mostly done**
 
 Detect that a mountpoint is a network service rather than a single physical base, and analyse it
 on its own terms: baseline to the virtual station, hand-over behaviour, and GGA uplink compliance.
@@ -473,12 +473,22 @@ Remaining work:
    itself — timestamp, old and new ARP, distance jumped — should reach the log and the item 2.1
    timeline, since a hand-over mid-survey is a plausible cause of a position discontinuity the user
    is trying to explain.
-4. **GGA uplink compliance.** Network services require periodic GGA and will drop or stop
-   generating corrections without it. Report the interval actually being sent, whether the caster
-   demanded GGA, and warn when the stream stalls in a way consistent with a missed uplink.
-5. **Baseline sanity.** Warn when the virtual station sits implausibly far from the rover, which
-   indicates the network has fallen back to a distant physical base — corrections are still
-   flowing, but accuracy has quietly degraded.
+4. ~~**GGA uplink compliance.**~~ **Done** — `src/core/vrs_check.c` asserts it: the caster accepts
+   the GGA (A1), corrections start within 10 s of it (A2), and the stream holds for 60 s at the
+   cadence (A4). The gate test (A5) settles whether the service is GGA-gated at all by stopping
+   the uplink and watching: a drop means a live network service, continued streaming means a fixed
+   base — a classification rather than a failure, since ignoring GGA is correct behaviour for a
+   physical station.
+5. ~~**Baseline sanity.**~~ **Done** — assertion A3 warns beyond 50 km (nearest-station service)
+   and fails beyond 100 km, which is the "quietly fallen back to a distant base" case.
+
+The assertions live in core rather than the GUI (design-review decision D2) so the CLI's
+`--check-vrs`, the Android test screen and the GUI judge a network service identically. Validated
+against a Kadaster physical base: A1–A4 pass and A5 classifies it *not gated*, correctly.
+
+Still open here: item 3 above, plus two assertions the design lists that need frontend workflow
+first — station-ID sanity via 1007/1033, and the two-position shift test that proves a VRS is
+genuinely dynamic.
 
 ---
 

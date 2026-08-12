@@ -79,6 +79,21 @@ int run_eph_stream(const NTRIP_Config *config,
  */
 extern bool cli_auto_reconnect;
 
+/**
+ * @brief `--check` / `--check-vrs`: the station acceptance test.
+ *
+ * Runs the seven-KPI engine (core/kpi.h) against the stream until the
+ * verdict resolves or ~3 minutes pass.  In VRS mode it also drives the
+ * GGA cadence from the config's LATITUDE/LONGITUDE, applies the VRS
+ * assertion set (core/vrs_check.h), and finishes with the gate test:
+ * GGA stops and the stream's reaction classifies the service.
+ *
+ * @param config   Connection settings.
+ * @param vrs_mode Add the VRS assertions and gate test.
+ * @return Exit code: 0 STATION OK, 1 FAILED, 6 CAUTION.
+ */
+int cli_check(const NTRIP_Config *config, bool vrs_mode);
+
 #ifdef __cplusplus
 }
 #endif

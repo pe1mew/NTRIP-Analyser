@@ -19,6 +19,34 @@ CRC) is FAILED, the rest is CAUTION.
 Validated live against RFSEE01: STATION OK with all seven PASS after the
 full 60 s sustain window.
 
+### Added — the VRS assertion set, and `--check` / `--check-vrs`
+
+`src/core/vrs_check.c` turns the desktop's manual network-RTK checks into
+assertions, in shared core alongside the KPI engine (design-review D2):
+the caster accepts the GGA, corrections start within 10 s of it, the
+broadcast ARP is near the rover, and the stream holds at the GGA cadence.
+A fifth, the **gate test**, stops the uplink and lets the caster's
+reaction classify the service — a drop means a live network service,
+continued streaming means a fixed base.  That last one is reported as a
+classification rather than a failure, because ignoring GGA is correct
+behaviour for a physical station.
+
+The CLI surfaces both engines:
+
+    ntrip-analyser --check        # seven KPIs, ~90 s
+    ntrip-analyser --check-vrs    # plus the network-RTK assertions
+
+Exit codes make it scriptable for installer sign-off or cron: 0 STATION
+OK, 6 caution, 1 failed.
+
+Validated live: `--check` returns STATION OK on RFSEE01 with all seven
+PASS, and `--check-vrs` against a Kadaster physical base passes A1–A4,
+measures the reference position 2.48 km from the sent GGA, and correctly
+classifies the mountpoint as not gated.
+
+This closes the GGA-uplink-compliance and baseline-sanity halves of
+backlog item 2.4, which had no assertion layer on any frontend.
+
 ### Fixed — the snapshot's ARP block was never populated
 
 `arp_valid`, `arp_lat/lon/alt` existed in the schema from the start, are

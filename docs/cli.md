@@ -66,6 +66,8 @@ ntrip-analyser [options]
 | -s    | --sat        | [seconds]        | count satellites received for N seconds (default: 60)                       |
 | -t    | --types      | [seconds]        | Analyze message types for N seconds (default: 60)                           |
 | -v    | --verbose    |                  | Print configuration and action details before running                       |
+| &nbsp; | --check      | &nbsp;           | Station acceptance test: seven KPIs, ~90 s (exit 0/6/1)                     |
+| &nbsp; | --check-vrs  | &nbsp;           | As --check plus the network-RTK assertions and GGA gate test                |
 | -g    | --generate   |                  | Geerate default config.json with dummy values and exit.                     |
 |       | --latitude   | value            | Override latitude in config                                                 |
 |       | --longitude  | value            | Override longitude in config                                                |
@@ -166,6 +168,55 @@ ntrip-analyser [options]
 | 1137        |    61 |         0.899 |         1.130 |         0.984 |
 +-------------+-------+---------------+---------------+---------------+
 ```
+
+## Acceptance testing
+
+`--check` answers one question: **does this station meet the basic KPIs for RTK service?**  It
+watches the stream for about ninety seconds and prints a seven-row verdict.
+
+```
+ntrip-analyser --check
+```
+
+```
+1 Connected and producing    PASS   1665.39  Authenticated, connected, data flowing
+2 RTCM 3.x format            PASS    633.00  CRC-valid RTCM 3.x frames decoded
+3 Reference position (ARP)   PASS      1.00  1005/1006 received with non-zero coordinates
+4 Multi-GNSS observations    PASS      3.00  GPS and Galileo MSM at 0.5 Hz or faster
+5 Satellites in view         PASS     41.00  At or above the 25-SV threshold
+6 Median C/N0                PASS     45.73  Antenna and LNA chain healthy
+7 Frame integrity (CRC)      PASS      0.00  Fewer than 1 error per 1000 frames
+
+== STATION OK ==  exit=0
+```
+
+Every KPI must hold PASS for sixty continuous seconds before the verdict is STATION OK, so a
+station that flickers cannot pass by being briefly healthy at the right moment.
+
+The exit code makes it scriptable — an installer's sign-off, or a cron check:
+
+| Exit | Meaning |
+|---|---|
+| 0 | STATION OK — all seven held for the full window |
+| 6 | CAUTION — a marginal reading, or a soft KPI (satellite count, C/N0) failing |
+| 1 | FAILED — a hard KPI failed: connectivity, format, ARP, multi-GNSS, or CRC |
+
+`--check-vrs` adds the network-RTK layer for mountpoints that expect the rover to upload its
+position.  It sends a GGA every ten seconds from the config's `LATITUDE`/`LONGITUDE` and adds five
+assertions: the caster accepts the GGA, corrections start within ten seconds of it, the broadcast
+reference position is near the rover, the stream holds at that cadence, and finally the **gate
+test** — the uplink stops and the caster's reaction classifies the service:
+
+```
+V5  GGA gating   warn   91.00  Still streaming 90 s after GGA stopped: fixed base
+== STATION OK ==  [service: not gated (fixed base?)]  exit=0
+```
+
+A physical base ignores GGA and keeps streaming, which is correct behaviour for what it is, so the
+gate result is reported as a classification rather than a failure.
+
+The same verdict engine runs on every frontend (`src/core/kpi.c`, `src/core/vrs_check.c`), so a
+station cannot pass here and fail elsewhere.
 
 ## Notes
 

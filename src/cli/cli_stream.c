@@ -14,6 +14,9 @@
  */
 
 #include "cli/cli_stream.h"
+#include "core/kpi.h"
+#include "core/vrs_check.h"
+#include <time.h>
 
 bool cli_auto_reconnect = false;   /* set by --reconnect in main.c */
 #include "session/ntrip_session.h"
@@ -427,5 +430,126 @@ int run_eph_stream(const NTRIP_Config *config,
     fprintf(stderr, "[EPH] Stream closed (decoded %d ephemerides)\n",
             ctx.eph_count);
     fflush(stderr);
+    return rc;
+}
+
+/* ── The acceptance test ──────────────────────────────────────────────
+ * One shared engine (core/kpi.c, core/vrs_check.c) so this run, the
+ * Android app and the GUI can never disagree about a station.
+ */
+
+static void check_on_event(const NsEvent *ev, void *user)
+{
+    (void)ev; (void)user;
+}
+
+/** @brief Print the KPI table, and the VRS assertions when present. */
+static void check_print(const KpiReport *kr, const VrsReport *vr)
+{
+    printf("\n%-3s %-26s %-5s %12s  %s\n",
+           "#", "KPI", "verd", "value", "detail");
+    for (int i = 0; i < KPI_COUNT; i++)
+        printf("%-3d %-26s %-5s %12.2f  %s\n", i + 1,
+               kr->kpi[i].label, kpi_verdict_name(kr->kpi[i].verdict),
+               kr->kpi[i].value, kr->kpi[i].detail);
+    if (vr) {
+        for (int i = 0; i < VRS_ASSERT_COUNT; i++)
+            printf("V%-2d %-26s %-5s %12.2f  %s\n", i + 1,
+                   vr->a[i].label, kpi_verdict_name(vr->a[i].verdict),
+                   vr->a[i].value, vr->a[i].detail);
+    }
+}
+
+int cli_check(const NTRIP_Config *config, bool vrs_mode)
+{
+    NsOptions opt;
+    ns_options_default(&opt);
+    opt.config           = *config;
+    opt.stats_interval_s = 0.0;
+    /* GGA is driven below rather than by the session timer, so the
+     * assertion engine knows exactly when each one went out. */
+    opt.send_gga         = false;
+    /* A drop is a finding here, not a nuisance to paper over. */
+    opt.auto_reconnect   = false;
+
+    NtripSession *sess = ns_open(&opt, check_on_event, NULL);
+    if (!sess) {
+        fprintf(stderr, "[CHECK] Could not open the session\n");
+        return 1;
+    }
+
+    KpiRun krun;  KpiReport kr;
+    VrsRun vrun;  VrsReport vr;
+    memset(&kr, 0, sizeof(kr));
+    memset(&vr, 0, sizeof(vr));
+    kpi_run_start(&krun, 0.0);
+    vrs_run_start(&vrun, 0.0);
+
+    time_t t0 = time(NULL);
+    double last_gga = -1e9;
+    bool   gate_started = false;
+    int    last_tick = -1;
+
+    fprintf(stderr, "[CHECK] %s acceptance test on %s:%d/%s\n",
+            vrs_mode ? "Network-RTK" : "Station",
+            config->NTRIP_CASTER, config->NTRIP_PORT, config->MOUNTPOINT);
+
+    for (;;) {
+        bool alive = ns_pump(sess, 200) >= 0;
+        double el = (double)(time(NULL) - t0);
+        const NsStatsSnapshot *snap = ns_stats(sess);
+
+        if (vrs_mode && !gate_started && el - last_gga >= 10.0) {
+            if (ns_send_gga(sess, config->LATITUDE, config->LONGITUDE))
+                vrs_note_gga(&vrun, snap, el,
+                             config->LATITUDE, config->LONGITUDE);
+            last_gga = el;
+        }
+
+        kpi_update(&krun, snap, el, &kr);
+        if (vrs_mode) vrs_update(&vrun, snap, el, &vr);
+
+        if ((int)el / 15 != last_tick) {
+            last_tick = (int)el / 15;
+            fprintf(stderr, "[CHECK] t=%3.0fs  %-10s  sustained=%2.0fs%s\n",
+                    el, kpi_run_verdict_name(kr.overall), kr.sustained_s,
+                    gate_started ? "  (gate test)" : "");
+        }
+
+        /* The gate test comes last: stop sending GGA and let the
+         * caster's reaction classify the service. */
+        if (vrs_mode && !gate_started &&
+            kr.sustained_s >= KPI_SUSTAIN_S &&
+            vr.a[3].verdict == KPI_PASS) {
+            fprintf(stderr, "[CHECK] KPIs met; stopping GGA for the gate test\n");
+            vrs_begin_gate_test(&vrun, el);
+            gate_started = true;
+        }
+
+        bool done = false;
+        if (!vrs_mode) {
+            done = (kr.overall == KPI_RUN_OK || kr.overall == KPI_RUN_FAILED);
+        } else if (gate_started) {
+            done = (vr.gate == VRS_GATE_GATED || vr.gate == VRS_GATE_NOT_GATED);
+        } else {
+            done = vr.failed || kr.overall == KPI_RUN_FAILED;
+        }
+        if (done) break;
+        if (!alive && !(vrs_mode && gate_started)) break;
+        if (el > 300.0) break;              /* absolute ceiling */
+    }
+
+    check_print(&kr, vrs_mode ? &vr : NULL);
+
+    int rc;
+    if (kr.overall == KPI_RUN_FAILED || (vrs_mode && vr.failed)) rc = 1;
+    else if (kr.overall == KPI_RUN_OK)                           rc = 0;
+    else                                                         rc = 6;
+
+    printf("\n== %s ==", kpi_run_verdict_name(kr.overall));
+    if (vrs_mode) printf("  [service: %s]", vrs_gate_name(vr.gate));
+    printf("  exit=%d\n", rc);
+
+    ns_close(sess);
     return rc;
 }

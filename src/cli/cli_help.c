@@ -64,6 +64,11 @@ void print_help(const char *progname) {
     printf("      --check-config       Validate config (apply overrides + env, DNS-resolve\n");
     printf("                           casters), print resolved values, then exit.  Useful\n");
     printf("                           as a CI fail-fast check.\n");
+    printf("\nAcceptance testing:\n");
+    printf("      --check              Station acceptance test: seven KPIs over ~90 s.\n");
+    printf("                           Exit 0 = STATION OK, 6 = caution, 1 = failed.\n");
+    printf("      --check-vrs          As --check plus the network-RTK assertions:\n");
+    printf("                           GGA cadence, ARP-near-rover, and the gate test.\n");
     printf("\nOther:\n");
     printf("      --reconnect          Reconnect with backoff if the stream drops\n");
     printf("  -g, --generate           Generate default config.json\n");

@@ -41,7 +41,9 @@ typedef enum {
     OP_SHOW_MOUNT_RAW,         /**< Display raw mountpoint source table from caster */
     OP_SHOW_MOUNT_FORMATTED,   /**< Display formatted mountpoint table from caster */
     OP_DECODE_STREAM,          /**< Decode and display detailed RTCM message contents */
-    OP_SKY_HEATMAP             /**< Collect sky-heatmap data until Ctrl-C, save PNG */
+    OP_SKY_HEATMAP,            /**< Collect sky-heatmap data until Ctrl-C, save PNG */
+    OP_CHECK,                  /**< Seven-KPI station acceptance test */
+    OP_CHECK_VRS               /**< Acceptance test plus VRS assertions and gate test */
 } Operation;
 
 /**

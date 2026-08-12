@@ -982,6 +982,8 @@ int main(int argc, char *argv[]) {
         {"eph-user",       required_argument, 0, 16 },
         {"eph-password",   required_argument, 0, 17 },
         {"reconnect",      no_argument,       0, 21 },
+        {"check",          no_argument,       0, 22 },
+        {"check-vrs",      no_argument,       0, 23 },
         {"check-config",   no_argument,       0, 18 },
         {"json",           no_argument,       0, 19 },
         {"rtcm-stdin",     no_argument,       0, 20 },
@@ -1101,6 +1103,8 @@ int main(int argc, char *argv[]) {
             case 19: json_output       = true;   break;   /* --json */
             case 20: rtcm_stdin        = true;   break;   /* --rtcm-stdin */
             case 21: cli_auto_reconnect = true;  break;   /* --reconnect */
+            case 22: claim_action(&operation, OP_CHECK,     "--check");     break;
+            case 23: claim_action(&operation, OP_CHECK_VRS, "--check-vrs"); break;
             case 'g':
                 initialize_config("config.json");
                 return EXIT_OK;
@@ -1176,6 +1180,10 @@ int main(int argc, char *argv[]) {
     }
 
     // === 0. Analyze message types if requested ===
+    if (operation == OP_CHECK || operation == OP_CHECK_VRS) {
+        return cli_check(&config, operation == OP_CHECK_VRS);
+    }
+
     if (operation == OP_ANALYZE_TYPES) {
         cli_analyze_types(&config, analysis_time);
 #ifdef _WIN32
