@@ -243,6 +243,16 @@ JNI_FN(nativeLoadRinex)(JNIEnv *env, jobject thiz, jlong handle, jstring path)
 }
 
 JNIEXPORT jint JNICALL
+JNI_FN(nativeCheckRinex)(JNIEnv *env, jobject thiz, jstring path)
+{
+    (void)thiz;
+    const char *c_path = str_in(env, path);
+    jint n = (jint)bridge_check_rinex(c_path ? c_path : "");
+    str_free(env, path, c_path);
+    return n;
+}
+
+JNIEXPORT jint JNICALL
 JNI_FN(nativePlaceable)(JNIEnv *env, jobject thiz, jlong handle)
 {
     (void)env; (void)thiz;

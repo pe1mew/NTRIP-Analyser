@@ -132,6 +132,21 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
             return if (h == 0L) null else NtripBridge(h)
         }
 
+        /**
+         * Read a navigation file into the orbit cache, with no session
+         * open.
+         *
+         * The cache belongs to the process, not to a stream, so a file
+         * can be read the moment the user picks one -- which is also the
+         * only moment at which telling them it was unreadable is any use.
+         *
+         * **Blocking**: a daily file is a couple of megabytes.
+         *
+         * @return records accepted; 0 for a file with none, < 0 when it
+         *         could not be read at all.
+         */
+        fun loadNavFile(path: String): Int = nativeCheckRinex(path)
+
         @JvmStatic
         private external fun nativeOpen(
             caster: String, port: Int, mountpoint: String,
@@ -153,6 +168,7 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         @JvmStatic private external fun nativeEphCount(h: Long): Int
         @JvmStatic private external fun nativeEphFrames(h: Long): Int
         @JvmStatic private external fun nativeLoadRinex(h: Long, path: String): Int
+        @JvmStatic private external fun nativeCheckRinex(path: String): Int
         @JvmStatic private external fun nativePlaceable(h: Long): Int
         @JvmStatic private external fun nativeCloseEph(h: Long)
         @JvmStatic private external fun nativeSkyPixels(

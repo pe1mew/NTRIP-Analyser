@@ -62,16 +62,23 @@ object Settings {
             ?.takeIf { rinexFile(context).exists() }
 
     /**
-     * Import a navigation file the user picked.
+     * Copy a navigation file the user picked to a staging file.
      *
      * Copied into app storage because `rinex_nav_load()` takes a path and
      * a `content://` URI is not one. Gzip is unwrapped on the way in,
      * since archives serve these files compressed and asking the user to
      * decompress on a phone would be a poor joke.
      *
+     * Staged rather than written in place so that picking the wrong file
+     * costs nothing: an import that overwrote the live file destroyed a
+     * working set of orbits before anything had established the new file
+     * was even readable.
+     *
      * @return the display name on success, null when it could not be read.
+     *         On success the bytes are at @ref stagedRinexFile, awaiting
+     *         @ref commitRinex.
      */
-    fun importRinex(context: Context, uri: android.net.Uri): String? {
+    fun stageRinex(context: Context, uri: android.net.Uri): String? {
         val name = context.contentResolver.query(uri, null, null, null, null)
             ?.use { c ->
                 val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -88,11 +95,37 @@ object Settings {
                 // 0x1f 0x8b is the gzip magic; anything else is plain text.
                 val src = if (b0 == 0x1f && b1 == 0x8b)
                     java.util.zip.GZIPInputStream(head) else head
-                rinexFile(context).outputStream().use { out -> src.copyTo(out) }
+                stagedRinexFile(context).outputStream().use { out ->
+                    src.copyTo(out)
+                }
             }
-            context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-                .putString("rinex_name", name).apply()
             name
         }.getOrNull()
+    }
+
+    /** Where a staged file waits while it is being checked. */
+    fun stagedRinexFile(context: Context): java.io.File =
+        java.io.File(context.filesDir, "$RINEX.staged")
+
+    /** Promote a checked staging file to the one runs will read. */
+    fun commitRinex(context: Context, name: String) {
+        val staged = stagedRinexFile(context)
+        runCatching {
+            rinexFile(context).delete()
+            staged.renameTo(rinexFile(context))
+        }
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putString("rinex_name", name).apply()
+    }
+
+    /**
+     * Discard a staged file, leaving any previous import untouched.
+     *
+     * Used when a file copies cleanly but holds no orbits: whatever was
+     * already imported keeps working, which is the outcome a user
+     * picking the wrong file from a crowded Downloads folder wants.
+     */
+    fun discardStagedRinex(context: Context) {
+        runCatching { stagedRinexFile(context).delete() }
     }
 }

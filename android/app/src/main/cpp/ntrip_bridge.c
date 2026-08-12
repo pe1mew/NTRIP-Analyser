@@ -524,6 +524,11 @@ bool bridge_sky_rgb(NtripBridge *b, unsigned char *rgb,
 int bridge_load_rinex(NtripBridge *b, const char *path)
 {
     (void)b;                       /* the ephemeris cache is process-wide */
+    return bridge_check_rinex(path);
+}
+
+int bridge_check_rinex(const char *path)
+{
     if (!path || !*path) return -1;
     return rinex_nav_load(path, NULL);
 }

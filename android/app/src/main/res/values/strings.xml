@@ -46,6 +46,9 @@
     <string name="eph_file">From %1$s</string>
     <string name="eph_no_file">No navigation file imported</string>
     <string name="action_import_rinex">Import RINEX navigation file…</string>
+    <string name="rinex_loaded">Imported %1$s — %2$d orbit records. Compressed (.gz) files are unpacked automatically.</string>
+    <string name="rinex_no_orbits">%1$s holds no orbits this app can read. A RINEX 3 navigation file is needed — an observation file will not do.</string>
+    <string name="rinex_unreadable">That file could not be read.</string>
     <string name="mode_station">Station check</string>
     <string name="mode_analysis">Analysis</string>
     <string name="action_analyse">Start analysis</string>

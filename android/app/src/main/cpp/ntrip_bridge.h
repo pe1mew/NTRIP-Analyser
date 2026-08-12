@@ -200,6 +200,19 @@ int bridge_eph_count(const NtripBridge *b);
 int bridge_load_rinex(NtripBridge *b, const char *path);
 
 /**
+ * @brief Load a navigation file into the cache with no session open.
+ *
+ * The same work as @ref bridge_load_rinex without the handle, so a file
+ * can be read the moment the user picks one -- which is when a verdict
+ * on whether it was readable is worth anything to them.
+ *
+ * @param path Readable path to a RINEX 3 NAV file, already decompressed.
+ * @return Records accepted; 0 for a file carrying none, <0 when the file
+ *         could not be read at all.
+ */
+int bridge_check_rinex(const char *path);
+
+/**
  * @brief How many of the tracked satellites can currently be placed.
  *
  * The question the ephemeris policy turns on: with every tracked

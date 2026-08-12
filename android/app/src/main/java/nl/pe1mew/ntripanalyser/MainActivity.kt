@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -159,14 +160,43 @@ fun MainScreen() {
     // The app never downloads a navigation file: the user obtains it and
     // so holds the relationship with the data provider, including its
     // licence and usage rules (android/design/views.md).
+    val scope = rememberCoroutineScope()
     val pickRinex = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) {
-            val name = Settings.importRinex(context, uri)
-            if (name != null) {
-                rinexName = name
-                MonitorService.rinexPath = Settings.rinexFile(context).absolutePath
+        if (uri != null) scope.launch {
+            // Copying and parsing a couple of megabytes is not main-thread
+            // work, and the result is worth waiting for: an import that
+            // silently produced nothing was indistinguishable from one
+            // that worked until a run came up empty an hour later.
+            val result = withContext(Dispatchers.IO) {
+                val name = Settings.stageRinex(context, uri)
+                if (name == null) {
+                    null to 0
+                } else {
+                    // Checked where it was staged, and promoted only if it
+                    // carries orbits: a file that turns out to be the
+                    // wrong one must not cost the user the one that works.
+                    val n = NtripBridge.loadNavFile(
+                        Settings.stagedRinexFile(context).absolutePath
+                    )
+                    if (n > 0) Settings.commitRinex(context, name)
+                    else Settings.discardStagedRinex(context)
+                    name to n
+                }
+            }
+            val (name, records) = result
+            notice = when {
+                name == null ->
+                    context.getString(R.string.rinex_unreadable)
+                records <= 0 ->
+                    context.getString(R.string.rinex_no_orbits, name)
+                else -> {
+                    rinexName = name
+                    MonitorService.rinexPath =
+                        Settings.rinexFile(context).absolutePath
+                    context.getString(R.string.rinex_loaded, name, records)
+                }
             }
         }
     }
