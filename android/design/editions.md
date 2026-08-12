@@ -100,6 +100,26 @@ what a watch is for.
 The free app therefore stays a complete, permanently useful go/no-go
 checker, with nothing about it half-finished.
 
+## A shared feature must behave identically
+
+Gating decides whether a feature *exists* in an edition. It must never
+decide how a feature *behaves* where both have it.
+
+That line was crossed once and is worth recording. The live-versus-mean
+C/N0 choice was keyed on the edition, so pro showed the last epoch and
+free the mean over the capture — two people looking at the same finished
+capture of the same station read different numbers, for no reason either
+could see. It now follows the *run*: live while measuring, the capture
+mean once stopped, in both editions. What pro buys is being able to keep
+measuring, not different arithmetic.
+
+Verified by running the same station check on both editions minutes
+apart: identical KPI verdicts, with satellite count and mean C/N0
+differing only as two passes over a live sky would.
+
+The rule, for anything added later: if both editions have the feature,
+the only acceptable difference is how long it may run.
+
 ## One codebase, measured
 
 Not asserted -- counted, on 2026-08-12:

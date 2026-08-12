@@ -199,13 +199,26 @@ fun MainScreen() {
     // Satellites the stream measured, joined to a position where one
     // exists. Free shows the session mean, pro the live value.
     val liveDoc = runState.document
+
+    /**
+     * Whether the numbers on screen are being measured right now.
+     *
+     * This governs live-versus-session-mean C/N0, and it follows the
+     * *run*, not the edition. Keying it on IS_PRO meant free and pro
+     * showed different numbers for the very same finished capture --
+     * pro the last epoch, free the mean over the whole of it -- so two
+     * people looking at one station disagreed for no reason. Both now
+     * show live while measuring and the capture mean once stopped; what
+     * pro buys is being able to keep measuring, not different arithmetic.
+     */
+    val live = runState.running
     // Positions come from the station's own orbits where they exist --
     // exact, complete, and independent of the handset -- and from the
     // phone only for satellites no orbit covers. Preferring the phone
     // would discard the better source: the orbit cache placed 47 of 47
     // satellites where the phone managed 23.
     var usedOrbits by remember { mutableStateOf(0) }
-    val plotted = remember(liveDoc, positions) {
+    val plotted = remember(liveDoc, positions, live) {
         var fromOrbit = 0
         val out = liveDoc?.sats.orEmpty().mapNotNull { sat ->
             val az: Float
@@ -225,7 +238,7 @@ fun MainScreen() {
             if (el < 0f) return@mapNotNull null
             PlottedSat(
                 gnss = sat.gnss, prn = sat.prn,
-                cn0 = if (Features.IS_PRO) sat.cn0 else sat.cn0Mean,
+                cn0 = if (live) sat.cn0 else sat.cn0Mean,
                 azimuthDeg = az, elevationDeg = el,
             )
         }
@@ -236,11 +249,11 @@ fun MainScreen() {
     // Signal quality needs no position at all: C/N0 comes from the
     // stream. Feeding it the positioned subset dropped satellites the
     // base was hearing perfectly well, which understates the station.
-    val signal = remember(liveDoc) {
+    val signal = remember(liveDoc, live) {
         liveDoc?.sats.orEmpty().map { sat ->
             SignalSat(
                 gnss = sat.gnss, prn = sat.prn,
-                cn0 = if (Features.IS_PRO) sat.cn0 else sat.cn0Mean,
+                cn0 = if (live) sat.cn0 else sat.cn0Mean,
             )
         }
     }
@@ -359,7 +372,7 @@ fun MainScreen() {
                             footer = footer,
                         )
                         AnalysisTab.SIGNAL ->
-                            SignalBars(signal, liveValues = Features.IS_PRO)
+                            SignalBars(signal, liveValues = live)
                         AnalysisTab.ELEVATION -> ElevationView(elevSamples.toList())
                     }
                 }
