@@ -117,6 +117,29 @@ if(UNIX)
     target_link_libraries(ntrip-analyser PRIVATE Threads::Threads)
 endif()
 
+# ── Tests ─────────────────────────────────────────────────────────────
+#
+# Tests link ntrip_core only.  Everything worth pinning down is in there
+# -- parsers, orbits, the KPI engine -- and keeping the sockets out means
+# a test run needs no network and no caster.
+#
+#   cmake --build build --target test_all
+#
+# Fixtures are read relative to the source tree, which is passed to the
+# test rather than assumed, so the working directory does not matter.
+enable_testing()
+
+add_executable(test_rinex_nav test/test_rinex_nav.c)
+target_link_libraries(test_rinex_nav PRIVATE ntrip_core)
+add_test(NAME rinex_nav
+         COMMAND test_rinex_nav "${CMAKE_SOURCE_DIR}/test/data/mini_nav.rnx")
+
+# `ctest` prints pass/fail; this target also shows what the test said,
+# which is the part that names the defect when it breaks.
+add_custom_target(test_all
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS test_rinex_nav)
+
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)
     add_executable(ntrip-analyser-gui WIN32

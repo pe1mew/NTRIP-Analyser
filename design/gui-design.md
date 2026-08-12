@@ -602,7 +602,128 @@ Moved to the project-wide feature backlog: [`design/todo.md`](../design/todo.md)
 
 ---
 
-## 13. Reference
+## 13. Station Check (planned)
+
+The CLI has `--check` and the Android app has a station mode; the GUI has
+neither. It never links `kpi.c`. This section is the agreed design for
+closing that gap.
+
+### 13.1 What it is
+
+A **bounded acceptance test**: the user starts it explicitly, it watches
+the open stream for about ninety seconds, and it ends with a verdict that
+stops moving. That last part is the point. A live dashboard cannot be
+quoted in a handover — a verdict that keeps changing is not a sign-off.
+The engine already enforces this: `kpi_update()` holds a candidate
+verdict until it has survived `KPI_SUSTAIN_S` unchanged, so a station
+that flickers cannot pass by being briefly healthy at the right moment.
+
+Scope is the **eight KPIs, plus the five VRS assertions when the station
+is a VRS** — matching `--check-vrs`. The GUI already classifies station
+type in Stream Health, so the classification exists before the check
+starts and no guesswork is involved.
+
+### 13.2 Where it lives
+
+A **floating window opened from View → Station Check**, in the manner of
+Sky Plot and VRS Monitor: `gui_check_window.{c,h}`, its own class, its
+own paint path, resizable, and screenshotable whole. The bottom tab strip
+was the cheaper option and was rejected for a reason worth recording: a
+check is watched *alongside* Stream Health and Msg Stats while it runs,
+and a tab makes the two mutually exclusive.
+
+### 13.3 Where the run state lives
+
+`KpiRun` and `VrsRun` are accumulators with sustain clocks, so they must
+outlive a repaint — and they belong in `AppState`, not in the window.
+Closing the window must not silently abandon a ninety-second test the
+user started, and a check in progress is a property of the session, not
+of a piece of chrome.
+
+```c
+/* in AppState */
+KpiRun    checkRun;        /* accumulator; sustain clocks live here     */
+KpiReport checkReport;     /* last evaluation, for the window to paint  */
+VrsRun    checkVrs;        /* only advanced when the station is a VRS   */
+BOOL      checkActive;     /* a bounded run is in progress              */
+BOOL      checkSettled;    /* verdict has stopped moving; frozen        */
+double    checkStartedAt;  /* GetTickCount64()/1000.0 at start          */
+```
+
+### 13.4 What drives it
+
+**The statistics event, not a timer.** `NS_EV_STATS` already refreshes
+`AppState::lastStats` once a second, and that struct is exactly what
+`kpi_update()` consumes. Evaluating there keeps the KPI clock in step
+with the data that justifies it; a window timer would sometimes judge a
+snapshot twice and sometimes skip one. The window's own `WM_TIMER` does
+nothing but repaint.
+
+### 13.5 The one piece of plumbing that is missing
+
+KPI 8 compares what the sourcetable advertises against what arrives, and
+it reads that from the **session**: `ns_set_advertised()` and
+`ns_set_advertised_gnss()`. The CLI and the Android bridge both call
+them. **The GUI calls neither.** Its Stream Health row computes the same
+comparison independently, by counting rows in its own Msg Stats
+ListView — a UI-derived answer to a question the session already
+answers.
+
+So the GUI must feed the session from the sourcetable entry it already
+fetches on connect (`AppState::advAutoFetched`), exactly as the other two
+front-ends do. Without it, KPI 8 would evaluate against an empty
+advertisement and quietly pass everything.
+
+That also removes a duplicate: once the session holds the comparison,
+the Stream Health row should read it from there rather than counting
+ListView rows, and the two can no longer disagree.
+
+### 13.6 The gate test needs consent
+
+`vrs_begin_gate_test()` moves the rover position to prove the network
+hands over. That is an action with an effect on the caster session, not
+an observation, and it must not happen because someone pressed "Run
+Check". It gets its own checkbox in the window, off by default, labelled
+with what it will do. The other four VRS assertions are passive and run
+whenever the station is a VRS.
+
+### 13.7 Preconditions
+
+- **The stream must be open.** The Run Check button is disabled
+  otherwise, and says why.
+- **The sourcetable must have been fetched**, or KPI 8 has nothing to
+  compare against. The GUI already fetches it on connect; if it has not,
+  the check fetches it before starting rather than reporting a KPI that
+  was never evaluated.
+
+### 13.8 Work
+
+| # | Change | Files |
+|---|---|---|
+| 1 | Feed the session its advertisement on connect | `gui_events.c` (sourcetable handler) |
+| 2 | Point the Stream Health row at the session's comparison | `gui_events.c` |
+| 3 | Run state in `AppState` | `gui_state.h` |
+| 4 | Advance the check on `NS_EV_STATS` | `gui_events.c` |
+| 5 | The window: rows, verdict, elapsed, Run/Stop, gate-test checkbox | `gui_check_window.{c,h}` (new) |
+| 6 | Menu item and command id | `resource.rc`, `resource.h`, `gui_events.c` |
+| 7 | Build entries | `CMakeLists.txt`, `build-gui.bat` |
+
+`kpi.c` and `vrs_check.c` are already in both build paths, so nothing new
+is compiled — only called.
+
+### 13.9 Deliberately not in this round
+
+- **A saved report file.** The window can be screenshotted and
+  `File → Export Statistics` already writes the underlying numbers. A
+  report serialiser is worth adding once the on-screen shape has settled,
+  not before.
+- **Continuous evaluation.** Rejected as the primary model above; if it
+  is wanted later it is the same engine with the bound removed, and the
+  live and settled states must then be visually distinct.
+
+---
+
+## 14. Reference
 
 - Win32 API: [Microsoft Learn — Desktop Win32 Apps](https://learn.microsoft.com/en-us/windows/win32/)
 - Common Controls: [Microsoft Learn — About Common Controls](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)

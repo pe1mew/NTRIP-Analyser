@@ -370,7 +370,12 @@ fun MainScreen() {
                     )
                 }
 
-                liveDoc?.watch?.let { WatchCard(it) }
+                // No watch card here. It is absent when the screen opens
+                // and appears a second later, shoving the plot down the
+                // moment the user has started reading it. The elapsed
+                // time is beside the Stop button already; the rest of the
+                // long-run picture belongs on the station screen, where
+                // nothing moves under it.
 
                 TabRow(selectedTabIndex = tab.ordinal) {
                     AnalysisTab.entries.forEach { t ->
