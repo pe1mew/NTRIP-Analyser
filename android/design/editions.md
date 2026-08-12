@@ -22,13 +22,14 @@ The paid edition therefore shows **more**, never **different**.
 
 | | Free | Paid |
 |---|---|---|
-| Seven-KPI spot check | yes, unlimited | yes |
+| Eight-KPI spot check | yes, unlimited | yes |
 | Verdict, reasons, throughput/SV chips | yes | yes |
 | Mountpoint entry | **typed manually, one saved** | multiple saved, switchable |
 | Sourcetable | **viewable, not selectable** | browse and tap to use |
 | Watch mode | **not available** | yes, unlimited |
 | Sky plot (coverage heatmap) | yes | yes |
 | Ephemeris source | imported RINEX, on-demand stream, phone GNSS | same |
+| GGA position sent to the caster | **fixed, from the mountpoint's sourcetable entry** | the phone's live position |
 | Session history | — | yes |
 | Per-SV / per-band C/N0 | — | yes |
 | Ionosphere (ROTI) | — | yes |
@@ -64,6 +65,58 @@ quietly under-reports.
 The app does not download the navigation file in either edition — see
 `views.md` for why the terms could not be established, and why the user
 supplying the file is the honest arrangement.
+
+### Why the GGA uplink differs, and why *sending at all* does not
+
+Two questions get conflated here, and separating them is most of the
+design.
+
+**Whether to send a GGA is a property of the mountpoint, not of the
+edition.** The sourcetable's STR record carries an `nmea` flag — *this
+mountpoint expects a GGA uplink* — and `src/core/sourcetable.c` has
+parsed it all along without anyone reading it. Both editions follow it:
+send when the entry asks for it, stay quiet when it does not, with a
+manual override for casters whose metadata is wrong. A network service
+that receives no GGA sends nothing back, and a user watching that
+happen has no way to tell it from a broken station. Sending
+unconditionally would be the other error: a single base has no use for
+the position, so transmitting one is a privacy cost buying nothing.
+
+**What position it carries is the edition difference**, and it maps onto
+two genuinely different questions:
+
+- *Does this station serve the area it claims?* — a base-station
+  acceptance test. A **fixed** position is the better instrument here:
+  repeatable, comparable between runs, independent of where the tester
+  is standing. Free prefills it from the mountpoint's own sourcetable
+  coordinates — test as if standing at the station — which needs no
+  typing, no permission, and is always inside the network's coverage. It
+  stays editable for a user testing a particular site.
+- *Am I served properly **here**?* — field work, and what a professional
+  is paid to answer. Pro sends the phone's live position, falling back
+  to the fixed one when there is no fix, so a run started indoors still
+  has something to send rather than nothing or a zero.
+
+That fallback matters more than it looks: a GGA of 0,0 is a valid
+sentence that puts the rover in the Atlantic, and a VRS will answer it.
+
+**A fixed position can fail a healthy network**, and the app has to say
+so rather than report a station fault. Type a position outside the
+network and the VRS returns a distant ARP or nothing; assertion A3
+(broadcast ARP near the rover) then fails on a service that is working
+correctly. The sourcetable prefill makes this the uncommon case instead
+of the default one.
+
+### Why the privacy story is not the same in both editions
+
+In free, location is read on the device and never leaves it: it turns
+satellites into azimuth and elevation for the plot, nothing more. In
+pro, the position is **transmitted to a third-party caster**. Those are
+different acts and they are declared differently on the Play data-safety
+form, so pro asks once, explicitly, before the first run that would
+transmit a position — naming the caster and what is sent — and keeps a
+switch to revoke it. A line in a settings screen is not consent for
+sending someone's location to a server.
 
 ### (paused) Why an app-side RINEX download would have been paid
 
