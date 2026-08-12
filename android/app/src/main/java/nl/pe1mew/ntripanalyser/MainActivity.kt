@@ -113,7 +113,7 @@ fun MainScreen() {
         ) {
             val doc = runState.document
 
-            VerdictBadge(doc, runState.running)
+            VerdictBadge(doc, runState.running, runState.outcome)
 
             doc?.let { StreamChips(it) }
 
@@ -167,7 +167,11 @@ fun MainScreen() {
 }
 
 @Composable
-private fun VerdictBadge(doc: BridgeDocument?, running: Boolean) {
+private fun VerdictBadge(
+    doc: BridgeDocument?,
+    running: Boolean,
+    outcome: MonitorService.Outcome,
+) {
     val verdict = doc?.kpi?.overallEnum ?: RunVerdict.RUNNING
     val label = doc?.kpi?.overallName ?: stringResource(R.string.verdict_idle)
 
@@ -193,12 +197,27 @@ private fun VerdictBadge(doc: BridgeDocument?, running: Boolean) {
                     color = Color.White,
                     fontSize = 13.sp,
                 )
+                Spacer(Modifier.height(8.dp))
                 if (running) {
-                    Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
                         progress = { k.sustainFraction },
                         modifier = Modifier.fillMaxWidth(),
                         color = Color.White,
+                    )
+                } else {
+                    // "Finished" and "stopped" are deliberately different
+                    // words: a run cut short did not measure what a run
+                    // that reached its verdict measured.
+                    Text(
+                        stringResource(
+                            when (outcome) {
+                                MonitorService.Outcome.STOPPED -> R.string.run_stopped
+                                else -> R.string.run_finished
+                            },
+                            k.elapsedS.toInt(),
+                        ),
+                        color = Color.White,
+                        fontSize = 13.sp,
                     )
                 }
             }

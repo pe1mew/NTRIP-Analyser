@@ -5,6 +5,9 @@
     <string name="verdict_idle">READY</string>
     <string name="sustained_of">%1$d of %2$d s sustained</string>
 
+    <string name="run_finished">Finished after %1$d s</string>
+    <string name="run_stopped">Stopped after %1$d s — measurement incomplete</string>
+
     <string name="action_run">Run the check</string>
     <string name="action_again">Run again</string>
     <string name="action_stop">Stop</string>

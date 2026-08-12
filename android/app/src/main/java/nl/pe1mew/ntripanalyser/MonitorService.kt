@@ -32,11 +32,22 @@ import kotlin.concurrent.thread
  */
 class MonitorService : Service() {
 
+    /**
+     * How a run ended.
+     *
+     * Finishing and being stopped are different events and must read
+     * differently.  A run that reached its verdict is **finished**;
+     * calling that "stopped" borrows the word for aborting and tells the
+     * user their measurement was cut short when it was not.
+     */
+    enum class Outcome { IDLE, RUNNING, FINISHED, STOPPED }
+
     /** What the UI observes. */
     data class RunState(
         val running: Boolean = false,
         val document: BridgeDocument? = null,
         val error: String? = null,
+        val outcome: Outcome = Outcome.IDLE,
     )
 
     private var worker: Thread? = null
@@ -70,7 +81,7 @@ class MonitorService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification(getString(R.string.notif_connecting)))
 
         stopRequested = false
-        _state.value = RunState(running = true)
+        _state.value = RunState(running = true, outcome = Outcome.RUNNING)
 
         worker = thread(name = "ntrip-pump") {
             val bridge = NtripBridge.open(
@@ -80,7 +91,8 @@ class MonitorService : Service() {
             )
             if (bridge == null) {
                 Log.e(TAG, "bridge_open returned null")
-                _state.value = RunState(running = false, error = getString(R.string.err_open))
+                _state.value = RunState(running = false, error = getString(R.string.err_open),
+                                        outcome = Outcome.FINISHED)
                 stopSelf()
                 return@thread
             }
@@ -92,28 +104,39 @@ class MonitorService : Service() {
                 var lastPublish = -1L
                 var endedAtS = -1.0
 
+                // Publishing is a named action because the final
+                // document must be forced out below.  Rate-limiting it
+                // alone left the verdict invisible: the loop published at
+                // most once a second and then broke on the verdict, so a
+                // verdict reached mid-second was never published and the
+                // screen kept the previous one -- reading RUNNING 59 of
+                // 60 s forever on a run that had in fact passed.
+                fun publish(running: Boolean, outcome: Outcome) {
+                    lastPublish = SystemClock.elapsedRealtime()
+                    b.snapshotJson()?.let { json ->
+                        runCatching { bridgeJson.decodeFromString<BridgeDocument>(json) }
+                            .onSuccess { doc ->
+                                _state.value = RunState(running, doc, null, outcome)
+                                updateNotification(doc)
+                            }
+                            .onFailure { Log.w(TAG, "snapshot decode failed", it) }
+                    }
+                }
+
                 while (!stopRequested) {
                     val nowS = (SystemClock.elapsedRealtime() - t0) / 1000.0
                     val alive = b.pump(PUMP_TIMEOUT_MS, nowS) >= 0
 
                     // One document per second: the C side recomputes the
                     // snapshot at 1 Hz, so polling faster only burns battery.
-                    val nowMs = SystemClock.elapsedRealtime()
-                    if (nowMs - lastPublish >= 1000) {
-                        lastPublish = nowMs
-                        b.snapshotJson()?.let { json ->
-                            runCatching { bridgeJson.decodeFromString<BridgeDocument>(json) }
-                                .onSuccess { doc ->
-                                    _state.value = RunState(running = true, document = doc)
-                                    updateNotification(doc)
-                                }
-                                .onFailure { Log.w(TAG, "snapshot decode failed", it) }
-                        }
+                    if (SystemClock.elapsedRealtime() - lastPublish >= 1000) {
+                        publish(true, Outcome.RUNNING)
                     }
 
                     val verdict = b.overall()
                     if (verdict == RunVerdict.OK.ordinal || verdict == RunVerdict.FAILED.ordinal) {
                         Log.i(TAG, "verdict reached: $verdict after ${nowS.toInt()} s")
+                        publish(false, Outcome.FINISHED)   // the state that matters
                         break
                     }
 
@@ -130,6 +153,7 @@ class MonitorService : Service() {
                             endedAtS = nowS
                             Log.w(TAG, "stream ended at ${nowS.toInt()} s; letting the KPI verdict settle")
                         } else if (nowS - endedAtS > STREAM_END_GRACE_S) {
+                            publish(false, Outcome.FINISHED)
                             break
                         }
                         Thread.sleep(200)   // pump no longer blocks; do not spin
@@ -139,7 +163,14 @@ class MonitorService : Service() {
 
             Log.i(TAG, "run finished")
 
-            _state.value = _state.value.copy(running = false)
+            // Whatever path got here, the run is no longer running.  Keep
+            // an outcome already set above; only fill one in if the loop
+            // exited by request.
+            _state.value = _state.value.copy(
+                running = false,
+                outcome = if (_state.value.outcome == Outcome.RUNNING) Outcome.STOPPED
+                          else _state.value.outcome,
+            )
             worker = null
             stopForegroundCompat()
             stopSelf()
@@ -150,7 +181,7 @@ class MonitorService : Service() {
         stopRequested = true
         worker?.join(2000)
         worker = null
-        _state.value = _state.value.copy(running = false)
+        _state.value = _state.value.copy(running = false, outcome = Outcome.STOPPED)
         stopForegroundCompat()
         stopSelf()
     }

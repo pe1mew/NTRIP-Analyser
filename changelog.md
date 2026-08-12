@@ -64,7 +64,17 @@ opened ended the run immediately, dropping the UI back to READY instead
 of reporting why -- it now keeps evaluating until the KPI engine returns
 FAILED with the reason.
 
-Two fixes came from first use: the caster field uses a URI keyboard,
+Two more came from watching a real run.  **The verdict never reached the
+screen**: the loop published at most once a second and then broke on the
+verdict, so a verdict reached mid-second was never published and the
+badge read RUNNING 59 of 60 s forever on a station that had passed.  The
+final document is now forced out before the loop exits.  And the badge
+distinguishes **finished** from **stopped** -- a run that reached its
+verdict is finished, and borrowing the abort word for it tells the user
+their measurement was cut short when it was not.  A stopped run says so,
+with "measurement incomplete".
+
+Two further fixes came from first use: the caster field uses a URI keyboard,
 because EMUI inserts a space after every full stop and filtering those
 out as the user types fights the IME's composing region and duplicates
 characters; and the ongoing notification shows a download icon, since
