@@ -60,6 +60,17 @@ marks the end of the whole multi-constellation bundle for a station and epoch, n
 message type's frames. `msm_get_multiple_message_bit()` exposes it for bundle-boundary work, but
 the epoch field is what the rate check uses.
 
+**Since extended into KPI 8**, so the comparison is a verdict on every frontend rather than a table
+in one of them. An advertised type that never arrives fails; sending types or constellations that
+were never advertised is an observation and warns, because the data is right and only the metadata
+is wrong. Constellations are judged against the sourcetable's NavSys field, never the 1005/1006
+indicator bits — those cover GPS, GLONASS and Galileo only, so judging by them faults every
+BeiDou-capable base.
+
+The KPI reads its advertisement from the session (`ns_set_advertised`, `ns_set_advertised_gnss`).
+The GUI called neither and answered the question from its own ListView rows instead; it now feeds
+the session too, so the tab and the check cannot disagree.
+
 ### 1.2 Cross-check sourcetable position against broadcast ARP — **Shipped**
 
 Four rows on the Stream Health tab: station type, broadcast ARP, sourcetable match, ARP stability.

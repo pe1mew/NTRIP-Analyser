@@ -6,6 +6,11 @@ The Windows GUI application (`ntrip-analyser-gui.exe`) provides a user-friendly 
 
 - **Interactive connection management** - Easy configuration of NTRIP caster settings
 - **Real-time stream monitoring** - Live display of received RTCM messages
+- **Station check** - The acceptance test as a bounded run: eight KPIs
+  over about ninety seconds, ending in a verdict that stops moving, plus
+  the VRS assertions when the mountpoint is a network service. The same
+  engine as the CLI's `--check` and the Android app, so a station cannot
+  pass on one and fail on another
 - **Message analysis** - Per-type statistics, compared against what the
   mountpoint's sourcetable entry advertises
 - **Stream health** - Caster handshake, CRC-24Q integrity, advertised-vs-
@@ -558,6 +563,60 @@ without needing the caster.
 - Error messages and warnings
 - Mountpoint sourcetable
 
+#### ✅ Station Check (View > Station Check)
+
+**Purpose:** Answer one question about the mountpoint you are connected
+to — *is this station fit to serve RTK?* — and answer it in a way you
+can put in a handover.
+
+Open a stream first, then press **Run Check**. It watches for about
+ninety seconds and reports eight KPIs:
+
+| # | KPI | Fails when |
+|---|---|---|
+| 1 | Connected and producing | nothing is arriving |
+| 2 | RTCM 3.x format | no CRC-valid RTCM 3 frames decode |
+| 3 | Reference position (ARP) | no 1005/1006, or zero coordinates |
+| 4 | Multi-GNSS observations | fewer than two constellations at 0.5 Hz |
+| 5 | Satellites in view | below the 25-SV threshold *(soft)* |
+| 6 | Median C/N0 | below 40 dB-Hz *(soft)* |
+| 7 | Frame integrity (CRC) | more than 1 error per 1000 frames |
+| 8 | Advertised versus actual | advertised message types never arrive |
+
+KPI 8 compares the sourcetable's promise against delivery. A type that
+is advertised but missing is a failure — a rover configured from that
+sourcetable will not get what it was told to expect. Sending types or
+constellations that were *never* advertised is an observation instead: a
+warning, because the data is right and only the metadata is wrong.
+
+**The verdict is what has to hold**, not each row: it must stay unchanged
+for sixty continuous seconds before it is reported, so a station that
+flickers cannot pass by being healthy at the right moment.
+
+A run ends in one of three ways, and the header says which:
+
+| End | Header reads |
+|---|---|
+| The verdict settled | `STATION OK` / `CAUTION` / `FAILED` — *settled after 91 s, held 60 s* |
+| You pressed Stop | *stopped after 20 s — no verdict* |
+| The stream closed, or 300 s passed | *the stream closed after 18 s — no verdict* |
+
+The 300-second ceiling matters for one case in particular: a mountpoint
+the caster does not list in its sourcetable leaves KPI 8 unable to judge
+— deliberately, since "could not check" is not a pass — and a run with an
+unjudgeable KPI would otherwise never conclude.
+
+**VRS assertions** are added automatically when the station is
+classified as a network service (see Stream Health → Station type): the
+caster accepts the GGA, corrections start within 10 s of it, the ARP is
+near the rover, and the stream holds at the GGA cadence.
+
+The fifth assertion, the **gate test**, is opt-in via the checkbox
+because it ends the session it is testing: it stops the keep-alive GGA
+and waits for the caster to drop the stream. A drop means a live network
+service; continued streaming means a fixed base. That is a
+classification, not a fault.
+
 ### Keyboard Shortcuts
 
 **Main window:**
@@ -611,6 +670,7 @@ by capture time.
 - **Close Stream** (`Esc`)
 
 **View Menu:**
+- **Station Check...** — the acceptance test over the open stream
 - **Sky Plot...** — floating polar sky-visibility window
 - **VRS Monitor...** — network-mountpoint analysis
 - **Signal Quality...** — C/N0 bars and C/N0-vs-elevation scatter
@@ -722,6 +782,7 @@ gui/
 ├── gui_signal_window.c — Floating Signal Quality (C/N0 bars + scatter)
 ├── gui_hist_window.c   — Floating Session History (six strip charts)
 ├── gui_vrs_window.c    — Floating VRS Monitor (distance, polar, chart)
+├── gui_check_window.c  — Floating Station Check (KPI rows, verdict, VRS)
 ├── gui_snapshot.c      — GDI+ PNG snapshot + shared save-with-prompt flow
 ├── gui_sv_detail.c     — Per-SV detail popup (left-click on marker)
 ├── gui_state.h         — AppState structure, constants, function prototypes
@@ -731,7 +792,8 @@ gui/
 src/  (shared with CLI, additions for the Sky Plot)
 ├── sv_ephemeris.{c,h} — Per-(GNSS,PRN) eph cache, TOW-only validity
 ├── sv_orbit.{c,h}     — Keplerian + GLONASS RK4 propagators, sv_to_ecef
-└── rinex_nav.{c,h}    — RINEX 3 multi-GNSS NAV loader (GUI-only)
+└── rinex_nav.{c,h}    — RINEX 3 multi-GNSS NAV loader (also CLI -R,
+                          and the Android app's file import)
 ```
 
 ### Key Functions
@@ -801,10 +863,10 @@ The planned and considered work lives in the project-wide backlog:
 why, so the same ideas are not re-proposed.
 
 Still open at the time of writing: structured export of analysis results
-(CSV / JSON — only PNG snapshots exist today), monitoring several
-mountpoints at once, a dark theme, an ionospheric monitor, and optional
-realtime / Nx pacing for the replay worker, which currently runs as fast
-as disk and CPU allow.
+(CSV / JSON — only PNG snapshots and `File > Export Statistics` exist
+today), a saved station-check report for handover, monitoring several
+mountpoints at once, a dark theme, and optional realtime / Nx pacing for
+the replay worker, which currently runs as fast as disk and CPU allow.
 
 ## See Also
 

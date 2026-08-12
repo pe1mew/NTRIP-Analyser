@@ -6,9 +6,154 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the station check in the Windows GUI
+
+`View > Station Check`. The GUI had no acceptance test at all: the CLI
+had `--check`, the phone had a station mode, and the GUI never linked
+`kpi.c`. It runs the same engine over the stream already open — a
+bounded run the user starts, ending in a verdict that stops moving,
+because a reading that keeps changing cannot be quoted in a handover.
+
+Wiring it up found a live defect in the GUI rather than in the new
+window. KPI 8 reads the mountpoint's promise from the **session**, via
+`ns_set_advertised()` and `ns_set_advertised_gnss()` — which the CLI and
+the Android bridge both call and the GUI called neither of, computing
+its own advertised-versus-observed answer from its Msg Stats ListView
+instead. Left alone, the check would have judged against an empty
+advertisement and passed every station. The session is now fed from the
+sourcetable entry the GUI already fetches on connect, so the two cannot
+drift apart. `SourcetableFindMountpoint()` returns the STR nav-system
+field for the same reason: the 1005/1006 indicator bits cover GPS,
+GLONASS and Galileo only, so a BeiDou-capable base cannot declare it
+there and judging by those bits would fault every one.
+
+The run state lives in `AppState`, not the window, so closing the window
+does not abandon a ninety-second test, and it advances on the statistics
+event rather than a window timer, so the KPI clock steps exactly once
+per snapshot.
+
+VRS assertions run when the station is classified as a network service.
+The gate test stays opt-in: it stops the keep-alive GGA and waits for the
+caster to drop the stream, which ends the session it is testing.
+
+Two ways a run could end without saying so, both found by testing rather
+than reasoning. A run stopped before settling left the header reading
+"35 s elapsed, verdict held 4 of 60 s" — indistinguishable from one
+still counting. And a run had no ceiling: a mountpoint the caster does
+not list leaves KPI 8 pending for ever (rightly — "could not check" is
+not a pass), a pending KPI holds the roll-up at RUNNING, and nothing
+stopped it. The 300-second ceiling from the CLI now applies, and the
+header names which of three ways the run ended.
+
+Verified live on RFSEE01: CAUTION, settled after 91 s, held 60 s, KPI 8
+warning — the same verdict `--check` reaches on the same station.
+
+### Added — KPI 8, advertised versus actual
+
+The acceptance test grew an eighth KPI, on every frontend: does the
+station deliver what its sourcetable entry claims? An advertised message
+type that never arrives **fails** — a rover configured from that
+sourcetable will not receive what it was told to expect. Sending types or
+constellations that were never advertised is an **observation**: a
+warning, because the data is right and only the metadata is wrong.
+
+Constellations are judged against the STR nav-system field rather than
+the 1005/1006 indicator bits, and only in the one direction. Advertising
+a constellation that is not currently streamed is ordinary — QZSS is
+advertised across Europe and visible from none of it — and judging that
+as a fault failed real stations three separate times before the rule
+settled.
+
+`--check` on RFSEE01 now returns CAUTION rather than STATION OK: the
+station streams a constellation its sourcetable omits. The stream is
+fine; the advertisement is not.
+
+### Added — a regression test for the RINEX navigation loader
+
+`test/test_rinex_nav.c`, run by `cmake --build build --target test_all`.
+The project had no test infrastructure; this adds it, linking
+`ntrip_core` only so a test run needs no network and no caster.
+
+The fixture is nine real records from BKG's daily broadcast file: one per
+constellation, two GLONASS records in the RINEX 3.05 shape back to back
+as a real file has them, one shortened to the 3.04 shape, and an SBAS
+record that must be skipped without losing phase. The back-to-back pair
+is the point — a first fixture with a single GLONASS record passed
+against the *broken* parser, because its four-line skip happened to land
+exactly on the SBAS record.
+
+### Fixed — GLONASS was missing from every RINEX navigation file
+
+Three defects, and together they cost the free Android edition its only
+orbit source.
+
+**The parser lost phase.** RINEX 3.05 gives GLONASS a fourth orbit line
+that 3.04 did not. The loader consumed a fixed three, and the leftover
+line — taken for an unknown system — triggered a four-line skip that ate
+good records. One GLONASS satellite survived out of 279 in a daily file.
+Records are now read by structure, not by counting lines per system: an
+epoch line names its system in column 1, a continuation line begins with
+spaces.
+
+**The validity window then rejected what did parse.** A daily file is
+published a couple of hours after its last record, and GLONASS was
+allowed two. Measured against the file's own later records, the
+state-vector propagator drifts **0.1 km at 2 h and 1.9 km at 6 h** —
+0.006° as seen from the ground, against markers about a degree wide. The
+window is 4 h, as for GPS and Galileo.
+
+**Ephemeris age was computed across incompatible scales.** It took the
+entry with the highest week and toe, over systems whose week numbers
+share no origin, and picked a NavIC record with a reference epoch 7.4 h
+in the *future* — returning a negative age that the phone rendered as
+"no orbits yet, the sky view cannot place anything" over a cache of 139
+orbits. Age is now the smallest per-satellite age in each system's own
+frame, and an epoch ahead of now counts as fresh.
+
+Verified end to end with BKG's daily file: 113 → **139 satellites
+cached, 135 usable**, GLONASS 1 → 27; the free edition places 46 of 46
+tracked satellites from the imported file, and the GUI's sky plot draws
+27 GLONASS satellites where it drew one.
+
+### Added — the Android navigation-file import says what happened
+
+Importing a file said nothing at all, so a file that copied cleanly but
+held no orbits was indistinguishable from one that worked until a run
+came up empty an hour later. The file is now read the moment it is
+picked — off the main thread, through a session-free entry point, since
+the orbit cache belongs to the process rather than to a stream — and the
+dialog states the file name and the records accepted, or why none were.
+
+Imports are also staged and promoted only if they carry orbits. Before,
+the copy overwrote the live file first, so picking the wrong file from a
+crowded Downloads folder destroyed a working set of orbits.
+
+Gzip archives were already unpacked on the way in; the message now says
+so, since nothing else did.
+
+### Fixed — the Android sky view and its orbit card
+
+A cluster of things the plot said that were not true. The satellite-orbit
+card announced "0 of 41 tracked satellites have an orbit" in red beside a
+view that was plainly placing 22 of them from the phone's own GNSS —
+having no broadcast orbits is the free edition's ordinary state, not a
+fault, so the coverage count now appears only when there are orbits to
+count and the card names the source the plot was drawn from. The sky view
+credited an "ephemeris stream" for orbits that came from the user's file.
+Elevation ring labels disappeared under any satellite sitting on the
+ring, and a satellite at zero elevation was drawn half outside the plot.
+
+### Changed — the CLI help and docs said seven KPIs
+
+`--check` reports eight. `docs/cli.md` also carried a sample output that
+predated both KPI 8 and the rule that the *verdict*, not each row, is
+what must hold for sixty seconds. Replaced with a live run. The GUI's
+RINEX load message tallied five constellations and omitted NavIC, so a
+file carrying 36 NavIC records reported none.
+
 ### Added — the station acceptance test (Android Phase 0)
 
-`src/core/kpi.c`: the seven-KPI verdict engine from the Android design,
+`src/core/kpi.c`: the KPI verdict engine from the Android design,
 in shared core per design-review D1 so the phone, a future CLI `--check`
 and anything else judge a station identically.  Each KPI evaluates
 PASS/warn/FAIL/pending against the session snapshot; the overall verdict
@@ -65,7 +210,7 @@ leaving the user to wonder why the run button does nothing.
 ### Added — the Android app, Normal mode (Phase 1)
 
 `android/` now holds a buildable Android project: one screen, one
-verdict, seven rows.  It connects, watches for about ninety seconds, and
+verdict, a row per KPI.  It connects, watches for about ninety seconds, and
 shows STATION OK, CAUTION or FAILED.
 
 No threshold lives in Kotlin — the verdict comes from `src/core/kpi.c`,
@@ -146,7 +291,7 @@ behaviour for a physical station.
 
 The CLI surfaces both engines:
 
-    ntrip-analyser --check        # seven KPIs, ~90 s
+    ntrip-analyser --check        # eight KPIs, ~90 s
     ntrip-analyser --check-vrs    # plus the network-RTK assertions
 
 Exit codes make it scriptable for installer sign-off or cron: 0 STATION

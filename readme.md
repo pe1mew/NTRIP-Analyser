@@ -57,6 +57,7 @@ and in what they can show.
 | Best for | Investigating a stream interactively | Automation, scripting, cron, headless servers |
 | Live visualisation | Sky plot, signal quality, session history, VRS monitor | Sky-coverage heatmap (PNG, via `--sky`) |
 | Stream health checks | Yes — handshake, CRC, advertised-vs-observed, position | No |
+| Station acceptance test | Yes — View > Station Check | Yes — `--check` / `--check-vrs`, with exit codes for scripting |
 | Output | On-screen, plus PNG snapshots | Console text, plus PNG for `--sky` |
 
 > **Trying it out:** a ready-to-edit configuration ships as
@@ -122,7 +123,15 @@ The analyser can perform the following operations on NTRIP streams:
    - Message statistics (count, minimum/average/maximum transmission intervals)
    - Filtered message decoding (show only specific message types)
    - Satellite analysis (count unique satellites per GNSS constellation)
-3. **Stream health checks** (GUI) — answers "is this mountpoint actually
+3. **Station acceptance test** — eight KPIs over about ninety seconds,
+   ending in a verdict that must hold for sixty continuous seconds before
+   it is reported, so a station that flickers cannot pass by being healthy
+   at the right moment. Available as `--check` in the CLI (exit 0 / 6 / 1,
+   for installer sign-off or cron), as **View > Station Check** in the
+   GUI, and as station mode in the Android app — one engine
+   (`src/core/kpi.c`), so a station cannot pass in one and fail in
+   another. Network mountpoints add the VRS assertions (`--check-vrs`).
+4. **Stream health checks** (GUI) — answers "is this mountpoint actually
    healthy", not just "is data arriving":
    - **Caster handshake** — NTRIP 1.0 (ICY) vs 2.0 (HTTP), response status
      and caster software, with the full response headers in the log
@@ -137,7 +146,7 @@ The analyser can perform the following operations on NTRIP streams:
    - **VRS awareness** — network mountpoints are classified as such, so the
      fixed-base checks are not applied where a moving reference point is
      correct behaviour
-4. **Live polar sky plot** (GUI) — floating window showing every tracked
+5. **Live polar sky plot** (GUI) — floating window showing every tracked
    satellite at its azimuth / elevation as seen from the reference-station
    ARP, with two render modes:
    - **Markers** — per-GNSS coloured dots shaded by CNR, with a trail of
@@ -145,27 +154,27 @@ The analyser can perform the following operations on NTRIP streams:
      (per-band CNR table, PRN, az/el)
    - **Heatmap** — Onocoy-style observed-vs-expected sector coverage map
      (150 sectors, red → yellow → green ramp)
-5. **Signal quality** (GUI) — C/N0 bars per satellite for the current epoch,
+6. **Signal quality** (GUI) — C/N0 bars per satellite for the current epoch,
    plus a C/N0-versus-elevation scatter over the whole session with a
    per-constellation mean. A clean antenna installation rises monotonically
    from horizon to zenith; obstructions and multipath show as a dip at
    particular elevations
-6. **Session history** (GUI) — throughput, message rate, CRC errors,
+7. **Session history** (GUI) — throughput, message rate, CRC errors,
    satellites tracked, mean C/N0 and reference-point drift plotted over time
    on a shared axis, so dropouts, bursts and reconnects are visible rather
    than averaged away
-7. **VRS monitor** (GUI) — rover-to-virtual-station distance, a polar
+8. **VRS monitor** (GUI) — rover-to-virtual-station distance, a polar
    direction plot and a rolling distance chart, for analysing network
    services and their hand-overs
-8. **Multi-GNSS ephemeris** (GPS / GLONASS / Galileo / QZSS / BeiDou) sourced
+9. **Multi-GNSS ephemeris** (GPS / GLONASS / Galileo / QZSS / BeiDou) sourced
    from one of:
    - A second NTRIP connection that feeds RTCM 1019 / 1020 / 1042 / 1044 /
      1045 / 1046 frames into the eph cache (e.g. BKG `BCEP00BKG0` or
      Kadaster `BCEP00KAD0`), or
    - A RINEX 3 multi-GNSS NAV file loaded from disk
-9. **RTCM capture and replay** (GUI) — save the live stream to a `.rtcm3`
+10. **RTCM capture and replay** (GUI) — save the live stream to a `.rtcm3`
    file and feed it back through the same UI pipeline for offline analysis
-10. **PNG snapshots** of the sky plot, signal-quality and session-history
+11. **PNG snapshots** of the sky plot, signal-quality and session-history
     windows, each self-contained with its own header/footer context
 
 ## Documentation
