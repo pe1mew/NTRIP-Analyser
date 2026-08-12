@@ -40,6 +40,7 @@
 
 #include "core/ns_stats.h"
 #include "core/sv_track.h"
+#include "core/sourcetable.h"
 #include "net/ntrip_proto.h"
 #include "net/ntrip_handler.h"   /* NTRIP_Config */
 
@@ -223,6 +224,23 @@ const NsStatsSnapshot *ns_stats(const NtripSession *s);
  * @return Number written, or the total when @p out is NULL.
  */
 int ns_sat_list(const NtripSession *s, SvTrackEntry *out, int max);
+
+/**
+ * @brief Tell the session what the sourcetable advertises.
+ *
+ * Enables the advertised-versus-observed comparison, whose roll-up
+ * appears in @ref NsStatsSnapshot as `types_missing`, `types_offrate`
+ * and `types_extra`. Without it those stay zero and
+ * `advertised_known` stays false, which the KPI reads as "cannot judge"
+ * rather than "nothing wrong".
+ *
+ * The session copies the list; the caller may free it.
+ *
+ * @param s    Session.
+ * @param list Advertised types and their promised intervals.
+ * @param n    Number of entries.
+ */
+void ns_set_advertised(NtripSession *s, const SourcetableType *list, int n);
 
 /**
  * @brief Per-satellite ionospheric measurements for display.

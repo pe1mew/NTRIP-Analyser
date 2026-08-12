@@ -15,6 +15,7 @@
 
 #include "cli/cli_stream.h"
 #include "core/kpi.h"
+#include "core/sourcetable.h"
 #include "core/vrs_check.h"
 #include <time.h>
 
@@ -476,6 +477,38 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     if (!sess) {
         fprintf(stderr, "[CHECK] Could not open the session\n");
         return 1;
+    }
+
+    /* What this mountpoint promises, so the advertised-versus-actual
+     * KPI has something to compare against.  Without it that KPI can
+     * only report "cannot judge", and the run never reaches a verdict. */
+    {
+        char *table = receive_mount_table(config,
+                                          NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI));
+        if (table) {
+            int n = sourcetable_parse(table, NULL, 0);
+            SourcetableEntry *e = (n > 0)
+                ? (SourcetableEntry *)calloc((size_t)n, sizeof(*e)) : NULL;
+            if (e) {
+                n = sourcetable_parse(table, e, n);
+                for (int i = 0; i < n; i++) {
+                    if (strcmp(e[i].mountpoint, config->MOUNTPOINT) != 0) continue;
+                    SourcetableType t[NS_MAX_TYPES];
+                    int nt = sourcetable_parse_types(e[i].format_details,
+                                                     t, NS_MAX_TYPES);
+                    if (nt > 0) {
+                        ns_set_advertised(sess, t, nt);
+                        fprintf(stderr, "[CHECK] %s advertises %d message types\n",
+                                config->MOUNTPOINT, nt);
+                    }
+                    break;
+                }
+                free(e);
+            }
+            free(table);
+        } else {
+            fprintf(stderr, "[CHECK] No sourcetable; KPI 8 cannot be judged\n");
+        }
     }
 
     KpiRun krun;  KpiReport kr;

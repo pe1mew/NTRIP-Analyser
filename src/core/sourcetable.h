@@ -55,6 +55,28 @@ typedef struct {
     bool   nmea;             /**< caster expects a GGA uplink     */
 } SourcetableEntry;
 
+/** @brief One advertised message type and the rate it promises. */
+typedef struct {
+    int    type;         /**< RTCM message number                      */
+    double interval_s;   /**< advertised interval; 0 when unstated      */
+} SourcetableType;
+
+/**
+ * @brief Parse a format-details field into advertised types.
+ *
+ * The field lists what a mountpoint promises to send, and how often:
+ * `1005(10),1077(1),1087(1)` -- type 1005 every ten seconds, 1077 and
+ * 1087 every second. A type with no parenthesised interval is promised
+ * without a rate, which is a weaker promise but still a promise.
+ *
+ * @param details Format-details text, as @ref SourcetableEntry carries.
+ * @param out     [out] Destination; NULL to count only.
+ * @param max     Capacity of @p out.
+ * @return Number parsed, or the total when @p out is NULL.
+ */
+int sourcetable_parse_types(const char *details,
+                            SourcetableType *out, int max);
+
 /**
  * @brief Parse `STR` records out of a raw sourcetable.
  *

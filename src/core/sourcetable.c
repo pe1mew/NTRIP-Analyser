@@ -92,3 +92,46 @@ int sourcetable_parse(const char *raw, SourcetableEntry *out, int max)
     }
     return n;
 }
+
+int sourcetable_parse_types(const char *details, SourcetableType *out, int max)
+{
+    if (!details) return 0;
+
+    int n = 0;
+    const char *p = details;
+
+    while (*p) {
+        while (*p && (*p == ',' || *p == ' ')) p++;
+        if (!*p) break;
+
+        char *end = NULL;
+        long type = strtol(p, &end, 10);
+        if (end == p) {                 /* not a number: skip this token */
+            while (*p && *p != ',') p++;
+            continue;
+        }
+        p = end;
+
+        double interval = 0.0;
+        if (*p == '(') {
+            p++;
+            interval = strtod(p, &end);
+            if (end != p) p = end;
+            while (*p && *p != ')' && *p != ',') p++;
+            if (*p == ')') p++;
+        }
+
+        if (type >= 1000 && type <= 4095) {
+            if (!out) {
+                n++;
+            } else if (n < max) {
+                out[n].type = (int)type;
+                out[n].interval_s = interval;
+                n++;
+            } else {
+                break;
+            }
+        }
+    }
+    return n;
+}

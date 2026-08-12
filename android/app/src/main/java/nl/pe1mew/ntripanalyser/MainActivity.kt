@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -124,6 +125,36 @@ fun MainScreen() {
     var haveLocation by remember { mutableStateOf(hasLocationPermission(context)) }
     var openSky by remember { mutableStateOf(false) }
     var rinexName by remember { mutableStateOf(Settings.rinexName(context)) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
+
+    // The same config.json the CLI and the GUI read and write, so a
+    // configuration moves between desktop and phone unchanged.
+    val pickConfig = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val cfg = ConfigFile.load(context, uri)
+            notice = if (cfg == null) {
+                context.getString(R.string.config_load_failed)
+            } else {
+                settings = cfg.toSettings(settings)
+                Settings.save(context, settings)
+                context.getString(R.string.config_loaded, settings.mountpoint)
+            }
+        }
+    }
+
+    val saveConfig = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            notice = if (ConfigFile.save(context, uri, settings))
+                context.getString(R.string.config_saved)
+            else context.getString(R.string.config_save_failed)
+        }
+    }
 
     // The app never downloads a navigation file: the user obtains it and
     // so holds the relationship with the data provider, including its
@@ -235,6 +266,10 @@ fun MainScreen() {
         while (elevSamples.size > 20000) elevSamples.removeAt(0)
     }
 
+    // The system back key belongs to the app while a screen is open:
+    // minimising from Analysis loses the user's place for no reason.
+    BackHandler(enabled = screen != Screen.STATION) { screen = Screen.STATION }
+
     if (screen == Screen.ANALYSIS) {
         val footer = liveDoc?.stats?.let { st ->
             buildString {
@@ -337,10 +372,31 @@ fun MainScreen() {
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
-                actions = {
-                    IconButton(onClick = { showSettings = true }) {
-                        Text("⚙", fontSize = 20.sp)
+                navigationIcon = {
+                    // One way into everything that is not a measurement:
+                    // settings, files, and where to get help. The main
+                    // screen stays about the station under test.
+                    IconButton(onClick = { menuOpen = true }) {
+                        Text("☰", fontSize = 22.sp)
                     }
+                    AppMenu(
+                        open = menuOpen,
+                        onDismiss = { menuOpen = false },
+                        onSettings = { menuOpen = false; showSettings = true },
+                        onImportRinex = {
+                            menuOpen = false
+                            pickRinex.launch(arrayOf("*/*"))
+                        },
+                        onLoadConfig = {
+                            menuOpen = false
+                            pickConfig.launch(arrayOf("application/json", "*/*"))
+                        },
+                        onSaveConfig = {
+                            menuOpen = false
+                            saveConfig.launch("config.json")
+                        },
+                        onAbout = { menuOpen = false; showAbout = true },
+                    )
                 },
             )
         }
@@ -358,8 +414,12 @@ fun MainScreen() {
             VerdictBadge(doc, runState.running, runState.outcome, settings.isComplete)
 
             // What this run is (or would be) pointed at, without making
-            // the user open the settings screen to find out.
-            ConfigSummary(settings) { showSettings = true }
+            // the user open the settings screen to find out. Dropped
+            // while a run is going: the chips below already name the
+            // mountpoint, and the space is better spent on results.
+            if (!runState.running) {
+                ConfigSummary(settings) { showSettings = true }
+            }
 
             if (settings.caster.isNotBlank()) {
                 TextButton(onClick = { showSourcetable = true }) {
@@ -384,10 +444,20 @@ fun MainScreen() {
             // Two ways to run, chosen at the moment of running: grade the
             // station once, or watch it.  Neither is a caster setting.
             if (runState.running) {
-                Button(
-                    onClick = { MonitorService.stop(context) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.action_stop)) }
+                // Analysis must stay reachable during a run: watching a
+                // check unfold is the point of having the views, and
+                // hiding the way in until it finishes made a running
+                // test unobservable.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { MonitorService.stop(context) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.action_stop)) }
+                    OutlinedButton(
+                        onClick = { openSky = true },
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.mode_analysis)) }
+                }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -412,7 +482,7 @@ fun MainScreen() {
 
             // Where the orbits stand: incompleteness and age are shown,
             // never left implicit.
-            doc?.eph?.let { EphCard(it, rinexName) { pickRinex.launch(arrayOf("*/*")) } }
+            doc?.eph?.let { EphCard(it, rinexName) }
 
 
 
@@ -435,6 +505,22 @@ fun MainScreen() {
                 showSourcetable = false
             },
         )
+    }
+
+    notice?.let { text ->
+        AlertDialog(
+            onDismissRequest = { notice = null },
+            text = { Text(text) },
+            confirmButton = {
+                TextButton(onClick = { notice = null }) {
+                    Text(stringResource(R.string.action_close))
+                }
+            },
+        )
+    }
+
+    if (showAbout) {
+        AboutDialog { showAbout = false }
     }
 
     if (showSettings) {
@@ -1077,7 +1163,7 @@ fun hasLocationPermission(context: android.content.Context): Boolean =
  * rather than left for the user to infer from a sparse plot.
  */
 @Composable
-private fun EphCard(eph: EphState, rinexName: String?, onImport: () -> Unit) {
+private fun EphCard(eph: EphState, rinexName: String?) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -1112,9 +1198,91 @@ private fun EphCard(eph: EphState, rinexName: String?, onImport: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(onClick = onImport) {
-                Text(stringResource(R.string.action_import_rinex))
-            }
         }
     }
 }
+
+/**
+ * Everything that is not a measurement.
+ *
+ * Config files and the RINEX import live here rather than on the main
+ * screen: the main screen is for the station under test, and a button
+ * that is used once a month should not compete with one used every day.
+ */
+@Composable
+private fun AppMenu(
+    open: Boolean,
+    onDismiss: () -> Unit,
+    onSettings: () -> Unit,
+    onImportRinex: () -> Unit,
+    onLoadConfig: () -> Unit,
+    onSaveConfig: () -> Unit,
+    onAbout: () -> Unit,
+) {
+    DropdownMenu(expanded = open, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.menu_settings)) },
+            onClick = onSettings,
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.action_import_rinex)) },
+            onClick = onImportRinex,
+        )
+        // Loading and saving whole configurations is a pro capability;
+        // the free edition keeps the one mountpoint it is typed into.
+        if (Features.IS_PRO) {
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.menu_load_config)) },
+                onClick = onLoadConfig,
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.menu_save_config)) },
+                onClick = onSaveConfig,
+            )
+        }
+        HorizontalDivider()
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.menu_about)) },
+            onClick = onAbout,
+        )
+    }
+}
+
+/** What this is, who made it, and where to go for more. */
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.app_name)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(R.string.about_version,
+                                   BuildConfig.VERSION_NAME),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    stringResource(R.string.about_blurb),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = { uriHandler.openUri(REPO_URL) }) {
+                    Text(stringResource(R.string.about_repo))
+                }
+                TextButton(onClick = { uriHandler.openUri(HELP_URL) }) {
+                    Text(stringResource(R.string.about_help))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
+}
+
+private const val REPO_URL = "https://github.com/pe1mew/NTRIP-Analyser"
+private const val HELP_URL =
+    "https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/readme.md"

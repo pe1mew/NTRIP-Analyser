@@ -210,11 +210,67 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         k[6].detail  = "Link is corrupting frames";
     }
 
+    /* ── 8: advertised versus actual ────────────────────────────────── */
+    k[7].label = "Advertised versus actual";
+    if (!s->advertised_known) {
+        /* No sourcetable entry: the promise is unknown, so nothing can
+         * be judged.  Deliberately not a pass -- "we could not check"
+         * and "we checked and it was fine" are different statements. */
+        k[7].verdict = KPI_PENDING;
+        k[7].detail  = "No sourcetable entry to compare against";
+    } else if (out->elapsed_s < 30.0) {
+        /* The session applies a per-type grace proportional to each
+         * advertised interval; this floor keeps the KPI quiet until
+         * even the fastest of them has had several chances. */
+        k[7].verdict = KPI_PENDING;
+        k[7].detail  = "Waiting for the advertised types to arrive";
+    } else if (s->types_missing > 0) {
+        /* A promise not kept.  A rover configured from this
+         * sourcetable will not receive what it was told to expect, so
+         * this fails rather than merely warns. */
+        k[7].verdict = KPI_FAIL;
+        k[7].value   = (double)s->types_missing;
+        k[7].detail  = "Advertised message types are not being sent";
+    } else {
+        int obs = s->types_offrate + s->types_extra;
+        /* The station describing itself as serving fewer systems than
+         * it streams is an observation of the same kind: the metadata
+         * is wrong, the data is not. */
+        bool gnss_mismatch = false;
+        if (s->arp_valid) {
+            for (int i = 0; i < s->n_gnss; i++) {
+                if (s->gnss[i].sats_tracked <= 0) continue;
+                int id = s->gnss[i].gnss_id;
+                if (id == 1 && !s->arp_says_gps)     gnss_mismatch = true;
+                if (id == 2 && !s->arp_says_glonass) gnss_mismatch = true;
+                if (id == 3 && !s->arp_says_galileo) gnss_mismatch = true;
+            }
+        }
+        if (gnss_mismatch) obs++;
+
+        k[7].value = (double)obs;
+        if (obs == 0) {
+            k[7].verdict = KPI_PASS;
+            k[7].detail  = "Delivers what the sourcetable advertises";
+        } else {
+            k[7].verdict = KPI_WARN;
+            k[7].detail  = s->types_offrate > 0
+                ? "Some types arrive off their advertised rate"
+                : (s->types_extra > 0
+                   ? "Sending types the sourcetable does not advertise"
+                   : "Station describes fewer systems than it streams");
+        }
+    }
+
     /* ── Roll-up, per the design's rule ─────────────────────────────── */
     bool all_pass = true, any_pending = false;
     bool hard_fail = false, any_warn = false, soft_fail = false;
+    /* KPI 8 is hard on failure: a station that does not send what it
+     * advertises breaks any rover configured from that advertisement.
+     * Its softer findings are warnings, which the roll-up turns into
+     * CAUTION rather than FAILED. */
     static const bool is_hard[KPI_COUNT] =
-        { true, true, true, true, false, false, true };
+        { true, true, true, true, false, false, true, true };
 
     for (int i = 0; i < KPI_COUNT; i++) {
         switch (k[i].verdict) {

@@ -22,7 +22,7 @@
  *
  *  - every KPI PASS continuously for @ref KPI_SUSTAIN_S  ->  OK
  *  - any WARN (or a FAIL on the soft KPIs 5 or 6)        ->  CAUTION
- *  - FAIL on a hard KPI (1, 2, 3, 4 or 7)                ->  FAILED
+ *  - FAIL on a hard KPI (1, 2, 3, 4, 7 or 8)             ->  FAILED
  *  - evidence still accumulating                          ->  RUNNING
  *
  * Core module: no I/O, no platform headers, no allocation.
@@ -64,7 +64,7 @@ extern "C" {
 #define KPI_MAX_CRC_RATE    0.001
 
 /** @brief Number of KPIs in the rudimentary set. */
-#define KPI_COUNT 7
+#define KPI_COUNT 8
 
 /** @brief Verdict for one KPI at one instant. */
 typedef enum {

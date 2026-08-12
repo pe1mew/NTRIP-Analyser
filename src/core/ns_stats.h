@@ -177,6 +177,13 @@ typedef struct {
     /* ── Reference station ────────────────────────────────────────── */
     int      station_type;        /**< @ref NsStationType                */
     bool     arp_valid;           /**< a 1005/1006 has been received     */
+    /* What the 1005/1006 says the station serves.  Compared against the
+     * MSM actually streamed: a station advertising GPS only while
+     * sending Galileo is describing itself wrongly, which matters to
+     * anyone configuring a rover from that description. */
+    bool     arp_says_gps;
+    bool     arp_says_glonass;
+    bool     arp_says_galileo;
     double   arp_lat, arp_lon, arp_alt;
     double   arp_drift_m;         /**< from the first ARP; NS_UNSET if none */
     int      arp_moves;           /**< distinct positions beyond a threshold */

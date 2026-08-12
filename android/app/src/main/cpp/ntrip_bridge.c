@@ -27,6 +27,9 @@
 #include <time.h>
 #include <math.h>
 
+/** @brief How many sourcetable records to carry across the bridge. */
+#define BRIDGE_MAX_ENTRIES 512
+
 static void bridge_on_event(const NsEvent *ev, void *user);
 static void bridge_eph_event(const NsEvent *ev, void *user);
 
@@ -170,6 +173,30 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
 
     b->sess = ns_open(&opt, bridge_on_event, b);
     if (!b->sess) { free(b); return NULL; }
+
+    /* What this mountpoint promises, so KPI 8 has something to compare
+     * against.  One extra request at open; without it the comparison
+     * reports "cannot judge" rather than a false pass. */
+    char *table = receive_mount_table(&opt.config,
+                                      NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
+    if (table) {
+        SourcetableEntry *e = (SourcetableEntry *)
+            calloc(BRIDGE_MAX_ENTRIES, sizeof(SourcetableEntry));
+        if (e) {
+            int n = sourcetable_parse(table, e, BRIDGE_MAX_ENTRIES);
+            for (int i = 0; i < n; i++) {
+                if (strcmp(e[i].mountpoint, opt.config.MOUNTPOINT) != 0) continue;
+                SourcetableType t[NS_MAX_TYPES];
+                int nt = sourcetable_parse_types(e[i].format_details,
+                                                 t, NS_MAX_TYPES);
+                if (nt > 0) ns_set_advertised(b->sess, t, nt);
+                break;
+            }
+            free(e);
+        }
+        free(table);
+    }
+
     return b;
 }
 
@@ -381,9 +408,6 @@ void bridge_close(NtripBridge *b)
     rtcm_strbuf_free(&b->sink);
     free(b);
 }
-
-/** @brief How many sourcetable records to carry across the bridge. */
-#define BRIDGE_MAX_ENTRIES 512
 
 int bridge_sourcetable_json(const char *caster, int port,
                             const char *user, const char *password,

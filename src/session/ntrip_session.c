@@ -135,6 +135,11 @@ struct NtripSession {
     /* Ionospheric phase arcs, for the same reason. */
     IonoState  iono;
 
+    /* What the sourcetable promised, for the advertised-vs-observed
+     * comparison.  Empty until a caller supplies it. */
+    SourcetableType advertised[NS_MAX_TYPES];
+    int             n_advertised;
+
     /* Per-type epoch tracking, so intervals are measured per epoch.
      * Indexed by the position in stats.types[]. */
     uint32_t   type_last_epoch[NS_MAX_TYPES];
@@ -313,6 +318,8 @@ static bool stats_frame(NtripSession *s, int msg_type,
 }
 
 /** @brief Refresh derived fields before publishing a snapshot. */
+static void compare_advertised(NtripSession *s);
+
 static void stats_refresh(NtripSession *s, double now)
 {
     s->stats.uptime_s = now - s->t0;
@@ -348,6 +355,8 @@ static void stats_refresh(NtripSession *s, double now)
     s->stats.iono_roti_max      = is.roti_max;
     s->stats.iono_sats_dualfreq = is.sats_dualfreq;
     s->stats.iono_slips         = is.slips_total;
+
+    compare_advertised(s);
 }
 
 int ns_iono_view(const NtripSession *s, IonoSatView *out, int max_out)
@@ -475,13 +484,16 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                      * arp_valid:false for every station until the KPI
                      * engine's first live run tripped over it. */
                     if (msg_type == 1005 || msg_type == 1006) {
-                        double la, lo, al;
-                        if (rtcm_extract_arp(s->frame + 3, payload_len,
-                                             msg_type, &la, &lo, &al)) {
+                        RtcmArpInfo a;
+                        if (rtcm_extract_arp_info(s->frame + 3, payload_len,
+                                                  msg_type, &a)) {
                             s->stats.arp_valid = true;
-                            s->stats.arp_lat = la;
-                            s->stats.arp_lon = lo;
-                            s->stats.arp_alt = al;
+                            s->stats.arp_lat = a.lat_deg;
+                            s->stats.arp_lon = a.lon_deg;
+                            s->stats.arp_alt = a.alt_m;
+                            s->stats.arp_says_gps     = a.gps;
+                            s->stats.arp_says_glonass = a.glonass;
+                            s->stats.arp_says_galileo = a.galileo;
                         }
                     }
 
@@ -871,4 +883,80 @@ int ns_sat_list(const NtripSession *s, SvTrackEntry *out, int max)
 {
     if (!s) return 0;
     return sv_track_list(&s->sv, ns_now(), NS_SAT_STALE_S, out, max);
+}
+
+void ns_set_advertised(NtripSession *s, const SourcetableType *list, int n)
+{
+    if (!s) return;
+    if (n > NS_MAX_TYPES) n = NS_MAX_TYPES;
+    s->n_advertised = (list && n > 0) ? n : 0;
+    if (s->n_advertised)
+        memcpy(s->advertised, list, sizeof(SourcetableType) * (size_t)n);
+    s->stats.advertised_known = s->n_advertised > 0;
+    s->stats.advertised_count = s->n_advertised;
+}
+
+/**
+ * @brief Compare what was promised against what arrived.
+ *
+ * Called from the statistics refresh, so the counts track the stream
+ * rather than being computed once at the end.
+ */
+static void compare_advertised(NtripSession *s)
+{
+    s->stats.types_missing = 0;
+    s->stats.types_offrate = 0;
+    s->stats.types_extra   = 0;
+    if (s->n_advertised <= 0) return;
+
+    for (int a = 0; a < s->n_advertised; a++) {
+        const SourcetableType *adv = &s->advertised[a];
+        const NsTypeStats *seen = NULL;
+        for (int i = 0; i < s->stats.n_types; i++)
+            if (s->stats.types[i].msg_type == adv->type) {
+                seen = &s->stats.types[i];
+                break;
+            }
+
+        if (!seen || seen->frames == 0) {
+            /* Not arrived *yet* is not the same as not sent.  A type
+             * promised every 15 s cannot be called missing after 20,
+             * and an ephemeris type may legitimately take minutes, so
+             * each is given several of its own advertised intervals
+             * before it counts against the station.  Judging early
+             * fails healthy stations, which is the fastest way to make
+             * a check worth ignoring. */
+            /* A type advertised without an interval promises no rate,
+             * so lateness cannot be judged against it.  Ephemeris types
+             * are exactly this case -- 1019, 1020, 1042, 1044-1046 are
+             * routinely advertised bare and broadcast on a slow cycle,
+             * a handful per minute.  They are given ten minutes, which
+             * a ninety-second check never reaches and a long watch
+             * does: the short run judges only what was promised with a
+             * rate, which is all the sourcetable actually committed to. */
+            double grace = (adv->interval_s > 0.0)
+                           ? adv->interval_s * 3.0 : 600.0;
+            if (grace < 30.0) grace = 30.0;
+            if (s->stats.uptime_s >= grace) s->stats.types_missing++;
+            continue;
+        }
+
+        /* Off-rate only where a rate was actually promised, and only
+         * once enough epochs have passed to have measured one.  A 25%
+         * tolerance keeps ordinary jitter from reading as a fault. */
+        if (adv->interval_s > 0.0 && seen->epochs >= 3 && seen->avg_dt > 0.0) {
+            double ratio = seen->avg_dt / adv->interval_s;
+            if (ratio > 1.25 || ratio < 0.75) s->stats.types_offrate++;
+        }
+    }
+
+    for (int i = 0; i < s->stats.n_types; i++) {
+        bool promised = false;
+        for (int a = 0; a < s->n_advertised; a++)
+            if (s->advertised[a].type == s->stats.types[i].msg_type) {
+                promised = true;
+                break;
+            }
+        if (!promised) s->stats.types_extra++;
+    }
 }
