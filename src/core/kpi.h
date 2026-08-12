@@ -131,6 +131,80 @@ void kpi_run_start(KpiRun *run, double now);
 void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
                 KpiReport *out);
 
+/**
+ * @struct KpiWatch
+ * @brief Long-run health accumulator: how a station behaves over hours.
+ *
+ * A @ref KpiRun answers "does this station pass?" and stops.  A watch
+ * keeps asking, and records what it saw: how much of the watch was
+ * healthy, how many times health was lost, the longest unbroken healthy
+ * stretch, and the worst state reached.  That is the difference between
+ * grading a station and observing one -- a base that passes a 90-second
+ * check and drops twice an hour is a different base, and only a watch
+ * can tell them apart.
+ *
+ * Timekeeping starts at @ref kpi_watch_start, but *recording* starts
+ * when the run first reaches a verdict, so warm-up is not mistaken for
+ * misbehaviour.
+ *
+ * Plain value type; zero to reset.  Fed from the same @ref KpiReport the
+ * spot check produces, so both modes judge health identically.
+ */
+typedef struct {
+    double t_start;
+    double last_t;          /**< previous update, for interval accounting */
+    bool   started;
+    /**
+     * Set once the run first resolves to OK or FAILED.
+     *
+     * Nothing is recorded before that.  A run passes through CAUTION on
+     * its way up -- satellites are still being counted, C/N0 has no
+     * median yet -- and folding that into the record would report
+     * "worst: CAUTION" for a station that never once misbehaved, and
+     * count a degradation that was only the instrument warming up.
+     */
+    bool   armed;
+
+    double ok_s;            /**< time held at STATION OK                  */
+    double caution_s;
+    double failed_s;
+    double warmup_s;        /**< time before any verdict was reached      */
+
+    double streak_s;        /**< current unbroken OK stretch              */
+    double best_streak_s;   /**< longest such stretch this watch          */
+
+    int    degradations;    /**< transitions out of OK                    */
+    int    worst;           /**< worst @ref KpiRunVerdict seen            */
+    double last_degrade_t;  /**< elapsed time of the last one; <0 = never */
+    int    last_overall;
+} KpiWatch;
+
+/**
+ * @brief Begin a watch.
+ * @param w   Watch state to initialise.
+ * @param now Current time, seconds; same clock as @ref kpi_watch_update.
+ */
+void kpi_watch_start(KpiWatch *w, double now);
+
+/**
+ * @brief Fold one report into the watch.
+ *
+ * Call once per @ref kpi_update, with the same clock.  Intervals are
+ * attributed to the state that was in force during them, so a watch
+ * paused and resumed does not invent healthy time.
+ *
+ * @param w   Watch state.
+ * @param rep The report just produced.
+ * @param now Current time.
+ */
+void kpi_watch_update(KpiWatch *w, const KpiReport *rep, double now);
+
+/** @brief Seconds since the watch began. */
+double kpi_watch_elapsed(const KpiWatch *w, double now);
+
+/** @brief Share of judged time spent at STATION OK, 0..1; <0 if none. */
+double kpi_watch_availability(const KpiWatch *w);
+
 /** @brief Short name for a KPI verdict: "PASS", "warn", ... */
 const char *kpi_verdict_name(int v);
 

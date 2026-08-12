@@ -60,14 +60,15 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
             lat: Double,
             lon: Double,
             sendGga: Boolean,
+            watch: Boolean,
         ): NtripBridge? {
-            val h = nativeOpen(caster, port, mountpoint, user, password, lat, lon, sendGga)
+            val h = nativeOpen(caster, port, mountpoint, user, password, lat, lon, sendGga, watch)
             return if (h == 0L) null else NtripBridge(h)
         }
 
         /** Open a session replaying a captured `.rtcm3` file. */
-        fun openFile(path: String): NtripBridge? {
-            val h = nativeOpenFile(path)
+        fun openFile(path: String, watch: Boolean = false): NtripBridge? {
+            val h = nativeOpenFile(path, watch)
             return if (h == 0L) null else NtripBridge(h)
         }
 
@@ -75,10 +76,10 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         private external fun nativeOpen(
             caster: String, port: Int, mountpoint: String,
             user: String, password: String,
-            lat: Double, lon: Double, sendGga: Boolean,
+            lat: Double, lon: Double, sendGga: Boolean, watch: Boolean,
         ): Long
 
-        @JvmStatic private external fun nativeOpenFile(path: String): Long
+        @JvmStatic private external fun nativeOpenFile(path: String, watch: Boolean): Long
         @JvmStatic private external fun nativePump(h: Long, timeoutMs: Int, nowS: Double): Int
         @JvmStatic private external fun nativeSnapshotJson(h: Long): String?
         @JvmStatic private external fun nativeOverall(h: Long): Int

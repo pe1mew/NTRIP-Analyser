@@ -54,7 +54,7 @@ JNIEXPORT jlong JNICALL
 JNI_FN(nativeOpen)(JNIEnv *env, jobject thiz,
                    jstring caster, jint port, jstring mountpoint,
                    jstring user, jstring password,
-                   jdouble lat, jdouble lon, jboolean sendGga)
+                   jdouble lat, jdouble lon, jboolean sendGga, jboolean watch)
 {
     (void)thiz;
     const char *c_caster = str_in(env, caster);
@@ -67,7 +67,7 @@ JNI_FN(nativeOpen)(JNIEnv *env, jobject thiz,
                                  c_user ? c_user : "",
                                  c_pass ? c_pass : "",
                                  (double)lat, (double)lon,
-                                 sendGga == JNI_TRUE);
+                                 sendGga == JNI_TRUE, watch == JNI_TRUE);
 
     str_free(env, caster, c_caster);
     str_free(env, mountpoint, c_mount);
@@ -77,11 +77,11 @@ JNI_FN(nativeOpen)(JNIEnv *env, jobject thiz,
 }
 
 JNIEXPORT jlong JNICALL
-JNI_FN(nativeOpenFile)(JNIEnv *env, jobject thiz, jstring path)
+JNI_FN(nativeOpenFile)(JNIEnv *env, jobject thiz, jstring path, jboolean watch)
 {
     (void)thiz;
     const char *c_path = str_in(env, path);
-    NtripBridge *b = bridge_open_file(c_path ? c_path : "");
+    NtripBridge *b = bridge_open_file(c_path ? c_path : "", watch == JNI_TRUE);
     str_free(env, path, c_path);
     return (jlong)(intptr_t)b;
 }

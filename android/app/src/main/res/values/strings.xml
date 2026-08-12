@@ -5,14 +5,24 @@
     <string name="verdict_idle">READY</string>
     <string name="sustained_of">%1$d of %2$d s sustained</string>
 
+    <string name="sustained_held">Held for %1$s</string>
     <string name="run_finished">Finished after %1$d s</string>
     <string name="run_stopped">Stopped after %1$d s — measurement incomplete</string>
 
     <string name="action_run">Run the check</string>
     <string name="action_again">Run again</string>
+    <string name="action_watch">Watch</string>
     <string name="action_stop">Stop</string>
     <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>
+
+    <string name="watch_title">Watch</string>
+    <string name="watch_for">Watching for %1$s</string>
+    <string name="watch_availability">Healthy %1$s of judged time</string>
+    <string name="watch_streak">Current healthy streak %1$s (best %2$s)</string>
+    <string name="watch_drops">%1$d degradation(s); worst %2$s</string>
+    <string name="watch_clean">No degradation yet; worst %1$s</string>
+    <string name="run_watching">Watching — stop when you have seen enough</string>
 
     <string name="hint_configure">Set the caster and mountpoint first (⚙).</string>
     <string name="err_open">Could not open the session.</string>
@@ -31,5 +41,6 @@
     <string name="channel_desc">Shown while a station check is in progress.</string>
     <string name="notif_title">Checking the station</string>
     <string name="notif_connecting">Connecting…</string>
+    <string name="notif_watching">%1$s — watching %2$d min, %3$d drops</string>
     <string name="notif_running">%1$d of %2$d s sustained</string>
 </resources>

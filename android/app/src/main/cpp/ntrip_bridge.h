@@ -36,6 +36,15 @@
  * }
  * ```
  *
+ * In watch mode a third block appears, carrying the long-run picture:
+ *
+ * ```json
+ *   "watch": { "elapsed_s": 3600.0, "ok_s": 3540.0, "availability": 0.98,
+ *              "streak_s": 900.0, "best_streak_s": 2400.0,
+ *              "degradations": 2, "worst": 2, "worst_name": "CAUTION",
+ *              "last_degrade_s": 2700.0 }
+ * ```
+ *
  * `schema_version` inside `stats` versions the whole document.
  *
  * Project: NTRIP-Analyser
@@ -70,19 +79,27 @@ typedef struct NtripBridge NtripBridge;
  * @param lat        Rover latitude, degrees (used for GGA when enabled).
  * @param lon        Rover longitude, degrees.
  * @param send_gga   Send periodic GGA, for network-RTK mountpoints.
+ * @param watch      Keep watching after a verdict is reached, and
+ *                   accumulate long-run health (@ref KpiWatch) instead
+ *                   of finishing.  A spot check grades a station; a
+ *                   watch observes one.
  * @return Bridge handle, or NULL on allocation failure.
  */
 NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                          const char *user, const char *password,
-                         double lat, double lon, bool send_gga);
+                         double lat, double lon, bool send_gga, bool watch);
 
 /**
  * @brief Open a bridge that replays a captured `.rtcm3` file.
  *
  * The same acceptance run over recorded bytes -- how the app is
  * exercised without a caster, and how this module is tested.
+ *
+ * @param path  Capture to replay.
+ * @param watch As for @ref bridge_open: soak a recording rather than
+ *              grading it once.
  */
-NtripBridge *bridge_open_file(const char *path);
+NtripBridge *bridge_open_file(const char *path, bool watch);
 
 /**
  * @brief Service the stream and update the KPI verdicts.

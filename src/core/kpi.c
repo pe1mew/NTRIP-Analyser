@@ -245,3 +245,73 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     (void)any_pending;
     (void)dt_gps; (void)dt_gal;
 }
+
+/* ── Watch mode ──────────────────────────────────────────────────────── */
+
+void kpi_watch_start(KpiWatch *w, double now)
+{
+    if (!w) return;
+    memset(w, 0, sizeof(*w));
+    w->t_start        = now;
+    w->last_t         = now;
+    w->last_degrade_t = -1.0;
+    w->worst          = KPI_RUN_RUNNING;
+    w->last_overall   = KPI_RUN_RUNNING;
+    w->started        = true;
+}
+
+void kpi_watch_update(KpiWatch *w, const KpiReport *rep, double now)
+{
+    if (!w || !rep || !w->started) return;
+
+    double dt = now - w->last_t;
+    if (dt < 0.0) dt = 0.0;          /* a clock that moved backwards */
+    w->last_t = now;
+
+    /* Warm-up is not behaviour: record nothing until the run has
+     * actually reached a verdict once. */
+    if (!w->armed) {
+        w->warmup_s += dt;
+        if (rep->overall == KPI_RUN_OK || rep->overall == KPI_RUN_FAILED) {
+            w->armed        = true;
+            w->worst        = rep->overall;
+            w->last_overall = rep->overall;
+        }
+        return;
+    }
+
+    /* Attribute the interval to the state that was in force during it. */
+    switch (w->last_overall) {
+    case KPI_RUN_OK:      w->ok_s      += dt; w->streak_s += dt; break;
+    case KPI_RUN_CAUTION: w->caution_s += dt; break;
+    case KPI_RUN_FAILED:  w->failed_s  += dt; break;
+    default:              w->warmup_s  += dt; break;
+    }
+    if (w->streak_s > w->best_streak_s) w->best_streak_s = w->streak_s;
+
+    /* Worst is ordered by severity, not by enum value: RUNNING is not
+     * worse than OK, it is merely undecided. */
+    static const int severity[] = { 0, 1, 2, 3 };   /* RUNNING OK CAUTION FAILED */
+    int v = rep->overall;
+    if (v >= 0 && v <= KPI_RUN_FAILED &&
+        severity[v] > severity[w->worst]) w->worst = v;
+
+    if (w->last_overall == KPI_RUN_OK && v != KPI_RUN_OK) {
+        w->degradations++;
+        w->last_degrade_t = now - w->t_start;
+        w->streak_s = 0.0;
+    }
+    w->last_overall = v;
+}
+
+double kpi_watch_elapsed(const KpiWatch *w, double now)
+{
+    return (w && w->started) ? now - w->t_start : 0.0;
+}
+
+double kpi_watch_availability(const KpiWatch *w)
+{
+    if (!w) return -1.0;
+    double judged = w->ok_s + w->caution_s + w->failed_s;
+    return (judged > 0.0) ? w->ok_s / judged : -1.0;
+}

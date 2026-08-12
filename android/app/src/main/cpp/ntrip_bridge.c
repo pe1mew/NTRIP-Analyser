@@ -22,6 +22,8 @@ struct NtripBridge {
     KpiRun    run;
     KpiReport rep;
     bool      started;   /**< the KPI clock is running */
+    bool      watch;     /**< keep going past the first verdict */
+    KpiWatch  w;
 };
 
 /** @brief Events are not surfaced in Phase 1; the snapshot carries all. */
@@ -38,10 +40,11 @@ static NtripBridge *bridge_alloc(void)
 
 NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                          const char *user, const char *password,
-                         double lat, double lon, bool send_gga)
+                         double lat, double lon, bool send_gga, bool watch)
 {
     NtripBridge *b = bridge_alloc();
     if (!b) return NULL;
+    b->watch = watch;
 
     NsOptions opt;
     ns_options_default(&opt);
@@ -72,10 +75,11 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
     return b;
 }
 
-NtripBridge *bridge_open_file(const char *path)
+NtripBridge *bridge_open_file(const char *path, bool watch)
 {
     NtripBridge *b = bridge_alloc();
     if (!b) return NULL;
+    b->watch = watch;
 
     NsOptions opt;
     ns_options_default(&opt);
@@ -92,11 +96,13 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
 
     if (!b->started) {
         kpi_run_start(&b->run, now_s);
+        kpi_watch_start(&b->w, now_s);
         b->started = true;
     }
 
     int r = ns_pump(b->sess, timeout_ms);
     kpi_update(&b->run, ns_stats(b->sess), now_s, &b->rep);
+    kpi_watch_update(&b->w, &b->rep, now_s);
     return r;
 }
 
@@ -164,7 +170,30 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
         app(out, cap, &pos, "\"}");
     }
 
-    app(out, cap, &pos, "]}}");
+    app(out, cap, &pos, "]}");
+
+    if (b->watch) {
+        double avail = kpi_watch_availability(&b->w);
+        app(out, cap, &pos,
+            ",\"watch\":{\"elapsed_s\":%.1f,\"ok_s\":%.1f,"
+            "\"caution_s\":%.1f,\"failed_s\":%.1f,\"streak_s\":%.1f,"
+            "\"best_streak_s\":%.1f,\"degradations\":%d,"
+            "\"worst\":%d,\"worst_name\":\"%s\",",
+            kpi_watch_elapsed(&b->w, b->w.last_t), b->w.ok_s,
+            b->w.caution_s, b->w.failed_s, b->w.streak_s,
+            b->w.best_streak_s, b->w.degradations,
+            b->w.worst, kpi_run_verdict_name(b->w.worst));
+        /* Unmeasured figures are null, matching ns_stats_to_json's rule
+         * that "not measured" must not read as zero. */
+        if (avail >= 0.0) app(out, cap, &pos, "\"availability\":%.4f,", avail);
+        else              app(out, cap, &pos, "\"availability\":null,");
+        if (b->w.last_degrade_t >= 0.0)
+            app(out, cap, &pos, "\"last_degrade_s\":%.1f}", b->w.last_degrade_t);
+        else
+            app(out, cap, &pos, "\"last_degrade_s\":null}");
+    }
+
+    app(out, cap, &pos, "}");
 
     if (pos < 0 || (size_t)pos >= cap) return -1;   /* truncated */
     return pos;

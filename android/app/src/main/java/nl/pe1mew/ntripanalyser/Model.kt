@@ -73,10 +73,32 @@ data class Stats(
     @SerialName("arp_lon") val arpLon: Double? = null,
 )
 
+/**
+ * Long-run health, present only in watch mode.
+ *
+ * `availability` and `lastDegradeS` are nullable for the same reason the
+ * snapshot's doubles are: nothing measured yet must not read as zero.
+ */
+@Serializable
+data class Watch(
+    @SerialName("elapsed_s") val elapsedS: Double = 0.0,
+    @SerialName("ok_s") val okS: Double = 0.0,
+    @SerialName("caution_s") val cautionS: Double = 0.0,
+    @SerialName("failed_s") val failedS: Double = 0.0,
+    @SerialName("streak_s") val streakS: Double = 0.0,
+    @SerialName("best_streak_s") val bestStreakS: Double = 0.0,
+    val degradations: Int = 0,
+    val worst: Int = 0,
+    @SerialName("worst_name") val worstName: String = "",
+    val availability: Double? = null,
+    @SerialName("last_degrade_s") val lastDegradeS: Double? = null,
+)
+
 @Serializable
 data class BridgeDocument(
     val stats: Stats = Stats(),
     val kpi: KpiReport = KpiReport(),
+    val watch: Watch? = null,
 )
 
 /** Tolerant by policy: an added C field must never crash the phone. */

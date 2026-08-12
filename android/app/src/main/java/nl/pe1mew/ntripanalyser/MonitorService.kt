@@ -66,6 +66,12 @@ class MonitorService : Service() {
     private fun startRun(intent: Intent) {
         if (worker != null) return
 
+        // Watch is a property of *this run*, not of the mountpoint: the
+        // caster settings say what to connect to, the run mode says how
+        // to test it.  So it arrives with the start request and is never
+        // persisted alongside credentials.
+        val watchMode = intent.getBooleanExtra(EXTRA_WATCH, false)
+
         val settings = CasterSettings(
             caster = intent.getStringExtra(EXTRA_CASTER).orEmpty(),
             port = intent.getIntExtra(EXTRA_PORT, 2101),
@@ -88,6 +94,7 @@ class MonitorService : Service() {
                 settings.caster, settings.port, settings.mountpoint,
                 settings.user, settings.password,
                 settings.latitude, settings.longitude, settings.sendGga,
+                watchMode,
             )
             if (bridge == null) {
                 Log.e(TAG, "bridge_open returned null")
@@ -133,8 +140,14 @@ class MonitorService : Service() {
                         publish(true, Outcome.RUNNING)
                     }
 
+                    // A spot check is done once it has a verdict.  A watch
+                    // is not: the verdict is the thing being observed, and
+                    // a station that passes now and fails in an hour is
+                    // exactly what the mode exists to catch.  It ends only
+                    // when the user stops it.
                     val verdict = b.overall()
-                    if (verdict == RunVerdict.OK.ordinal || verdict == RunVerdict.FAILED.ordinal) {
+                    if (!watchMode &&
+                        (verdict == RunVerdict.OK.ordinal || verdict == RunVerdict.FAILED.ordinal)) {
                         Log.i(TAG, "verdict reached: $verdict after ${nowS.toInt()} s")
                         publish(false, Outcome.FINISHED)   // the state that matters
                         break
@@ -152,7 +165,7 @@ class MonitorService : Service() {
                         if (endedAtS < 0.0) {
                             endedAtS = nowS
                             Log.w(TAG, "stream ended at ${nowS.toInt()} s; letting the KPI verdict settle")
-                        } else if (nowS - endedAtS > STREAM_END_GRACE_S) {
+                        } else if (!watchMode && nowS - endedAtS > STREAM_END_GRACE_S) {
                             publish(false, Outcome.FINISHED)
                             break
                         }
@@ -225,8 +238,14 @@ class MonitorService : Service() {
     }
 
     private fun updateNotification(doc: BridgeDocument) {
-        val text = when (doc.kpi.overallEnum) {
-            RunVerdict.RUNNING -> getString(
+        val w = doc.watch
+        val text = when {
+            // Watching: the headline is the record, not the instant.
+            w != null -> getString(
+                R.string.notif_watching,
+                doc.kpi.overallName, (w.elapsedS / 60).toInt(), w.degradations,
+            )
+            doc.kpi.overallEnum == RunVerdict.RUNNING -> getString(
                 R.string.notif_running,
                 doc.kpi.sustainedS.toInt(), doc.kpi.sustainTargetS.toInt(),
             )
@@ -267,13 +286,14 @@ class MonitorService : Service() {
         private const val EXTRA_LAT = "lat"
         private const val EXTRA_LON = "lon"
         private const val EXTRA_GGA = "gga"
+        private const val EXTRA_WATCH = "watch"
 
         private val _state = MutableStateFlow(RunState())
 
         /** Observed by the UI; survives the activity, as the run does. */
         val state: StateFlow<RunState> = _state.asStateFlow()
 
-        fun start(context: Context, s: CasterSettings) {
+        fun start(context: Context, s: CasterSettings, watch: Boolean = false) {
             val i = Intent(context, MonitorService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_CASTER, s.caster)
@@ -284,6 +304,7 @@ class MonitorService : Service() {
                 putExtra(EXTRA_LAT, s.latitude)
                 putExtra(EXTRA_LON, s.longitude)
                 putExtra(EXTRA_GGA, s.sendGga)
+                putExtra(EXTRA_WATCH, watch)
             }
             context.startForegroundService(i)
         }

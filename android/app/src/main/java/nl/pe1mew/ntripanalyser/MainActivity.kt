@@ -121,27 +121,36 @@ fun MainScreen() {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
 
+            doc?.watch?.let { WatchCard(it) }
+
             doc?.kpi?.items?.forEachIndexed { i, item -> KpiRow(i + 1, item) }
 
             Spacer(Modifier.height(4.dp))
 
-            Button(
-                onClick = {
-                    if (runState.running) MonitorService.stop(context)
-                    else MonitorService.start(context, settings)
-                },
-                enabled = settings.isComplete,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    stringResource(
-                        when {
-                            runState.running -> R.string.action_stop
-                            doc != null -> R.string.action_again
-                            else -> R.string.action_run
-                        }
-                    )
-                )
+            // Two ways to run, chosen at the moment of running: grade the
+            // station once, or watch it.  Neither is a caster setting.
+            if (runState.running) {
+                Button(
+                    onClick = { MonitorService.stop(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.action_stop)) }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { MonitorService.start(context, settings, watch = false) },
+                        enabled = settings.isComplete,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(
+                            if (doc != null) R.string.action_again else R.string.action_run
+                        ))
+                    }
+                    OutlinedButton(
+                        onClick = { MonitorService.start(context, settings, watch = true) },
+                        enabled = settings.isComplete,
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.action_watch)) }
+                }
             }
 
             if (!settings.isComplete) {
@@ -190,10 +199,16 @@ private fun VerdictBadge(
             doc?.kpi?.let { k ->
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    stringResource(
-                        R.string.sustained_of,
-                        k.sustainedS.toInt(), k.sustainTargetS.toInt(),
-                    ),
+                    // Once the window is met the countdown has served its
+                    // purpose; a watch showing "101 of 60 s" reads as a
+                    // fault in the counter.
+                    if (k.sustainedS >= k.sustainTargetS)
+                        stringResource(R.string.sustained_held, dur(k.sustainedS))
+                    else
+                        stringResource(
+                            R.string.sustained_of,
+                            k.sustainedS.toInt(), k.sustainTargetS.toInt(),
+                        ),
                     color = Color.White,
                     fontSize = 13.sp,
                 )
@@ -203,6 +218,12 @@ private fun VerdictBadge(
                         progress = { k.sustainFraction },
                         modifier = Modifier.fillMaxWidth(),
                         color = Color.White,
+                    )
+                } else if (outcome == MonitorService.Outcome.RUNNING) {
+                    Text(
+                        stringResource(R.string.run_watching),
+                        color = Color.White,
+                        fontSize = 13.sp,
                     )
                 } else {
                     // "Finished" and "stopped" are deliberately different
@@ -325,6 +346,7 @@ private fun SettingsDialog(
                     Checkbox(gga, { gga = it })
                     Text(stringResource(R.string.field_gga))
                 }
+
                 if (gga) {
                     OutlinedTextField(lat, { lat = it },
                         label = { Text(stringResource(R.string.field_lat)) }, singleLine = true)
@@ -366,3 +388,45 @@ private fun stringResource(id: Int): String =
 @Composable
 private fun stringResource(id: Int, vararg args: Any): String =
     androidx.compose.ui.res.stringResource(id, *args)
+
+/** Compact duration: "45 s", "12 min", "3 h 07 m". */
+private fun dur(seconds: Double): String {
+    val s = seconds.toInt()
+    return when {
+        s < 90 -> "$s s"
+        s < 5400 -> "${s / 60} min"
+        else -> "%d h %02d m".format(s / 3600, (s % 3600) / 60)
+    }
+}
+
+/**
+ * The long-run picture, shown only while watching.
+ *
+ * A spot check answers "does it pass?"; these lines answer "does it keep
+ * passing?" -- which a 90-second check cannot see at all.
+ */
+@Composable
+private fun WatchCard(w: Watch) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                stringResource(R.string.watch_title),
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(stringResource(R.string.watch_for, dur(w.elapsedS)))
+            w.availability?.let {
+                Text(stringResource(R.string.watch_availability, "%.1f%%".format(it * 100)))
+            }
+            Text(stringResource(R.string.watch_streak, dur(w.streakS), dur(w.bestStreakS)))
+            Text(
+                if (w.degradations > 0)
+                    stringResource(R.string.watch_drops, w.degradations, w.worstName)
+                else
+                    stringResource(R.string.watch_clean, w.worstName),
+                color = if (w.degradations > 0) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
