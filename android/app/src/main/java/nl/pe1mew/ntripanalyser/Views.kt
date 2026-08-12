@@ -84,6 +84,7 @@ fun SkyView(
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
+    val surface = MaterialTheme.colorScheme.surface
     val density = LocalDensity.current
 
     Column(modifier.fillMaxSize()) {
@@ -137,12 +138,12 @@ fun SkyView(
                      Offset(cx, cy + radius), pathEffect = dash)
 
             drawCardinals(cx, cy, radius, onSurface, density.density)
-            drawElevationNumbers(cx, cy, radius, faint, density.density)
 
+            val markerR = with(density) { 7.dp.toPx() }
             for (s in sats) {
-                val (x, y) = polar(cx, cy, radius, s.azimuthDeg, s.elevationDeg)
+                val (x, y) = polar(cx, cy, radius, s.azimuthDeg, s.elevationDeg,
+                                   markerR)
                 val c = Gnss.colour(s.gnss)
-                val markerR = with(density) { 7.dp.toPx() }
 
                 drawCircle(c.copy(alpha = satAlpha(s.cn0)), markerR, Offset(x, y))
                 drawCircle(Color.White.copy(alpha = 0.9f), markerR,
@@ -158,6 +159,11 @@ fun SkyView(
                              x + markerR + 3f, y + markerR / 2f, paint)
                 }
             }
+
+            // Last, so a ring label never disappears under a satellite
+            // that happens to sit on it -- the numbers are the plot's
+            // elevation axis and have to stay readable.
+            drawElevationNumbers(cx, cy, radius, faint, surface, density.density)
         }
 
         Text(
@@ -170,11 +176,20 @@ fun SkyView(
     }
 }
 
-/** Azimuth clockwise from north, radius linear in elevation. */
+/**
+ * Azimuth clockwise from north, radius linear in elevation.
+ *
+ * @param markerR half a marker's width, held back from the rim so a
+ *        satellite on the horizon is drawn just inside the plot rather
+ *        than straddling it. Only the lowest couple of degrees move at
+ *        all, so markers stay aligned with the elevation rings.
+ */
 private fun polar(
     cx: Float, cy: Float, radius: Float, azDeg: Float, elDeg: Float,
+    markerR: Float = 0f,
 ): Pair<Float, Float> {
-    val r = radius * (90f - elDeg.coerceIn(0f, 90f)) / 90f
+    val r = min(radius * (90f - elDeg.coerceIn(0f, 90f)) / 90f,
+                radius - markerR)
     val a = Math.toRadians(azDeg.toDouble())
     return (cx + r * sin(a).toFloat()) to (cy - r * cos(a).toFloat())
 }
@@ -198,19 +213,30 @@ private fun DrawScope.drawCardinals(
 }
 
 private fun DrawScope.drawElevationNumbers(
-    cx: Float, cy: Float, radius: Float, colour: Color, density: Float,
+    cx: Float, cy: Float, radius: Float, colour: Color, halo: Color,
+    density: Float,
 ) {
     val paint = android.graphics.Paint().apply {
         color = colour.toArgb()
         textSize = 10f * density
         isAntiAlias = true
     }
+    // Drawn under each number in the background colour, so the label
+    // reads over a marker instead of merging into it.
+    val outline = android.graphics.Paint(paint).apply {
+        color = halo.toArgb()
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 3f * density
+    }
     drawContext.canvas.nativeCanvas.apply {
         for (el in 15..75 step 15) {
             val r = radius * (90f - el) / 90f
             // The degree sign on every ring, not only the first: the
             // numbers are an elevation axis and must carry their unit.
-            drawText("$el°", cx + 4f * density, cy - r + 4f * density, paint)
+            val x = cx + 4f * density
+            val y = cy - r + 4f * density
+            drawText("$el°", x, y, outline)
+            drawText("$el°", x, y, paint)
         }
     }
 }
