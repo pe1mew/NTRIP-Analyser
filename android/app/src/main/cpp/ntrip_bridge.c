@@ -33,6 +33,66 @@
 static void bridge_on_event(const NsEvent *ev, void *user);
 static void bridge_eph_event(const NsEvent *ev, void *user);
 
+/*
+ * Last broadcast station position, per mountpoint, for the life of the
+ * process.
+ *
+ * A satellite cannot be placed in the sky without the station to see it
+ * from, so a run has nothing to plot until the first 1005/1006 arrives
+ * -- thirty seconds on a station that sends one every thirty seconds.
+ * The sky view spent that time showing the handful of satellites the
+ * phone's own GNSS could place, then jumped to the full constellation:
+ * a flicker that looked like the orbits were missing when only the
+ * station's coordinates were.
+ *
+ * A base does not move between two runs a minute apart, and a network
+ * service's virtual position moves by a few kilometres at most, which
+ * at 20 000 km is under a hundredth of a degree.  So the previous
+ * run's position is a sound thing to draw with until the real one
+ * arrives and replaces it.
+ *
+ * It is deliberately kept out of everything except placement.  The
+ * reported ARP and KPI 3 come from the session snapshot and the decoded
+ * 1005/1006, never from here: whether a station broadcasts its position
+ * is exactly what KPI 3 asks, and a remembered answer would forge it.
+ */
+#define ARP_MEMO_MAX 8
+
+static struct {
+    char   mountpoint[64];
+    double x, y, z;
+    bool   valid;
+} g_arp_memo[ARP_MEMO_MAX];
+static int g_arp_memo_next;
+
+static void arp_memo_put(const char *mp, double x, double y, double z)
+{
+    if (!mp || !*mp) return;
+    for (int i = 0; i < ARP_MEMO_MAX; i++) {
+        if (g_arp_memo[i].valid && strcmp(g_arp_memo[i].mountpoint, mp) == 0) {
+            g_arp_memo[i].x = x; g_arp_memo[i].y = y; g_arp_memo[i].z = z;
+            return;
+        }
+    }
+    int i = g_arp_memo_next++ % ARP_MEMO_MAX;
+    snprintf(g_arp_memo[i].mountpoint, sizeof(g_arp_memo[i].mountpoint),
+             "%s", mp);
+    g_arp_memo[i].x = x; g_arp_memo[i].y = y; g_arp_memo[i].z = z;
+    g_arp_memo[i].valid = true;
+}
+
+static bool arp_memo_get(const char *mp, double *x, double *y, double *z)
+{
+    if (!mp || !*mp) return false;
+    for (int i = 0; i < ARP_MEMO_MAX; i++) {
+        if (g_arp_memo[i].valid && strcmp(g_arp_memo[i].mountpoint, mp) == 0) {
+            *x = g_arp_memo[i].x; *y = g_arp_memo[i].y; *z = g_arp_memo[i].z;
+            return true;
+        }
+    }
+    return false;
+}
+
 struct NtripBridge {
     NtripSession *sess;
     KpiRun    run;
@@ -78,6 +138,7 @@ static void bridge_on_event(const NsEvent *ev, void *user)
             b->have_ecef = true;
             b->arp = a;
             b->have_arp_info = true;
+            arp_memo_put(b->mountpoint, a.x, a.y, a.z);
         }
         return;
     }
@@ -170,6 +231,12 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
     snprintf(b->mountpoint, sizeof(b->mountpoint), "%s",
              mountpoint ? mountpoint : "");
     sky_collect_reset(&b->sky[0][0]);
+
+    /* Draw from where this mountpoint was last seen to be, until it says
+     * so itself.  Placement only -- have_arp_info stays false, so the
+     * reported ARP and KPI 3 still wait for a real 1005/1006. */
+    if (arp_memo_get(b->mountpoint, &b->ex, &b->ey, &b->ez))
+        b->have_ecef = true;
 
     b->sess = ns_open(&opt, bridge_on_event, b);
     if (!b->sess) { free(b); return NULL; }
