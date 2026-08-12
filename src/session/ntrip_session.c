@@ -918,6 +918,20 @@ static void compare_advertised(NtripSession *s)
                 break;
             }
 
+        /* An observation message for a constellation with nothing in
+         * view is not a broken promise: the station has nothing to put
+         * in it.  APEL00NLD0 advertises 1117 across the Netherlands and
+         * QZSS is visible from none of it, so counting that as missing
+         * hard-failed a perfectly healthy base. */
+        int adv_gnss = get_gnss_id_from_rtcm(adv->type);
+        if (adv_gnss > 0) {
+            int tracked_there = 0;
+            for (int g = 0; g < s->stats.n_gnss; g++)
+                if (s->stats.gnss[g].gnss_id == adv_gnss)
+                    tracked_there = s->stats.gnss[g].sats_tracked;
+            if (tracked_there == 0) continue;
+        }
+
         if (!seen || seen->frames == 0) {
             /* Not arrived *yet* is not the same as not sent.  A type
              * promised every 15 s cannot be called missing after 20,

@@ -36,10 +36,13 @@
     <string name="perm_location">The sky view places satellites using this phone\u2019s own GNSS receiver, which needs location permission.</string>
     <string name="action_back">Back</string>
     <string name="eph_title">Satellite orbits</string>
-    <string name="eph_coverage">%1$d of %2$d tracked satellites can be placed (%3$d orbits cached)</string>
+    <string name="eph_coverage">%1$d of %2$d tracked satellites have an orbit (%3$d cached)</string>
+    <string name="eph_from_phone">The sky view places %1$d more from this phone’s GNSS</string>
+    <string name="eph_only_phone">The sky view places %1$d from this phone’s GNSS</string>
     <string name="eph_age_min">Newest orbit %1$d min old</string>
     <string name="eph_age_hour">Newest orbit %1$.1f h old</string>
     <string name="eph_none">No orbits yet — the sky view cannot place anything</string>
+    <string name="eph_none_phone">No broadcast orbits — the sky view shows this phone’s satellites only</string>
     <string name="eph_file">From %1$s</string>
     <string name="eph_no_file">No navigation file imported</string>
     <string name="action_import_rinex">Import RINEX navigation file…</string>

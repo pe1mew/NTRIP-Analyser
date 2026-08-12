@@ -426,13 +426,11 @@ fun MainScreen() {
 
             VerdictBadge(doc, runState.running, runState.outcome, settings.isComplete)
 
-            // What this run is (or would be) pointed at, without making
-            // the user open the settings screen to find out. Dropped
-            // while a run is going: the chips below already name the
-            // mountpoint, and the space is better spent on results.
-            if (!runState.running) {
-                ConfigSummary(settings) { showSettings = true }
-            }
+            // What this run is pointed at, always: a measurement whose
+            // subject is off screen is a measurement of nothing in
+            // particular, and hiding it mid-run made the one tap into
+            // the caster settings disappear with it. Tapping opens them.
+            ConfigSummary(settings) { showSettings = true }
 
             if (settings.caster.isNotBlank() && !runState.running) {
                 OutlinedButton(
@@ -497,7 +495,9 @@ fun MainScreen() {
             // Where the orbits stand: incompleteness and age are shown,
             // never left implicit.
             if (!runState.running) {
-                doc?.eph?.let { EphCard(it, rinexName) }
+                doc?.eph?.let {
+                    EphCard(it, rinexName, phonePlaced = plotted.size - usedOrbits)
+                }
             }
 
 
@@ -1222,7 +1222,7 @@ fun hasLocationPermission(context: android.content.Context): Boolean =
  * rather than left for the user to infer from a sparse plot.
  */
 @Composable
-private fun EphCard(eph: EphState, rinexName: String?) {
+private fun EphCard(eph: EphState, rinexName: String?, phonePlaced: Int) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -1231,16 +1231,46 @@ private fun EphCard(eph: EphState, rinexName: String?) {
             )
             Spacer(Modifier.height(4.dp))
 
-            Text(
-                stringResource(R.string.eph_coverage, eph.placeable, eph.tracked, eph.cached),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (eph.isComplete) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.error,
-            )
+            // Coverage is worth stating once there are orbits to cover
+            // with. With none at all -- the free edition's ordinary
+            // state, having no ephemeris stream -- "0 of 41" in red
+            // announces a fault that is not one; what the sky view is
+            // actually drawing from is said below instead.
+            val hasOrbits = eph.placeable > 0 || eph.cached > 0
+            if (hasOrbits) {
+                Text(
+                    stringResource(R.string.eph_coverage, eph.placeable, eph.tracked, eph.cached),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (eph.isComplete) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.error,
+                )
+            }
+
+            // This card counts orbits, and the sky view can also place a
+            // satellite from the phone's own GNSS. Saying only the first
+            // read as a contradiction: "0 of 41 can be placed" beside a
+            // plot that was plainly placing them.
+            if (phonePlaced > 0) {
+                Text(
+                    stringResource(
+                        if (eph.placeable > 0) R.string.eph_from_phone
+                        else R.string.eph_only_phone,
+                        phonePlaced,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             val age = eph.ageS
             Text(
                 when {
+                    // "cannot place anything" is only true when the phone
+                    // is not placing them either; with no orbits but a
+                    // populated plot the honest statement is which source
+                    // drew it, not that nothing was drawn.
+                    age == null && phonePlaced > 0 ->
+                        stringResource(R.string.eph_none_phone)
                     age == null -> stringResource(R.string.eph_none)
                     age < 3600 -> stringResource(R.string.eph_age_min, (age / 60).toInt())
                     else -> stringResource(R.string.eph_age_hour, age / 3600.0)
