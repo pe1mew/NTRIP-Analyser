@@ -202,6 +202,18 @@ fun MainScreen() {
         out
     }
 
+    // Signal quality needs no position at all: C/N0 comes from the
+    // stream. Feeding it the positioned subset dropped satellites the
+    // base was hearing perfectly well, which understates the station.
+    val signal = remember(liveDoc) {
+        liveDoc?.sats.orEmpty().map { sat ->
+            SignalSat(
+                gnss = sat.gnss, prn = sat.prn,
+                cn0 = if (Features.IS_PRO) sat.cn0 else sat.cn0Mean,
+            )
+        }
+    }
+
     // The elevation scatter accumulates over the session. Elevation comes
     // from the phone and C/N0 from the stream, so the join -- and so the
     // accumulation -- can only happen here.
@@ -312,7 +324,7 @@ fun MainScreen() {
                             footer = footer,
                         )
                         AnalysisTab.SIGNAL ->
-                            SignalBars(plotted, liveValues = Features.IS_PRO)
+                            SignalBars(signal, liveValues = Features.IS_PRO)
                         AnalysisTab.ELEVATION -> ElevationView(elevSamples.toList())
                     }
                 }

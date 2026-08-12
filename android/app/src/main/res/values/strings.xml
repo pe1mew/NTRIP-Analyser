@@ -48,6 +48,9 @@
     <string name="action_analyse">Start analysis</string>
     <string name="analysis_running">Analysing for %1$s</string>
     <string name="analysis_static">Showing what the station check captured. The pro edition analyses live, for as long as you like.</string>
+    <string name="axis_cn0">C/N0 (dB-Hz)</string>
+    <string name="axis_sat">satellite (PRN)</string>
+    <string name="axis_elev">elevation (degrees)</string>
     <string name="action_close">Close</string>
     <string name="sourcetable_title">%1$s</string>
     <string name="sourcetable_loading">Fetching the sourcetable…</string>

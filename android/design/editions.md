@@ -100,6 +100,22 @@ what a watch is for.
 The free app therefore stays a complete, permanently useful go/no-go
 checker, with nothing about it half-finished.
 
+## One codebase, measured
+
+Not asserted -- counted, on 2026-08-12:
+
+| | Lines |
+|---|---|
+| Shared (`src/main`) | **3725** |
+| Free-specific | 47 |
+| Pro-specific | 33 |
+
+The entire difference between the editions is **five constants and the
+app name**. No logic, no screen and no C file exists in one edition and
+not the other, and the shared code contains seven edition-conditionals
+in total. The editions are a configuration of one program, and this
+table is worth re-running whenever that claim is made again.
+
 ## Mechanism
 
 Gradle product flavors, `free` and `pro`, with separate `applicationId`s

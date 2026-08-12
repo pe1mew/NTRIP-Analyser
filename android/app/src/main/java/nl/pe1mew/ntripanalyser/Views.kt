@@ -39,6 +39,16 @@ import kotlin.math.sin
  * continuously with the live value.
  */
 
+/**
+ * A satellite's signal, with no position involved.
+ *
+ * C/N0 comes from the observation stream and needs no orbit, so the
+ * signal views must never be fed the *positioned* subset: a satellite
+ * the app cannot place is still a satellite the base is hearing, and
+ * dropping it from the bars understates the station.
+ */
+data class SignalSat(val gnss: Int, val prn: Int, val cn0: Float)
+
 /** A satellite ready to draw: measurement from C, position from a source. */
 data class PlottedSat(
     val gnss: Int,
@@ -198,7 +208,9 @@ private fun DrawScope.drawElevationNumbers(
     drawContext.canvas.nativeCanvas.apply {
         for (el in 15..75 step 15) {
             val r = radius * (90f - el) / 90f
-            drawText("$el", cx + 4f * density, cy - r + 4f * density, paint)
+            // The degree sign on every ring, not only the first: the
+            // numbers are an elevation axis and must carry their unit.
+            drawText("$el°", cx + 4f * density, cy - r + 4f * density, paint)
         }
     }
 }
@@ -226,7 +238,7 @@ private fun ConstellationLegend(ids: List<Int>, modifier: Modifier = Modifier) {
  */
 @Composable
 fun SignalBars(
-    sats: List<PlottedSat>,
+    sats: List<SignalSat>,
     liveValues: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -259,11 +271,18 @@ fun SignalBars(
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
+        Text(
+            stringResource(R.string.axis_cn0),
+            style = MaterialTheme.typography.labelSmall,
+            color = faint,
+            modifier = Modifier.padding(start = 16.dp, top = 6.dp),
+        )
+
         Canvas(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(start = 34.dp, end = 12.dp, top = 12.dp, bottom = 26.dp)
+                .padding(start = 40.dp, end = 12.dp, top = 4.dp, bottom = 26.dp)
         ) {
             if (shown.isEmpty()) return@Canvas
             val lo = 20f
@@ -307,6 +326,13 @@ fun SignalBars(
             }
         }
 
+        Text(
+            stringResource(R.string.axis_sat),
+            style = MaterialTheme.typography.labelSmall,
+            color = faint,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
+
         ConstellationLegend(
             shown.map { it.gnss }.distinct().sorted(),
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -344,11 +370,18 @@ fun ElevationView(samples: List<ElevationSample>, modifier: Modifier = Modifier)
             modifier = Modifier.padding(horizontal = 16.dp),
         )
 
+        Text(
+            stringResource(R.string.axis_cn0),
+            style = MaterialTheme.typography.labelSmall,
+            color = faint,
+            modifier = Modifier.padding(start = 16.dp, top = 6.dp),
+        )
+
         Canvas(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(start = 34.dp, end = 12.dp, top = 12.dp, bottom = 26.dp)
+                .padding(start = 40.dp, end = 12.dp, top = 4.dp, bottom = 26.dp)
         ) {
             val lo = 20f
             val hi = 60f
@@ -381,6 +414,13 @@ fun ElevationView(samples: List<ElevationSample>, modifier: Modifier = Modifier)
                 )
             }
         }
+
+        Text(
+            stringResource(R.string.axis_elev),
+            style = MaterialTheme.typography.labelSmall,
+            color = faint,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        )
 
         ConstellationLegend(
             samples.map { it.gnss }.distinct().sorted(),
