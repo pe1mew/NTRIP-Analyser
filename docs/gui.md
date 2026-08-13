@@ -409,17 +409,35 @@ which is what C/N0 primarily indicates.
    coloured by constellation using the same hues as the Sky Plot so a
    satellite reads identically in both. Hover any bar for a tooltip giving
    the satellite, its C/N0 and its elevation.
-2. **C/N0 vs elevation (whole session)** — every accumulated observation
-   plotted as elevation against C/N0, with a per-constellation mean
-   overlaid in 5° bins. **This is the diagnostic view**: a clean
-   installation rises monotonically from horizon to zenith, while
-   obstructions and multipath show as a dip at particular elevations —
-   which no snapshot view can reveal. Bins with fewer than five samples
-   are omitted rather than drawn, so the mean line never implies more
-   confidence than the data supports.
+2. **C/N0 vs elevation (whole session)** — the session's observations
+   counted into cells of one degree by one decibel, each cell shaded by
+   how often it was hit, with a per-constellation mean overlaid in 5°
+   bins. **This is the diagnostic view**: a clean installation rises
+   monotonically from horizon to zenith, while obstructions and
+   multipath show as a dip at particular elevations — which no snapshot
+   view can reveal. Bins with fewer than five samples are omitted rather
+   than drawn, so the mean line never implies more confidence than the
+   data supports.
 
-C/N0 requires MSM7, which carries the extended-resolution field. Streams
-using MSM4/5/6 will populate the bars only sparsely.
+   *Whole session* is literal: the counting grid is fixed in size, so it
+   keeps every sample of a run of any length. Shading is logarithmic,
+   because a cell hit ten thousand times and one hit once are different
+   findings and used to draw identically.
+
+**What the stream does to this picture.** C/N0 arrives quantised, and
+how coarsely depends on the message: MSM4 and MSM5 carry six bits —
+whole decibels — while MSM6 and MSM7 carry ten, a sixteenth of a
+decibel, and the legacy observation messages a quarter. The cell is a
+whole decibel high for that reason: it is the coarsest any stream
+delivers, so every stream fills the rows it touches. Drawn any finer, an
+MSM4 station would leave a blank row between every filled one and the
+plot would show horizontal white lines that belong to the station, not
+to the renderer.
+
+All of those messages carry C/N0, so any of them fills this view: MSM4,
+5, 6 and 7, and the legacy 1002/1004/1010/1012. Only MSM1, 2 and 3 carry
+none, and a station sending nothing else leaves the view empty and says
+so.
 
 #### 📈 Session History window
 **Purpose:** See metrics over time. The Msg Stats min/max/avg columns hide
@@ -814,7 +832,8 @@ src/  (shared with CLI, additions for the Sky Plot)
 - User input validation
 
 **gui_thread.c:**
-- `WorkerOpenStream()` — Obs worker: reads MSM4/MSM7 + 1005/1006,
+- `WorkerOpenStream()` — Obs worker: reads MSM1–7, the legacy
+  observation messages and 1005/1006,
   posts `WM_APP_SKY_UPDATE`, `WM_APP_STAT_UPDATE`, `WM_APP_SAT_UPDATE`
 - `WorkerOpenEphStream()` — Eph worker: reads 1019/1020/1042/1044/
   1045/1046, fills the shared eph cache, logs via `WM_APP_LOG_LINE`

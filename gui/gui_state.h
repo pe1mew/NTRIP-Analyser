@@ -363,28 +363,49 @@ typedef struct {
  * readable.  At a typical 1 Hz epoch with ~38 SVs this fills in seconds.
  *
  * Two parts with different jobs:
- *   - a bounded ring of recent raw samples, which draws the point cloud
- *     and therefore shows current conditions;
+ *   - a **cell grid**, counting how often each (elevation, C/N0) square
+ *     was hit, which draws the cloud;
  *   - unbounded per-constellation elevation-bin sums, which drive the mean
- *     overlay and never forget, so the mean is session-long truth even
- *     after the ring has wrapped.
+ *     overlay in coarser bins, where a mean is worth taking.
+ *
+ * The grid replaced a 32768-sample ring of raw points, for two reasons the
+ * Android app met first (`android/design/views.md`):
+ *
+ *   - **A ring forgets.** At ~38 SV/s it held about fourteen minutes, so a
+ *     plot labelled "whole session" showed the last quarter-hour while the
+ *     mean line beneath it spoke for the whole run. The grid counts every
+ *     sample for the life of the session in a *fixed* 202 kB -- half what
+ *     the ring cost -- because a cell hit a million times is still a cell.
+ *   - **A point cloud cannot show density.** Ten thousand samples in one
+ *     square looked exactly like one, which flattered a station that sits
+ *     at a single elevation. A count per cell can be shaded.
  */
-#define SIG_SCATTER_CAP   32768   /* ~14 min at 38 SV/s; 393 KB */
+#define SIG_EL_STEP       1.0     /* degrees per cell */
+#define SIG_EL_CELLS      91      /* 0..90 degrees    */
+/*
+ * One whole decibel per cell, and not finer.
+ *
+ * C/N0 arrives quantised, and how coarsely depends on the message: MSM4
+ * and MSM5 carry six bits -- whole decibels, nothing between them. A
+ * half-decibel cell can then only ever fill every second row, and the
+ * plot draws a blank row between every filled one, which reads as
+ * horizontal white lines through the cloud. The station is doing that,
+ * not the renderer. A whole decibel is the coarsest any stream delivers,
+ * so at this size MSM6/MSM7 at a sixteenth and the legacy messages at a
+ * quarter simply land in the same row.
+ */
+#define SIG_CN0_STEP      1.0     /* dB-Hz per cell   */
+#define SIG_CN0_CELLS     71      /* 0..70 dB-Hz      */
+
+/* Coarser bins for the mean overlay: a mean over a 1-degree slice is as
+ * noisy as the samples in it, and the line is there to be readable. */
 #define SIG_EL_BIN_DEG    5.0
 #define SIG_EL_BINS       18      /* 18 * 5 = 90 degrees */
 
-/** @brief One (elevation, C/N0) observation for the scatter cloud. */
+/** @brief Occupancy grid + binned means for the Signal Quality window. */
 typedef struct {
-    float el_deg;
-    float cnr_dbhz;
-    int   gnss_id;
-} SigSample;
-
-/** @brief Scatter ring + binned means for the Signal Quality window. */
-typedef struct {
-    SigSample pts[SIG_SCATTER_CAP];
-    int    head;                                  /**< next write index */
-    int    count;                                 /**< 0..SIG_SCATTER_CAP */
+    /** Hits per (constellation, elevation cell, C/N0 cell). */
+    unsigned int cell[SV_EPH_MAX_GNSS][SIG_EL_CELLS][SIG_CN0_CELLS];
     double binSum[SV_EPH_MAX_GNSS][SIG_EL_BINS];  /**< sum of C/N0 per bin */
     long   binCnt[SV_EPH_MAX_GNSS][SIG_EL_BINS];  /**< samples per bin */
     long   total;                                 /**< lifetime sample count */

@@ -3404,11 +3404,18 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                         double el = upd[i].el_deg;
                         if (el > 90.0) el = 90.0;
 
-                        sc->pts[sc->head].el_deg   = (float)el;
-                        sc->pts[sc->head].cnr_dbhz = upd[i].cnr_dbhz;
-                        sc->pts[sc->head].gnss_id  = g;
-                        sc->head = (sc->head + 1) % SIG_SCATTER_CAP;
-                        if (sc->count < SIG_SCATTER_CAP) sc->count++;
+                        /* Count the cell this sample lands in.  Every
+                         * sample of the session is kept this way, in
+                         * fixed memory: the plot no longer forgets its
+                         * first quarter-hour, and a cell hit a thousand
+                         * times can be told from one hit once. */
+                        int ec = (int)(el / SIG_EL_STEP);
+                        int cc = (int)(upd[i].cnr_dbhz / SIG_CN0_STEP);
+                        if (ec < 0) ec = 0;
+                        if (ec >= SIG_EL_CELLS)  ec = SIG_EL_CELLS - 1;
+                        if (cc < 0) cc = 0;
+                        if (cc >= SIG_CN0_CELLS) cc = SIG_CN0_CELLS - 1;
+                        sc->cell[g][ec][cc]++;
 
                         int b = (int)(el / SIG_EL_BIN_DEG);
                         if (b >= SIG_EL_BINS) b = SIG_EL_BINS - 1;

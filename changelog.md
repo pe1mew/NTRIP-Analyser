@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the GUI's C/N0-vs-elevation plot counts cells, like the app
+
+The Windows plot had the same two faults the Android view was fixed for,
+and now has the same cure.
+
+**It said "whole session" and meant the last quarter-hour.** The cloud
+was drawn from a 32768-sample ring, which at ~38 SV/s holds about
+fourteen minutes; the mean line underneath was computed from unbounded
+sums, so the two halves of one picture spoke for different periods. It
+now counts hits per cell instead, keeping every sample of a run of any
+length in 202 kB — *half* what the ring cost, because a cell hit a
+million times is still a cell.
+
+**And it could not show density.** Ten thousand samples in one square
+drew exactly like one, which flatters a station that sits at a single
+elevation. Cells are now shaded logarithmically by their count. GDI
+fills are opaque, so the weight is expressed by blending towards the
+panel colour — the same picture the Android view draws with an alpha
+channel.
+
+Cells are one degree by **one decibel**, and filled from boundary to
+boundary so neighbours meet. Both are load-bearing: MSM4 and MSM5 carry
+C/N0 in six bits, whole decibels, so a finer cell leaves a blank row
+between every filled one — the white lines that were diagnosed on the
+phone as an edition difference and turned out to be the station.
+
+The per-constellation mean lines are unchanged and still in 5° bins: a
+mean over a one-degree slice is as noisy as the samples in it.
+
+Verified against caster.centipede.fr/NEAR, which sends legacy 1004/1012
+— quarter-decibel C/N0, a third quantisation again — with the cells and
+the mean lines drawn together.
+
+Two stale claims went with it: the window said *"waiting for MSM7
+observations"* when C/N0 also comes from MSM4, 5 and 6 and from the
+legacy messages, and `docs/gui.md` told readers this view needs MSM7.
+The station used to verify it sends none.
+
 ### Fixed — an overnight watch would have ended as a crash on Android 15
 
 The app targets API 35, where a `dataSync` foreground service may run

@@ -129,6 +129,25 @@ static int cn0_to_y(double cn0, int y0, int h)
     return y0 + h - (int)(frac * h + 0.5);
 }
 
+/**
+ * @brief Mix @p fg into @p bg by @p t (0 = background, 1 = full colour).
+ *
+ * GDI fills are opaque, so the transparency the cloud needs is done here
+ * instead: every cell is drawn over the panel, and a cell's weight is
+ * expressed as how far its colour has travelled from the panel towards
+ * the constellation's own.  The result is the same picture the Android
+ * view draws with an alpha channel.
+ */
+static COLORREF blend_toward(COLORREF bg, COLORREF fg, double t)
+{
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+    int r = (int)(GetRValue(bg) + (GetRValue(fg) - GetRValue(bg)) * t + 0.5);
+    int g = (int)(GetGValue(bg) + (GetGValue(fg) - GetGValue(bg)) * t + 0.5);
+    int b = (int)(GetBValue(bg) + (GetBValue(fg) - GetBValue(bg)) * t + 0.5);
+    return RGB(r, g, b);
+}
+
 /** @brief Draw a filled legend swatch with a thin outline. */
 static void draw_swatch(HDC hdc, int x, int y, int w, int h, COLORREF c)
 {
@@ -259,7 +278,9 @@ static void DrawBars(HDC hdc, AppState *state, int x0, int y0, int w, int h)
     if (n == 0) {
         g_bar_count = 0;
         SetTextColor(hdc, SIG_MUTED_COLOR);
-        const char *m = "(waiting for MSM7 observations)";
+        /* Not MSM7: C/N0 comes from MSM4, 5, 6 and 7 and from the
+         * legacy observation messages too. */
+        const char *m = "(waiting for observations with C/N0)";
         TextOut(hdc, plot_x + 8, plot_y + plot_h / 2 - 8, m, (int)strlen(m));
         return;
     }
@@ -427,23 +448,52 @@ static void DrawScatter(HDC hdc, AppState *state, int x0, int y0, int w, int h,
     TextOut(hdc, plot_x + (plot_w - xs.cx) / 2, plot_y + plot_h + 20,
             xlab, (int)strlen(xlab));
 
-    /* Point cloud from the recent-sample ring. */
+    /* The cloud, one filled cell per occupied square of the grid.
+     *
+     * Each cell is drawn as the *area* it stands for, from one cell
+     * boundary to the next, so neighbours meet exactly and the plot shows
+     * the data rather than the grid it was counted into.  Both edges are
+     * computed from the cell index; taking a width once and adding it
+     * would leave a seam wherever the rounding fell differently. */
     const SigCnrState *sc = &state->sigCnr;
-    int start = (sc->count < SIG_SCATTER_CAP) ? 0 : sc->head;
-    for (int i = 0; i < sc->count; i++) {
-        int idx = (start + i) % SIG_SCATTER_CAP;
-        const SigSample *sp = &sc->pts[idx];
-        double el = sp->el_deg;
-        if (el < 0.0)  continue;
-        if (el > 90.0) el = 90.0;
+    for (int g = 0; g < SV_EPH_MAX_GNSS; g++) {
+        COLORREF base = gnss_color(g);
+        for (int ec = 0; ec < SIG_EL_CELLS; ec++) {
+            double el0 = ec * SIG_EL_STEP;
+            double el1 = el0 + SIG_EL_STEP;
+            if (el0 > 90.0) break;
+            if (el1 > 90.0) el1 = 90.0;
+            int cx0 = plot_x + (int)((el0 / 90.0) * plot_w + 0.5);
+            int cx1 = plot_x + (int)((el1 / 90.0) * plot_w + 0.5);
+            if (cx1 <= cx0) cx1 = cx0 + 1;
 
-        COLORREF c = gnss_color(sp->gnss_id);
-        int px = plot_x + (int)((el / 90.0) * plot_w + 0.5);
-        int py = cn0_to_y(sp->cnr_dbhz, plot_y, plot_h);
-        SetPixel(hdc, px,     py,     c);
-        SetPixel(hdc, px + 1, py,     c);
-        SetPixel(hdc, px,     py + 1, c);
-        SetPixel(hdc, px + 1, py + 1, c);
+            for (int cc = 0; cc < SIG_CN0_CELLS; cc++) {
+                unsigned int n = sc->cell[g][ec][cc];
+                if (n == 0) continue;
+                double v0 = cc * SIG_CN0_STEP;
+                double v1 = v0 + SIG_CN0_STEP;
+                if (v1 < SIG_CN0_MIN || v0 > SIG_CN0_MAX) continue;
+
+                /* Density, not a heap of identical marks: a cell hit a
+                 * thousand times and one hit once drew the same before,
+                 * which flattered a station that spends its life at one
+                 * elevation.  Logarithmic, so a busy cell reads as solid
+                 * without a quiet one disappearing. */
+                double weight = log((double)n + 1.0) / log(64.0);
+                if (weight < 0.15) weight = 0.15;
+                if (weight > 1.0)  weight = 1.0;
+
+                int cy1 = cn0_to_y(v0, plot_y, plot_h);   /* lower value, lower on screen */
+                int cy0 = cn0_to_y(v1, plot_y, plot_h);
+                if (cy1 <= cy0) cy1 = cy0 + 1;
+
+                RECT cell = { cx0, cy0, cx1, cy1 };
+                HBRUSH br = CreateSolidBrush(
+                    blend_toward(SIG_PANEL_BG, base, 0.25 + 0.55 * weight));
+                FillRect(hdc, &cell, br);
+                DeleteObject(br);
+            }
+        }
     }
 
     /* Mean overlay: 2-px polyline per constellation across populated bins.
@@ -471,10 +521,10 @@ static void DrawScatter(HDC hdc, AppState *state, int x0, int y0, int w, int h,
         }
     }
 
-    if (sc->count == 0) {
+    if (sc->total == 0) {
+        const char *m = "(waiting for observations with C/N0)";
         SetTextColor(hdc, SIG_MUTED_COLOR);
-        TextOut(hdc, plot_x + 8, plot_y + plot_h / 2 - 8,
-                "(waiting for MSM7 observations)", 31);
+        TextOut(hdc, plot_x + 8, plot_y + plot_h / 2 - 8, m, (int)strlen(m));
     }
 
     *out_samples = sc->total;

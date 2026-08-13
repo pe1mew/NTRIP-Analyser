@@ -416,6 +416,20 @@ The scatter is fed by its own accumulator (`SigCnrState`) on every MSM epoch rat
 trail buffer — the 60 s trail sampling yields one point per satellite per minute, far too sparse to
 read as a cloud.
 
+**Since 3.3.0 the accumulator is an occupancy grid, not a ring of points** — the same shape the
+Android view arrived at (`android/design/views.md`), ported to GDI in `gui_signal_window.c`. The
+32768-sample ring held about fourteen minutes at 38 SV/s, so a plot captioned *whole session* showed
+the last quarter-hour while the mean line beneath it spoke for the whole run; and a point cloud
+cannot show density, so ten thousand samples in one square looked exactly like one. Counting hits
+per 1° × 1 dB cell fixes both in 202 kB fixed for any run length, half what the ring cost. Cells are
+filled from boundary to boundary so neighbours meet, and shaded logarithmically; GDI has no alpha,
+so the weight is expressed by blending towards the panel colour. The mean overlay is unchanged, and
+stays in 5° bins: a mean over a 1° slice is as noisy as the samples in it.
+
+The cell is a **whole decibel** high because that is the coarsest quantisation any stream delivers
+(MSM4/5 carry 6-bit C/N0). Finer cells leave a blank row between every filled one on such a station
+— white lines that belong to the data, not the renderer.
+
 ### 0.1 Displayed version numbers must follow `src/core/version.h` — **Shipped**, see §0
 
 ### 1.4b Per-constellation C/N0 columns in the Satellites tab — **Shipped**
