@@ -294,3 +294,73 @@ mountpoints you care about.*
 
 Decided at listing time, once comparable tools have been checked in the
 Play console. Nothing in the build depends on the number.
+
+## Saved connection profiles (the "multiple mountpoints" feature)
+
+### It is multiple *casters*, not multiple mountpoint names
+
+The phrase hides the decision. Saving mountpoint names within one caster
+would be close to worthless: the expensive part of setup is the caster,
+the port and the credentials, never the six characters of the mountpoint.
+People work across several casters — their own base, the national
+network, a client's — with different credentials, different positions and
+different ephemeris mountpoints for each.
+
+So a saved entry is a **whole connection profile**: caster, port,
+mountpoint, credentials, position, GGA setting and ephemeris stream,
+under a name. Free keeps one, which is what it already does.
+
+### Storage, and the migration nobody sees until it bites
+
+`Settings` is eleven flat keys in one `SharedPreferences` file today. A
+list of profiles plus an active index replaces them, serialised with
+`kotlinx.serialization` — already a dependency, since `ConfigFile` uses
+it.
+
+**Existing installs must be migrated**, not overwritten: read the old
+flat keys into profile 0 on first launch. Anyone already testing the app
+loses their setup otherwise, and they will report it as data loss
+because that is what it is.
+
+Credentials move to `EncryptedSharedPreferences` in the same change.
+Storing one caster's password in the app sandbox was a recorded, accepted
+limitation; storing half a dozen is the same limitation with a larger
+blast radius. Doing it now means one storage migration rather than two,
+and a better answer on the Play data-safety form.
+
+`MAX_MOUNTPOINTS` stops being decorative and becomes the bound it always
+claimed to be.
+
+### Interop: keep the desktop's file, add the daemon's
+
+`config.json` holds exactly one mountpoint, and that is what the CLI and
+the GUI read. Loading and saving it stays exactly as it is, for the
+active profile — nothing about desktop compatibility changes.
+
+For a *set*, the project already has a format: `service/monitord.json`,
+with its `mountpoints[]` array. Pro exports into that shape, so a set
+configured on site drops straight into `ntrip-monitord` on a server.
+That is worth more than a phone-only format would be: configure in the
+field, monitor from the rack.
+
+Extending `config.json` into a list was rejected. It would turn a phone
+feature into a change across every frontend, for a file the desktop
+reads perfectly well as it is.
+
+### Switching: a picker on the tile that already exists
+
+The NTRIP configuration tile shows the active connection and already
+opens settings when tapped. It becomes the picker: the saved profiles
+with the active one marked, plus add, edit and delete. Nothing new
+appears on a screen whose whole purpose is one verdict.
+
+### Deliberately not in this feature
+
+**Running several mountpoints at once.** Each session is a socket, a
+pump thread and its own KPI state; the daemon does that because it is a
+server with mains power. One active profile at a time on the phone.
+
+**Checking every saved profile in turn**, ninety seconds each, is the
+obvious next feature — surveying a whole network from a van — and the
+storage above is shaped so that it stays possible. It is not this
+change.
