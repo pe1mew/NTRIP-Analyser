@@ -88,6 +88,20 @@ adb exec-out screencap -p > shot.png                  # look at the result
 Editions install side by side: `…ntripanalyser.free` and `….pro`, each
 with its own sandbox and its own saved connections.
 
+**Comparing the editions: same build, same mountpoint.** Install both
+from one invocation, and point them at the *same* caster before
+concluding anything. An apparent edition difference is usually neither:
+a screen that looks wrong in free and right in pro has, in practice,
+meant the two were pointed at stations with different message types
+(`android/design/views.md`), or that one of them was still showing what
+it accumulated before the change.
+
+The build enforces the code half of that: `checkEditionParity` fails if
+anything but `Features.kt` appears in `src/free` or `src/pro`, so the
+two editions cannot quietly acquire separate implementations of the same
+screen. It runs as part of every build; run it alone with
+`.\gradlew.bat checkEditionParity`.
+
 Inspecting a debug build's stored settings:
 
 ```bash

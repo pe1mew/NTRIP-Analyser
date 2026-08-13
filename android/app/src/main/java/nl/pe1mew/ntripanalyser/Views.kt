@@ -466,24 +466,32 @@ class ElevationAccumulator {
         const val GNSS_SLOTS = 8
 
         /*
-         * Cell size, chosen against the plot rather than against the
-         * data: a cell is drawn as the rectangle it stands for, so if
-         * the cells were coarser than the marks the plot would show
-         * gapped columns of blocks -- which is what a degree of
-         * elevation and half a decibel looked like on a phone, about
-         * ten pixels wide with nothing between them.
+         * Cell size, set by the coarsest thing the data can be, not by
+         * the finest the plot could draw.
          *
-         * At half a degree and a quarter of a decibel, a cell is roughly
-         * five pixels by four on a handset: the marks meet, and the
-         * shape of the curve comes back. The whole grid is 1.6 MB and
-         * fixed, whatever the length of the run.
+         * **C/N0 arrives quantised, and how coarsely depends on the
+         * message.** MSM4 and MSM5 carry it in six bits -- whole
+         * decibels, nothing between them. So a half-decibel cell can
+         * only ever fill every second row, and the plot draws a blank
+         * row between every filled one: horizontal white lines through
+         * the scatter, on the station rather than in the renderer.
+         * Measured on caster.centipede.fr/NEAR4, which is MSM4; a
+         * station sending MSM7 at a sixteenth of a decibel showed none
+         * of it, which is what made it look like an edition difference.
+         *
+         * A whole decibel is the coarsest any stream delivers, so at
+         * this size every stream fills the rows it touches: 1/16 dB from
+         * MSM6 and MSM7 and a quarter from the legacy messages simply
+         * land in the same row. A cell is then about ten pixels by
+         * seventeen on a handset -- and 205 kB, fixed however long the
+         * run.
          */
-        const val EL_STEP = 0.5f
-        const val CN0_STEP = 0.25f
+        const val EL_STEP = 1.0f
+        const val CN0_STEP = 1.0f
         /** 0..90 degrees at [EL_STEP]. */
-        const val EL_BINS = 181
+        const val EL_BINS = 91
         /** 0..70 dB-Hz at [CN0_STEP]. */
-        const val CN0_BINS = 281
+        const val CN0_BINS = 71
     }
 }
 

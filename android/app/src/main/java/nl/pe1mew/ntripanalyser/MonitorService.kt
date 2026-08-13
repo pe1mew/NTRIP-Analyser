@@ -127,8 +127,10 @@ class MonitorService : Service() {
             // A user-supplied RINEX file, if one has been imported. Read
             // before any stream is considered: a current file means there
             // is nothing to fetch.
+            var rinexSeeded = false
             rinexPath?.let { path ->
                 val n = bridge.loadRinex(path)
+                rinexSeeded = n > 0
                 Log.i(TAG, "RINEX '$path': $n records")
             }
 
@@ -241,7 +243,25 @@ class MonitorService : Service() {
                         }
                         val filling = nowS - filledAtS < EPH_FILL_QUIET_S
 
-                        if (!ephOpen && !complete && !filling && nowS >= ephRetryAtS) {
+                        /* An imported navigation file is not a reason to
+                         * skip the stream the user configured. It fills
+                         * the cache on the first pump, so `complete` is
+                         * true before a single frame has arrived and the
+                         * stream was never dialled: the sky was drawn
+                         * from a file read off the disk while a live
+                         * source sat unused, and the header said so.
+                         *
+                         * The file is a fallback, not a substitute. Where
+                         * the station broadcasts its own orbits nothing
+                         * is dialled either way -- that stays the best
+                         * case, and this only covers the station that
+                         * broadcasts none. */
+                        val fileIsTheOnlySource =
+                            rinexSeeded && obsEph == 0 && !usedEphStream
+
+                        if (!ephOpen && (fileIsTheOnlySource ||
+                                         (!complete && !filling)) &&
+                            nowS >= ephRetryAtS) {
                             ephOpen = b.openEph(
                                 settings.ephCaster, settings.ephPort,
                                 settings.ephMountpoint,
@@ -252,6 +272,7 @@ class MonitorService : Service() {
                             Log.i(TAG, "ephemeris stream opened: $placeable of " +
                                 "$tracked satellites placeable")
                         } else if (ephOpen &&
+                                   nowS - ephOpenedAtS >= EPH_MIN_OPEN_S &&
                                    (complete || nowS - ephOpenedAtS > EPH_MAX_OPEN_S)) {
                             b.closeEph()
                             ephOpen = false
@@ -435,7 +456,18 @@ class MonitorService : Service() {
         private const val EPH_MAX_OPEN_S = 120.0
 
         /** How long before an incomplete cache is worth another attempt. */
-        private const val EPH_RETRY_S = 900.0
+        /**
+     * The least a borrowed ephemeris stream is given before it is
+     * returned.
+     *
+     * With a navigation file loaded the cache is complete the moment the
+     * run starts, so without a floor the stream would be opened and shut
+     * on consecutive pumps, having received nothing. A broadcast cycle
+     * is about twelve seconds on the stations measured.
+     */
+    private const val EPH_MIN_OPEN_S = 20.0
+
+    private const val EPH_RETRY_S = 900.0
 
         /**
          * How long orbits must stop arriving before a stream is dialled.

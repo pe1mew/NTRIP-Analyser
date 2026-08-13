@@ -168,6 +168,53 @@ if (!haveKeystore) {
     }
 }
 
+/*
+ * The editions differ by flags, and the build says so.
+ *
+ * `android/design/editions.md` states the rule -- free and pro show
+ * *more* or *less*, never *different*, and the gating lives in the UI
+ * layer behind `Features` -- but a rule that only a person checks is a
+ * rule that drifts. The moment a screen is copied into src/free to
+ * "just change this one thing for free", the two editions start
+ * answering differently about the same station, and the difference is
+ * invisible until someone runs both against one caster.
+ *
+ * So: nothing but Features.kt may live in an edition's source set. Any
+ * other Kotlin file there fails the build, naming itself.
+ *
+ * Resources are exempt on purpose: the launcher icon and the app name
+ * are what an edition is *allowed* to differ in.
+ */
+val checkEditionParity by tasks.registering {
+    group = "verification"
+    description = "Fails if an edition carries code of its own."
+
+    val flavorSources = listOf("free", "pro").associateWith {
+        file("src/$it/java")
+    }
+    inputs.files(flavorSources.values.map { fileTree(it) })
+
+    doLast {
+        val strays = flavorSources.flatMap { (flavor, dir) ->
+            if (!dir.exists()) emptyList()
+            else dir.walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .filter { it.name != "Features.kt" }
+                .map { "$flavor: ${it.relativeTo(dir)}" }
+                .toList()
+        }
+        if (strays.isNotEmpty()) {
+            throw GradleException(
+                "An edition may only carry Features.kt; everything else is " +
+                    "shared (android/design/editions.md). Found:\n  " +
+                    strays.joinToString("\n  ")
+            )
+        }
+    }
+}
+
+tasks.named("preBuild") { dependsOn(checkEditionParity) }
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

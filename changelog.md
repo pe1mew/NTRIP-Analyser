@@ -6,6 +6,80 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — white lines through the elevation plot on an MSM4 station
+
+The plot binned C/N0 in half decibels. **MSM4 and MSM5 carry it in six
+bits — whole decibels, nothing between them** — so on such a station
+every second row could never be filled and the plot drew a blank row
+between every filled one. On MSM7, at a sixteenth of a decibel, there
+was nothing to see, which is why it looked like one edition rendering
+differently from the other. It was the same code drawing two stations.
+
+Cells are now a whole decibel, the coarsest any stream delivers, so
+every message type fills the rows it touches: MSM6 and MSM7 at 1/16 dB
+and the legacy messages at 1/4 dB simply land in the same row. Compared
+on the handset, free on `caster.centipede.fr/NEAR4` (MSM4) and pro on
+`ntrip.kadaster.nl/APEL00NLD0` (MSM7) now render the same kind of plot —
+the MSM7 one denser, because a finer stream spreads its samples over
+more rows.
+
+`android/design/views.md` gains the table of what each message family
+carries and how that reaches the screen, since this is the second defect
+in a day where a property of the station wore an app defect's clothes.
+
+### Added — the build refuses to let the editions diverge
+
+`android/design/editions.md` has always said the editions differ by
+flags and never by implementation, and until now only a person checked.
+**`checkEditionParity` now fails the build if anything but `Features.kt`
+appears in an edition's source set**, naming the file. Resources are
+exempt: the icon and the app name are what an edition is allowed to
+differ in.
+
+It runs as part of every build. Verified by putting a stray file in
+`src/free` and watching the build stop:
+
+    An edition may only carry Features.kt; everything else is shared
+    (android/design/editions.md). Found:
+      free: nl\pe1mew\ntripanalyser\Stray.kt
+
+### Fixed — the elevation plot belonged to no run in particular
+
+**It never reset.** Samples from every station tested since the app was
+opened were drawn into one scatter, under a header reading "this
+session": two casters, two antennas, two skies, one curve, and nothing
+to say which was which. It is cleared when a run starts. Measured on the
+handset: a first run ended at 2863 samples, and twenty-five seconds into
+the next the plot read 1040 rather than 3900.
+
+**The cells were too small to see.** Half a degree by a quarter of a
+decibel is about five pixels by four on a phone -- seamless, which was
+the point of the previous change, but a satellite with a single sample
+became a mark that was not there. A degree by half a decibel is roughly
+ten by nine: still tiling, and visible. The grid is 410 kB rather than
+1.6 MB, and still fixed however long the run.
+
+### Fixed — an imported navigation file suppressed the ephemeris stream
+
+The sky view reported "navigation file" on a station with an ephemeris
+stream configured, and the stream was never dialled. A loaded RINEX
+fills the orbit cache on the first pump, so the policy that opens the
+stream only when nothing is filling the cache saw a full cache and
+stayed shut: the plot was drawn from a file read off a disk while a live
+source sat unused.
+
+**The file is a fallback, not a substitute.** Where the station
+broadcasts its own orbits nothing is dialled, as before -- that remains
+the best case. Where it broadcasts none and a stream is configured, the
+stream is now used even with a file loaded, and given at least twenty
+seconds to deliver before it is returned, since the cache being complete
+would otherwise close it on the pump after it opened.
+
+On `rfsee.net/HANESE` with a 2131-record navigation file loaded: **456
+frames off the ephemeris stream, closed after 20 s at 40 of 40
+placeable**, and the sky view now reads "39 of 40 satellites shown ·
+ephemeris stream" where it read "navigation file" before.
+
 ### Fixed — two analysis views that damaged what they were showing
 
 **The C/N0-versus-elevation plot was drawn in cells larger than its

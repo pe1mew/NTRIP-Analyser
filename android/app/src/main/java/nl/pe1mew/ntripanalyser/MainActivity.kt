@@ -362,6 +362,18 @@ fun MainScreen() {
     // GNSS updated, so a stopped analysis went on adding its last
     // document's samples for ever -- the scatter grew while nothing was
     // measuring.
+    // A plot belongs to one run.  Without this the scatter carried
+    // samples from whatever was measured before -- a different caster,
+    // a different antenna, a different sky -- into a view whose header
+    // says "this session", and two stations' curves were drawn on top of
+    // each other with nothing to say which was which.
+    LaunchedEffect(runState.running) {
+        if (runState.running) {
+            elevSamples.clear()
+            elevRevision++
+        }
+    }
+
     LaunchedEffect(liveDoc, runState.running) {
         if (!runState.running) return@LaunchedEffect
         var added = false

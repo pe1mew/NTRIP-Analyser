@@ -276,6 +276,42 @@ receiver.
 Requires elevation per sample, so it depends on the same position source
 as the sky view.
 
+## What the stream itself decides about these plots
+
+**The station's message format sets the resolution of every C/N0 view**,
+and it varies by a factor of sixteen:
+
+| Messages | C/N0 field | Resolution |
+|---|---|---|
+| MSM4, MSM5 | DF403, 6 bits | **whole dB-Hz** |
+| MSM6, MSM7 | DF408, 10 bits | 1/16 dB-Hz |
+| 1002/1004, 1010/1012 | DF015/DF045, 8 bits | 1/4 dB-Hz |
+| MSM1-3 | none | not carried at all |
+
+This is not a detail of the decoder. It reaches the screen:
+
+- **The C/N0-versus-elevation plot bins in whole decibels**, because
+  that is the coarsest a stream delivers. Finer bins looked better on an
+  MSM7 station and drew **horizontal white lines** through an MSM4 one:
+  with half-decibel cells, a stream that only ever reports whole
+  decibels can fill only every second row, and the plot shows a blank
+  row between every filled one. Observed on
+  `caster.centipede.fr/NEAR4` (MSM4) while `ntrip.kadaster.nl/APEL00NLD0`
+  (MSM7) looked perfect — which made a property of the *station* look
+  like a fault in one edition of the app.
+- **An MSM7 plot is denser than an MSM4 plot of the same station**, and
+  neither is more correct. A sixteenth-of-a-decibel stream spreads its
+  samples across many rows; a whole-decibel stream stacks them into few.
+  Read the shape of the curve, not the number of marks.
+- **MSM1-3 produce no C/N0 view at all** — Signal quality is empty and
+  the elevation plot stays at zero samples. KPI 6 says so in those
+  words rather than blaming the station.
+
+The general rule, and the reason this section exists: **when two runs
+disagree, compare the message types before suspecting the app.** Two of
+the three defects found in one afternoon's device testing were a station
+difference wearing an app difference's clothes.
+
 ## The orbits place the satellites; the phone fills the gaps
 
 `sky_azel_for_sat()` answers, per satellite, where it is as seen from the
