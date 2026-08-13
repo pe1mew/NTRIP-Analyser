@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — C/N0 is read from every MSM that carries it, not only MSM7
+
+A station sending MSM4, MSM5 or MSM6 was told its C/N0 could not be
+measured. That was never true of the stream: **MSM4 and MSM5 carry C/N0
+in six bits (whole dB-Hz) and MSM6 in the same ten-bit field as MSM7**
+(1/16 dB-Hz). Only the reader was MSM7-only, and it said so as though it
+were a property of the station — KPI 6 warned, the signal-quality view
+stood empty, and the C/N0-versus-elevation plot could never accumulate a
+sample.
+
+All four are read now. The two readers are one algorithm parameterised
+by a small table of field widths, because the families differ only in
+those numbers: the satellite block is 18 bits per satellite for MSM4 and
+MSM6 and 36 for MSM5 and MSM7, which shifts every signal array after it.
+
+Measured against live stations, one per family:
+
+| Mountpoint | Messages | Median C/N0 |
+|---|---|---|
+| `caster.centipede.fr/NEAR4` | MSM4 | **44.45 dB-Hz**, 40 SV |
+| `caster.centipede.fr/NEAR` | MSM7 | **44.60 dB-Hz**, 40 SV |
+| `rtk2go.com/Mirmenhof` | MSM6 | **45.01 dB-Hz**, 52 SV |
+
+The first two are the same nearest-base service asked for the same
+position two minutes apart, so they are the same station in two message
+sets: **0.15 dB apart**, inside MSM4's own 1 dB quantisation. A wrong
+bit offset does not produce that; it produces a plausible number from
+the middle of a phase range, which is exactly why the layout is now
+pinned by `test/test_msm_cnr.c` as well — synthetic frames per family,
+with values no other reading could yield, and verified to fail when the
+layout is deliberately broken.
+
+KPI 6's wording follows the truth: it now says C/N0 is read from MSM4,
+5, 6 and 7, so a stream that gets no measurement is one carrying MSM1-3
+or only the legacy 1002/1004/1010/1012 — whose 8-bit C/N0 is still not
+read, and which is scheduled work rather than a property of those
+stations.
+
 ### Fixed — orbits are decoded from the observation stream, wherever a station sends them
 
 Many stations broadcast ephemerides beside their observations, and the

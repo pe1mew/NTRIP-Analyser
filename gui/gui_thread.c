@@ -344,11 +344,12 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
 
         int   cnr_n = 0;
         int   cnr_prn_list[64];
-        if (n_prns > 0 && (msg_type % 10) == 7) {
-            cnr_n = msm7_extract_cnr(frame + 3, msg_length, msg_type,
-                                     cnr_prn_list, cnr_prns, 64, NULL);
-            msm7_update_per_band_cnr(frame + 3, msg_length, msg_type);
-        } else {
+        if (n_prns > 0) {
+            cnr_n = msm_extract_cnr(frame + 3, msg_length, msg_type,
+                                    cnr_prn_list, cnr_prns, 64, NULL);
+            msm_update_per_band_cnr(frame + 3, msg_length, msg_type);
+        }
+        if (cnr_n == 0) {
             for (int i = 0; i < 64; i++) cnr_prns[i] = 0.0f;
         }
 

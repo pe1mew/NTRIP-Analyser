@@ -256,8 +256,10 @@ Two semantics worth remembering:
 
 - The count is **currently in view** (a 5 s staleness window), not **seen this session**. A setting
   satellite lowers it — which is what makes the graph a health signal rather than a ratchet.
-- C/N0 is **MSM7-only**. MSM4/5/6 carry no extended C/N0, so those streams get counts with
-  `cnr_mean` at zero, matching what `NsGnssStats` already documents.
+- ~~C/N0 is **MSM7-only**.~~ **Corrected 2026-08-13.** That claim was wrong: MSM4 and MSM5 carry
+  C/N0 in six bits and MSM6 in the same ten-bit field as MSM7. All four are read now; only MSM1-3,
+  which genuinely have none, and the legacy 1002/1004/1010/1012, which are not read yet, leave
+  `cnr_mean` at zero. See §1.7.
 
 Verified by replaying the 206-frame capture and comparing satellite by satellite against the
 pre-existing `extract_satellites()` — exact agreement on all 39 SVs across GPS (10), GLONASS (9),
@@ -472,6 +474,36 @@ Cosmetic, and it bites only where the sky is crowded — which is where someone 
 reading one specific PRN.
 
 ### 1.6 Decode ephemerides from the observation stream — **Shipped**, see §0
+
+### 1.7 Legacy observation messages — **Open**, decided but not built
+
+**Inspiration**: found while widening C/N0 to MSM4/5/6 (§0), by running the tool against a station
+it could not measure at all.
+
+`sv_track_feed()` accepts only 1071–1137, so a station streaming the legacy 1002/1004/1010/1012
+contributes **no satellites at all** — not merely no C/N0. Measured on Kadaster's `APEL0`, a
+working RTCM 3.1 reference station at 1 Hz: KPI 4 and KPI 5 both FAIL, KPI 6 warns, and the tool
+reports **FAILED** on a station that is fine. Three of eight verdicts describe our coverage rather
+than the station, which is the failure this project cares most about.
+
+How common: 5 of 35 RTCM 3 mountpoints at `ntrip.kadaster.nl`, 1 of 1218 at
+`caster.centipede.fr`, and `rtk2go.com/Mirmenhof` carries 1004/1012 beside its MSM6. Small in
+percentage, absolute in effect — for those stations the answer is wrong, not partial.
+
+**The decision, taken 2026-08-13, is the interesting half.** Legacy messages cannot express
+Galileo: 1004 is GPS-only and 1012 GLONASS-only. So decoding them without changing KPI 4 would only
+move the false verdict from KPI 5 to KPI 4, which demands *"GPS and Galileo MSM at 0.5 Hz"*.
+**Delivery is therefore judged against what the sourcetable advertises** — the rule KPI 8 already
+follows. A station advertising `GPS+GLO` and delivering exactly that is a **pass**: an old station,
+not a broken one.
+
+What the work involves: a legacy PRN and C/N0 extractor (DF015/DF045, 8 bits, 0.25 dB-Hz), a
+`sv_track_feed()` that accepts non-MSM frames, and KPI 4 and KPI 5 rewritten in terms of the
+advertisement rather than in terms of MSM. The KPI change is measurement policy, so it wants a
+design note before code.
+
+RTCM 2.x is explicitly **out of scope** — a different protocol, not an extension of this one.
+Kadaster publishes one such mountpoint (`APEL00NLD2`), and it stays unmeasurable by design.
 
 ---
 

@@ -3377,12 +3377,12 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     SkySat *s = &state->skyState.sats[g][p - 1];
                     s->az_deg       = upd[i].az_deg;
                     s->el_deg       = upd[i].el_deg;
-                    /* Only MSM7 carries extended C/N0; msm7_extract_cnr()
-                     * returns zeros for MSM4/5/6.  Keep the last known
-                     * value rather than letting an interleaved non-MSM7
-                     * frame wipe it, which would make satellites blink in
-                     * and out of the Signal Quality bars.  Staleness is
-                     * still governed by last_seen_ts. */
+                    /* MSM1-3 carry no C/N0 at all, so a frame of one
+                     * brings zeros.  Keep the last known value rather
+                     * than letting such a frame wipe it, which would make
+                     * satellites blink in and out of the Signal Quality
+                     * bars.  Staleness is still governed by
+                     * last_seen_ts. */
                     if (upd[i].cnr_dbhz > 0.0f)
                         s->cnr_dbhz = upd[i].cnr_dbhz;
                     s->roti         = upd[i].roti;

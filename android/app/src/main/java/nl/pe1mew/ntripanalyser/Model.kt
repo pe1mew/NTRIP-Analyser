@@ -133,7 +133,7 @@ data class TypeStat(
 data class SatEntry(
     val gnss: Int = 0,
     val prn: Int = 0,
-    /** Most recent C/N0; 0 when the stream carries none (MSM4/5/6). */
+    /** Most recent C/N0; 0 when the stream carries none (MSM1-3). */
     val cn0: Float = 0f,
     /** Session mean, averaged in power rather than in decibels. */
     @SerialName("cn0_mean") val cn0Mean: Float = 0f,

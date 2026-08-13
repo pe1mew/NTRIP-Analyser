@@ -140,9 +140,16 @@ add_executable(test_rtcm_hostile test/test_rtcm_hostile.c)
 target_link_libraries(test_rtcm_hostile PRIVATE ntrip_core)
 add_test(NAME rtcm_hostile COMMAND test_rtcm_hostile)
 
+# The C/N0 offsets differ per MSM, and a wrong one returns a plausible
+# number instead of failing -- so the layout is pinned by construction
+# rather than only by a live station that might not be there tomorrow.
+add_executable(test_msm_cnr test/test_msm_cnr.c)
+target_link_libraries(test_msm_cnr PRIVATE ntrip_core)
+add_test(NAME msm_cnr COMMAND test_msm_cnr)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_rinex_nav test_rtcm_hostile)
+    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

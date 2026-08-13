@@ -212,14 +212,14 @@ int msm_extract_prns(const unsigned char *payload, int payload_len,
 }
 
 /* ── Per-band CNR cache ───────────────────────────────────────────────────
- * Updated by msm7_update_per_band_cnr each time an MSM7 frame arrives;
+ * Updated by msm_update_per_band_cnr each time an MSM4/5/6/7 frame arrives;
  * read by the SV detail window to show one CNR value per signal-mask
  * bit position.  Indexed by [gnss_id][prn-1][sig_idx (0-based, MSB-first)].
  * Values in dB-Hz; 0.0 means "no observation for that signal". */
 #define CNR_MAX_GNSS    8
 #define CNR_MAX_PRN     64
 #define CNR_MAX_SIGS    32
-static float g_msm7_per_band_cnr[CNR_MAX_GNSS][CNR_MAX_PRN][CNR_MAX_SIGS];
+static float g_msm_per_band_cnr[CNR_MAX_GNSS][CNR_MAX_PRN][CNR_MAX_SIGS];
 
 void get_sv_per_band_cnr(int gnss_id, int prn, float out_cnr[CNR_MAX_SIGS])
 {
@@ -228,7 +228,7 @@ void get_sv_per_band_cnr(int gnss_id, int prn, float out_cnr[CNR_MAX_SIGS])
     if (gnss_id < 0 || gnss_id >= CNR_MAX_GNSS) return;
     if (prn < 1 || prn > CNR_MAX_PRN)           return;
     for (int i = 0; i < CNR_MAX_SIGS; i++)
-        out_cnr[i] = g_msm7_per_band_cnr[gnss_id][prn - 1][i];
+        out_cnr[i] = g_msm_per_band_cnr[gnss_id][prn - 1][i];
 }
 
 /* ── MSM signal-mask label tables (RTCM 10403.3 Tables 3.5-91 .. 3.5-96) ─
@@ -304,11 +304,63 @@ const char *msm_signal_label(int gnss_id, int sig_idx)
     return fallback;
 }
 
-void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
-                              int msg_type)
+/**
+ * @brief How wide an MSM's satellite and signal fields are.
+ *
+ * The four MSMs that carry C/N0 differ only in these numbers, so the two
+ * readers below are one algorithm parameterised, rather than four
+ * copies. From RTCM 10403.3, message-specific contents:
+ *
+ * | MSM | satellite block   | pseudorange | phase | lock | C/N0 |
+ * |-----|-------------------|-------------|-------|------|------|
+ * | 4   | DF397+DF398 = 18  | DF400 15    | 22    | 4    | DF403  6 bits, 1 dB-Hz |
+ * | 5   | + DF419+DF399 = 36| DF400 15    | 22    | 4    | DF403  6 bits, 1 dB-Hz |
+ * | 6   | DF397+DF398 = 18  | DF405 20    | 24    | 10   | DF408 10 bits, 1/16 dB-Hz |
+ * | 7   | + DF419+DF399 = 36| DF405 20    | 24    | 10   | DF408 10 bits, 1/16 dB-Hz |
+ *
+ * MSM1-3 carry no C/N0 at all, and are refused.
+ *
+ * The satellite block is what separates 4 from 5 and 6 from 7: the odd
+ * ones add extended satellite info (4 bits) and a rough phase-range rate
+ * (14), which sit before the signal arrays and so move every offset
+ * after them.
+ */
+typedef struct {
+    int   sat_bits;    /**< per satellite, ahead of the signal arrays */
+    int   pr_bits;     /**< fine pseudorange                          */
+    int   ph_bits;     /**< fine phase range                          */
+    int   lock_bits;   /**< lock-time indicator                       */
+    int   cnr_bits;    /**< C/N0                                      */
+    float cnr_scale;   /**< dB-Hz per count                           */
+} MsmLayout;
+
+/** @brief Fill @p out for an MSM that carries C/N0; false for one that does not. */
+static bool msm_cnr_layout(int msg_type, MsmLayout *out)
+{
+    if (!out || msg_type < 1070 || msg_type > 1139) return false;
+    switch (msg_type % 10) {
+    case 4: out->sat_bits = 18; out->pr_bits = 15; out->ph_bits = 22;
+            out->lock_bits = 4;  out->cnr_bits = 6;  out->cnr_scale = 1.0f;
+            return true;
+    case 5: out->sat_bits = 36; out->pr_bits = 15; out->ph_bits = 22;
+            out->lock_bits = 4;  out->cnr_bits = 6;  out->cnr_scale = 1.0f;
+            return true;
+    case 6: out->sat_bits = 18; out->pr_bits = 20; out->ph_bits = 24;
+            out->lock_bits = 10; out->cnr_bits = 10; out->cnr_scale = 0.0625f;
+            return true;
+    case 7: out->sat_bits = 36; out->pr_bits = 20; out->ph_bits = 24;
+            out->lock_bits = 10; out->cnr_bits = 10; out->cnr_scale = 0.0625f;
+            return true;
+    default: return false;
+    }
+}
+
+void msm_update_per_band_cnr(const unsigned char *payload, int payload_len,
+                             int msg_type)
 {
     if (!payload) return;
-    if (msg_type < 1070 || msg_type > 1139 || msg_type % 10 != 7) return;
+    MsmLayout L;
+    if (!msm_cnr_layout(msg_type, &L)) return;
 
     int gnss_id;
     if      (msg_type >= 1070 && msg_type <  1080) gnss_id = 1;
@@ -355,18 +407,18 @@ void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
         int prn = sat_prns[s];
         if (prn < 1 || prn > CNR_MAX_PRN) continue;
         for (int i = 0; i < CNR_MAX_SIGS; i++)
-            g_msm7_per_band_cnr[gnss_id][prn - 1][i] = 0.0f;
+            g_msm_per_band_cnr[gnss_id][prn - 1][i] = 0.0f;
     }
 
     const int cell_mask_start  = 169;
     const int cell_block_start = cell_mask_start
                                  + num_sats * num_sigs
-                                 + 36 * num_sats;
+                                 + L.sat_bits * num_sats;
 
     /* MSM signal data is field-by-field across all cells, not contiguous
-     * per-cell blocks -- see the equivalent comment in msm7_extract_cnr().
-     * The CNR array begins after the fine pseudorange (20), fine phase
-     * range (24), lock time (10) and half-cycle (1) arrays. */
+     * per-cell blocks -- see the equivalent comment in msm_extract_cnr().
+     * The CNR array begins after the fine pseudorange, fine phase range,
+     * lock time and half-cycle arrays. */
     int num_cells = 0;
     for (int s = 0; s < num_sats; s++) {
         for (int sg = 0; sg < num_sigs; sg++) {
@@ -377,7 +429,8 @@ void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
     }
     if (num_cells == 0) return;
 
-    const int cnr_array_start = cell_block_start + num_cells * (20 + 24 + 10 + 1);
+    const int cnr_array_start = cell_block_start
+        + num_cells * (L.pr_bits + L.ph_bits + L.lock_bits + 1);
 
     int cell_index = 0;
     for (int s = 0; s < num_sats; s++) {
@@ -387,30 +440,31 @@ void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
             if (cell_mask_bit + 1 > total_bits) break;
             if (!get_bits(payload, cell_mask_bit, 1)) continue;
 
-            int cnr_bit = cnr_array_start + cell_index * 10;
+            int cnr_bit = cnr_array_start + cell_index * L.cnr_bits;
             cell_index++;
-            if (cnr_bit + 10 > total_bits) continue;
+            if (cnr_bit + L.cnr_bits > total_bits) continue;
 
-            uint32_t cnr_raw = (uint32_t)get_bits(payload, cnr_bit, 10);
-            float cnr_dbhz = (float)cnr_raw * 0.0625f;
+            uint32_t cnr_raw = (uint32_t)get_bits(payload, cnr_bit, L.cnr_bits);
+            float cnr_dbhz = (float)cnr_raw * L.cnr_scale;
 
             int sig_idx = sig_idx_list[sg];   /* 0-based bit position, MSB-first */
             if (prn >= 1 && prn <= CNR_MAX_PRN && sig_idx >= 0 && sig_idx < CNR_MAX_SIGS)
-                g_msm7_per_band_cnr[gnss_id][prn - 1][sig_idx] = cnr_dbhz;
+                g_msm_per_band_cnr[gnss_id][prn - 1][sig_idx] = cnr_dbhz;
         }
     }
 }
 
-int msm7_extract_cnr(const unsigned char *payload, int payload_len,
-                     int msg_type,
-                     int *prns_out, float *cnr_out, int max_prns,
-                     int *gnss_id_out)
+int msm_extract_cnr(const unsigned char *payload, int payload_len,
+                    int msg_type,
+                    int *prns_out, float *cnr_out, int max_prns,
+                    int *gnss_id_out)
 {
     if (!payload || !prns_out || !cnr_out || max_prns <= 0) return 0;
 
-    /* MSM7 only: 1077 / 1087 / 1097 / 1117 / 1127 / 1137.  MSM4/5/6 have
-     * different per-cell block sizes and CNR widths; out of scope for v1. */
-    if (msg_type < 1070 || msg_type > 1139 || msg_type % 10 != 7) return 0;
+    /* MSM4, 5, 6 and 7 -- every MSM that carries C/N0.  MSM1-3 do not,
+     * and @ref msm_cnr_layout refuses them. */
+    MsmLayout L;
+    if (!msm_cnr_layout(msg_type, &L)) return 0;
 
     int gnss_id;
     if      (msg_type >= 1070 && msg_type <  1080) gnss_id = 1;
@@ -451,7 +505,7 @@ int msm7_extract_cnr(const unsigned char *payload, int payload_len,
     const int cell_mask_start  = 169;
     const int cell_block_start = cell_mask_start
                                  + num_sats * num_sigs
-                                 + 36 * num_sats;
+                                 + L.sat_bits * num_sats;
 
     /* MSM signal data is stored field-by-field ACROSS all cells, not as a
      * contiguous per-cell block: every fine pseudorange, then every fine
@@ -461,13 +515,10 @@ int msm7_extract_cnr(const unsigned char *payload, int payload_len,
      * array starts once the four preceding arrays are done, and cell k's
      * CNR is a simple index into it.
      *
-     * MSM7 per-cell field widths:
-     *   DF405 fine pseudorange      20 bits
-     *   DF406 fine phase range      24 bits
-     *   DF407 lock time (extended)  10 bits
-     *   DF420 half-cycle ambiguity   1 bit
-     *   DF408 CNR (extended)        10 bits   <-- what we want
-     *   DF404 fine phase-range rate 15 bits
+     * The field widths come from @ref MsmLayout, which tabulates them
+     * per message: MSM6 and MSM7 use the extended fields (20/24/10 and
+     * a 10-bit C/N0 at 1/16 dB-Hz), MSM4 and MSM5 the standard ones
+     * (15/22/4 and a 6-bit C/N0 in whole dB-Hz).
      */
     int num_cells = 0;
     for (int s = 0; s < num_sats; s++) {
@@ -479,7 +530,8 @@ int msm7_extract_cnr(const unsigned char *payload, int payload_len,
     }
     if (num_cells == 0) return 0;
 
-    const int cnr_array_start = cell_block_start + num_cells * (20 + 24 + 10 + 1);
+    const int cnr_array_start = cell_block_start
+        + num_cells * (L.pr_bits + L.ph_bits + L.lock_bits + 1);
 
     /* Best CNR per satellite-index */
     float best_cnr[64];
@@ -492,13 +544,13 @@ int msm7_extract_cnr(const unsigned char *payload, int payload_len,
             if (cell_mask_bit + 1 > total_bits) break;
             if (!get_bits(payload, cell_mask_bit, 1)) continue;
 
-            int cnr_bit = cnr_array_start + cell_index * 10;
-            if (cnr_bit + 10 > total_bits) {
+            int cnr_bit = cnr_array_start + cell_index * L.cnr_bits;
+            if (cnr_bit + L.cnr_bits > total_bits) {
                 cell_index++;
                 continue;
             }
-            uint32_t cnr_raw = (uint32_t)get_bits(payload, cnr_bit, 10);
-            float cnr_dbhz = (float)cnr_raw * 0.0625f;
+            uint32_t cnr_raw = (uint32_t)get_bits(payload, cnr_bit, L.cnr_bits);
+            float cnr_dbhz = (float)cnr_raw * L.cnr_scale;
             if (cnr_dbhz > best_cnr[s]) best_cnr[s] = cnr_dbhz;
 
             cell_index++;

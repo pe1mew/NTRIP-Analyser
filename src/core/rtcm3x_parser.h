@@ -174,32 +174,35 @@ int msm_get_multiple_message_bit(const unsigned char *payload, int payload_len,
  *
  * @param payload     RTCM payload (starting at message-number bit).
  * @param payload_len Payload length in bytes.
- * @param msg_type    RTCM MSM7 message type (1077/1087/1097/1117/1127/1137).
+ * @param msg_type    An MSM that carries C/N0: MSM4, 5, 6 or 7. MSM4 and
+ *                    MSM5 report it in whole dB-Hz, MSM6 and MSM7 in
+ *                    sixteenths; the value returned is dB-Hz either way.
  * @param prns_out    Output PRNs.
  * @param cnr_out     Output CNRs (dB-Hz), parallel to @p prns_out.
  * @param max_prns    Capacity of both arrays.
  * @param gnss_id_out [out, optional] GNSS ID (1=GPS, 2=GLONASS, etc.).
- * @return Number of (PRN, CNR) pairs written, or 0 on error / non-MSM7.
+ * @return Number of (PRN, CNR) pairs written, or 0 on error or on an
+ *         MSM1-3, which carries no C/N0 at all.
  */
-int msm7_extract_cnr(const unsigned char *payload, int payload_len,
-                     int msg_type,
-                     int *prns_out, float *cnr_out, int max_prns,
-                     int *gnss_id_out);
+int msm_extract_cnr(const unsigned char *payload, int payload_len,
+                    int msg_type,
+                    int *prns_out, float *cnr_out, int max_prns,
+                    int *gnss_id_out);
 
 /**
- * @brief Update the per-(GNSS, PRN, signal) CNR cache from an MSM7 frame.
+ * @brief Update the per-(GNSS, PRN, signal) CNR cache from an MSM frame.
  *
  * Walks the per-cell block and writes each cell's CNR into the cache slot
  * indexed by the satellite's PRN and the signal's bit position in the
  * signal mask.  Rows for satellites in this frame are first zeroed so
  * dropped signals don't linger between frames.
  *
- * @param payload     MSM7 RTCM payload (starting at message-number bit).
+ * @param payload     MSM RTCM payload (starting at message-number bit).
  * @param payload_len Length in bytes.
- * @param msg_type    1077 / 1087 / 1097 / 1117 / 1127 / 1137.
+ * @param msg_type    Any MSM4, 5, 6 or 7; others are ignored.
  */
-void msm7_update_per_band_cnr(const unsigned char *payload, int payload_len,
-                              int msg_type);
+void msm_update_per_band_cnr(const unsigned char *payload, int payload_len,
+                             int msg_type);
 
 /**
  * @brief Read per-band CNR for one SV from the cache.

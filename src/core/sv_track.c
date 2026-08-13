@@ -42,20 +42,18 @@ int sv_track_feed(SvTrack *t, const unsigned char *payload, int payload_len,
         t->sat[gnss_id][p - 1].last_seen = now;
     }
 
-    /* Only MSM7's C/N0 is read here.  Not because the others lack it --
-     * MSM4 and MSM5 carry it in 6 bits and MSM6 in the same 10-bit field
-     * as MSM7 -- but because only MSM7's cell layout is walked so far.
-     * A stream of any other type therefore keeps its satellites current
-     * while their last known C/N0 is left untouched; zeroing it here
-     * would make signal strength collapse on a base interleaving MSM4
-     * with MSM7. */
-    if ((msg_type % 10) == 7) {
+    /* Every MSM that carries C/N0 -- 4, 5, 6 and 7 -- is read; the
+     * extractor refuses MSM1-3, which carry none.  A frame that brings
+     * no C/N0 leaves the satellites above current while their last known
+     * value stands: zeroing here would make signal strength collapse on
+     * a base interleaving MSM3 with MSM7. */
+    {
         int   cnr_prns[SV_TRACK_MAX_PRN];
         float cnr_vals[SV_TRACK_MAX_PRN];
         int   cnr_gnss = 0;
-        int   cn = msm7_extract_cnr(payload, payload_len, msg_type,
-                                    cnr_prns, cnr_vals, SV_TRACK_MAX_PRN,
-                                    &cnr_gnss);
+        int   cn = msm_extract_cnr(payload, payload_len, msg_type,
+                                   cnr_prns, cnr_vals, SV_TRACK_MAX_PRN,
+                                   &cnr_gnss);
         if (cnr_gnss >= 1 && cnr_gnss < SV_TRACK_MAX_GNSS) {
             for (int i = 0; i < cn; i++) {
                 int p = cnr_prns[i];

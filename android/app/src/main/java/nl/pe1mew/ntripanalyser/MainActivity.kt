@@ -1075,9 +1075,9 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
                     g.label to "median %.1f, min %.1f dB-Hz".format(
                         g.cnrMedian ?: 0.0, g.cnrMin ?: 0.0)
                 }
-                // Not "not carried": the stream may well carry it. Only
-                // MSM7's C/N0 is decoded (src/core/sv_track.c).
-                .ifEmpty { listOf("C/N0" to "read from MSM7 only") }
+                // Not "not carried": a legacy stream carries C/N0 that
+                // is not read yet (src/core/sv_track.c).
+                .ifEmpty { listOf("C/N0" to "read from MSM4, 5, 6 and 7") }
                 .plus("All constellations" to f(s.cnrMeanAll, "dB-Hz mean"))
         7 -> listOf(
             "Frames checked" to "${s.framesOk + s.framesCrcError}",
