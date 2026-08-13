@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — store screenshots, and the tool that frames them
+
+`tools/make_store_shots.py` turns ordinary device captures into Play
+screenshots: a handset is 9:19.5 and Play wants 9:16, so each capture is
+placed **whole** on a 1080x1920 canvas in the app's own navy with a
+caption. Nothing is cropped to fit — the screen is shown as it is, and
+the caption says what the reader is looking at rather than leaving them
+to guess.
+
+Four for pro, shot against the author's own caster, which **resolves
+open question 6**: no third party's infrastructure is named in marketing
+material. The caster's address is replaced with `ntrip.example.com:2101`
+by a redaction table in the tool — a store listing is marketing, and a
+real host does not belong in it. The mountpoint stays, because a
+screenshot of a station with no name is a screenshot of nothing.
+
+The one to lead with is the C/N0-versus-elevation view after a
+24-minute watch: **50 325 samples**, the antenna curve climbing from the
+horizon to zenith, and a visible dent in GLONASS around 30-45 degrees.
+That is the whole argument for the view in one image, and it could not
+have been staged.
+
 ### Added — the Play data-safety declaration, per edition
 
 `docs/work-items/play-data-safety.md` answers every question in the
