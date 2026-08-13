@@ -1329,12 +1329,26 @@ private fun SettingsDialog(
                 )
                 OutlinedTextField(port, { port = it.filter(Char::isDigit) },
                     label = { Text(stringResource(R.string.field_port)) }, singleLine = true)
+                // The same keyboard the caster field asks for, and for
+                // the same reason: with a text keyboard EMUI commits a
+                // full stop and a space when the field loses focus, so
+                // "APEL0" is saved as "APEL0. " and the caster answers
+                // that no such mountpoint exists. Measured on the test
+                // handset -- every attempt to type a mountpoint by hand
+                // produced it, and the trim() on save cannot remove a
+                // character the user never typed.
                 OutlinedTextField(mountpoint, { mountpoint = it },
-                    label = { Text(stringResource(R.string.field_mountpoint)) }, singleLine = true)
+                    label = { Text(stringResource(R.string.field_mountpoint)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
                 OutlinedTextField(user, { user = it },
-                    label = { Text(stringResource(R.string.field_user)) }, singleLine = true)
+                    label = { Text(stringResource(R.string.field_user)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
                 OutlinedTextField(password, { password = it },
-                    label = { Text(stringResource(R.string.field_password)) }, singleLine = true)
+                    label = { Text(stringResource(R.string.field_password)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
                 // Said here rather than only in the documentation: the
                 // credential is stored encrypted but travels as NTRIP
                 // specifies, which is base64 over plain TCP. A user
@@ -1446,7 +1460,9 @@ private fun SettingsDialog(
                 OutlinedTextField(ephPort, { ephPort = it.filter(Char::isDigit) },
                     label = { Text(stringResource(R.string.field_eph_port)) }, singleLine = true)
                 OutlinedTextField(ephMp, { ephMp = it },
-                    label = { Text(stringResource(R.string.field_eph_mp)) }, singleLine = true)
+                    label = { Text(stringResource(R.string.field_eph_mp)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
             }
         },
         confirmButton = {
