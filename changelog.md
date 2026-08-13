@@ -6,26 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-### Fixed — white lines through the elevation plot on an MSM4 station
+### Fixed — the C/N0-versus-elevation plot
 
-The plot binned C/N0 in half decibels. **MSM4 and MSM5 carry it in six
-bits — whole decibels, nothing between them** — so on such a station
-every second row could never be filled and the plot drew a blank row
-between every filled one. On MSM7, at a sixteenth of a decibel, there
-was nothing to see, which is why it looked like one edition rendering
-differently from the other. It was the same code drawing two stations.
+Three faults in one view, found by looking at it on a handset beside a
+second station.
 
-Cells are now a whole decibel, the coarsest any stream delivers, so
-every message type fills the rows it touches: MSM6 and MSM7 at 1/16 dB
-and the legacy messages at 1/4 dB simply land in the same row. Compared
-on the handset, free on `caster.centipede.fr/NEAR4` (MSM4) and pro on
-`ntrip.kadaster.nl/APEL00NLD0` (MSM7) now render the same kind of plot —
-the MSM7 one denser, because a finer stream spreads its samples over
-more rows.
+**It belonged to no run in particular.** Samples from every station
+tested since the app was opened were drawn into one scatter, under a
+header reading "this session": two casters, two antennas, two skies, one
+curve, and nothing to say which was which. It is cleared when a run
+starts — a first run ended at 2863 samples, and twenty-five seconds into
+the next the plot read 1040 rather than 3900.
 
-`android/design/views.md` gains the table of what each message family
-carries and how that reaches the screen, since this is the second defect
-in a day where a property of the station wore an app defect's clothes.
+**It drew dots inside larger cells**, so the plot showed the grid's own
+quantisation as gapped columns. Each cell is now drawn as the rectangle
+it stands for, and neighbours meet.
+
+**Its cells were finer than the data.** MSM4 and MSM5 carry C/N0 in six
+bits — whole decibels, nothing between them — so with half-decibel cells
+every second row could never be filled, and the plot drew a blank row
+between every filled one: **horizontal white lines**, on the station
+rather than in the renderer. On MSM7, at a sixteenth of a decibel, there
+was nothing to see, which made identical code look like an edition
+difference. Cells are a whole decibel now, the coarsest any stream
+delivers, so every message family fills the rows it touches.
+
+Compared on the handset afterwards: free on `caster.centipede.fr/NEAR4`
+(MSM4) and pro on `ntrip.kadaster.nl/APEL00NLD0` (MSM7) render the same
+plot, the MSM7 one denser because a finer stream spreads its samples
+over more rows. Neither is more correct, and
+`android/design/views.md` now carries the table of what each message
+family delivers and how that reaches the screen.
+
+### Fixed — the constellation legend squeezed its last entry
+
+With more constellations than fit a line — six on
+`rtk2go.com/Mirmenhof` — the last was crushed into whatever space
+remained. It wraps now, breaking between entries and never inside one,
+because a colour swatch without its name beside it says nothing. All
+three analysis views share the legend, so all three gained it: verified
+reading GPS, GLONASS, Galileo, BeiDou, SBAS on one line with NavIC on
+the next.
 
 ### Added — the build refuses to let the editions diverge
 
@@ -42,22 +63,6 @@ It runs as part of every build. Verified by putting a stray file in
     An edition may only carry Features.kt; everything else is shared
     (android/design/editions.md). Found:
       free: nl\pe1mew\ntripanalyser\Stray.kt
-
-### Fixed — the elevation plot belonged to no run in particular
-
-**It never reset.** Samples from every station tested since the app was
-opened were drawn into one scatter, under a header reading "this
-session": two casters, two antennas, two skies, one curve, and nothing
-to say which was which. It is cleared when a run starts. Measured on the
-handset: a first run ended at 2863 samples, and twenty-five seconds into
-the next the plot read 1040 rather than 3900.
-
-**The cells were too small to see.** Half a degree by a quarter of a
-decibel is about five pixels by four on a phone -- seamless, which was
-the point of the previous change, but a satellite with a single sample
-became a mark that was not there. A degree by half a decibel is roughly
-ten by nine: still tiling, and visible. The grid is 410 kB rather than
-1.6 MB, and still fixed however long the run.
 
 ### Fixed — an imported navigation file suppressed the ephemeris stream
 
@@ -79,27 +84,6 @@ On `rfsee.net/HANESE` with a 2131-record navigation file loaded: **456
 frames off the ephemeris stream, closed after 20 s at 40 of 40
 placeable**, and the sky view now reads "39 of 40 satellites shown ·
 ephemeris stream" where it read "navigation file" before.
-
-### Fixed — two analysis views that damaged what they were showing
-
-**The C/N0-versus-elevation plot was drawn in cells larger than its
-marks.** A degree of elevation is about ten pixels on a phone and the
-mark was five, so the plot showed gapped columns: the quantisation of
-the grid, drawn over the shape of the curve. Cells are now half a degree
-by a quarter of a decibel, and each is drawn as the rectangle it stands
-for rather than as a dot in the middle of it, so neighbouring cells
-meet. The grid is still fixed at 1.6 MB however long the run.
-
-**The constellation legend squeezed its last entry.** With more
-constellations than fit a line — six on `rtk2go.com/Mirmenhof` — the
-last was crushed into whatever space remained. It wraps now, breaking
-between entries and never inside one, because a colour swatch without
-its name beside it says nothing. All three analysis views share the
-legend, so all three gained it.
-
-Both verified on the handset: 1828 samples plotted as continuous bars,
-and a legend reading GPS, GLONASS, Galileo, BeiDou, SBAS on one line
-with NavIC on the next.
 
 ### Fixed — an MSM1-3 station reported no satellites at all
 

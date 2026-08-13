@@ -50,6 +50,14 @@
   bridge on the desktop against a stub that timestamps what arrives — no
   public caster advertises an `nmea` mountpoint to test against
   (`docs/RUNBOOK.md`).
+- **Every RTCM 3 observation format is now measured** — legacy
+  1001-1004/1009-1012 and MSM1-7 for satellites, MSM4-7 and legacy for
+  C/N0 — and KPIs 4 and 5 judge a station against what its sourcetable
+  advertises rather than against a fixed multi-GNSS expectation
+  (`design/legacy-observations.md`). A station's own message format also
+  sets the resolution of the C/N0 views, which is documented in
+  `android/design/views.md` because it has twice looked like an app
+  defect.
 - **Release plumbing is in place**: version parsed from
   `src/core/version.h` by Gradle (`versionCode` = MMmmpp), signing from a
   git-ignored `keystore.properties` with a debug-key fallback that says

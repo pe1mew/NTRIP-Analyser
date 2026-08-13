@@ -77,6 +77,22 @@
 **Fix**: Count, allocate, parse — and log what the fetch did, because the C side's stderr goes nowhere on Android and "cannot judge" with no way to ask why is not a diagnosis.
 **Lesson**: A fixed cap on data from a third party is a silent truncation waiting for a bigger third party. Count first.
 
+### A property of the station looked like a defect in the app (2026-08-13)
+**Problem**: The C/N0-versus-elevation plot showed horizontal white lines in the free edition and none in pro, which read as the two editions diverging.
+**Root cause**: The stations differed, not the editions. MSM4 carries C/N0 in whole dB-Hz, so half-decibel plot cells could fill only every second row; the pro station was MSM7 at a sixteenth of a decibel and filled them all.
+**Fix**: Bin at the coarsest resolution any stream delivers (1 dB), and document the per-format resolution in `android/design/views.md`.
+**Lesson**: Before suspecting the app, point both editions at the *same* mountpoint. `checkEditionParity` now fails the build if an edition acquires code of its own, so a real divergence cannot hide behind this.
+
+### An IME invented characters in a mountpoint (2026-08-13) [RESOLVED]
+**Problem**: Typing `APEL0` on the handset saved `APEL0. `; the caster then reported no such mountpoint.
+**Root cause**: EMUI's keyboard commits a full stop and a space on focus loss. The caster field had been given a URI keyboard for exactly this; the mountpoint, username and password fields had not.
+**Fix**: The same `KeyboardType.Uri` on all of them. `trim()` cannot help -- it removes a space, not a character the user never typed.
+
+### A commit landed in the wrong worktree's index (2026-08-13) [RESOLVED]
+**Problem**: A commit carrying a 28-file message contained one whitespace change to `changelog.md`.
+**Root cause**: Each worktree has its own index. The work was staged in `.claude/worktrees/<name>`; `git commit` was run in the main repository, where the only dirty file was a stray edit.
+**Fix**: Commit from inside the worktree that holds the work, then fast-forward `main` onto its branch.
+
 ### Heredocs corrupt C string literals (2026-08-12)
 **Problem**: `\n` inside a heredoc-fed script arrives as a real newline, producing C source that no longer compiles.
 **Fix**: Use file-editing tools for anything containing escapes, or write the script to a file first.

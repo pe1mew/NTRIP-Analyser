@@ -133,6 +133,15 @@ The analyser can perform the following operations on NTRIP streams:
    - Message statistics (count, minimum/average/maximum transmission intervals)
    - Filtered message decoding (show only specific message types)
    - Satellite analysis (count unique satellites per GNSS constellation)
+
+   **Any RTCM 3 observation format is measured**, not only the modern
+   ones. Satellites are counted from MSM1 through MSM7 and from the
+   legacy 1001–1004 and 1009–1012, so a station built before MSM is
+   graded rather than failed for its age. Signal strength is read
+   wherever the format carries it — a whole dB-Hz in MSM4 and MSM5, a
+   sixteenth in MSM6 and MSM7, a quarter in the legacy messages — and
+   MSM1–3 carry none at all, which the verdict says in those words
+   instead of blaming the station.
 3. **Station acceptance test** — eight KPIs over about ninety seconds,
    ending in a verdict that must hold for sixty continuous seconds before
    it is reported, so a station that flickers cannot pass by being healthy
