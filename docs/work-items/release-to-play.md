@@ -250,6 +250,20 @@ every threshold and every quoted message was taken from `src/core/kpi.c`
 and the app's strings on the day they were written, and a wiki that
 describes the tool inaccurately is worse than no wiki.
 
+### The data-safety declaration — **written**
+
+`docs/work-items/play-data-safety.md`: every question in the console's
+form, answered per edition, with what each answer rests on and a
+pre-submission checklist of the ways an answer could quietly stop being
+true.
+
+The one decision inside it: **pro declares its live position even though
+Play's user-initiated-transfer exemption would arguably cover it.** A
+tool that measures other people's infrastructure should be the last
+thing on a phone to take an exemption for transmitting a location, and a
+user comparing the listings should see the difference the paid edition
+makes.
+
 ### Phase 8 — the pro wiki — **drafted**
 
 Five more pages in `docs/wiki/`, documenting only the differences: what

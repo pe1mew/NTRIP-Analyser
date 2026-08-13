@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the Play data-safety declaration, per edition
+
+`docs/work-items/play-data-safety.md` answers every question in the
+console's form for both listings, records what each answer rests on, and
+lists the ways an answer could quietly stop being true — a new
+dependency, TLS landing, anything new leaving the device.
+
+**Free declares nothing.** The only data that leaves the device goes to
+the caster the user typed in, at the moment they tap Run, which is
+Play's user-initiated-transfer exemption.
+
+**Pro declares precise location as shared, optional, app functionality**
+— on the same reasoning that would have allowed it to declare nothing.
+The live position is arguably exempt too; it is declared anyway, because
+a tool that measures other people's infrastructure should be the last
+thing on a phone to take an exemption for transmitting a location.
+*Collected: no, shared: yes* is the honest shape of it — there is no
+server for it to be collected into.
+
+Both answer **No** to encryption in transit, because NTRIP sends the
+position and the credentials over a plain connection. That is the
+protocol rather than a shortcut, the app says so where the password is
+typed, and it becomes **Yes** the day TLS lands in both editions.
+
 ### Added — user documentation for the paid edition
 
 Five pages covering only what differs, each pointing back to the free
