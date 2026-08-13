@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — user documentation for the paid edition
+
+Five pages covering only what differs, each pointing back to the free
+pages for everything shared: **what Pro adds**, **watch mode**, **saved
+connections** and the configuration file, **reporting where you are**,
+and **orbits and the ephemeris stream**.
+
+Two of them exist because the behaviour is easy to misread. The
+ephemeris page states the dialling policy in numbers — not opened while
+the station's own stream delivers, opened after twenty seconds of
+nothing filling the cache, held at least twenty seconds and at most two
+minutes, no redial for fifteen minutes — so a user who watches a second
+connection appear and vanish knows it was designed rather than broken.
+The live-position page states what is transmitted, that it goes to that
+caster and nowhere else, that the configured position is the fallback
+rather than a zero, and that the phone stops learning its position while
+the app is off screen.
+
+Watch mode gets the reading it needs: availability is *of judged time*,
+a degradation is an event rather than a duration, and the three numbers
+worth quoting in a report are availability, degradations and worst
+state.
+
+**No free page links to a pro page** — checked mechanically, with every
+internal link — so the free wiki still stands alone for a user who will
+never see these.
+
 ### Added — user documentation for the free edition
 
 Seven wiki pages in `docs/wiki/`, written for someone who has just

@@ -250,6 +250,19 @@ every threshold and every quoted message was taken from `src/core/kpi.c`
 and the app's strings on the day they were written, and a wiki that
 describes the tool inaccurately is worse than no wiki.
 
+### Phase 8 — the pro wiki — **drafted**
+
+Five more pages in `docs/wiki/`, documenting only the differences: what
+Pro adds, watch mode, saved connections and the configuration file,
+reporting the phone's position, and the ephemeris stream. Each points
+back to the free pages for everything shared, and **no free page links
+to a pro page**, so the free wiki still stands alone — checked
+mechanically, along with every internal link.
+
+One wiki serves both listings: there is one repository, so there is one
+wiki. The sidebar carries a Pro section, and a free user who never taps
+into it never needs to.
+
 ### Phases 7 and 8 — Wiki, then launch
 
 GitHub's wiki is a separate repository (`NTRIP-Analyser.wiki.git`). It is
