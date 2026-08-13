@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -127,7 +128,9 @@ fun MainScreen() {
     // sky view is first opened, never at launch.
     val phoneGnss = remember { PhoneGnss(context) }
     val positions by phoneGnss.positions.collectAsStateWithLifecycle(emptyMap())
+    val fix by phoneGnss.fix.collectAsStateWithLifecycle(null)
     var haveLocation by remember { mutableStateOf(hasLocationPermission(context)) }
+    var ggaConsent by remember { mutableStateOf(Settings.liveGgaConsent(context)) }
     var openSky by remember { mutableStateOf(false) }
     var rinexName by remember { mutableStateOf(Settings.rinexName(context)) }
     var menuOpen by remember { mutableStateOf(false) }
@@ -241,6 +244,34 @@ fun MainScreen() {
     DisposableEffect(haveLocation) {
         if (haveLocation) phoneGnss.start()
         onDispose { phoneGnss.stop() }
+    }
+
+    // Permission may have been granted inside the settings dialog, which
+    // owns its own launcher; without this the receiver would not start
+    // until the next launch and a live uplink would silently send the
+    // fixed position instead.
+    LaunchedEffect(showSettings) {
+        if (!showSettings) {
+            haveLocation = hasLocationPermission(context)
+            ggaConsent = Settings.liveGgaConsent(context)
+        }
+    }
+
+    // The one place the phone's position is offered to a run. Null means
+    // "do not report it", and a run then keeps sending the configured
+    // position -- so revoking consent, losing the fix or leaving the
+    // screen all fall back the same way, within one uplink interval.
+    //
+    // While the app is off screen Android stops delivering location to a
+    // dataSync foreground service, so the last position stands until the
+    // user returns. That is the fallback working, not a stale reading
+    // dressed up as a live one: the alternative is a location-typed
+    // service tracking the user in the background, which this app will
+    // not do to answer a coverage question.
+    val liveGgaOn = Features.HAS_LIVE_GGA && settings.ggaLive && ggaConsent
+    DisposableEffect(fix, liveGgaOn) {
+        MonitorService.livePosition = if (liveGgaOn) fix else null
+        onDispose { MonitorService.livePosition = null }
     }
 
     // Satellites the stream measured, joined to a position where one
@@ -574,8 +605,20 @@ fun MainScreen() {
         SourcetableDialog(
             settings = settings,
             onDismiss = { showSourcetable = false },
-            onPick = { mp ->
-                store = Settings.save(context, settings.copy(mountpoint = mp))
+            onPick = { e ->
+                // The entry answers more than which mountpoint: whether
+                // it wants a GGA uplink at all, and where it is. Taking
+                // both is what makes "test as if standing at the
+                // station" the default rather than a position the user
+                // has to find and type.
+                store = Settings.save(context, settings.copy(
+                    mountpoint = e.mountpoint,
+                    sendGga = e.nmea,
+                    latitude = if (e.lat != 0.0 || e.lon != 0.0) e.lat
+                               else settings.latitude,
+                    longitude = if (e.lat != 0.0 || e.lon != 0.0) e.lon
+                                else settings.longitude,
+                ))
                 showSourcetable = false
             },
         )
@@ -830,7 +873,12 @@ private fun ConfigSummary(s: CasterSettings, onEdit: () -> Unit) {
             )
             if (s.sendGga) {
                 Text(
-                    stringResource(R.string.config_gga, s.latitude, s.longitude),
+                    if (s.ggaLive && Features.HAS_LIVE_GGA)
+                        stringResource(R.string.config_gga_live,
+                                       s.latitude, s.longitude)
+                    else
+                        stringResource(R.string.config_gga,
+                                       s.latitude, s.longitude),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1094,6 +1142,67 @@ private fun SettingsDialog(
     var ephPort by remember { mutableStateOf(initial.ephPort.toString()) }
     var ephMp by remember { mutableStateOf(initial.ephMountpoint) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var live by remember { mutableStateOf(initial.ggaLive) }
+    var consent by remember { mutableStateOf(Settings.liveGgaConsent(context)) }
+    var askConsent by remember { mutableStateOf(false) }
+    var looking by remember { mutableStateOf(false) }
+    // One line under the position fields, for whatever the last action
+    // has to say: a map that would not open, a paste that held no
+    // coordinates, a mountpoint the caster does not list.
+    var hint by remember { mutableStateOf<String?>(null) }
+
+    fun show(v: Double) = "%.6f".format(Locale.US, v)
+
+    val askLocation = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        live = granted
+        if (!granted) hint = context.getString(R.string.gga_needs_location)
+    }
+
+    /** Turn the live uplink on, asking for whatever is still missing. */
+    fun enableLive() {
+        when {
+            !consent -> askConsent = true
+            !hasLocationPermission(context) ->
+                askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            else -> live = true
+        }
+    }
+
+    /** Fill the position from the mountpoint's own sourcetable entry. */
+    fun fromStation() {
+        val mp = mountpoint.trim()
+        if (caster.isBlank() || mp.isEmpty()) return
+        scope.launch {
+            looking = true
+            val json = withContext(Dispatchers.IO) {
+                NtripBridge.sourcetable(
+                    caster, port.toIntOrNull() ?: 2101, user, password)
+            }
+            looking = false
+            val entry = json
+                ?.let {
+                    runCatching { bridgeJson.decodeFromString<Sourcetable>(it) }
+                        .getOrNull()
+                }
+                ?.entries?.firstOrNull { it.mountpoint.equals(mp, true) }
+            hint = when {
+                entry == null ->
+                    context.getString(R.string.station_lookup_failed, mp)
+                entry.lat == 0.0 && entry.lon == 0.0 ->
+                    context.getString(R.string.station_lookup_no_pos, mp)
+                else -> {
+                    lat = show(entry.lat)
+                    lon = show(entry.lon)
+                    null
+                }
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_title)) },
@@ -1143,10 +1252,82 @@ private fun SettingsDialog(
                 }
 
                 if (gga) {
+                    // Which position is reported is the edition
+                    // difference, and it maps onto two different
+                    // questions: does this station serve the area it
+                    // claims (a fixed point, repeatable between runs),
+                    // or am I served properly *here* (the phone's own).
+                    // See android/design/editions.md.
+                    if (Features.HAS_LIVE_GGA) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(live, { on ->
+                                if (on) enableLive() else live = false
+                            })
+                            Text(stringResource(R.string.field_gga_live))
+                        }
+                    }
+                    Text(
+                        stringResource(
+                            if (live && Features.HAS_LIVE_GGA)
+                                R.string.field_gga_live_explain
+                            else R.string.field_gga_fixed_explain
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     OutlinedTextField(lat, { lat = it },
                         label = { Text(stringResource(R.string.field_lat)) }, singleLine = true)
                     OutlinedTextField(lon, { lon = it },
                         label = { Text(stringResource(R.string.field_lon)) }, singleLine = true)
+
+                    // The map is somebody else's: a geo: intent hands the
+                    // job to whatever map app is installed, or to
+                    // OpenStreetMap in the browser, and the answer comes
+                    // back through the clipboard. The Windows GUI does the
+                    // same with its own browser page; see MapPick.
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = {
+                            val ok = MapPick.open(
+                                context,
+                                lat.toDoubleOrNull() ?: 52.0,
+                                lon.toDoubleOrNull() ?: 6.0,
+                            )
+                            hint = context.getString(
+                                if (ok) R.string.map_hint else R.string.map_no_app)
+                        }) { Text(stringResource(R.string.action_map)) }
+                        TextButton(onClick = {
+                            val picked = MapPick.parse(MapPick.clipboard(context))
+                            if (picked == null) {
+                                hint = context.getString(R.string.map_paste_failed)
+                            } else {
+                                lat = show(picked.first)
+                                lon = show(picked.second)
+                                hint = null
+                            }
+                        }) { Text(stringResource(R.string.action_paste)) }
+                        TextButton(
+                            onClick = { fromStation() },
+                            enabled = !looking && caster.isNotBlank() &&
+                                mountpoint.isNotBlank(),
+                        ) { Text(stringResource(R.string.action_from_station)) }
+                    }
+                    if (looking) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                stringResource(R.string.sourcetable_loading),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                    hint?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -1183,6 +1364,7 @@ private fun SettingsDialog(
                         latitude = lat.toDoubleOrNull() ?: 52.0,
                         longitude = lon.toDoubleOrNull() ?: 6.0,
                         sendGga = gga,
+                        ggaLive = live && Features.HAS_LIVE_GGA && consent,
                         ephCaster = ephCaster.filter {
                             it.isLetterOrDigit() || it == '.' || it == '-'
                         },
@@ -1196,6 +1378,38 @@ private fun SettingsDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
+
+    // Asked once, before the first run that would transmit a position,
+    // and it names the caster it goes to. A line in a settings screen is
+    // not consent for sending someone's location to a third party's
+    // server (android/design/editions.md).
+    if (askConsent) {
+        AlertDialog(
+            onDismissRequest = { askConsent = false },
+            title = { Text(stringResource(R.string.gga_consent_title)) },
+            text = {
+                Text(stringResource(
+                    R.string.gga_consent_body,
+                    caster.ifBlank { stringResource(R.string.gga_consent_caster) },
+                ))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    askConsent = false
+                    consent = true
+                    Settings.setLiveGgaConsent(context, true)
+                    if (hasLocationPermission(context)) live = true
+                    else askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }) { Text(stringResource(R.string.gga_consent_allow)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    askConsent = false
+                    live = false
+                }) { Text(stringResource(R.string.gga_consent_deny)) }
+            },
+        )
+    }
 }
 
 /** Compact duration: "45 s", "12 min", "3 h 07 m". */
@@ -1256,7 +1470,7 @@ private fun WatchCard(w: Watch) {
 private fun SourcetableDialog(
     settings: CasterSettings,
     onDismiss: () -> Unit,
-    onPick: (String) -> Unit,
+    onPick: (SourceEntry) -> Unit,
 ) {
     var entries by remember { mutableStateOf<List<SourceEntry>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -1332,13 +1546,13 @@ private fun SourcetableDialog(
 }
 
 @Composable
-private fun SourceRow(e: SourceEntry, onPick: (String) -> Unit) {
+private fun SourceRow(e: SourceEntry, onPick: (SourceEntry) -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
             .then(
                 if (Features.SOURCETABLE_SELECTABLE)
-                    Modifier.clickable { onPick(e.mountpoint) }
+                    Modifier.clickable { onPick(e) }
                 else Modifier
             )
             .padding(vertical = 6.dp)

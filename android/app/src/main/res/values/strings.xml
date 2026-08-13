@@ -101,6 +101,7 @@
     <string name="config_nopw">no password</string>
     <string name="config_anon">no credentials</string>
     <string name="config_gga">GGA uplink from %1$.5f, %2$.5f</string>
+    <string name="config_gga_live">GGA uplink from this phone’s position (%1$.5f, %2$.5f without a fix)</string>
     <string name="hint_configure">Set the caster and mountpoint first (⚙).</string>
     <string name="err_open">Could not open the session.</string>
 
@@ -114,6 +115,23 @@
     <string name="field_gga">Send GGA (network-RTK mountpoints)</string>
     <string name="field_lat">Latitude</string>
     <string name="field_lon">Longitude</string>
+    <string name="field_gga_live">Report this phone’s position</string>
+    <string name="field_gga_live_explain">Sent to the caster about every ten seconds while a run is going, so a network service answers for where you are. The position above is used until the receiver has a fix, and whenever the app is not on screen.</string>
+    <string name="field_gga_fixed_explain">The position the caster is told the rover is at. A network service answers for this point, so it must be inside its coverage.</string>
+    <string name="action_map">Pick on map</string>
+    <string name="action_paste">Paste</string>
+    <string name="action_from_station">From station</string>
+    <string name="map_hint">Opens your map app. Copy the coordinates there, then press Paste.</string>
+    <string name="map_no_app">No map app or browser to open.</string>
+    <string name="map_paste_failed">The clipboard holds no coordinates.</string>
+    <string name="station_lookup_failed">The caster does not list %1$s, or is unreachable.</string>
+    <string name="station_lookup_no_pos">%1$s states no position in the sourcetable.</string>
+    <string name="gga_consent_title">Send your position to the caster?</string>
+    <string name="gga_consent_body">A run will transmit this phone’s position to %1$s about every ten seconds, so the network can serve corrections for where you are. It goes to that caster and nowhere else: this app has no server and sends nothing to its author.\n\nYou can turn this off again at any time; the position you typed is then sent instead.</string>
+    <string name="gga_consent_caster">the caster</string>
+    <string name="gga_consent_allow">Send my position</string>
+    <string name="gga_consent_deny">Keep the fixed position</string>
+    <string name="gga_needs_location">Location permission is needed to report this phone’s position.</string>
 
     <string name="channel_name">Acceptance run</string>
     <string name="channel_desc">Shown while a station check is in progress.</string>

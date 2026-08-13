@@ -112,6 +112,23 @@ NtripBridge *bridge_open_file(const char *path, bool watch);
 int bridge_pump(NtripBridge *b, int timeout_ms, double now_s);
 
 /**
+ * @brief Move the position the GGA uplink reports.
+ *
+ * Takes effect on the next uplink; the cadence is unchanged.  Ignored
+ * when the run was opened without `send_gga`, which is the whole of the
+ * free edition and any mountpoint that does not ask for GGA.
+ *
+ * Exists because a rover moves: the paid edition follows the phone's own
+ * receiver, so a network mountpoint answers for where the user is now
+ * rather than for wherever they stood when the run was started.
+ *
+ * @param b    Bridge handle.
+ * @param lat  Latitude, degrees.
+ * @param lon  Longitude, degrees.
+ */
+void bridge_set_position(NtripBridge *b, double lat, double lon);
+
+/**
  * @brief Serialise the snapshot and the KPI report as one JSON object.
  *
  * @param b   Bridge handle.

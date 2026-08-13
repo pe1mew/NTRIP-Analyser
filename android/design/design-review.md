@@ -160,6 +160,15 @@ map (rover + ARP + distance line). The rationale differs — the phone
 moves and the VRS test is about spatial relationship — but the decision
 should be made consciously against 4.2's reasoning, not inherited.
 
+**Settled for the position picker, 2026-08-13** — and only for that.
+No map SDK is embedded in either edition: picking a position hands off
+to a map app or the browser and takes the coordinates back through the
+clipboard, so no tile request is ever made by this process. The
+reasoning, including why osmdroid's Apache-2.0 licence was not the
+deciding factor, is in `android/design/editions.md`. Whether the VRS
+screen should *display* a map is still open and still has to answer to
+4.2.
+
 ### D7 — Phase 3 scope (persistence, alerting, favourites)
 
 Unexamined here; defer until Phase 1/2 are real.

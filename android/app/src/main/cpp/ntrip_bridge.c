@@ -113,7 +113,19 @@ struct NtripBridge {
     bool      have_arp_info;
     double    ex, ey, ez;      /**< station ARP in ECEF metres */
     char      mountpoint[64];
+
+    /* The GGA uplink, driven here rather than by the session's own
+     * timer, because the position can move mid-run: the paid edition
+     * reports where the phone is now, not where it was at ns_open().
+     * ntrip_session.h is explicit that one mechanism or the other
+     * drives the uplink, never both. */
+    bool      gga_on;
+    double    gga_lat, gga_lon;
+    double    gga_last_s;      /**< when one was last accepted by the socket */
 };
+
+/** @brief GGA cadence, matching what the session's own timer used. */
+#define BRIDGE_GGA_INTERVAL_S 10.0
 
 /**
  * @brief Observation-stream events.
@@ -220,13 +232,21 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
     opt.config.LONGITUDE  = lon;
 
     opt.stats_interval_s = 0.0;      /* the app polls; no event needed */
-    opt.send_gga         = send_gga;
-    opt.gga_interval_s   = 10.0;
+    opt.send_gga         = false;    /* driven from bridge_pump; see below */
     /* A phone loses connectivity constantly -- walking indoors, cell
      * hand-over, screen-off radio policy.  Reconnecting is what a user
      * expects; the KPI sustain clock resets on the gap either way, so a
      * genuinely broken station still cannot pass. */
     opt.auto_reconnect   = true;
+
+    b->gga_on     = send_gga;
+    b->gga_lat    = lat;
+    b->gga_lon    = lon;
+    /* Far enough back that the first pump after the handshake sends one:
+     * a VRS answers nothing until it knows where the rover claims to be,
+     * so waiting a full interval would cost the run its first ten
+     * seconds of stream. */
+    b->gga_last_s = -1e9;
 
     snprintf(b->mountpoint, sizeof(b->mountpoint), "%s",
              mountpoint ? mountpoint : "");
@@ -296,6 +316,15 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
 
     int r = ns_pump(b->sess, timeout_ms);
 
+    /* The clock only advances on a sentence the socket accepted, so a
+     * run that spends its first minute reconnecting still uplinks the
+     * moment it is back rather than on the next tick of a free-running
+     * timer. */
+    if (b->gga_on && now_s - b->gga_last_s >= BRIDGE_GGA_INTERVAL_S) {
+        if (ns_send_gga(b->sess, b->gga_lat, b->gga_lon))
+            b->gga_last_s = now_s;
+    }
+
     /* The ephemeris stream is pumped on the same thread, briefly: it
      * carries a few frames a minute, so it needs no time of its own. */
     if (b->eph) ns_pump(b->eph, 0);
@@ -303,6 +332,13 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
     kpi_update(&b->run, ns_stats(b->sess), now_s, &b->rep);
     kpi_watch_update(&b->w, &b->rep, now_s);
     return r;
+}
+
+void bridge_set_position(NtripBridge *b, double lat, double lon)
+{
+    if (!b) return;
+    b->gga_lat = lat;
+    b->gga_lon = lon;
 }
 
 int bridge_overall(const NtripBridge *b)

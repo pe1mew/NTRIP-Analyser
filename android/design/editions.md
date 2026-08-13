@@ -126,6 +126,74 @@ network and the VRS returns a distant ARP or nothing; assertion A3
 correctly. The sourcetable prefill makes this the uncommon case instead
 of the default one.
 
+### How it is built
+
+**The uplink is driven by the bridge, not by the session's own timer.**
+`NsOptions::send_gga` sends from the position the session was opened
+with, and a rover moves; `ntrip_bridge.c` therefore keeps the cadence
+itself and calls `ns_send_gga()`, which is the mechanism the Windows GUI
+already uses for its VRS work. `ntrip_session.h` is explicit that one
+drives the uplink or the other, never both.
+
+Three details are deliberate:
+
+- **The first sentence goes out on the first pump after the handshake**,
+  not one interval later. A VRS answers nothing until it knows where the
+  rover claims to be, so a ten-second wait costs the run its first ten
+  seconds of stream — on a sixty-second acceptance window that is a
+  sixth of the evidence.
+- **The clock only advances on a sentence the socket accepted.** A run
+  that spends its first minute reconnecting uplinks the moment it is
+  back, rather than on the next tick of a free-running timer.
+- **The position is pushed in, never pulled.** `MonitorService` reads
+  the phone's fix from the UI's own receiver and calls
+  `bridge_set_position()`; the C side does not know a phone exists.
+  Null means *do not report a phone position*, so consent withdrawn, a
+  lost fix and a closed screen all fall back the same way, within one
+  interval.
+
+**While the app is off screen, Android stops delivering location to a
+`dataSync` foreground service**, so the last position stands until the
+user returns. That is the fallback working as designed rather than a
+stale reading dressed up as a live one. The alternative — a
+`location`-typed service, plus background-location permission — would
+track the user continuously to answer a question they asked while
+looking at the screen, and this app will not do that.
+
+### Where the fixed position comes from
+
+Typing coordinates on a phone is the worst part of this feature, so
+there are three ways not to:
+
+| Route | Free | Pro |
+|---|---|---|
+| **From station** — reads the mountpoint's own sourcetable entry | yes | yes |
+| **Picking the mountpoint from the sourcetable** — takes its position and its `nmea` flag with it | — (the list is inert; see above) | yes |
+| **Pick on map** — hands off to a map app, takes the answer back through the clipboard | yes | yes |
+
+The map is **somebody else's**, and that is the decision rather than a
+shortcut. The Windows GUI writes a Leaflet page to a temporary file and
+lets the browser fetch the tiles (`gui/gui_events.c`, `OnMapPick`); the
+Android half fires a `geo:` intent, falling back to OpenStreetMap in the
+browser, and reads coordinates back from the clipboard (`MapPick.kt`).
+Mechanically different, because a local HTML file cannot be handed to a
+modern Android browser, but the same shape and the same reasons:
+
+- **Embedding a map SDK would make this app a tile client.** Osmdroid —
+  what `ttnmapper-android-v3` uses — is Apache 2.0 and licence-clean,
+  so that is not the objection. Tile requests carry where the user is
+  looking; making them from a tool that otherwise collects nothing
+  changes the Play data-safety answer away from *no data collected or
+  shared*, to buy a convenience the user's own map app already provides.
+- **The OSM tile policy forbids the bulk and offline prefetch that field
+  use wants.** A browser or a maps app visiting its own provider is that
+  provider's user, not ours.
+- **Attribution is theirs to get right**, and it is on screen either way.
+
+This does not revive desktop item 4.2 (map *widget*), which stays
+dropped: a picker answers "which point?" once, where a widget would draw
+a stationary dot for the length of a run.
+
 ### Why the privacy story is not the same in both editions
 
 In free, location is read on the device and never leaves it: it turns

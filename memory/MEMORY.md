@@ -40,10 +40,15 @@
   the station check in the Windows GUI; RINEX GLONASS fixes plus the project's
   first regression test; Android saved connection profiles with encrypted
   credentials; one shared JSON config format everywhere.
-- **Decided, not built**: GGA position sources — sending follows the
-  sourcetable's `nmea` flag; free sends a fixed position prefilled from the
-  sourcetable entry; pro sends the phone's live position after a one-time
-  consent. See `android/design/editions.md`.
+  The GGA uplink now follows the sourcetable's `nmea` flag in both editions,
+  with pro reporting the phone's own position after a one-time consent and
+  falling back to the fixed one; positions are picked from the station's
+  sourcetable entry or handed off to the user's map app, and no map SDK is
+  embedded (`android/design/editions.md`).
+- **Verifying an uplink needs no caster**: `test/tools/` drives the Android
+  bridge on the desktop against a stub that timestamps what arrives — no
+  public caster advertises an `nmea` mountpoint to test against
+  (`docs/RUNBOOK.md`).
 - **In progress**: getting both editions onto Google Play →
   `docs/work-items/release-to-play.md` [in progress] — eight phases, of which
   telemetry, licences and the security assessment are decisions that gate the

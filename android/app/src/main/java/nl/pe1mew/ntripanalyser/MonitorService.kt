@@ -91,6 +91,7 @@ class MonitorService : Service() {
             latitude = intent.getDoubleExtra(EXTRA_LAT, 52.0),
             longitude = intent.getDoubleExtra(EXTRA_LON, 6.0),
             sendGga = intent.getBooleanExtra(EXTRA_GGA, false),
+            ggaLive = intent.getBooleanExtra(EXTRA_GGA_LIVE, false),
             ephCaster = intent.getStringExtra(EXTRA_EPH_CASTER).orEmpty(),
             ephPort = intent.getIntExtra(EXTRA_EPH_PORT, 2101),
             ephMountpoint = intent.getStringExtra(EXTRA_EPH_MP).orEmpty(),
@@ -161,9 +162,36 @@ class MonitorService : Service() {
                     }
                 }
 
+                // Whether this run may report where the phone is. Decided
+                // once, from the run's own settings, so a consent
+                // withdrawn mid-run cannot be second-guessed here -- the
+                // UI clears [livePosition], and the uplink falls back to
+                // the configured position within one interval.
+                val liveGga = settings.sendGga && settings.ggaLive &&
+                    Features.HAS_LIVE_GGA
+                var reportedLive = false
+
                 while (!stopRequested) {
                     val nowS = (SystemClock.elapsedRealtime() - t0) / 1000.0
                     val alive = b.pump(PUMP_TIMEOUT_MS, nowS) >= 0
+
+                    // The rover moves, so the uplink follows it. Nothing
+                    // is sent from here: the C side keeps the cadence and
+                    // will not transmit at all unless the mountpoint asked
+                    // for GGA. Without a fix this simply does not run, and
+                    // the configured position stays in force -- a GGA of
+                    // 0,0 is a valid sentence that puts the rover in the
+                    // Atlantic, and a VRS will answer it.
+                    if (liveGga) {
+                        livePosition?.let { fix ->
+                            b.setPosition(fix.lat, fix.lon)
+                            if (!reportedLive) {
+                                reportedLive = true
+                                Log.i(TAG, "GGA now reports the phone's own " +
+                                    "position (accuracy ${fix.accuracyM} m)")
+                            }
+                        }
+                    }
 
                     // One document per second: the C side recomputes the
                     // snapshot at 1 Hz, so polling faster only burns battery.
@@ -405,6 +433,7 @@ class MonitorService : Service() {
         private const val EXTRA_LAT = "lat"
         private const val EXTRA_LON = "lon"
         private const val EXTRA_GGA = "gga"
+        private const val EXTRA_GGA_LIVE = "gga_live"
         private const val EXTRA_WATCH = "watch"
         private const val EXTRA_EPH_CASTER = "eph_caster"
         private const val EXTRA_EPH_PORT = "eph_port"
@@ -421,6 +450,19 @@ class MonitorService : Service() {
          */
         @Volatile
         private var liveBridge: NtripBridge? = null
+
+        /**
+         * The phone's current position, for the GGA uplink.
+         *
+         * Published by the UI, which owns the receiver, and read by the
+         * pump thread. Null means *do not report a phone position* --
+         * before consent, without permission, with no fix yet, or once
+         * the screen is gone -- and the run then keeps sending the
+         * configured position. Nothing here ever reaches a caster in the
+         * free edition, which has no live uplink at all.
+         */
+        @Volatile
+        var livePosition: Fix? = null
 
         /** The size the sky is rendered and retained at. */
         const val SKY_SIZE = 700
@@ -477,6 +519,15 @@ class MonitorService : Service() {
                 putExtra(EXTRA_LAT, s.latitude)
                 putExtra(EXTRA_LON, s.longitude)
                 putExtra(EXTRA_GGA, s.sendGga)
+                // Re-checked here as well as in the UI that offers the
+                // switch: this is the single door every run goes through,
+                // and transmitting a position without consent is not a
+                // mistake to leave to one screen's correctness.
+                putExtra(
+                    EXTRA_GGA_LIVE,
+                    s.ggaLive && Features.HAS_LIVE_GGA &&
+                        Settings.liveGgaConsent(context),
+                )
                 putExtra(EXTRA_WATCH, watch)
                 putExtra(EXTRA_EPH_CASTER, s.ephCaster)
                 putExtra(EXTRA_EPH_PORT, s.ephPort)

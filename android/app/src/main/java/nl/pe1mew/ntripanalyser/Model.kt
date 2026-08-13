@@ -283,6 +283,19 @@ data class CasterSettings(
     val longitude: Double = 6.0,
     val sendGga: Boolean = false,
     /**
+     * Send the phone's own position rather than the fixed one above.
+     *
+     * The paid edition only, and only after the one-time consent
+     * ([Settings.liveGgaConsent]); the fixed position remains the
+     * fallback for a receiver with no fix, so this is which position is
+     * preferred rather than whether one is sent at all.
+     *
+     * Not part of the exported configuration (`docs/jsonConfigs.md`): it
+     * describes this handset, not the connection, and a file shared with
+     * a colleague must not decide that their phone starts transmitting.
+     */
+    val ggaLive: Boolean = false,
+    /**
      * Ephemeris stream, which the sky plot needs: observations say which
      * satellites are tracked, not where they are. Blank disables it.
      */

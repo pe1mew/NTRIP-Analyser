@@ -30,4 +30,16 @@ object Features {
     const val MAX_MOUNTPOINTS = 16
 
     const val SOURCETABLE_SELECTABLE = true
+
+    /**
+     * The GGA uplink can carry the phone's live position, so a network
+     * service answers for where the user actually is -- the field
+     * question, and what a professional is paid to answer.
+     *
+     * Transmitted only after an explicit one-time consent, and only when
+     * the receiver has a fix; otherwise the configured position is sent,
+     * because a GGA of 0,0 puts the rover in the Atlantic and a VRS will
+     * answer it.
+     */
+    const val HAS_LIVE_GGA = true
 }

@@ -120,6 +120,15 @@ JNI_FN(nativeOverall)(JNIEnv *env, jobject thiz, jlong handle)
 }
 
 JNIEXPORT void JNICALL
+JNI_FN(nativeSetPosition)(JNIEnv *env, jobject thiz, jlong handle,
+                          jdouble lat, jdouble lon)
+{
+    (void)env; (void)thiz;
+    bridge_set_position((NtripBridge *)(intptr_t)handle,
+                        (double)lat, (double)lon);
+}
+
+JNIEXPORT void JNICALL
 JNI_FN(nativeClose)(JNIEnv *env, jobject thiz, jlong handle)
 {
     (void)env; (void)thiz;

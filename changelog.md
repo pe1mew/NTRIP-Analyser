@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the GGA uplink reports where the rover actually is (Android)
+
+A network-RTK mountpoint serves the position the rover reports, so what
+that position is decides what the run is testing. Both editions now send
+a GGA when the mountpoint's sourcetable entry asks for one, and the
+**paid edition can report the phone's own position** instead of a fixed
+one — the difference between *does this station serve the area it
+claims* and *am I served properly here*.
+
+Measured against a stub caster with the phone's own bridge code
+(`android/app/src/main/cpp/ntrip_bridge.c` compiles on the desktop):
+the first sentence arrives at 0.0 s rather than one interval late, then
+at 10.0 s and 20.0 s, and a position moved at 12 s is reported at 20 s —
+
+    stub:    0.0 s  <= $GNGGA,110943.00,5200.0000,N,00600.0000,E,1,...
+    stub:   10.0 s  <= $GNGGA,110953.00,5200.0000,N,00600.0000,E,1,...
+    stub:   20.0 s  <= $GNGGA,111003.00,5130.0000,N,00530.0000,E,1,...
+
+With the mountpoint's `nmea` flag clear, nothing is sent at all. The
+uplink moved off the session's built-in timer, which sends from the
+position the session was opened with, onto `ns_send_gga()` driven by the
+bridge — the mechanism the Windows GUI already uses.
+
+**The phone's position is transmitted only after an explicit consent**,
+asked once, naming the caster it goes to, and never in the free edition.
+Without a fix — indoors, or with the app off screen, where Android stops
+delivering location to a `dataSync` foreground service — the configured
+position is sent instead. That fallback is not cosmetic: a GGA of 0,0 is
+a valid sentence that puts the rover in the Atlantic, and a VRS will
+answer it.
+
+Typing coordinates on a phone is the worst part of the feature, so both
+editions gained **From station** (fills the position from the
+mountpoint's own sourcetable entry) and **Pick on map**, which opens the
+user's map app — or OpenStreetMap in the browser — and reads the
+coordinates back from the clipboard. Picking a mountpoint from the
+sourcetable in pro now also takes its position and its `nmea` flag.
+
+No map library is embedded in either edition. Osmdroid is Apache 2.0 and
+would have been licence-clean; the objection is that it would make a
+tool that collects nothing start fetching tiles that say where the user
+is looking. `android/design/editions.md` has the whole argument.
+
 ### Changed — one configuration format for the whole project
 
 There were two: a single-connection `config.json` for the CLI, the GUI

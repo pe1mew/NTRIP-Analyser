@@ -101,6 +101,35 @@ empty after a migration.
 A station check takes ~90 s and the sustain window is 60 s, so allow
 about 105 s before expecting a settled verdict.
 
+### Verifying what a run *sends*, without a VRS
+
+Public casters advertise no `nmea` mountpoint, so the GGA uplink cannot
+be observed against one. `test/tools/` holds a stub caster that answers
+the sourcetable request, accepts the stream request and timestamps every
+line the client sends back, plus a probe that drives the **Android
+bridge** — plain C99, no JNI, so the phone's own code runs here.
+
+```bash
+export PATH="/c/Program Files/CodeBlocks/MinGW/bin:$PATH"
+gcc -std=c99 -I src -I android/app/src/main/cpp -I lib/cJSON \
+    test/tools/gga_probe.c android/app/src/main/cpp/ntrip_bridge.c \
+    -o bin/gga_probe.exe -L build -lntrip_session -lntrip_core -lcjson -lws2_32 -lm
+```
+
+```bash
+python test/tools/stub_caster.py 2103 32 &      # port, seconds
+./bin/gga_probe.exe 127.0.0.1 2103 TEST 1       # host, port, mountpoint, send_gga
+```
+
+The stub prints the uplink as it arrives, so the cadence, the first
+sentence's timing and a mid-run position change are all visible:
+
+    stub:    0.0 s  <= $GNGGA,110943.00,5200.0000,N,00600.0000,E,1,...
+    stub:   20.0 s  <= $GNGGA,111003.00,5130.0000,N,00530.0000,E,1,...
+
+With `send_gga` 0 the stub must print nothing at all — a mountpoint that
+does not ask for a position must not be sent one.
+
 ## Adding a New Frontend, Window, KPI or Config Field
 
 **Adding a GUI source file** — add it to *both* `CMakeLists.txt`

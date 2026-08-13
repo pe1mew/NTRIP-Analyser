@@ -161,15 +161,34 @@ network-facing files.
   in a paid app is a decision, not an oversight — take it deliberately
   (1.0.0 is stable).
 
-### Phase 4 — Live GGA implementation
+### Phase 4 — Live GGA implementation — **built**
 
-Designed in `android/design/editions.md`, not built: sending follows the
-sourcetable's `nmea` flag in both editions; free sends a fixed position
-prefilled from the mountpoint's sourcetable entry; pro sends the phone's
-live position with a fixed-position fallback, behind a one-time consent.
+As designed in `android/design/editions.md`: sending follows the
+sourcetable's `nmea` flag in both editions; the fixed position is filled
+from the mountpoint's own sourcetable entry, or picked in the user's own
+map app; pro reports the phone's live position with a fixed-position
+fallback, behind a one-time consent. The uplink itself was verified
+against a stub caster (`test/tools/`, `docs/RUNBOOK.md`) — no public
+caster advertises an `nmea` mountpoint to test against.
 
-The consent dialog and what it says are **inputs to the privacy policy**,
-so this lands before Phase 5.
+What Phase 5 now has to work from:
+
+- **The consent wording is written** (`gga_consent_body` in
+  `strings.xml`): it names the caster, states the ten-second cadence,
+  and says the app has no server and sends nothing to its author. The
+  privacy policy must say the same in the same terms.
+- **`ACCESS_FINE_LOCATION` now has two justifications**, and they are
+  not equal: satellite positions for the sky view, read on the device
+  in both editions, and — in pro only, after consent — a position
+  transmitted to a third-party caster. The data-safety form distinguishes
+  those.
+- **No background location, and no `location` foreground-service type.**
+  Off screen, the last position stands and the fallback carries the run.
+  Anything that changes here changes the declaration.
+
+Remaining before launch: a **hands-on pass on the device** — the consent
+dialog, the map hand-off and paste, *From station*, and a pro run whose
+uplink follows the handset.
 
 ### Phase 5 — Release plumbing
 

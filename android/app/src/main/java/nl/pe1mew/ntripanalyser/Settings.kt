@@ -28,6 +28,7 @@ object Settings {
     /** The profile store: one JSON document, encrypted. */
     private const val FILE = "caster_secure"
     private const val KEY_STORE = "profiles"
+    private const val KEY_GGA_CONSENT = "gga_live_consent"
 
     private const val RINEX = "brdc.rnx"
     private const val TAG = "ntrip_settings"
@@ -123,6 +124,24 @@ object Settings {
 
     /** The connection in use. */
     fun load(context: Context): CasterSettings = loadProfiles(context).current
+
+    /**
+     * Whether the user has agreed to transmit this phone's position.
+     *
+     * Kept beside the connections rather than inside one: consent is
+     * about sending a location to a third party at all, so it is asked
+     * once and applies to every profile. Revoking it stops every live
+     * uplink, which a per-profile flag could not do.
+     *
+     * Absent in the free edition, which never transmits a position
+     * (`design/editions.md`).
+     */
+    fun liveGgaConsent(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_GGA_CONSENT, false)
+
+    fun setLiveGgaConsent(context: Context, granted: Boolean) {
+        prefs(context).edit().putBoolean(KEY_GGA_CONSENT, granted).apply()
+    }
 
     /** Replace the connection in use, leaving the others alone. */
     fun save(context: Context, s: CasterSettings): ProfileStore {

@@ -54,6 +54,17 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
     fun loadRinex(path: String): Int =
         if (handle == 0L) -1 else nativeLoadRinex(handle, path)
 
+    /**
+     * Move the position the GGA uplink reports.
+     *
+     * Only a network mountpoint listens: without `sendGga` the run makes
+     * no uplink and this changes nothing. Safe to call every second --
+     * it stores two doubles, and the C side keeps its own cadence.
+     */
+    fun setPosition(lat: Double, lon: Double) {
+        if (handle != 0L) nativeSetPosition(handle, lat, lon)
+    }
+
     /** Satellites tracked by the stream, and how many can be placed. */
     fun coverage(): Pair<Int, Int> {
         if (handle == 0L) return 0 to 0
@@ -171,6 +182,9 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         @JvmStatic private external fun nativeCheckRinex(path: String): Int
         @JvmStatic private external fun nativePlaceable(h: Long): Int
         @JvmStatic private external fun nativeCloseEph(h: Long)
+        @JvmStatic private external fun nativeSetPosition(
+            h: Long, lat: Double, lon: Double,
+        )
         @JvmStatic private external fun nativeSkyPixels(
             h: Long, pixels: IntArray, width: Int, height: Int,
         ): Boolean

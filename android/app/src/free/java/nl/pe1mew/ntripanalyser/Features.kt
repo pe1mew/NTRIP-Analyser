@@ -44,4 +44,14 @@ object Features {
      * workflow is the paid proposition.
      */
     const val SOURCETABLE_SELECTABLE = false
+
+    /**
+     * The GGA uplink carries a position the user set, never the phone's.
+     *
+     * Prefilled from the mountpoint's own sourcetable entry -- test as if
+     * standing at the station -- which needs no location permission and
+     * is always inside the network's coverage. The phone's position is
+     * read on this device for the sky view and never leaves it.
+     */
+    const val HAS_LIVE_GGA = false
 }

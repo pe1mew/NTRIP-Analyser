@@ -127,6 +127,18 @@ class PhoneGnss(private val context: Context) {
     /** Keyed by [key] so the sky view can join by (constellation, PRN). */
     val positions: StateFlow<Map<Long, SatPosition>> = _positions.asStateFlow()
 
+    private val _fix = MutableStateFlow<Fix?>(null)
+
+    /**
+     * The phone's own position, when it has one.
+     *
+     * The GGA uplink in the paid edition is sent from here. Null until
+     * the receiver has a fix -- indoors that can be for ever, which is
+     * why the caller falls back to the configured position rather than
+     * sending nothing or a zero.
+     */
+    val fix: StateFlow<Fix?> = _fix.asStateFlow()
+
     private var callback: GnssStatus.Callback? = null
     private var locationListener: LocationListener? = null
 
@@ -164,9 +176,14 @@ class PhoneGnss(private val context: Context) {
         // Registering for status is not enough: the GNSS receiver only
         // runs while something is actively requesting location, and a
         // powered-down receiver reports no satellites at all.  This
-        // request is what turns the engine on; the fixes themselves are
-        // not used -- only the satellite status is.
-        val listener = LocationListener { }
+        // request is what turns the engine on.
+        //
+        // The fixes were discarded until the paid edition needed a live
+        // GGA position; they are kept now, and go nowhere unless that
+        // edition is running and the user has consented to transmit.
+        val listener = LocationListener { loc ->
+            _fix.value = Fix(loc.latitude, loc.longitude, loc.accuracy)
+        }
         runCatching {
             lm.requestLocationUpdates(
                 LocationManager.GPS_PROVIDER, 1000L, 0f, listener,
@@ -175,6 +192,7 @@ class PhoneGnss(private val context: Context) {
     }
 
     fun stop() {
+        _fix.value = null
         val lm = context.getSystemService(LocationManager::class.java)
         callback?.let { lm?.unregisterGnssStatusCallback(it) }
         locationListener?.let { lm?.removeUpdates(it) }
@@ -187,3 +205,6 @@ class PhoneGnss(private val context: Context) {
         fun key(gnss: Int, prn: Int): Long = gnss.toLong() * 1000L + prn
     }
 }
+
+/** A position from the phone's own receiver, in degrees and metres. */
+data class Fix(val lat: Double, val lon: Double, val accuracyM: Float)
