@@ -1933,6 +1933,9 @@ private fun AboutDialog(onDismiss: () -> Unit) {
                 TextButton(onClick = { uriHandler.openUri(HELP_URL) }) {
                     Text(stringResource(R.string.about_help))
                 }
+                TextButton(onClick = { uriHandler.openUri(PRIVACY_URL) }) {
+                    Text(stringResource(R.string.about_privacy))
+                }
                 TextButton(onClick = { notices = true }) {
                     Text(stringResource(R.string.about_notices))
                 }
@@ -1947,5 +1950,25 @@ private fun AboutDialog(onDismiss: () -> Unit) {
 }
 
 private const val REPO_URL = "https://github.com/pe1mew/NTRIP-Analyser"
-private const val HELP_URL =
-    "https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/readme.md"
+
+/**
+ * The wiki, not `docs/readme.md`.
+ *
+ * The readme is written for someone building this repository; a phone
+ * user tapping "Documentation" wants *Getting started*. The wiki pages
+ * in `docs/wiki/` are the ones written for them, and one wiki serves
+ * both editions.
+ */
+private const val HELP_URL = "https://github.com/pe1mew/NTRIP-Analyser/wiki"
+
+/**
+ * The published privacy policy, from `docs/privacy-policy.md`.
+ *
+ * Play carries this URL on the listing, but somebody who has already
+ * installed the app should not have to go back to the store to read what
+ * it does with their position -- especially in the edition that asks for
+ * it. Verified against `docs/wiki/Privacy-and-support.md` by
+ * `tools/check_release.py`.
+ */
+private const val PRIVACY_URL =
+    "https://pe1mew.github.io/NTRIP-Analyser/privacy-policy"

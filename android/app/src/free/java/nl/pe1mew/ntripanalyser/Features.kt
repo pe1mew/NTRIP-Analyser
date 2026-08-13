@@ -7,7 +7,7 @@ package nl.pe1mew.ntripanalyser
  * hidden - they are not compiled into this APK. See
  * `android/design/editions.md` for the split and its reasoning.
  *
- * Nothing here touches the verdict. The seven KPIs, their thresholds and
+ * Nothing here touches the verdict. The eight KPIs, their thresholds and
  * the sustain window come from `src/core/kpi.c` and are identical in both
  * editions: a free STATION OK means exactly what a paid one means.
  */

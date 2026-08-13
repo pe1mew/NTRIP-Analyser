@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — three claims the app made about itself that were not true
+
+Found by auditing everything that has to agree at submission time, and
+none of them would have failed a build or a test:
+
+- **The About dialog said the app checks "the seven RTK service KPIs".**
+  It reports eight, and has since KPI 8 arrived — the CLI text and the
+  documentation were corrected then, the Android string was not. It was
+  also still wrong in `Features.kt` and in `design/architecture.md`.
+- **About → Documentation opened `docs/readme.md`**, which is written
+  for somebody building this repository. A phone user tapping
+  *Documentation* wants *Getting started*, so it opens the wiki.
+- **Nothing in the app linked the privacy policy.** Play carries the URL
+  on the listing, but somebody who has already installed should not have
+  to go back to the store to read what the app does with their position
+  — least of all in the edition that asks for it. About → **Privacy
+  policy**.
+
+Also removed `NTRIP_ANDROID_VERSION_CODE` from `version.h`. Android's
+version code is a *derivation* of the three version numbers, Gradle
+computes it, and nothing read the constant; keeping it meant two
+definitions of one rule, where a bump that moved the numbers but not the
+constant would label a release with a code that disagrees with its
+version.
+
+### Added — `tools/check_release.py`
+
+Because the three defects above are a class, not three accidents: each
+is a claim made in one file about something that lives in another, and
+nothing compares them. The script does, reading both sides — 25 checks
+covering the version, the addresses the app can open, the check count on
+every surface that states it, Play's title and length limits, and
+whether the generated notices still match the dependencies they name.
+
+Every check was verified to fail when its fact is broken: seven
+deliberate mutations, seven caught. A check that has never failed has
+not been tested.
+
 ### Added — whose caster it is, said where the user is choosing one
 
 The app is a client: it connects where it is told, with the user's own

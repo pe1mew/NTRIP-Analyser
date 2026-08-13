@@ -1,0 +1,235 @@
+"""Check the facts that must agree before a release is submitted.
+
+    python tools/check_release.py
+
+Nothing here is clever. Every check is something that was, at some
+point, wrong in this repository and not noticed until somebody read the
+file by chance:
+
+* the About blurb still said **seven** KPIs, months after `--check`
+  started reporting eight and the CLI text was corrected;
+* `docs/licences.md` named an `androidx.security-crypto` version the
+  build had stopped using weeks earlier;
+* About -> Documentation opened `docs/readme.md`, written for someone
+  building the repository, rather than the wiki written for the person
+  holding the phone.
+
+None of those break a build or fail a test. They are *claims*, and a
+claim is only checkable against the thing it claims about -- so each
+check below reads both sides and compares them. Run it before every
+submission, and add a check whenever drift is found by hand, so that it
+is found by machine the next time.
+
+Exit status is 0 when everything agrees, 1 otherwise.
+"""
+import io
+import os
+import re
+import subprocess
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+PROBLEMS = []
+CHECKED = 0
+
+
+def read(*parts):
+    with io.open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+def check(ok, what, detail=""):
+    """One comparison. `what` names the two sides being compared."""
+    global CHECKED
+    CHECKED += 1
+    if ok:
+        print("  ok   " + what)
+    else:
+        print("  FAIL " + what + ((" -- " + detail) if detail else ""))
+        PROBLEMS.append(what)
+
+
+# ── Version ───────────────────────────────────────────────────────────
+# One version for every artefact, from src/core/version.h. The risk is
+# not that the header is wrong; it is that something else restates it.
+
+def check_version():
+    print("version")
+    h = read("src", "core", "version.h")
+    part = {n: int(re.search(r"NTRIP_VERSION_" + n + r"\s+(\d+)", h).group(1))
+            for n in ("MAJOR", "MINOR", "PATCH")}
+    ver = "%d.%d.%d" % (part["MAJOR"], part["MINOR"], part["PATCH"])
+    print("  version.h says " + ver)
+
+    string = re.search(r'NTRIP_VERSION_STRING\s+"([^"]+)"', h).group(1)
+    check(string == ver, "VERSION_STRING matches the three numbers",
+          string)
+
+    rc = re.search(r"NTRIP_VERSION_RC\s+([\d,]+)", h).group(1)
+    check(rc == "%d,%d,%d,0" % (part["MAJOR"], part["MINOR"], part["PATCH"]),
+          "Win32 VERSIONINFO matches", rc)
+
+    rc_str = re.search(r'NTRIP_VERSION_RC_STR\s+"([^"]+)"', h).group(1)
+    check(rc_str == ver + ".0", "Win32 version string matches", rc_str)
+
+    # Minor and patch are capped by the versionCode scheme, and the cap
+    # is silent: 3.100.0 and 4.0.0 both compute to 40000.
+    check(part["MINOR"] < 100 and part["PATCH"] < 100,
+          "minor and patch are below 100, as the versionCode scheme needs")
+
+    # The versionCode is a derivation and must have exactly one
+    # definition -- the Gradle file. A constant that restates it in the
+    # header is what this check exists to prevent coming back.
+    check("NTRIP_ANDROID_VERSION_CODE" not in h.replace("#define", "", 0)
+          or "#define NTRIP_ANDROID_VERSION_CODE" not in h,
+          "versionCode is not also #defined in version.h")
+
+    gradle = read("android", "app", "build.gradle.kts")
+    check("versionPart(\"MAJOR\")" in gradle and "version.h" in gradle,
+          "Gradle reads the version from version.h")
+    return ver
+
+
+# ── URLs ──────────────────────────────────────────────────────────────
+# Every address the app can open must be one this repository publishes.
+
+def check_urls():
+    print("urls the app can open")
+    kt = read("android", "app", "src", "main", "java", "nl", "pe1mew",
+              "ntripanalyser", "MainActivity.kt")
+    urls = dict(re.findall(
+        r'private const val (\w+_URL)\s*(?:=|=\s*\n\s*)\s*"([^"]+)"', kt))
+
+    privacy = urls.get("PRIVACY_URL", "")
+    wiki_privacy = read("docs", "wiki", "Privacy-and-support.md")
+    check(bool(privacy) and privacy in wiki_privacy,
+          "the app's privacy link is the address the wiki publishes",
+          privacy)
+
+    # docs/privacy-policy.md is what GitHub Pages serves at that address,
+    # so the file has to exist for the link to resolve.
+    check(os.path.exists(os.path.join(ROOT, "docs", "privacy-policy.md")),
+          "docs/privacy-policy.md exists to be served there")
+
+    help_url = urls.get("HELP_URL", "")
+    check("/wiki" in help_url,
+          "About -> Documentation opens the wiki, not a developer readme",
+          help_url)
+
+    listing = read("docs", "work-items", "play-listing.md")
+    check(privacy in listing or "privacy-policy" in listing,
+          "the listing carries the privacy policy address")
+
+
+# ── Claims about the app, made outside the app ────────────────────────
+
+def check_claims():
+    print("claims")
+    kpi = read("src", "core", "kpi.h")
+    expect = re.search(r"KPI_EXPECT_SATS\s*\{([^}]*)\}", kpi).group(1)
+    n = len([x for x in expect.split(",") if x.strip()])
+    print("  kpi.h carries %d checks" % n)
+
+    words = {7: "seven", 8: "eight", 9: "nine"}
+    wrong = [w for k, w in words.items() if k != n]
+
+    # Only surfaces that describe the app as it is now. Design records
+    # and old changelog entries state what was true when written.
+    surfaces = [
+        ("android/app/src/main/res/values/strings.xml", "the About blurb"),
+        ("docs/work-items/play-listing.md", "the store listing"),
+        ("docs/wiki/The-eight-checks.md", "the wiki"),
+        ("docs/wiki/Home.md", "the wiki's home page"),
+    ]
+    for rel, name in surfaces:
+        text = read(*rel.split("/")).lower()
+        found = [w for w in wrong if (w + " kpi") in text
+                 or (w + " check") in text or (w + " rtk") in text]
+        check(not found, name + " does not miscount the checks",
+              ", ".join(found))
+
+
+# ── Store metadata limits ─────────────────────────────────────────────
+# Play rejects on these, after the upload, which is the worst moment to
+# find out.
+
+def check_listing():
+    print("store listing")
+    listing = read("docs", "work-items", "play-listing.md")
+
+    for title in re.findall(r"\| (?:Free|Pro) \| `([^`]+)`", listing):
+        check(len(title) <= 30, "title within 30 characters: " + title,
+              str(len(title)))
+        # Play's metadata policy treats promotional words in a title as
+        # grounds for rejection.
+        low = title.lower()
+        check(not any(w in low.split() for w in ("free", "sale", "new")),
+              "title free of promotional words: " + title)
+
+    block = listing.split("## Short description", 1)[1] \
+                   .split("## Full description", 1)[0]
+    shorts = [l.strip() for l in block.split(chr(10))
+              if l.startswith("    ") and l.strip()]
+    check(bool(shorts), "short descriptions found")
+    for s in shorts:
+        check(len(s) <= 80, "short description within 80 characters",
+              "%d: %s" % (len(s), s))
+
+    full = listing.split("## Full description", 1)[1] \
+                  .split("## Category", 1)[0]
+    body = chr(10).join(l[4:] if l.startswith("    ") else l
+                        for l in full.split(chr(10))).strip()
+    check(len(body) <= 4000, "full description within 4000 characters",
+          str(len(body)))
+
+
+# ── Generated files ───────────────────────────────────────────────────
+# A generated file is only true if it was regenerated after its source
+# moved. Cheap to prove: regenerate and see whether anything changed.
+
+def check_generated():
+    print("generated files")
+    targets = [
+        os.path.join("android", "app", "src", "main", "res", "raw",
+                     "notices.txt"),
+        os.path.join("packaging", "THIRD-PARTY-NOTICES.txt"),
+    ]
+    before = {t: read(*t.split(os.sep)) for t in targets}
+    subprocess.run([sys.executable,
+                    os.path.join(ROOT, "tools", "make_notices.py")],
+                   cwd=ROOT, stdout=subprocess.DEVNULL, check=True)
+    for t in targets:
+        check(read(*t.split(os.sep)) == before[t],
+              t.replace(os.sep, "/") + " is up to date with its sources",
+              "regenerating it changed it -- commit the new copy")
+
+    # The notice has to name the versions the build resolves.
+    toml = read("android", "gradle", "libs.versions.toml")
+    notices = read("android", "app", "src", "main", "res", "raw",
+                   "notices.txt")
+    crypto = re.search(r'securityCrypto\s*=\s*"([^"]+)"', toml).group(1)
+    check(crypto in notices,
+          "the notice names the security-crypto version the build uses",
+          crypto)
+
+
+def main():
+    ver = check_version()
+    check_urls()
+    check_claims()
+    check_listing()
+    check_generated()
+
+    print("")
+    if PROBLEMS:
+        print("%d of %d checks failed:" % (len(PROBLEMS), CHECKED))
+        for p in PROBLEMS:
+            print("  - " + p)
+        return 1
+    print("%d checks agree; %s is consistent." % (CHECKED, ver))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

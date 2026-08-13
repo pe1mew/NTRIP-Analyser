@@ -52,13 +52,19 @@
 /** Dotted four-part form for the Win32 resource string fields. */
 #define NTRIP_VERSION_RC_STR  "3.3.0.0"
 
-/**
- * Android requires a monotonically increasing integer independent of the
- * display name.  Derived as MAJOR*10000 + MINOR*100 + PATCH, which keeps
- * ordering correct while remaining readable: 3.0.0 is 30000, 3.1.3 is
- * 30103.  Minor and patch are therefore capped at 99.
+/*
+ * Android's versionCode is NOT defined here.
+ *
+ * It is a monotonically increasing integer independent of the display
+ * name, derived as MAJOR*10000 + MINOR*100 + PATCH -- 3.0.0 is 30000,
+ * 3.1.3 is 30103, so minor and patch are capped at 99.  Being a
+ * derivation and not a fact, it is computed by `android/app/build.gradle
+ * .kts` from the three numbers above, and stating the result here as
+ * well would mean two definitions of one rule.  A bump that updated the
+ * numbers but not the constant would then produce a version code that
+ * disagrees with the version it labels, which Play would either reject
+ * or, worse, accept.
  */
-#define NTRIP_ANDROID_VERSION_CODE 30300
 
 /* ── Product identity ─────────────────────────────────────────────── */
 #define NTRIP_PRODUCT_NAME    "NTRIP-Analyser"

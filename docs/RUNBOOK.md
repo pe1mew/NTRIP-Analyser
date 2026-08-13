@@ -214,6 +214,27 @@ line; run it yourself, and keep the `.jks` outside the repository.
 has already seen, so re-uploading means bumping the patch in the header
 — where every other artefact reads it too.
 
+### Before submitting to Play
+
+```bash
+python tools/check_release.py
+```
+
+This compares the claims the project makes about itself against the
+things they claim about: the version, the addresses the app can open,
+how many checks the About blurb says there are, Play's title and
+description limits, and whether the generated notices still match the
+dependencies they name. It exists because each of those has been wrong
+here at least once, and none of them fails a build or a test — the About
+blurb said *seven* KPIs for months after `--check` began reporting
+eight.
+
+Add a check whenever drift is found by hand, so that the next time it is
+found by machine.
+
+The rest of the submission checklist — the ones no script can settle —
+is in [`docs/work-items/play-listing.md`](work-items/play-listing.md).
+
 ### Icons
 
 One script draws every form the icon ships in — the Windows `.ico`, the

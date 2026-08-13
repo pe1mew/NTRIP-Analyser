@@ -219,7 +219,7 @@ What stays in the GUI: everything that touches an `HWND`.
 three separate consumers need exactly the same thing:
 
 - the **service** publishes it to Munin;
-- the **Android** app renders it as the seven KPIs;
+- the **Android** app renders it as the eight KPIs;
 - backlog item **4.4** exports it as CSV / JSON.
 
 Define it once, in `src/core/`, with a serialiser next to it.
@@ -396,8 +396,14 @@ everything ships together.
 #define NTRIP_VERSION_PATCH   0
 #define NTRIP_VERSION_STRING  "2.0.0"
 #define NTRIP_VERSION_RC      2,0,0,0      /* Win32 VERSIONINFO   */
-#define NTRIP_ANDROID_VERSION_CODE 20000   /* MAJOR*10000+MINOR*100+PATCH */
 ```
+
+Android's `versionCode` is *not* among them. It is a derivation —
+`MAJOR*10000 + MINOR*100 + PATCH` — and `android/app/build.gradle.kts`
+computes it from the three numbers. Stating the result in the header as
+well would be two definitions of one rule, and a bump that moved the
+numbers but not the constant would label a release with a version code
+that disagrees with its version.
 
 The header is deliberately free of `#include`s and types so `windres` can
 consume it when compiling `gui/resource.rc`, and so build tooling (CMake,

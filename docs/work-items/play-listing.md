@@ -194,8 +194,14 @@ document covers both editions and marks every difference between them.
 
 ## Before submitting
 
+- [ ] Run `python tools/check_release.py` and see it agree. It settles
+      the mechanical half of this list — version, the addresses the app
+      can open, the check count, Play's length and title-policy limits,
+      and whether the generated notices match the dependencies they
+      name. Everything below it needs a person.
 - [ ] Enable GitHub Pages (branch `main`, folder `/docs`) and check the
-      policy URL resolves.
+      policy URL resolves. **The app now links it too** (About → Privacy
+      policy), so until Pages is on, that button opens a 404.
 - [ ] Fill the contact address on both listings; the policy points at it.
 - [ ] Confirm both editions install side by side and are distinguishable
       on the home screen.
