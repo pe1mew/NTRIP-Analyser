@@ -1541,6 +1541,53 @@ private fun SettingsDialog(
     }
 }
 
+/**
+ * What this app is built on, and what those licences ask for.
+ *
+ * cJSON is MIT and requires its notice to travel with the software;
+ * everything else is Apache 2.0 and requires attribution. Reachable from
+ * About, in both editions, because the obligation is the same in both --
+ * and read from a generated resource, so the versions it states are the
+ * versions the build resolved (`tools/make_notices.py`).
+ */
+@Composable
+private fun NoticesDialog(onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val text = remember {
+        runCatching {
+            context.resources.openRawResource(R.raw.notices)
+                .bufferedReader().use { it.readText() }
+        }.getOrDefault("")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.about_notices)) },
+        text = {
+            Text(
+                text,
+                modifier = Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                // Small enough that the notice's own 68-column layout
+                // fits the width: a licence re-flowed by the renderer
+                // reads as damaged, and re-flowing it here would mean
+                // editing text that is quoted for legal reasons.
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                ),
+                fontFamily = FontFamily.Monospace,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
+}
+
 /** Compact duration: "45 s", "12 min", "3 h 07 m". */
 private fun dur(seconds: Double): String {
     val s = seconds.toInt()
@@ -1859,6 +1906,13 @@ private fun AppMenu(
 @Composable
 private fun AboutDialog(onDismiss: () -> Unit) {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    var notices by remember { mutableStateOf(false) }
+
+    if (notices) {
+        NoticesDialog { notices = false }
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.app_name)) },
@@ -1878,6 +1932,9 @@ private fun AboutDialog(onDismiss: () -> Unit) {
                 }
                 TextButton(onClick = { uriHandler.openUri(HELP_URL) }) {
                     Text(stringResource(R.string.about_help))
+                }
+                TextButton(onClick = { notices = true }) {
+                    Text(stringResource(R.string.about_notices))
                 }
             }
         },

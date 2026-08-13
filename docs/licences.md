@@ -55,18 +55,26 @@ wiki inherits it, and say so on the wiki's front page.
 | AndroidX activity-compose | 1.9.3 | Apache 2.0 | Attribution / NOTICE |
 | Compose BOM (ui, material3) | 2024.12.01 | Apache 2.0 | Attribution / NOTICE |
 | kotlinx-serialization-json | 1.7.3 | Apache 2.0 | Attribution / NOTICE |
-| androidx.security-crypto | **1.1.0-alpha06** | Apache 2.0 | Attribution / NOTICE — and see the alpha question in the release work item |
+| androidx.security-crypto | 1.0.0 | Apache 2.0 | Attribution / NOTICE — the alpha this table used to name was replaced during the security assessment |
 | Kotlin stdlib, Gradle, NDK toolchain | — | Apache 2.0 / build-time | No shipping obligation for build tools |
 
-**Action before launch**: an **open-source notices screen** in the app,
-reachable from the About dialog, carrying the cJSON MIT notice and the
-Apache 2.0 attribution for the rest. This is the standard discharge and
-is currently missing. The Gradle plugin `com.google.android.gms.oss-licenses`
-generates one, but adds a Google dependency; a static text resource
-generated at build time avoids that.
+**Done 2026-08-13**: **About → Open-source notices** carries the cJSON
+MIT notice and the Apache 2.0 attribution, in both editions, from
+`res/raw/notices.txt`. The Google OSS-licenses Gradle plugin would have
+generated one and added a Google dependency to an app that has none;
+`tools/make_notices.py` writes the text instead.
 
-The desktop builds ship cJSON too — the same MIT notice belongs in the
-release archive, not only in the Android app.
+**The versions in that notice are read from
+`android/gradle/libs.versions.toml`**, the file the build resolves, so a
+bumped dependency cannot leave the notice quoting a version nobody
+ships. This table had drifted exactly that way — it named
+`security-crypto 1.1.0-alpha06` weeks after the build moved to 1.0.0 —
+which is why the notice is generated and this table is not its source.
+
+The desktop builds ship cJSON too, and **`THIRD-PARTY-NOTICES.txt` is
+now packaged beside the binaries** by the `release` target. Verified:
+`cmake --build build --target release` produces it alongside the two
+executables, the example configuration and the checksums.
 
 ---
 
@@ -175,8 +183,8 @@ that the app neither supplies nor brokers credentials.
 | # | Action | Blocks | State |
 |---|---|---|---|
 | 1 | Align `license.md` with the Commons Clause's real scope | — | **done** 2026-08-13 |
-| 2 | Add an OSS notices screen (cJSON MIT + Apache 2.0 attribution) | free launch | open |
-| 3 | Ship the cJSON notice in the desktop release archive too | next release | open |
+| 2 | Add an OSS notices screen (cJSON MIT + Apache 2.0 attribution) | free launch | **done** 2026-08-13 |
+| 3 | Ship the cJSON notice in the desktop release archive too | next release | **done** 2026-08-13 |
 | 4 | Fix the "free Kadaster registration" instruction; drop placeholder credentials from the example config | free launch | **done** 2026-08-13 |
 | 5 | Read the IGS terms PDF before any automatic download is reconsidered | RINEX auto-download only | open |
 | 6 | Decide on screenshots showing third-party mountpoints | listing | open |

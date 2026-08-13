@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — open-source notices, in the app and in the release archive
+
+cJSON is MIT and is compiled into every artefact this project produces;
+the AndroidX, Compose and kotlinx libraries are Apache 2.0. Both ask for
+a notice to travel with the software, and none was travelling. This was
+the last licence action blocking the free launch.
+
+**In the app**: About → **Open-source notices**, in both editions,
+scrollable and monospace, from a generated resource.
+
+**In the desktop archive**: `THIRD-PARTY-NOTICES.txt` beside the
+binaries, produced by the `release` target — verified by packaging 3.3.0
+and finding it next to the two executables, the example configuration
+and the checksums.
+
+**The versions are read from the build's own
+`android/gradle/libs.versions.toml`** rather than typed, because a legal
+notice that quotes last year's version is worse than none.
+`docs/licences.md` had drifted precisely that way — it named
+`security-crypto 1.1.0-alpha06` weeks after the security assessment
+moved the build to 1.0.0. Corrected, and no longer the source of the
+notice.
+
+The Google OSS-licenses Gradle plugin would have generated the screen
+and added a Google dependency to an app that deliberately has none, so
+`tools/make_notices.py` writes the text instead — wrapped for a phone in
+the app's copy and for a terminal in the archive's, which changes
+whitespace only.
+
 ### Added — store screenshots, and the tool that frames them
 
 `tools/make_store_shots.py` turns ordinary device captures into Play
