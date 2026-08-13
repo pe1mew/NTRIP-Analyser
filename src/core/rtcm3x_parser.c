@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <math.h>
 #include "core/rtcm3x_parser.h"
@@ -502,10 +503,11 @@ void msm_update_per_band_cnr(const unsigned char *payload, int payload_len,
  * 61 + n x 130 for 1012, matched exactly on every frame in a 64-second
  * capture.
  *
- * That second check matters: this file's own 1012 *printer* reads a
- * 6-bit satellite count and omits the 5-bit frequency channel number,
- * so it has been misaligned since it was written. Display-only, but a
- * reminder that a layout nobody measured is a layout nobody knows.
+ * That second check matters: this file's own 1012 *printer* read a
+ * 6-bit satellite count and omitted the 5-bit frequency channel number,
+ * so it had been misaligned since it was written -- found by this
+ * measurement and fixed with it. A layout nobody measured is a layout
+ * nobody knows.
  */
 typedef struct {
     int hdr_bits;    /**< to the first satellite record            */
@@ -2290,57 +2292,107 @@ void decode_rtcm_1230(const unsigned char *payload, int payload_len) {
     }
 }
 
+/**
+ * @brief Print an RTCM 1012, GLONASS L1/L2 RTK observables.
+ *
+ * Two fields were wrong here from the day this was written, and neither
+ * announced itself: the satellite count was read as 6 bits where DF035
+ * is 5, and DF040, the 5-bit frequency channel number, was not read at
+ * all. Between them every field after the code indicator was displaced,
+ * so the pseudoranges, phase ranges and C/N0 values printed for a real
+ * station were plausible numbers belonging to nothing.
+ *
+ * The layout is now the one measured against rtk2go.com/Mirmenhof,
+ * which sends 1012 beside MSM6: 61 header bits, then 130 per satellite,
+ * matching the frame length exactly on every frame of a 64-second
+ * capture, and yielding the same slots and C/N0 as the MSM6 the station
+ * sends alongside. @ref rtcm_legacy_extract reads the same layout.
+ *
+ * Scaled rather than raw, as the other decoders in this file print:
+ * a C/N0 of "178" is not a reading anybody can use.
+ */
 void decode_rtcm_1012(const unsigned char *payload, int payload_len) {
     int bit = 0;
+    if (payload_len < 8) {
+        rtcm_printf("Type 1012: Payload too short!\n");
+        return;
+    }
+
     int msg_type = (int)get_bits(payload, bit, 12); bit += 12;
     if (msg_type != 1012) {
         rtcm_printf("[1012] Not a 1012 message (got %d)\n", msg_type);
         return;
     }
 
-    int ref_station_id = (int)get_bits(payload, bit, 12); bit += 12;
-    int epoch_time = (int)get_bits(payload, bit, 27); bit += 27;
-    int sync_gnss_flag = (int)get_bits(payload, bit, 1); bit += 1;
-    int num_satellites = (int)get_bits(payload, bit, 6); bit += 6;
-    int smoothing = (int)get_bits(payload, bit, 1); bit += 1;
-    int smoothing_interval = (int)get_bits(payload, bit, 3); bit += 3;
+    int ref_station_id     = (int)get_bits(payload, bit, 12); bit += 12;
+    int epoch_time         = (int)get_bits(payload, bit, 27); bit += 27;
+    int sync_gnss_flag     = (int)get_bits(payload, bit, 1);  bit += 1;
+    int num_satellites     = (int)get_bits(payload, bit, 5);  bit += 5;
+    int smoothing          = (int)get_bits(payload, bit, 1);  bit += 1;
+    int smoothing_interval = (int)get_bits(payload, bit, 3);  bit += 3;
 
     rtcm_printf("RTCM 1012 (GLONASS L1&L2 RTK Observables)\n");
     rtcm_printf("  Reference Station ID: %d\n", ref_station_id);
-    rtcm_printf("  Epoch Time: %d\n", epoch_time);
+    rtcm_printf("  Epoch Time: %d ms of day\n", epoch_time);
     rtcm_printf("  Synchronous GNSS Flag: %d\n", sync_gnss_flag);
     rtcm_printf("  Number of GLONASS Satellites: %d\n", num_satellites);
-    rtcm_printf("  Smoothing: %d\n", smoothing);
-    rtcm_printf("  Smoothing Interval: %d\n", smoothing_interval);
+    rtcm_printf("  Smoothing: %d, Interval: %d\n", smoothing, smoothing_interval);
 
     for (int i = 0; i < num_satellites; ++i) {
-        int sat_id = (int)get_bits(payload, bit, 6); bit += 6;
-        int l1_code_ind = (int)get_bits(payload, bit, 1); bit += 1;
-        int l1_pseudorange = (int)get_bits(payload, bit, 25); bit += 25;
-        int l1_phase_range = (int)get_bits(payload, bit, 20); bit += 20;
-        int l1_lock_time = (int)get_bits(payload, bit, 7); bit += 7;
-        int l1_ambiguity = (int)get_bits(payload, bit, 7); bit += 7;
-        int l1_cnr = (int)get_bits(payload, bit, 8); bit += 8;
+        if (bit + 130 > payload_len * 8) {
+            rtcm_printf("  [WARN] Not enough data for satellite %d\n", i + 1);
+            break;
+        }
 
-        int l2_code_ind = (int)get_bits(payload, bit, 2); bit += 2;
-        int l2_pseudorange_diff = (int)get_bits(payload, bit, 14); bit += 14;
-        int l2_phase_range_diff = (int)get_bits(payload, bit, 20); bit += 20;
-        int l2_lock_time = (int)get_bits(payload, bit, 7); bit += 7;
-        int l2_cnr = (int)get_bits(payload, bit, 8); bit += 8;
+        int sat_id       = (int)get_bits(payload, bit, 6);  bit += 6;
+        int l1_code_ind  = (int)get_bits(payload, bit, 1);  bit += 1;
+        int freq_channel = (int)get_bits(payload, bit, 5);  bit += 5;
+        int l1_pr        = (int)get_bits(payload, bit, 25); bit += 25;
+        int l1_phase     = (int)extract_signed(payload, bit, 20); bit += 20;
+        int l1_lock      = (int)get_bits(payload, bit, 7);  bit += 7;
+        int l1_amb       = (int)get_bits(payload, bit, 7);  bit += 7;
+        int l1_cnr       = (int)get_bits(payload, bit, 8);  bit += 8;
 
-        rtcm_printf("  Satellite %d:\n", i + 1);
-        rtcm_printf("    Satellite ID: %d\n", sat_id);
-        rtcm_printf("    L1 Code Indicator: %d\n", l1_code_ind);
-        rtcm_printf("    L1 Pseudorange: %d\n", l1_pseudorange);
-        rtcm_printf("    L1 Phase Range: %d\n", l1_phase_range);
-        rtcm_printf("    L1 Lock Time Indicator: %d\n", l1_lock_time);
-        rtcm_printf("    L1 Ambiguity: %d\n", l1_ambiguity);
-        rtcm_printf("    L1 CNR: %d\n", l1_cnr);
-        rtcm_printf("    L2 Code Indicator: %d\n", l2_code_ind);
-        rtcm_printf("    L2 Pseudorange Diff: %d\n", l2_pseudorange_diff);
-        rtcm_printf("    L2 Phase Range Diff: %d\n", l2_phase_range_diff);
-        rtcm_printf("    L2 Lock Time Indicator: %d\n", l2_lock_time);
-        rtcm_printf("    L2 CNR: %d\n", l2_cnr);
+        int l2_code_ind  = (int)get_bits(payload, bit, 2);  bit += 2;
+        int l2_pr_diff   = (int)extract_signed(payload, bit, 14); bit += 14;
+        int l2_phase     = (int)extract_signed(payload, bit, 20); bit += 20;
+        int l2_lock      = (int)get_bits(payload, bit, 7);  bit += 7;
+        int l2_cnr       = (int)get_bits(payload, bit, 8);  bit += 8;
+
+        /* The standard's "not computed" markers.  Printed as
+         * numbers, they are how -262.1440 m ends up in a report as
+         * though a receiver had measured it -- and this station has
+         * two satellites in every frame with no L2 at all. */
+        const bool l1_phase_ok = (l1_phase != -524288);
+        const bool l2_pr_ok    = (l2_pr_diff != -8192);
+        const bool l2_phase_ok = (l2_phase != -524288);
+        const bool l2_seen     = (l2_pr_ok || l2_phase_ok || l2_cnr > 0);
+
+        /* DF040 carries 0..20 for channels -7..+13. */
+        rtcm_printf("  Slot %2d (channel %+d):\n", sat_id, freq_channel - 7);
+        if (l1_phase_ok)
+            rtcm_printf("    L1 code %d, pseudorange %.2f m, phase-range offset %.4f m\n",
+                        l1_code_ind, l1_pr * 0.02, l1_phase * 0.0005);
+        else
+            rtcm_printf("    L1 code %d, pseudorange %.2f m, phase range not computed\n",
+                        l1_code_ind, l1_pr * 0.02);
+        rtcm_printf("    L1 lock %d, ambiguity %d, C/N0 %.2f dB-Hz\n",
+                    l1_lock, l1_amb, l1_cnr * 0.25);
+        if (l2_seen) {
+            if (l2_pr_ok)
+                rtcm_printf("    L2 code %d, pseudorange offset %.2f m\n",
+                            l2_code_ind, l2_pr_diff * 0.02);
+            else
+                rtcm_printf("    L2 code %d, pseudorange not computed\n",
+                            l2_code_ind);
+            if (l2_phase_ok)
+                rtcm_printf("    L2 phase-range offset %.4f m\n",
+                            l2_phase * 0.0005);
+            rtcm_printf("    L2 lock %d, C/N0 %.2f dB-Hz\n",
+                        l2_lock, l2_cnr * 0.25);
+        } else {
+            rtcm_printf("    L2 not observed\n");
+        }
     }
 }
 

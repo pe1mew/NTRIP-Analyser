@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — the 1012 decoder printed fields that were not there
+
+`decode_rtcm_1012()` read the satellite count as 6 bits where DF035 is
+5, and never read DF040, the 5-bit frequency channel number. Between
+them, every field after the code indicator was displaced: the
+pseudoranges, phase ranges and C/N0 values shown for a real station were
+plausible numbers belonging to nothing. It had been wrong since it was
+written, and stayed wrong because nobody had measured the layout — the
+same reason the C/N0 gap survived.
+
+Now it reads the layout confirmed against `rtk2go.com/Mirmenhof`, and
+its output agrees with `rtcm_legacy_extract()` satellite by satellite:
+slot 8 at 47.00 L1 and 48.50 L2 where the reader reports 48.50 as the
+best of the two, slot 10 with no L2 at all where the reader reports its
+L1 45.00.
+
+Two further corrections while there. Values are **scaled and given
+units** — a C/N0 printed as "178" is not a reading anybody can use —
+and the standard's *not computed* markers are now named rather than
+printed: this station has two satellites in every frame with no L2, and
+they used to appear as a pseudorange of −163.84 m and a phase range of
+−262.1440 m, which is a measurement invented out of a sentinel.
+
 ### Fixed — an old station is measured, not failed
 
 A station streaming the legacy 1002/1004/1010/1012 was reported
