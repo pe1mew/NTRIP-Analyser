@@ -30,6 +30,7 @@
 | `docs/jsonConfigs.md` | Config reading, writing or interop | One format everywhere; passwords in the clear |
 | `docs/security-review.md` | Touching a parser, the socket layer, or anything a caster feeds | What a hostile caster can do; six findings closed, TLS scheduled |
 | `design/tls.md` | Implementing TLS, or asked why it is not there yet | The decision, the measured surface, and what actually costs |
+| `design/legacy-observations.md` | Touching KPI 4, KPI 5, or anything that decides which messages count | Delivery is judged against the sourcetable, so an old GPS+GLONASS station passes |
 
 ## Current State
 

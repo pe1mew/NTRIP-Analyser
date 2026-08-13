@@ -11,13 +11,15 @@
  * azimuth and elevation, which requires a decoded ephemeris per SV *and*
  * a station ARP, so it goes blank whenever either is missing.  Satellite
  * count and C/N0 need neither: the observed PRNs come straight from the
- * MSM satellite mask and the C/N0 from the MSM7 signal block.  Keeping
+ * MSM satellite mask and the C/N0 from the MSM signal block.  Keeping
  * this separate is what lets the monitoring daemon report both from the
  * moment the first frame arrives.
  *
- * **C/N0 is MSM7-only.**  MSM4/5/6 carry no extended C/N0 field, so a
- * stream of those yields satellite counts with `cnr_mean` left at zero,
- * which @ref NsGnssStats documents as "no C/N0 available".
+ * **C/N0 comes from MSM4, 5, 6 and 7** -- every MSM that carries it.
+ * MSM1-3 have no C/N0 field at all, and the legacy 1002/1004/1010/1012
+ * are not read here yet (`design/legacy-observations.md`), so a stream
+ * of either yields satellite counts with `cnr_mean` left at zero, which
+ * @ref NsGnssStats documents as "no C/N0 available".
  *
  * Core module: no I/O, no platform headers, no allocation.
  *

@@ -475,6 +475,17 @@ reading one specific PRN.
 
 ### 1.6 Decode ephemerides from the observation stream — **Shipped**, see §0
 
+### 1.8 The ionospheric monitor excludes MSM6 for no reason — **Open**
+
+`iono.c:138` gates on `(msg_type % 10) != 7`, and `iono.h` says MSM4/5/6 carry no extended phase
+resolution. That is wrong for **MSM6**, which carries the same 24-bit DF406 fine phase range as
+MSM7 and differs only in having no Doppler — which the monitor does not use. An MSM6 station is
+excluded from the iono monitor for no reason; `rtk2go.com/Mirmenhof` is one, and it also carries
+two frequencies per satellite, which is the monitor's real requirement.
+
+Found while widening C/N0 to MSM4/5/6 (§0). Same family of error: a limit of the reader documented
+as a property of the format.
+
 ### 1.7 Legacy observation messages — **Open**, decided but not built
 
 **Inspiration**: found while widening C/N0 to MSM4/5/6 (§0), by running the tool against a station
@@ -499,8 +510,11 @@ not a broken one.
 
 What the work involves: a legacy PRN and C/N0 extractor (DF015/DF045, 8 bits, 0.25 dB-Hz), a
 `sv_track_feed()` that accepts non-MSM frames, and KPI 4 and KPI 5 rewritten in terms of the
-advertisement rather than in terms of MSM. The KPI change is measurement policy, so it wants a
-design note before code.
+advertisement rather than in terms of MSM.
+
+**Written up in `design/legacy-observations.md`**: what the messages carry, what each KPI becomes,
+the implementation sketch, the verification plan, and three open questions — the expected-satellite
+table, whether KPI 4 keeps its name, and how a GPS-only pass should read in the wiki.
 
 RTCM 2.x is explicitly **out of scope** — a different protocol, not an extension of this one.
 Kadaster publishes one such mountpoint (`APEL00NLD2`), and it stays unmeasurable by design.
