@@ -24,19 +24,26 @@ The paid edition therefore shows **more**, never **different**.
 |---|---|---|
 | Eight-KPI spot check | yes, unlimited | yes |
 | Verdict, reasons, throughput/SV chips | yes | yes |
-| Mountpoint entry | **typed manually, one saved** | multiple saved, switchable |
+| Mountpoint entry | **typed manually, one saved** | multiple saved, switchable *(not built yet — see Launch scope)* |
 | Sourcetable | **viewable, not selectable** | browse and tap to use |
 | Watch mode | **not available** | yes, unlimited |
 | Sky plot (coverage heatmap) | yes | yes |
-| Ephemeris source | imported RINEX, on-demand stream, phone GNSS | same |
+| Ephemeris source | **imported RINEX file, phone GNSS** | on-demand ephemeris stream, and an imported file |
 | GGA position sent to the caster | **fixed, from the mountpoint's sourcetable entry** | the phone's live position |
-| Session history | — | yes |
-| Per-SV / per-band C/N0 | — | yes |
-| Ionosphere (ROTI) | — | yes |
-| Network-RTK / VRS test | — | yes |
-| Message-type statistics | — | yes |
-| Export CSV/JSON, shareable report | — | yes |
-| RTCM capture and offline replay | — | yes |
+| Configuration files (load / save) | — | yes |
+| Session history | — | *planned* |
+| Per-SV / per-band C/N0 | — | *planned* |
+| Ionosphere (ROTI) | — | *planned* |
+| Network-RTK / VRS test | — | *planned* |
+| Message-type statistics | — | *planned* |
+| Export CSV/JSON, shareable report | — | *planned* |
+| RTCM capture and offline replay | — | *planned* |
+
+*Planned* means the desktop has it and the phone does not. The
+distinction is not cosmetic: a store listing written from this table
+would otherwise promise seven features the app does not have, and the
+refunds would be deserved. `MAX_MOUNTPOINTS` is the same trap caught
+early — declared, unread, and listed above as though it worked.
 
 ### Why the sourcetable is viewable but not selectable
 
@@ -57,10 +64,16 @@ free edition restricted to those would ship a sky view that is mostly
 empty through no fault of the user — which sells nothing and teaches the
 user to distrust the plot.
 
-So both editions get the same sources. The free edition is limited by
-*time*, as it always was: one capture, then it stops. That is a limit the
-user understands and can work with, rather than a measurement that
-quietly under-reports.
+So the free edition keeps the sources that make its sky view honest: an
+imported navigation file, which places everything, and the phone's own
+GNSS as the fallback when no file has been imported. What it does not
+get is the **on-demand ephemeris stream** (`HAS_EPH_STREAM = false`) —
+that is a second connection to a caster on the user's behalf, and
+borrowing someone's infrastructure is a reasonable thing to charge for.
+
+The free edition is limited by *time*, as it always was: one capture,
+then it stops. That is a limit the user understands and can work with,
+rather than a measurement that quietly under-reports.
 
 The app does not download the navigation file in either edition — see
 `views.md` for why the terms could not be established, and why the user
@@ -223,11 +236,61 @@ convenience and the support, not secrecy. The cap is enforced simply and
 honestly through the flavor's `Features` object, and no effort is spent
 on obfuscation that would only degrade the code.
 
-## Upgrade path — a known cost of two listings
+## Payment model — decided
 
-Two separate listings mean upgrading is *installing a second app*: saved
-settings do not carry across, and the user manages two icons. A single
-listing with an in-app purchase would avoid both. That trade was
-considered and two listings chosen deliberately; if the friction shows up
-in reviews, the flavors already isolate everything an IAP migration would
-need to touch.
+**Two listings: a free app and a paid app**, built from the flavors that
+already exist. No billing code, and Google handles price, tax and
+refunds.
+
+The deciding argument is not the code, it is where the app is used. With
+two listings the entitlement *is* the installed APK: it works in a rack
+room, on a hilltop, on a survey site with no signal, for ever. An in-app
+unlock has to be verified, and Play Billing's cached entitlement is
+exactly the thing that is missing on a fresh install with no
+connectivity. "I paid for this and it will not unlock" is the worst
+review a professional tool can collect, and it would arrive from the
+field where it cannot be fixed.
+
+The licence already protects the arrangement. Commons Clause bars anyone
+else from selling this code; as copyright holder the author is not bound
+by his own licence, so a paid edition is consistent with the repository
+being public.
+
+Known costs, accepted: two uploads and two sets of store metadata for
+every release, split reviews and install counts, and no upgrade
+discount — a free user pays full price for pro.
+
+### Upgrade path — manual, and small
+
+Upgrading is installing a second app and typing the caster and
+mountpoint again. That is the whole of it, because the free edition
+holds exactly one mountpoint and **cannot read or write configuration
+files** — those are a pro capability by design, so there is no file to
+carry across in the first place.
+
+An earlier draft of this section assumed the config file would bridge the
+two editions. It cannot, and the friction is a minute of typing rather
+than a lost setup.
+
+### Launch scope for the first paid release
+
+What is built today: watch mode, the on-demand ephemeris stream,
+tap-to-use sourcetable entries, and the expanded KPI detail (message-type
+list, full ARP block).
+
+Two more before charging:
+
+- **Multiple saved mountpoints.** `MAX_MOUNTPOINTS = 16` is declared in
+  the pro flavor and read by nothing; the table below has been promising
+  a feature that does not exist.
+- **The live-position GGA**, per the section above — the field-use half
+  of the paid proposition.
+
+Together those make one coherent story rather than a list of small
+unlocks: *keep watching, from where you actually are, across the
+mountpoints you care about.*
+
+### Price
+
+Decided at listing time, once comparable tools have been checked in the
+Play console. Nothing in the build depends on the number.
