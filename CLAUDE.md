@@ -15,6 +15,17 @@ One measurement core in C99 serves **four programs** — a CLI, a Windows
 GUI, a Linux monitoring daemon, and an Android app in two editions.
 Author: Remko Welling (PE1MEW). Apache 2.0 with Commons Clause.
 
+**A learning project, held to professional standards.** Revenue is not
+the goal and there is no growth to optimise, so proposals resting on
+commercial reasoning — analytics, funnels, engagement mechanics, support
+commitments, release cadence — are off-target.
+
+That is about motive, never about rigour. *"It is only a learning
+project"* is not a reason to skip a test, a review, a design note or a
+verification against a live caster, and never a reason to ship something
+known to be wrong. The bar is what a professional instrument must meet,
+because people will point it at real stations and believe what it says.
+
 ## Before You Start
 
 | When | Read |
@@ -88,7 +99,7 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
 | `android/app/src/main/java/.../MainActivity.kt` | The whole Android UI |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
-| `test/test_rinex_nav.c` | The only test |
+| `test/` | Two tests: the RINEX loader, and hostile RTCM frames |
 | `changelog.md` | Entries carry the measurement behind each claim |
 
 ## Domain facts that look like bugs if you don't know them

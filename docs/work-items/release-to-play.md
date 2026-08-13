@@ -18,7 +18,7 @@ the privacy policy; 4 onwards are sequential.
 
 | # | Phase | Blocks | State |
 |---|---|---|---|
-| 1 | Telemetry decision | privacy policy, data-safety form | not started |
+| 1 | Telemetry decision | privacy policy, data-safety form | **done** → `design/telemetry.md`; collect nothing |
 | 2 | Licence study | store listings, wiki claims, RINEX auto-download | **done** → `docs/licences.md`, 7 actions |
 | 3 | Security assessment | any public release | **done** → `docs/security-review.md`; 6 of 7 closed, TLS open |
 | 4 | Live GGA implementation | pro's launch scope | designed, not built |
@@ -29,7 +29,37 @@ the privacy policy; 4 onwards are sequential.
 
 ---
 
-### Phase 1 — Telemetry: informative but innocent
+### Phase 1 — Telemetry: informative but innocent — **DONE 2026-08-13**
+
+**Decision: the app collects nothing.** No SDK, no endpoint, no consent
+flow. The two numbers wanted — instances downloaded, and uses per day —
+come from Play Console's own statistics, which report installs and
+foreground-open engagement (a differentially-private sample of users who
+opted in at the OS level) with no code at all. Crashes and ANRs arrive
+through Android vitals the same way.
+
+Opt-in counters on our own endpoint were rejected: they would make the
+author a data controller under the GDPR, with a lawful basis, retention,
+deletion requests and a server to keep patched, for numbers Play already
+supplies. A third-party SDK was rejected as the wrong instrument inside
+a tool professionals run on customers' infrastructure.
+
+The counterpart is a **report the user shares with whoever owns the
+station** — not a channel into the author's inbox. Scheduled before the
+free launch: verdict, KPI values and stream statistics, with caster and
+mountpoint redacted by default and credentials and position never
+included. See `design/telemetry.md`, including the check that the
+desktop's existing *Export Statistics* does not quietly leak what the
+phone's report is careful to redact.
+
+**Support posture, decided with it**: minimal follow-up after
+deployment. The product answers the questions — every KPI states its
+value and meaning already — the wiki answers the rest once, and issues
+go to the public GitHub tracker rather than to a help desk. The listing
+must carry a contact address because Play requires one; the wiki says
+plainly what it is not.
+
+Original analysis:
 
 **The baseline is free and already innocent.** Play Console *Android
 vitals* reports crashes, ANRs, battery and wakelock behaviour with **no
@@ -164,6 +194,11 @@ a wiki page serves, GitHub Pages is tidier. Decide once, use for both.
 
 Free ships first and its wiki must stand alone: a free user never sees
 pro's pages. Pro's wiki then documents only the differences.
+
+The wiki also carries the **support posture** (`design/telemetry.md`):
+a troubleshooting page so a question is answered once, the GitHub
+tracker as the route for issues, and no implied help desk behind the
+contact address Play requires.
 
 ## Decisions
 

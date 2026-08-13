@@ -48,7 +48,7 @@
   `docs/work-items/release-to-play.md` [in progress] — eight phases, of which
   telemetry, licences and the security assessment are decisions that gate the
   privacy policy and the data-safety declaration.
-- **Known gaps**: no CI; one test; the GUI station check has no saved report;
+- **Known gaps**: no CI; two tests; the GUI station check has no saved report;
   seven pro rows in the editions table are marked *planned*, not built.
 
 ## Recently Promoted
@@ -74,6 +74,11 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **A learning project, held to professional standards.** No revenue goal
+  and no growth to optimise, so commercially-argued proposals are
+  off-target — but the engineering bar is a professional one, and "only a
+  learning project" is never a reason to skip a test, a review or a
+  verification (`CLAUDE.md`).
 - **One measurement core, four frontends** — no threshold or verdict in any
   UI layer (`design/architecture.md`).
 - **Android ships as two Play listings, not one app with an in-app unlock** —
@@ -85,6 +90,11 @@ Supplementing CLAUDE.md's list with paths found during work:
   licence relationship stays theirs (`android/design/views.md`).
 - **KPI 8 judges constellations by the sourcetable's NavSys field**, never by
   the 1005/1006 indicator bits, which cannot express BeiDou.
+- **The app collects no telemetry** — no SDK, no endpoint, no consent flow.
+  Installs and daily-use figures come from Play Console; the shared report
+  is for the user to hand to their caster operator, not a line to the
+  author. Support is deliberately minimal: the product and the wiki answer
+  the questions, issues go to GitHub (`design/telemetry.md`).
 - **TLS is coming, after the free launch**, as a bundled library behind a
   transport abstraction — chosen over per-platform native APIs to keep one
   code path for four frontends. It ships in **both editions** on the same

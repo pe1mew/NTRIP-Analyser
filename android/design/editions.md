@@ -302,6 +302,15 @@ mountpoints you care about.*
 Decided at listing time, once comparable tools have been checked in the
 Play console. Nothing in the build depends on the number.
 
+**The paid edition is not a revenue plan.** This is a learning project
+held to professional standards; the listing exists so the work has a
+price rather than to earn a living from it — which raises the bar rather
+than lowering it, since someone paying for an instrument is owed one
+that measures correctly. That is why a subscription was never seriously considered, why
+no price is set in advance, and why nothing here is shaped by what would
+sell better — the split is drawn on what is honest to withhold
+(convenience), not on what would convert.
+
 ## Saved connection profiles (the "multiple mountpoints" feature)
 
 ### It is multiple *casters*, not multiple mountpoint names
