@@ -49,6 +49,12 @@
   bridge on the desktop against a stub that timestamps what arrives — no
   public caster advertises an `nmea` mountpoint to test against
   (`docs/RUNBOOK.md`).
+- **Release plumbing is in place**: version parsed from
+  `src/core/version.h` by Gradle (`versionCode` = MMmmpp), signing from a
+  git-ignored `keystore.properties` with a debug-key fallback that says
+  so, R8 on and verified against a live caster, one generated icon in
+  every form (`tools/make_icons.py`), privacy policy and listings drafted.
+  The keystore itself is the author's to create.
 - **In progress**: getting both editions onto Google Play →
   `docs/work-items/release-to-play.md` [in progress] — eight phases, of which
   telemetry, licences and the security assessment are decisions that gate the
@@ -76,6 +82,12 @@ Supplementing CLAUDE.md's list with paths found during work:
   profile store and the migration from the pre-profiles preferences file.
 - `service/monitord.example.json`, `bin/exampleConfig.json` — the shared
   config format, daemon side and desktop side.
+- `tools/make_icons.py` — the only place the icon exists; the `.ico`, the
+  launcher bitmaps, the adaptive vectors and the store assets are output.
+- `android/app/proguard-rules.pro` — what R8 must not rename: the JNI
+  entry points and the serializers. Both failures are release-only.
+- `docs/work-items/play-listing.md` — listing text and the data-safety
+  answers, with the reasoning behind each.
 
 ## Active Decisions
 

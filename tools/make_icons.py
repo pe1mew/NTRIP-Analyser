@@ -1,0 +1,235 @@
+"""Draw the application icon, in every form the project ships it.
+
+One mark, one geometry, four outputs:
+
+  * `gui/ntrip-analyser.ico`                    the Windows GUI
+  * `android/.../mipmap-*/ic_launcher.png`      legacy launcher bitmaps
+  * `android/.../drawable/ic_launcher_*.xml`    adaptive + themed vectors
+  * `docs/images/icon-*-512.png`                the Play listing asset
+
+Generated rather than hand-drawn so the ICO, the bitmaps and the vector
+cannot drift apart: they are the same circles, expressed four ways.
+Re-run it after changing anything here.
+
+    python tools/make_icons.py
+
+The mark is the sky plot the app draws -- the horizon as a ring, north
+as a tick, satellites placed inside it. It says what the tool does: look
+up, and judge what is up there. The signal arcs it replaces said only
+"something is streaming", which is true of any network app.
+
+Everything is sized as a fraction of the disc radius, and the whole mark
+is tested at 16 px, because that is where a design either survives or
+turns to mush -- the Windows taskbar and the title bar both use it.
+
+Free and pro share the silhouette and differ in accent colour, the one
+difference still legible at that size. The desktop GUI uses the blue
+mark: it is the project's own, and amber means *the paid edition*
+rather than *a different product*.
+"""
+import math
+import os
+
+from PIL import Image, ImageDraw
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# ── Palette ──────────────────────────────────────────────────────────
+FIELD = (18, 58, 99)           # deep navy, the plot's background
+RING = (240, 246, 251)         # near-white horizon
+ACCENT_FREE = (127, 178, 229)  # the app's own light blue
+ACCENT_PRO = (242, 160, 7)     # amber
+
+# ── Geometry, as fractions of the disc radius ────────────────────────
+HORIZON_R, HORIZON_W = 0.64, 0.12
+TICK_OUT, TICK_IN, TICK_HALF = 0.92, 0.66, 11.0   # north, in degrees
+SAT_R = 0.12
+
+# Satellites, as (bearing degrees clockwise from north, distance from
+# centre). Deliberately uneven: an even arrangement reads as decoration,
+# and this is a plot of where things actually are.
+#
+# None of them touches the horizon: the ring's inner edge is at 0.58,
+# so the furthest satellite's edge (0.38 + 0.12) leaves a clear gap. A
+# dot that grazes the ring reads as a printing fault at 512 px and
+# merges with it at 32.
+SATS = [(50.0, 0.36), (170.0, 0.38), (285.0, 0.19)]
+
+
+def polar(cx, cy, bearing_deg, dist):
+    a = math.radians(bearing_deg - 90.0)
+    return cx + dist * math.cos(a), cy + dist * math.sin(a)
+
+
+def draw_mark(d, cx, cy, r, accent, field=None):
+    """The mark, centred at (cx, cy) with disc radius r."""
+    if field is not None:
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=field)
+
+    hr, hw = HORIZON_R * r, HORIZON_W * r
+    d.ellipse([cx - hr, cy - hr, cx + hr, cy + hr],
+              outline=RING, width=max(1, round(hw)))
+
+    d.polygon([polar(cx, cy, 0.0, TICK_OUT * r),
+               polar(cx, cy, -TICK_HALF, TICK_IN * r),
+               polar(cx, cy, TICK_HALF, TICK_IN * r)], fill=RING)
+
+    sr = SAT_R * r
+    for bearing, dist in SATS:
+        sx, sy = polar(cx, cy, bearing, dist * r)
+        d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=accent)
+
+
+def render(size, accent, scale=4, disc=True):
+    """One square icon, supersampled so the thin ring stays smooth.
+
+    With `disc`, the navy field is part of the icon and everything
+    outside it is transparent -- what a launcher bitmap and a Windows
+    icon need. Without it, the caller supplies the field: the Play
+    listing icon is a full-bleed square, which the store rounds itself.
+    """
+    big = size * scale
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    draw_mark(d, big / 2, big / 2, big * 0.48, accent, FIELD if disc else None)
+    return img.resize((size, size), Image.LANCZOS)
+
+
+# ── Android vector ───────────────────────────────────────────────────
+# The adaptive icon's 108dp viewport: a launcher may mask anything
+# outside the central 72dp circle, and only the middle 66dp is certain
+# to survive every mask shape.
+VIEWPORT = 108.0
+CENTRE = VIEWPORT / 2.0
+ADAPTIVE_R = 27.0        # the mark's disc radius, inside the safe zone
+
+
+def circle_path(cx, cy, r):
+    """A circle as pathData, which VectorDrawable has no primitive for."""
+    return ("M%.2f,%.2f m-%.2f,0 a%.2f,%.2f 0 1,0 %.2f,0 "
+            "a%.2f,%.2f 0 1,0 -%.2f,0"
+            % (cx, cy, r, r, r, 2 * r, r, r, 2 * r))
+
+
+def hexcolor(rgb):
+    return "#FF%02X%02X%02X" % rgb
+
+
+def vector(accent, mono=False):
+    """The foreground layer. Monochrome drops both colours: the system
+    tints a themed icon itself, and it must be one flat shape."""
+    accent_s = "#FF000000" if mono else hexcolor(accent)
+    ring_s = "#FF000000" if mono else hexcolor(RING)
+    c, r = CENTRE, ADAPTIVE_R
+
+    out = [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<!-- Generated by tools/make_icons.py; edit that, not this. -->',
+        '<vector xmlns:android="http://schemas.android.com/apk/res/android"',
+        '    android:width="108dp"',
+        '    android:height="108dp"',
+        '    android:viewportWidth="108"',
+        '    android:viewportHeight="108">',
+        '    <path',
+        '        android:pathData="%s"' % circle_path(c, c, HORIZON_R * r),
+        '        android:strokeColor="%s"' % ring_s,
+        '        android:strokeWidth="%.2f" />' % (HORIZON_W * r),
+    ]
+
+    tick = [polar(c, c, 0.0, TICK_OUT * r),
+            polar(c, c, -TICK_HALF, TICK_IN * r),
+            polar(c, c, TICK_HALF, TICK_IN * r)]
+    out += [
+        '    <path',
+        '        android:pathData="M%.2f,%.2f L%.2f,%.2f L%.2f,%.2f Z"'
+        % (tick[0][0], tick[0][1], tick[1][0], tick[1][1],
+           tick[2][0], tick[2][1]),
+        '        android:fillColor="%s" />' % ring_s,
+    ]
+
+    for bearing, dist in SATS:
+        sx, sy = polar(c, c, bearing, dist * r)
+        out += [
+            '    <path',
+            '        android:pathData="%s"' % circle_path(sx, sy, SAT_R * r),
+            '        android:fillColor="%s" />' % accent_s,
+        ]
+
+    out.append('</vector>')
+    return "\n".join(out) + "\n"
+
+
+ADAPTIVE_XML = """<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated by tools/make_icons.py; edit that, not this. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>
+"""
+
+BACKGROUND_XML = """<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated by tools/make_icons.py; edit that, not this. -->
+<resources>
+    <color name="ic_launcher_background">%s</color>
+</resources>
+""" % hexcolor(FIELD)
+
+
+def write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
+    print("wrote", os.path.relpath(path, ROOT))
+
+
+def save(img, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    img.save(path)
+    print("wrote", os.path.relpath(path, ROOT))
+
+
+def main():
+    # Windows: 256 down to 16, because Explorer, the taskbar and the
+    # title bar each pick a different one, and a 256 rescaled by the
+    # shell looks muddy at 16.
+    sizes = [256, 128, 64, 48, 32, 24, 16]
+    ico = [render(s, ACCENT_FREE) for s in sizes]
+    path = os.path.join(ROOT, "gui", "ntrip-analyser.ico")
+    ico[0].save(path, format="ICO",
+                sizes=[(s, s) for s in sizes], append_images=ico[1:])
+    print("wrote", os.path.relpath(path, ROOT))
+
+    for edition, accent in (("free", ACCENT_FREE), ("pro", ACCENT_PRO)):
+        res = os.path.join(ROOT, "android", "app", "src", edition, "res")
+
+        # Legacy launcher bitmaps. minSdk is 26, so every device this app
+        # runs on uses the adaptive icon; these are what tooling and
+        # previews fall back to.
+        for folder, px in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96),
+                           ("xxhdpi", 144), ("xxxhdpi", 192)):
+            save(render(px, accent),
+                 os.path.join(res, "mipmap-" + folder, "ic_launcher.png"))
+
+        write(os.path.join(res, "drawable", "ic_launcher_foreground.xml"),
+              vector(accent))
+        write(os.path.join(res, "drawable", "ic_launcher_monochrome.xml"),
+              vector(accent, mono=True))
+        write(os.path.join(res, "values", "ic_launcher_background.xml"),
+              BACKGROUND_XML)
+        write(os.path.join(res, "mipmap-anydpi-v26", "ic_launcher.xml"),
+              ADAPTIVE_XML)
+        write(os.path.join(res, "mipmap-anydpi-v26", "ic_launcher_round.xml"),
+              ADAPTIVE_XML)
+
+        # The Play listing asset: 512x512, and opaque -- Play rejects
+        # transparency in the store icon.
+        store = Image.new("RGBA", (512, 512), FIELD + (255,))
+        store.alpha_composite(render(512, accent, disc=False))
+        save(store.convert("RGB"),
+             os.path.join(ROOT, "docs", "images",
+                          "icon-%s-512.png" % edition))
+
+
+if __name__ == "__main__":
+    main()

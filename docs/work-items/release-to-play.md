@@ -190,14 +190,37 @@ Remaining before launch: a **hands-on pass on the device** — the consent
 dialog, the map hand-off and paste, *From station*, and a pro run whose
 uplink follows the handset.
 
-### Phase 5 — Release plumbing
+### Phase 5 — Release plumbing — **built**
 
-Signing config and a keystore that is backed up and never committed;
-`versionName` wired to `src/core/version.h` instead of hand-maintained;
-`versionCode` scheme; icon check (currently plain bitmaps, no adaptive
-variant); `isMinifyEnabled` and a ProGuard pass over reflection used by
-kotlinx-serialization; the privacy policy (Phase 1 + 4 decide its
-content); the Play data-safety declaration; store listings.
+- **Signing** — `signingConfigs` reads `android/keystore.properties`
+  (git-ignored, as are `*.jks` and `*.keystore`); absent, the build
+  falls back to the debug key and logs that it did.
+  `keystore.properties.example` carries the `keytool` invocation and
+  what losing the key costs. **The keystore itself is the author's to
+  create**: passwords are not something this project's tooling should
+  ever handle.
+- **Version** — parsed from `src/core/version.h` by
+  `app/build.gradle.kts`; `versionCode` is `MMmmpp`.
+- **R8** — enabled with `proguard-rules.pro`, and verified rather than
+  assumed: a minified pro build returned STATION OK against a live
+  caster, with the encrypted store, the JNI and the sky render all
+  intact. This closes **open question 7**.
+- **Icons** — `tools/make_icons.py` generates the Windows `.ico`, the
+  Android bitmaps, adaptive and themed vectors, and the 512 px store
+  assets from one geometry. Free and pro differ by accent colour.
+- **Names** — `NTRIP Analyser` and `NTRIP Analyser Pro`; "free" in a
+  title is promotional text under Play's metadata policy.
+- **Privacy policy** — `docs/privacy-policy.md`, published from `/docs`
+  via GitHub Pages (`docs/_config.yml`, `docs/index.md`). This closes
+  **open questions 3 and 4**: one document, both listings, every
+  edition difference marked inside it.
+- **Listings and data safety** — drafted in
+  `docs/work-items/play-listing.md`, with the reasoning behind each
+  answer rather than the answers alone.
+
+Left to the author, and listed at the end of that document: enabling
+Pages, the contact address, the screenshots (**open question 6**), and
+generating the keystore.
 
 ### Phase 6 — Samsung S23 verification
 
@@ -243,17 +266,23 @@ contact address Play requires.
 ## Open Questions
 
 *(1 and 2 answered 2026-08-13: collect nothing — `design/telemetry.md`;
-security-crypto pinned to stable 1.0.0. Numbers kept stable.)*
+security-crypto pinned to stable 1.0.0. 3, 4 and 7 answered with phase 5.
+Numbers kept stable.)*
 
-3. **Privacy-policy hosting** — wiki page or GitHub Pages?
-4. **Does the free wiki need its own privacy policy** distinct from
-   pro's, given only pro transmits a position?
+3. ~~**Privacy-policy hosting**~~ — **GitHub Pages from `/docs`.** The
+   policy is versioned and reviewed with the code it describes;
+   `docs/privacy-policy.md`.
+4. ~~**Does free need its own privacy policy**~~ — **No: one document,
+   both listings.** Every edition difference is marked inside it, which
+   is more honest than two texts that can drift; and a reader comparing
+   the editions can see exactly what the paid one does differently.
 5. **RINEX terms** — does the paused auto-download become possible once
    the IGS terms PDF is read (licence action 5), or stay dropped?
 6. **Screenshots showing third-party mountpoints** — keep, or reshoot on
    the author's own stations? (licence action 6)
-7. **`isMinifyEnabled`** — leave off, or enable R8 with ProGuard rules
-   for kotlinx-serialization's reflection, as part of phase 5?
+7. ~~**`isMinifyEnabled`**~~ — **Enabled**, with `proguard-rules.pro`
+   and a minified build verified against a live caster. Turning it on
+   before the first release means its failures are met on a bench.
 
 ## Outcome
 

@@ -130,6 +130,56 @@ sentence's timing and a mid-run position change are all visible:
 With `send_gga` 0 the stub must print nothing at all — a mountpoint that
 does not ask for a position must not be sent one.
 
+### Android: release builds
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot'
+cd android
+.\gradlew.bat assembleFreeRelease assembleProRelease
+```
+
+Release builds are **minified** (R8, plus resource shrinking). What that
+breaks is invisible in a debug build, so a release build is worth
+installing and running before it matters:
+
+```bash
+adb install -r app/build/outputs/apk/pro/release/app-pro-release.apk
+adb logcat -c && adb shell am start -n nl.pe1mew.ntripanalyser.pro/nl.pe1mew.ntripanalyser.MainActivity
+adb logcat -d -s ntrip_android:V AndroidRuntime:E
+```
+
+Two failures to watch for, both release-only: an `UnsatisfiedLinkError`
+on Start (a renamed JNI entry point) and a screen that stays at READY
+while a run works (a stripped serializer, so no document decodes).
+`app/proguard-rules.pro` says which rule guards what.
+
+**Signing.** `android/keystore.properties` is git-ignored and absent
+from a fresh clone, so Gradle falls back to the debug key and says so at
+configuration time. That artefact runs but cannot be uploaded — Play
+rejects it. `android/keystore.properties.example` has the `keytool`
+line; run it yourself, and keep the `.jks` outside the repository.
+
+**The version comes from `src/core/version.h`**, parsed by
+`app/build.gradle.kts`: `versionName` is `MAJOR.MINOR.PATCH` and
+`versionCode` is `MMmmpp` (3.3.0 → 30300). Play refuses a versionCode it
+has already seen, so re-uploading means bumping the patch in the header
+— where every other artefact reads it too.
+
+### Icons
+
+One script draws every form the icon ships in — the Windows `.ico`, the
+Android bitmaps, the adaptive and themed vectors, and the Play listing
+asset:
+
+```bash
+python tools/make_icons.py
+```
+
+Edit the geometry there, never the generated files; the whole point is
+that the four cannot drift apart. Free and pro differ by accent colour
+only, and the desktop GUI uses the blue mark. Rebuild the GUI afterwards
+so `windres` picks up the new `.ico`.
+
 ## Adding a New Frontend, Window, KPI or Config Field
 
 **Adding a GUI source file** — add it to *both* `CMakeLists.txt`

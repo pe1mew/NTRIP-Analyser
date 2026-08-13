@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the Android app is ready to be released
+
+Everything a Play upload needs, and nothing that changes what the app
+measures.
+
+**The version is no longer typed twice.** `app/build.gradle.kts` parses
+`src/core/version.h`, the header every other artefact already reads, so
+the phone cannot report a version no other program was built from.
+`versionCode` follows from it as `MMmmpp` — 3.3.0 becomes 30300.
+
+**Release builds are signed from a keystore this repository never
+contains.** `android/keystore.properties` is git-ignored; without it
+Gradle falls back to the debug key and says so, which produces something
+that runs but that Play will refuse — the right failure, loud and at
+submission.
+
+**R8 is on**, with rules for the two things it cannot see: the JNI entry
+points, bound by symbol name, and the serializers behind the JSON the C
+side writes. Both failures are release-only, so the configuration was
+proved rather than assumed: a minified pro build ran against
+`ntrip.kadaster.nl` and returned **STATION OK**, held for 60 s, 47 SV,
+46 of 46 satellites placeable — with the encrypted profile store
+decoding and the sky render intact. APK: 1.75 MB.
+
+**A new icon**, in every form the project ships it — the Windows `.ico`,
+the Android launcher bitmaps, the adaptive and themed vectors, and the
+512 px store asset — all generated from one geometry by
+`tools/make_icons.py`, so they cannot drift apart. The mark is the sky
+plot the app draws: the horizon as a ring, north as a tick, satellites
+inside it. The signal arcs it replaces said only "something is
+streaming", which is true of any network app. Free and pro differ by
+accent colour, blue and amber, because on a phone with both installed
+the labels truncate to "NTRIP Ana…" and colour is what tells them apart.
+
+**The editions are renamed** to `NTRIP Analyser` and `NTRIP Analyser
+Pro`. Play's metadata policy treats *free* in a title as promotional
+text, and the word bought nothing: the price is already on the listing.
+
+**The privacy policy is written** (`docs/privacy-policy.md`, published
+from `/docs`), and the store listings and data-safety answers are
+drafted with the reasoning behind each one
+(`docs/work-items/play-listing.md`). One answer is worth stating here:
+*is all user data encrypted in transit?* — **no**, because NTRIP sends
+the position and the credentials over a plain connection. That is the
+protocol rather than a shortcut, the app says so where the password is
+typed, and it changes when TLS lands in both editions at once.
+
 ### Added — the GGA uplink reports where the rover actually is (Android)
 
 A network-RTK mountpoint serves the position the rover reports, so what

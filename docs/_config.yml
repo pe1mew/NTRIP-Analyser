@@ -1,0 +1,16 @@
+# GitHub Pages, serving this folder.
+#
+# It exists for one required thing: the Play listings need a public
+# privacy-policy URL, and the policy belongs with the code that it
+# describes rather than in a wiki page nobody reviews.
+#
+# Everything else already in docs/ is published as a side effect. That
+# is harmless -- the repository is public, so these files were readable
+# already -- but it does mean a document written here is a document
+# published, and should read like one.
+title: NTRIP-Analyser
+description: >-
+  Analyses NTRIP RTCM 3.x streams from GNSS base stations, and answers
+  whether a station is fit to serve RTK.
+theme: jekyll-theme-minimal
+show_downloads: false

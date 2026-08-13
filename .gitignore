@@ -14,6 +14,7 @@ bin/*
 !bin/exampleConfig.json
 
 # Build artifacts
+__pycache__/
 gui_main.o
 build_output.txt
 
@@ -45,3 +46,11 @@ android/local.properties
 android/.cxx/
 android/app/.cxx/
 *.apk
+
+# Signing. The keystore lives outside this tree (see
+# android/keystore.properties.example); these patterns are the second
+# line of defence, so that a keystore copied in by accident is not
+# committed by a `git add -A`.
+android/keystore.properties
+*.jks
+*.keystore
