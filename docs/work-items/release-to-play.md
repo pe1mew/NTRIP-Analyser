@@ -46,11 +46,15 @@ a tool professionals run on customers' infrastructure.
 
 The counterpart is a **report the user shares with whoever owns the
 station** — not a channel into the author's inbox. Scheduled before the
-free launch: verdict, KPI values and stream statistics, with caster and
-mountpoint redacted by default and credentials and position never
-included. See `design/telemetry.md`, including the check that the
-desktop's existing *Export Statistics* does not quietly leak what the
-phone's report is careful to redact.
+free launch: verdict, KPI values, stream statistics, caster and
+mountpoint, complete by default with a control to strip the station's
+identity for a public posting. Credentials and the phone's position are
+never included, because neither is a measurement.
+
+An export is a deliberate act by the user and completeness is its
+purpose — a station acceptance record that does not name the station
+documents nothing. The desktop's existing *Export Statistics* is right
+as it stands. See `design/telemetry.md`, "Export is not leakage".
 
 **Support posture, decided with it**: minimal follow-up after
 deployment. The product answers the questions — every KPI states its
@@ -215,15 +219,18 @@ contact address Play requires.
 
 ## Open Questions
 
-1. **Telemetry stance** — vitals only, or opt-in counters we host? Gates
-   the privacy policy.
-2. **`security-crypto` alpha** — ship `1.1.0-alpha06`, or move to
-   `1.0.0` stable before a paid release?
+*(1 and 2 answered 2026-08-13: collect nothing — `design/telemetry.md`;
+security-crypto pinned to stable 1.0.0. Numbers kept stable.)*
+
 3. **Privacy-policy hosting** — wiki page or GitHub Pages?
 4. **Does the free wiki need its own privacy policy** distinct from
    pro's, given only pro transmits a position?
 5. **RINEX terms** — does the paused auto-download become possible once
-   Phase 2 answers the BKG/IGS conditions, or stay dropped?
+   the IGS terms PDF is read (licence action 5), or stay dropped?
+6. **Screenshots showing third-party mountpoints** — keep, or reshoot on
+   the author's own stations? (licence action 6)
+7. **`isMinifyEnabled`** — leave off, or enable R8 with ProGuard rules
+   for kotlinx-serialization's reflection, as part of phase 5?
 
 ## Outcome
 

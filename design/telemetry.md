@@ -93,13 +93,17 @@ their own supplier does not need to ask anyone else.
 Shape:
 
 - A **Share** action on a finished run: verdict, the eight KPI values and
-  their details, stream statistics, satellite counts, app and device
-  version.
-- **Caster host and mountpoint redacted by default**, with a tick box to
-  include them — which a user sending it *to their own operator* will
-  want, and one forwarding it into a public ticket will not. *(Default
-  chosen here, not by the user; reversible.)*
-- **Credentials and position never included**, tick box or not.
+  their details, stream statistics, satellite counts, caster, mountpoint,
+  app and device version.
+- **Complete by default**, including caster and mountpoint, with a
+  visible control to strip them for a report going somewhere public. A
+  user sending evidence to their own operator needs the mountpoint in it;
+  a user posting to a forum can say so. *(This reverses the redact-first
+  default first proposed here: an export is the user's deliberate act,
+  and a report that omits which station failed is largely useless to
+  whoever receives it.)*
+- **Credentials and position never included**, control or not — see
+  "Export is not leakage" below.
 - The user reads it before it leaves. It is a file they send, not a
   packet we take.
 
@@ -132,11 +136,34 @@ What follows for the launch:
   unbidden; what arrives is what someone chose to send, and it can be
   read when convenient.
 
-**Check before shipping it**: `ns_stats_to_json()` writes `caster` and
-`mountpoint` into every snapshot (`src/core/ns_stats.c`), and the Windows
-GUI's *File → Export Statistics* writes that snapshot as-is. The
-redaction rule should apply to both, or the desktop export quietly
-becomes the leak the phone's report was careful to avoid.
+## Export is not leakage
+
+`ns_stats_to_json()` writes `caster` and `mountpoint` into every
+snapshot (`src/core/ns_stats.c`), and the Windows GUI's *File → Export
+Statistics* writes that snapshot as-is. **That is correct, and it is a
+feature of working with a tool like this.**
+
+An export is a manual, deliberate act: an engineer choosing to document
+a session or hand it to someone who needs it. Completeness is the whole
+point — a station acceptance record that does not name the station
+documents nothing, and an operator sent an anonymised fault report
+cannot act on it. Withholding fields from a file the user asked for
+would protect no one; it would damage the record and treat the person
+operating a professional instrument as someone to be managed.
+
+The distinction is not desktop versus phone. It is **who acted**:
+
+- **The user acts** — export, share, save — and gets the complete
+  record. The tool's duty is to show plainly what is in it, not to
+  decide what they may have.
+- **The software acts on its own** — a beacon, a background upload, an
+  analytics call — and the answer is that it does not, at all. That is
+  what the rules above are for.
+
+What stays out of any output regardless is what was never a
+measurement: **credentials**, and **the phone's own position**. Nothing
+is documented by including them, and a caster password is not the
+user's to pass on in a file that gets forwarded.
 
 ## Consequences for the store submission
 
