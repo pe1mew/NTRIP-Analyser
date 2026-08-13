@@ -188,6 +188,7 @@ The analyser can perform the following operations on NTRIP streams:
 - **[Feature Backlog](design/todo.md)** — What is shipped, what is planned, and why
 - **[Architecture](design/architecture.md)** — Structure for sharing one core across the CLI, GUI, monitoring service and Android app
 - **[GUI Design Document](design/gui-design.md)** — Windows GUI design decisions
+- **[Agent notes](CLAUDE.md)** — Constraints and navigation for AI-assisted work, with [docs/RUNBOOK.md](docs/RUNBOOK.md) and [memory/](memory/MEMORY.md)
 
 ## Quick Start
 
