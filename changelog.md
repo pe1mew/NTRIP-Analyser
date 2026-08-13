@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — an MSM1-3 station reported no satellites at all
+
+`msm_extract_prns()` refused any MSM whose number did not end in 4 to 7,
+so a station streaming MSM1, 2 or 3 was graded with **zero satellites in
+view** — and failed on arithmetic while its frames passed CRC and its
+ARP arrived. Measured on `rtk2go.com/CASISA`, which streams 1073, 1083,
+1093 and 1123: **FAILED in fifteen seconds, 0 SV**.
+
+The refusal had no basis. **The satellite mask is a header field** —
+bit 73, 64 bits — identical in all seven MSMs, and reading it needs none
+of the per-cell layout that separates them. What MSM1-3 genuinely lack
+is C/N0, which `msm_extract_cnr()` still refuses, and KPI 6 now says so
+in the same words it uses for a legacy station.
+
+The same station now reads **30 satellites, four constellations at rate,
+CAUTION** — the caution being KPI 6, honestly reporting that this stream
+carries no signal strength to judge. On the handset: 31 satellites where
+it counted none.
+
+`test/test_msm_cnr.c` gained the case: an MSM3 frame yields its
+satellites and no C/N0, which is the distinction that was missing.
+
+The dead `msm_flowing()` went with it — nothing has called it since
+KPI 4 was rewritten to judge every constellation a station streams.
+
 ### Added — every legacy observation message can be read on screen
 
 1001, 1002, 1003, 1009, 1010 and 1011 join 1004 and 1012, so a station

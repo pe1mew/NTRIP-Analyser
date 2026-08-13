@@ -176,14 +176,27 @@ int main(void)
     case_msm(6, 1096, "MSM6 Galileo", raw10, 43.75f, 50.75f);
     case_msm(7, 1077, "MSM7 GPS",     raw10, 43.75f, 50.75f);
 
-    /* MSM3 carries no C/N0, and must be refused rather than guessed at. */
+    /* MSM1-3 carry no C/N0, and the reader must refuse rather than
+     * guess -- but their satellites are still there to be counted, in a
+     * header field every MSM shares. Refusing both is what made a
+     * working MSM3 station report zero satellites and fail. */
     {
         unsigned char payload[128];
         int len = build_msm(4, 1073, raw6, payload);
+
         int prns[8]; float cnr[8];
         int n = msm_extract_cnr(payload, len, 1073, prns, cnr, 8, NULL);
-        CHECK(n == 0, "MSM3: expected refusal, got %d satellites", n);
-        printf("MSM3 (type 1073): refused, as it carries no C/N0\n");
+        CHECK(n == 0, "MSM3: expected C/N0 refusal, got %d satellites", n);
+
+        int gnss = 0;
+        int sats = msm_extract_prns(payload, len, 1073, prns, 8, &gnss);
+        CHECK(sats == 2, "MSM3: expected 2 satellites, got %d", sats);
+        CHECK(gnss == 1, "MSM3: expected GPS, got gnss %d", gnss);
+        if (sats == 2)
+            CHECK(prns[0] == 3 && prns[1] == 9,
+                  "MSM3: expected PRN 3 and 9, got %d and %d", prns[0], prns[1]);
+
+        printf("MSM3 (type 1073): %d satellites, and no C/N0 to report\n", sats);
     }
 
     if (failures) {

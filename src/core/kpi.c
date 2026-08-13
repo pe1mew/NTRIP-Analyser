@@ -86,8 +86,10 @@ static bool obs_present(const NsStatsSnapshot *s, int gnss, bool *at_rate)
     for (int i = 0; i < s->n_types; i++) {
         const NsTypeStats *t = &s->types[i];
         int m = t->msg_type;
+        /* Any MSM counts as observations flowing, including MSM1-3:
+         * they carry satellites and ranges, only no C/N0. */
         bool in_msm = (lo && m >= lo && m <= hi &&
-                       (m % 10) >= 4 && (m % 10) <= 7);
+                       (m % 10) >= 1 && (m % 10) <= 7);
         bool in_leg = (llo && m >= llo && m <= lhi);
         if (!in_msm && !in_leg) continue;
 
@@ -97,22 +99,6 @@ static bool obs_present(const NsStatsSnapshot *s, int gnss, bool *at_rate)
             *at_rate = true;
     }
     return present;
-}
-
-/** @brief Does types[] carry an MSM of @p gnss at KPI_MSM_MAX_DT_S or faster? */
-static bool msm_flowing(const NsStatsSnapshot *s, int lo, int hi, double *dt_out)
-{
-    for (int i = 0; i < s->n_types; i++) {
-        const NsTypeStats *t = &s->types[i];
-        if (t->msg_type < lo || t->msg_type > hi) continue;
-        if ((t->msg_type % 10) < 4 || (t->msg_type % 10) > 7) continue;
-        if (t->epochs < 3) continue;          /* one epoch has no rate yet */
-        if (t->avg_dt > 0.0 && t->avg_dt <= KPI_MSM_MAX_DT_S) {
-            if (dt_out) *dt_out = t->avg_dt;
-            return true;
-        }
-    }
-    return false;
 }
 
 /**

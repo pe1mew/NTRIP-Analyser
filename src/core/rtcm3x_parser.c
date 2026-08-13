@@ -190,9 +190,18 @@ int msm_extract_prns(const unsigned char *payload, int payload_len,
 {
     if (!payload || payload_len < 14 || !prns_out || max_prns <= 0) return 0;
 
-    /* MSM4/5/6/7 only — message numbers ending in 4..7 of any GNSS range */
+    /* Every MSM, 1 through 7.  The satellite mask is a header field --
+     * bit 73, 64 bits -- identical in all of them, and reading it needs
+     * none of the per-cell layout that separates MSM1 from MSM7.
+     *
+     * MSM1-3 were refused here, so a station sending them reported zero
+     * satellites in view and failed on arithmetic: measured on
+     * rtk2go.com/CASISA, which streams 1073, 1083, 1093 and 1123 and was
+     * graded FAILED with 0 SV while its frames passed CRC and its ARP
+     * arrived.  What MSM1-3 genuinely lack is C/N0, which
+     * @ref msm_extract_cnr still refuses. */
     int subtype = msg_type % 10;
-    if (msg_type < 1070 || msg_type > 1139 || subtype < 4 || subtype > 7) return 0;
+    if (msg_type < 1070 || msg_type > 1139 || subtype < 1 || subtype > 7) return 0;
 
     /* Map RTCM range to GNSS ID, matching get_gnss_id_from_rtcm() */
     int gnss_id;
