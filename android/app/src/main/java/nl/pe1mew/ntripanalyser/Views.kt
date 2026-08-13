@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.PathEffect
@@ -242,14 +243,35 @@ private fun DrawScope.drawElevationNumbers(
     }
 }
 
+/**
+ * The constellations on show, swatch and name together.
+ *
+ * Wraps onto a second line when they do not fit. Seven constellations
+ * on a phone do not: the last entry was squeezed into whatever space
+ * was left, so "NavIC" arrived broken across the screen edge or its
+ * swatch was flattened to an ellipse. Each entry is one unbreakable
+ * unit -- a colour means nothing without the name beside it -- so the
+ * wrapping happens between entries, never inside one.
+ *
+ * Used by all three analysis views, which is why it is one composable.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ConstellationLegend(ids: List<Int>, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    FlowRow(
+        modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         ids.forEach { id ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Canvas(Modifier.size(10.dp)) { drawCircle(Gnss.colour(id)) }
                 Spacer(Modifier.width(4.dp))
-                Text(Gnss.label(id), style = MaterialTheme.typography.labelSmall)
+                Text(
+                    Gnss.label(id),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                )
             }
         }
     }
@@ -406,8 +428,8 @@ class ElevationAccumulator {
 
     fun add(gnss: Int, elevationDeg: Float, cn0: Float) {
         if (gnss !in 1 until GNSS_SLOTS) return
-        val el = elevationDeg.toInt().coerceIn(0, EL_BINS - 1)
-        val cn = (cn0 * 2f).toInt().coerceIn(0, CN0_BINS - 1)
+        val el = (elevationDeg / EL_STEP).toInt().coerceIn(0, EL_BINS - 1)
+        val cn = (cn0 / CN0_STEP).toInt().coerceIn(0, CN0_BINS - 1)
         cells[(gnss * EL_BINS + el) * CN0_BINS + cn]++
         total++
         seen.add(gnss)
@@ -419,13 +441,17 @@ class ElevationAccumulator {
         seen.clear()
     }
 
-    /** Visit every occupied cell: constellation, elevation, C/N0, count. */
+    /**
+     * Visit every occupied cell: constellation, and the elevation and
+     * C/N0 of its **lower corner**, so the caller can draw the cell as
+     * the area it stands for rather than as a dot in the middle of it.
+     */
     inline fun forEachCell(action: (Int, Float, Float, Int) -> Unit) {
         for (g in 1 until GNSS_SLOTS) {
             for (el in 0 until EL_BINS) {
                 for (cn in 0 until CN0_BINS) {
                     val n = countAt(g, el, cn)
-                    if (n > 0) action(g, el.toFloat(), cn / 2f, n)
+                    if (n > 0) action(g, el * EL_STEP, cn * CN0_STEP, n)
                 }
             }
         }
@@ -438,10 +464,26 @@ class ElevationAccumulator {
     companion object {
         /** 0..7, so a constellation id indexes directly. */
         const val GNSS_SLOTS = 8
-        /** One bin per degree, 0..90. */
-        const val EL_BINS = 91
-        /** Half a decibel per bin, 0..70 dB-Hz -- finer than the plot. */
-        const val CN0_BINS = 140
+
+        /*
+         * Cell size, chosen against the plot rather than against the
+         * data: a cell is drawn as the rectangle it stands for, so if
+         * the cells were coarser than the marks the plot would show
+         * gapped columns of blocks -- which is what a degree of
+         * elevation and half a decibel looked like on a phone, about
+         * ten pixels wide with nothing between them.
+         *
+         * At half a degree and a quarter of a decibel, a cell is roughly
+         * five pixels by four on a handset: the marks meet, and the
+         * shape of the curve comes back. The whole grid is 1.6 MB and
+         * fixed, whatever the length of the run.
+         */
+        const val EL_STEP = 0.5f
+        const val CN0_STEP = 0.25f
+        /** 0..90 degrees at [EL_STEP]. */
+        const val EL_BINS = 181
+        /** 0..70 dB-Hz at [CN0_STEP]. */
+        const val CN0_BINS = 281
     }
 }
 
@@ -516,17 +558,25 @@ fun ElevationView(
             // silently stops updating.
             @Suppress("UNUSED_EXPRESSION") revision
 
-            // Density rather than a heap of identical dots: a cell hit a
+            // Each cell is drawn as the area it stands for, so the
+            // marks meet instead of leaving the grid visible. Density
+            // rather than a heap of identical marks: a cell hit a
             // thousand times and one hit once looked the same before,
             // which flattered a stream that spends its life at one
             // elevation. Opacity is logarithmic, so a busy cell reads as
             // solid without a quiet one disappearing.
-            val r = max(1.2f, 1.6f * density.density)
+            val cellW = size.width * (ElevationAccumulator.EL_STEP / 90f)
+            val cellH = size.height * (ElevationAccumulator.CN0_STEP / (hi - lo))
             samples.forEachCell { gnss, el, cn0, count ->
+                if (cn0 < lo - ElevationAccumulator.CN0_STEP || cn0 > hi) {
+                    return@forEachCell
+                }
                 val weight = (ln(count.toFloat() + 1f) / ln(64f)).coerceIn(0.15f, 1f)
-                drawCircle(
-                    Gnss.colour(gnss).copy(alpha = 0.25f + 0.55f * weight), r,
-                    Offset(xFor(el), yFor(cn0.coerceIn(lo, hi))),
+                val top = yFor((cn0 + ElevationAccumulator.CN0_STEP).coerceAtMost(hi))
+                drawRect(
+                    color = Gnss.colour(gnss).copy(alpha = 0.25f + 0.55f * weight),
+                    topLeft = Offset(xFor(el), top),
+                    size = Size(cellW, cellH),
                 )
             }
         }

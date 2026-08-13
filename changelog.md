@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — two analysis views that damaged what they were showing
+
+**The C/N0-versus-elevation plot was drawn in cells larger than its
+marks.** A degree of elevation is about ten pixels on a phone and the
+mark was five, so the plot showed gapped columns: the quantisation of
+the grid, drawn over the shape of the curve. Cells are now half a degree
+by a quarter of a decibel, and each is drawn as the rectangle it stands
+for rather than as a dot in the middle of it, so neighbouring cells
+meet. The grid is still fixed at 1.6 MB however long the run.
+
+**The constellation legend squeezed its last entry.** With more
+constellations than fit a line — six on `rtk2go.com/Mirmenhof` — the
+last was crushed into whatever space remained. It wraps now, breaking
+between entries and never inside one, because a colour swatch without
+its name beside it says nothing. All three analysis views share the
+legend, so all three gained it.
+
+Both verified on the handset: 1828 samples plotted as continuous bars,
+and a legend reading GPS, GLONASS, Galileo, BeiDou, SBAS on one line
+with NavIC on the next.
+
 ### Fixed — an MSM1-3 station reported no satellites at all
 
 `msm_extract_prns()` refused any MSM whose number did not end in 4 to 7,
