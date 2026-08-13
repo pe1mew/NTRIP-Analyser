@@ -1064,7 +1064,9 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
                     g.label to "median %.1f, min %.1f dB-Hz".format(
                         g.cnrMedian ?: 0.0, g.cnrMin ?: 0.0)
                 }
-                .ifEmpty { listOf("C/N0" to "not carried (MSM7 required)") }
+                // Not "not carried": the stream may well carry it. Only
+                // MSM7's C/N0 is decoded (src/core/sv_track.c).
+                .ifEmpty { listOf("C/N0" to "read from MSM7 only") }
                 .plus("All constellations" to f(s.cnrMeanAll, "dB-Hz mean"))
         7 -> listOf(
             "Frames checked" to "${s.framesOk + s.framesCrcError}",

@@ -42,10 +42,13 @@ int sv_track_feed(SvTrack *t, const unsigned char *payload, int payload_len,
         t->sat[gnss_id][p - 1].last_seen = now;
     }
 
-    /* Only MSM7 carries the extended C/N0 field.  For every other MSM the
-     * satellites above stay current while their last known C/N0 is left
-     * untouched -- zeroing it here would make signal strength collapse on
-     * any base interleaving MSM4 with MSM7. */
+    /* Only MSM7's C/N0 is read here.  Not because the others lack it --
+     * MSM4 and MSM5 carry it in 6 bits and MSM6 in the same 10-bit field
+     * as MSM7 -- but because only MSM7's cell layout is walked so far.
+     * A stream of any other type therefore keeps its satellites current
+     * while their last known C/N0 is left untouched; zeroing it here
+     * would make signal strength collapse on a base interleaving MSM4
+     * with MSM7. */
     if ((msg_type % 10) == 7) {
         int   cnr_prns[SV_TRACK_MAX_PRN];
         float cnr_vals[SV_TRACK_MAX_PRN];

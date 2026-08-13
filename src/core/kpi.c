@@ -178,10 +178,15 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     double med = cnr_median_weighted(s, &cnr_sats);
     k[5].value = med;
     if (cnr_sats == 0) {
-        /* MSM4/5/6 carry no C/N0.  That is the stream's shape, not a
-         * station fault, so it reads as a caution rather than a fail. */
+        /* Not a station fault, so it reads as a caution rather than a
+         * fail -- but nor is it the stream's shape, which the old
+         * wording ("No C/N0 in this stream") claimed.  MSM4 and MSM5
+         * carry C/N0 in 6 bits, MSM6 in the same 10-bit field as MSM7,
+         * and the legacy 1002/1004/1010/1012 in 8 bits; this decoder
+         * reads only MSM7's.  Saying so plainly is the difference
+         * between reporting a station and reporting ourselves. */
         k[5].verdict = (out->elapsed_s < 15.0) ? KPI_PENDING : KPI_WARN;
-        k[5].detail  = "No C/N0 in this stream (MSM7 required)";
+        k[5].detail  = "Not measured: C/N0 is read from MSM7 only";
     } else if (med >= KPI_MIN_CNR_MEDIAN) {
         k[5].verdict = KPI_PASS;
         k[5].detail  = "Antenna and LNA chain healthy";
