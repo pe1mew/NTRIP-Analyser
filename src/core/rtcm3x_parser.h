@@ -851,6 +851,9 @@ void decode_rtcm_1046(const unsigned char *payload, int payload_len);
  */
 void decode_rtcm_1230(const unsigned char *payload, int payload_len);
 
+/** @brief Print an RTCM 1004 (GPS L1/L2 RTK observables). */
+void decode_rtcm_1004(const unsigned char *payload, int payload_len);
+
 /**
  * @brief Decode and print the contents of an RTCM 3.x Type 1012 message (GLONASS L1&L2 RTK Observables).
  * 

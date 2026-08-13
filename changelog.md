@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the 1004 decoder, which never existed
+
+1012 was dispatched and 1004 was not, so a station sending both showed
+its GLONASS observations in the message detail and **nothing at all for
+GPS**. `decode_rtcm_1004()` is the GPS counterpart of the 1012 decoder
+fixed alongside it, reading the layout confirmed against
+`rtk2go.com/Mirmenhof`: 64 header bits, then 125 per satellite.
+
+Checked against `rtcm_legacy_extract()` on the same frames, satellite by
+satellite — PRN 11 at 43.00 L1 and 26.75 L2 where the reader reports
+43.00 as the better of the two, PRN 21 at 49.00 and 45.00, PRN 8 at
+36.00 and 26.00; ten satellites in both, no extras either way. Values
+are scaled and carry units, and the *not computed* markers are named
+rather than printed, exactly as in 1012.
+
+Still without a decoder: 1001, 1002, 1003, 1009, 1010 and 1011. They are
+rarer -- a station sending L1 only, or without C/N0 -- and every one of
+them is already **measured** correctly, since `rtcm_legacy_extract()`
+covers the whole family. What they lack is the field-by-field display.
+
 ### Fixed — the 1012 decoder printed fields that were not there
 
 `decode_rtcm_1012()` read the satellite count as 6 bits where DF035 is
