@@ -33,10 +33,13 @@
  *
  * ## Requirements
  *
- * MSM7 with two or more frequencies per satellite.  MSM4/5/6 carry no
- * extended phase resolution, and GLONASS is excluded outright: it is
- * FDMA, so each satellite's frequency depends on a channel number that
- * only the 1020 ephemeris carries.
+ * MSM6 or MSM7 -- the extended-resolution messages -- with two or more
+ * frequencies per satellite.  Both carry DF406, the 24-bit fine phase
+ * range this is built on; MSM7 adds a Doppler that is not used here.
+ * MSM4 and MSM5 do not qualify: their phase range is DF401, 22 bits at
+ * a coarser scale.  GLONASS is excluded outright whatever the message:
+ * it is FDMA, so each satellite's frequency depends on a channel number
+ * that only the 1020 ephemeris carries.
  *
  * Core module: no I/O, no platform headers, no allocation.
  *

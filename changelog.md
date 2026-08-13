@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — the ionospheric monitor sees MSM6 stations
+
+`iono_feed()` accepted only MSM7, and `iono.h` explained why: *"MSM4/5/6
+carry no extended phase resolution"*. That is true of MSM4 and MSM5,
+whose phase range is 22 bits at a coarser scale, and **false of MSM6**,
+which carries the same 24-bit DF406 fine phase range as MSM7 and differs
+only in a Doppler field this monitor does not read.
+
+The one real difference is the satellite block ahead of the signal
+arrays — 8 + 4 + 10 + 14 bits per satellite in MSM7 against 8 + 10 in
+MSM6 — so reading an MSM6 frame at MSM7's offset lands eighteen bits
+into the pseudorange array and yields nonsense. That offset now follows
+the message.
+
+Measured on captures of `rtk2go.com/Mirmenhof`, which sends the full
+MSM6 set at 1 Hz on two frequencies:
+
+| 64-second capture | before | after |
+|---|---|---|
+| MSM frames offered | 448 | 448 |
+| satellite updates accepted | **0** | **1890** |
+| dual-frequency satellites | **0** | **30** |
+
+Over five minutes the whole path runs, not just the frame gate: 1923
+frames offered, **8754 satellite updates**, 33 dual-frequency satellites,
+and a verdict where there was none — **QUIET, ROTI median 0.037
+TECU/min**. Before the change that station produced no ionospheric
+measurement at all.
+
+Found while widening C/N0 to MSM4/5/6, and the same kind of mistake: a
+limit of the reader written down as a property of the format.
+
 ### Fixed — C/N0 is read from every MSM that carries it, not only MSM7
 
 A station sending MSM4, MSM5 or MSM6 was told its C/N0 could not be

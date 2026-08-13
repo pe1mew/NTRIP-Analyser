@@ -475,13 +475,12 @@ reading one specific PRN.
 
 ### 1.6 Decode ephemerides from the observation stream — **Shipped**, see §0
 
-### 1.8 The ionospheric monitor excludes MSM6 for no reason — **Open**
+### 1.8 The ionospheric monitor excludes MSM6 — **Shipped**, see §0
 
-`iono.c:138` gates on `(msg_type % 10) != 7`, and `iono.h` says MSM4/5/6 carry no extended phase
-resolution. That is wrong for **MSM6**, which carries the same 24-bit DF406 fine phase range as
-MSM7 and differs only in having no Doppler — which the monitor does not use. An MSM6 station is
-excluded from the iono monitor for no reason; `rtk2go.com/Mirmenhof` is one, and it also carries
-two frequencies per satellite, which is the monitor's real requirement.
+`iono_feed()` gated on `(msg_type % 10) != 7`, and `iono.h` claimed MSM4/5/6 carry no extended
+phase resolution. Wrong for **MSM6**, which carries the same 24-bit DF406 fine phase range as MSM7
+and differs only in a Doppler the monitor does not use. MSM6 is admitted now; MSM4 and MSM5 stay
+out on their merits, their DF401 phase range being 22 bits at a coarser scale.
 
 Found while widening C/N0 to MSM4/5/6 (§0). Same family of error: a limit of the reader documented
 as a property of the format.

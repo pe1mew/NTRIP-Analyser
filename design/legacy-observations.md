@@ -182,12 +182,12 @@ working, and it is why this note is only about `src/core`.
    decision — but worth stating in the wiki, so nobody reads a pass as
    "suitable for RTK with your multi-constellation rover".
 
-## Adjacent finding, not part of this work
+## Adjacent finding, since fixed
 
-The ionospheric monitor gates on `(msg_type % 10) != 7` (`iono.c:138`)
-and its header states that *"MSM4/5/6 carry no extended phase
-resolution"*. That is wrong for **MSM6**, which carries the same 24-bit
-DF406 fine phase range as MSM7 and differs only in having no Doppler.
-An MSM6 station — `rtk2go.com/Mirmenhof` is one — is therefore excluded
-from the iono monitor for no reason. Same family of error as the C/N0
-gap, and worth its own item.
+The ionospheric monitor gated on `(msg_type % 10) != 7` and its header
+claimed *"MSM4/5/6 carry no extended phase resolution"* — wrong for
+**MSM6**, which carries the same 24-bit DF406 fine phase range as MSM7
+and differs only in a Doppler the monitor does not use. Fixed the same
+day; `design/todo.md` §1.8. Same family of error as the C/N0 gap: a
+limit of the reader written down as a property of the format, which is
+what this note exists to stop happening a third time.

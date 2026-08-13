@@ -135,7 +135,18 @@ int iono_feed(IonoState *st, const unsigned char *payload, int payload_len,
               int msg_type, double now)
 {
     if (!st || !payload) return 0;
-    if (msg_type < 1071 || msg_type > 1137 || (msg_type % 10) != 7) return 0;
+    /* MSM6 and MSM7: the two extended-resolution messages.  Both carry
+     * DF406, the 24-bit fine phase range this monitor is built on, and
+     * differ only in the Doppler MSM7 adds and this does not use.
+     * Excluding MSM6 shut the monitor out of stations that carry exactly
+     * what it needs -- measured on rtk2go.com/Mirmenhof, which sends the
+     * full MSM6 set at 1 Hz on two frequencies.
+     *
+     * MSM4 and MSM5 stay out on their merits: their phase range is
+     * DF401, 22 bits at a coarser scale, which is not enough to see a
+     * rate of TEC change against phase noise. */
+    const int msm = msg_type % 10;
+    if (msg_type < 1071 || msg_type > 1137 || (msm != 6 && msm != 7)) return 0;
 
     int gnss_id;
     if      (msg_type < 1080) gnss_id = 1;
@@ -189,11 +200,17 @@ int iono_feed(IonoState *st, const unsigned char *payload, int payload_len,
     const int cell_bits = num_sats * num_sigs;
     if (cell_mask_start + cell_bits > total_bits) return 0;
 
-    /* Satellite data: MSM7 carries rough range (8 + 4 + 10 bits) and
-     * rough phase-range rate (14) per satellite.  None of it is needed
-     * here -- being per-satellite, it is identical on both signals and
-     * cancels in the geometry-free difference. */
-    const int sat_block_bits = num_sats * (8 + 4 + 10 + 14);
+    /* Satellite data, which this monitor does not read: being
+     * per-satellite it is identical on both signals and cancels in the
+     * geometry-free difference.  Its width still matters, because every
+     * signal array sits behind it -- and it is the one place MSM6 and
+     * MSM7 differ.  MSM7 carries rough range (8 + 4 + 10) plus a rough
+     * phase-range rate (14); MSM6 carries neither the extended satellite
+     * info nor the rate, so 8 + 10.  Reading an MSM6 frame with MSM7's
+     * offset lands 18 bits into the pseudorange array and yields
+     * nonsense, which is why this is not a constant. */
+    const int sat_block_bits = num_sats * (msm == 7 ? (8 + 4 + 10 + 14)
+                                                    : (8 + 10));
     const int cell_block_start = cell_mask_start + cell_bits + sat_block_bits;
 
     int num_cells = 0;
