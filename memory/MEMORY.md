@@ -28,6 +28,8 @@
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
 | `docs/jsonConfigs.md` | Config reading, writing or interop | One format everywhere; passwords in the clear |
+| `docs/security-review.md` | Touching a parser, the socket layer, or anything a caster feeds | What a hostile caster can do; six findings closed, TLS scheduled |
+| `design/tls.md` | Implementing TLS, or asked why it is not there yet | The decision, the measured surface, and what actually costs |
 
 ## Current State
 
@@ -83,5 +85,10 @@ Supplementing CLAUDE.md's list with paths found during work:
   licence relationship stays theirs (`android/design/views.md`).
 - **KPI 8 judges constellations by the sourcetable's NavSys field**, never by
   the 1005/1006 indicator bits, which cannot express BeiDou.
+- **TLS is coming, after the free launch**, as a bundled library behind a
+  transport abstraction — chosen over per-platform native APIs to keep one
+  code path for four frontends. It ships in **both editions** on the same
+  day: the paid edition withholds convenience, never protection
+  (`design/tls.md`).
 
 ---

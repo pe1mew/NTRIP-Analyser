@@ -108,8 +108,10 @@ And the Android settings screen says it under the password field, at the
 moment someone types one: stored encrypted on this phone, sent as NTRIP
 specifies.
 
-That is disclosure, not protection. **TLS remains the open decision** and
-the largest security improvement available to the project.
+That is disclosure, not protection. **TLS is decided and scheduled**: a
+bundled library behind a transport abstraction in the session layer,
+after the free edition ships — `design/tls.md` carries the reasoning,
+the measured integration surface and the 5–8 day estimate.
 
 Storage is not the weak point: the Android app holds credentials in
 `EncryptedSharedPreferences` keyed from the Keystore, and configuration

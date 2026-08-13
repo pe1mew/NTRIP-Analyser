@@ -16,7 +16,11 @@ instrument; a verdict that varied by licence tier would be worthless, and
 a user who discovers the free app grades more leniently has been given a
 reason to distrust every number the paid one shows.
 
-The paid edition therefore shows **more**, never **different**.
+The paid edition therefore shows **more**, never **different** — and
+never **safer**. A security property is not a feature to sell: when TLS
+lands it lands in both editions on the same day, however much the paid
+edition is the one that needed it (`design/tls.md`). What the paid
+edition withholds is convenience, never protection.
 
 ## The split
 
@@ -30,6 +34,7 @@ The paid edition therefore shows **more**, never **different**.
 | Sky plot (coverage heatmap) | yes | yes |
 | Ephemeris source | **imported RINEX file, phone GNSS** | on-demand ephemeris stream, and an imported file |
 | GGA position sent to the caster | **fixed, from the mountpoint's sourcetable entry** | the phone's live position |
+| TLS to the caster *(planned)* | yes, the same day pro has it | yes — scheduled here, withheld from no one |
 | Configuration files (load / save) | — | yes |
 | Session history | — | *planned* |
 | Per-SV / per-band C/N0 | — | *planned* |

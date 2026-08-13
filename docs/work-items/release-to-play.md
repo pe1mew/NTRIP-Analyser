@@ -172,6 +172,11 @@ pro's pages. Pro's wiki then documents only the differences.
 - **Pro's launch scope** — what is built, plus multiple mountpoints
   (done) and live GGA (Phase 4).
 - **Price** — decided at listing time, deliberately deferred.
+- **TLS after the free launch**, using a bundled library rather than
+  each platform's native API, because a JNI bridge for Android would put
+  connection logic in Kotlin for one frontend and break the one-core
+  rule. Cleartext credentials are the field's prevailing practice; the
+  decision is on principle. See `design/tls.md`.
 
 ## Open Questions
 
