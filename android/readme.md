@@ -167,10 +167,13 @@ Test on hardware before trusting a field verdict.
 
 ## Known limitations of Phase 1
 
-- **The password is stored in plain SharedPreferences.** Private to the
-  app sandbox, but not encrypted at rest. Moving to
-  `EncryptedSharedPreferences` is a self-contained change; recorded here
-  rather than left implicit.
+- ~~The password is stored in plain SharedPreferences.~~ **Fixed.**
+  Saved connections live in `EncryptedSharedPreferences`, keyed from the
+  Android Keystore, and the pre-profiles preferences file is cleared once
+  its contents have been migrated. A device whose Keystore refuses to
+  produce a key falls back to plain preferences rather than losing the
+  app. Note that *exported* configuration files are plain text by
+  necessity — see [docs/jsonConfigs.md](../docs/jsonConfigs.md).
 - **`versionName` is maintained by hand** against `src/core/version.h`.
   The desktop builds parse that header; Gradle does not yet.
 - **No launcher icon adaptive variant** — a plain bitmap icon at five

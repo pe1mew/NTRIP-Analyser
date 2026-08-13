@@ -46,6 +46,14 @@
     <string name="eph_file">From %1$s</string>
     <string name="eph_no_file">No navigation file imported</string>
     <string name="action_import_rinex">Import RINEX navigation file…</string>
+    <string name="profiles_title">Saved connections</string>
+    <string name="profiles_empty">not configured yet</string>
+    <string name="action_add_profile">Add connection</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="menu_export_all">Export all connections…</string>
+    <string name="export_all_ok">Exported %1$d connection(s) for ntrip-monitord. The passwords in that file are in the clear — treat it as a password file.</string>
+    <string name="export_all_failed">Nothing to export: no saved connection is complete.</string>
     <string name="rinex_loaded">Imported %1$s — %2$d orbit records. Compressed (.gz) files are unpacked automatically.</string>
     <string name="rinex_no_orbits">%1$s holds no orbits this app can read. A RINEX 3 navigation file is needed — an observation file will not do.</string>
     <string name="rinex_unreadable">That file could not be read.</string>

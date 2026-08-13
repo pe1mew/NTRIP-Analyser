@@ -262,8 +262,18 @@ val bridgeJson = Json {
     isLenient = true
 }
 
-/** Connection settings, persisted between runs. */
+/**
+ * Connection settings, persisted between runs.
+ *
+ * The paid edition saves several of these; see [ProfileStore]. A saved
+ * entry is a whole connection rather than a mountpoint name, because the
+ * expensive part of setting one up is the caster, the port and the
+ * credentials.
+ */
+@Serializable
 data class CasterSettings(
+    /** What the user calls this connection; the mountpoint when unnamed. */
+    val name: String = "",
     val caster: String = "",
     val port: Int = 2101,
     val mountpoint: String = "",
@@ -286,4 +296,33 @@ data class CasterSettings(
     /** The sky plot needs an ephemeris source; without one it is hidden. */
     val hasEph: Boolean get() =
         ephCaster.isNotBlank() && ephMountpoint.isNotBlank()
+
+    /** What to show in a list: the user's name, or the mountpoint. */
+    val label: String get() = when {
+        name.isNotBlank()       -> name
+        mountpoint.isNotBlank() -> mountpoint
+        else                    -> "New connection"
+    }
+}
+
+/**
+ * Every saved connection, and which one is in use.
+ *
+ * One profile is the free edition's whole world; the paid edition keeps
+ * up to [Features.MAX_MOUNTPOINTS]. The active index is stored rather
+ * than a copy of the active profile, so there is exactly one place a
+ * connection's details live and no way for the two to disagree.
+ */
+@Serializable
+data class ProfileStore(
+    val profiles: List<CasterSettings> = listOf(CasterSettings()),
+    val active: Int = 0,
+) {
+    /** The profile in use, and never out of range. */
+    val current: CasterSettings
+        get() = profiles.getOrNull(active) ?: profiles.firstOrNull()
+            ?: CasterSettings()
+
+    val activeIndex: Int
+        get() = if (active in profiles.indices) active else 0
 }

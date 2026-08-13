@@ -51,6 +51,9 @@ data class ConfigFile(
             ignoreUnknownKeys = true     // a desktop file may carry more
             prettyPrint = true
             encodeDefaults = true
+            // An unnamed connection writes no name key at all, rather
+            // than an empty one in every entry of a file people edit.
+            explicitNulls = false
         }
 
         fun from(s: CasterSettings) = ConfigFile(
@@ -89,5 +92,78 @@ data class ConfigFile(
                 }
                 true
             }.getOrDefault(false)
+
+        /**
+         * Write every saved connection in `ntrip-monitord`'s shape.
+         *
+         * A different format for a different job. `config.json` holds one
+         * connection and is what the CLI and the GUI read; the daemon's
+         * file holds a list. Exporting into the daemon's shape means a set
+         * configured in the field drops straight into a server's
+         * monitoring configuration -- see `docs/jsonConfigs.md`, including
+         * its warning that the passwords in these files are in the clear.
+         *
+         * `name` is carried for the user's benefit; the daemon's parser
+         * ignores keys it does not know.
+         *
+         * @return false when nothing was written, including when no saved
+         *         connection is complete enough to monitor.
+         */
+        fun exportAll(context: Context, uri: Uri, store: ProfileStore): Boolean {
+            val doc = MonitordConfig(
+                mountpoints = store.profiles.filter { it.isComplete }.map {
+                    MonitordMountpoint(
+                        name = it.name.ifBlank { null },
+                        caster = it.caster,
+                        port = it.port,
+                        mountpoint = it.mountpoint,
+                        username = it.user,
+                        password = it.password,
+                        sendGga = it.sendGga,
+                        latitude = it.latitude,
+                        longitude = it.longitude,
+                    )
+                },
+            )
+            if (doc.mountpoints.isEmpty()) return false
+            return runCatching {
+                context.contentResolver.openOutputStream(uri, "wt")!!.use { out ->
+                    out.write(
+                        json.encodeToString(MonitordConfig.serializer(), doc)
+                            .toByteArray()
+                    )
+                }
+                true
+            }.getOrDefault(false)
+        }
     }
 }
+
+/** One entry of `ntrip-monitord`'s `mountpoints[]` array. */
+@Serializable
+data class MonitordMountpoint(
+    val name: String? = null,
+    val caster: String = "",
+    val port: Int = 2101,
+    val mountpoint: String = "",
+    val username: String = "",
+    val password: String = "",
+    @SerialName("send_gga") val sendGga: Boolean = false,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+)
+
+/**
+ * The monitoring daemon's configuration file.
+ *
+ * The defaults are the daemon's own: `output_dir` must match the Munin
+ * plugin's `env.statedir`, and ten seconds is the interval the example
+ * ships with. A user exporting from the phone gets a file that runs
+ * as-is on a stock installation.
+ */
+@Serializable
+data class MonitordConfig(
+    @SerialName("output_dir") val outputDir: String = "/var/lib/ntrip-monitor",
+    @SerialName("interval_s") val intervalS: Int = 10,
+    val mountpoints: List<MonitordMountpoint> = emptyList(),
+)

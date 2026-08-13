@@ -9,7 +9,7 @@ and working?"*, and a paid edition for diagnosing *why* it is not.
 **Feature gating happens in the UI layer, never in the C core.**
 
 A free user's STATION OK must mean exactly what a paid user's STATION OK
-means. The seven KPIs, their thresholds and the sustain window come from
+means. The eight KPIs, their thresholds and the sustain window come from
 `src/core/kpi.c` and are identical in both editions — as they are in the
 CLI's `--check` and the monitoring daemon. This is a measurement
 instrument; a verdict that varied by licence tier would be worthless, and
@@ -24,7 +24,7 @@ The paid edition therefore shows **more**, never **different**.
 |---|---|---|
 | Eight-KPI spot check | yes, unlimited | yes |
 | Verdict, reasons, throughput/SV chips | yes | yes |
-| Mountpoint entry | **typed manually, one saved** | multiple saved, switchable *(not built yet — see Launch scope)* |
+| Mountpoint entry | **typed manually, one saved** | several saved connections, switched from the tile |
 | Sourcetable | **viewable, not selectable** | browse and tap to use |
 | Watch mode | **not available** | yes, unlimited |
 | Sky plot (coverage heatmap) | yes | yes |
@@ -42,8 +42,9 @@ The paid edition therefore shows **more**, never **different**.
 *Planned* means the desktop has it and the phone does not. The
 distinction is not cosmetic: a store listing written from this table
 would otherwise promise seven features the app does not have, and the
-refunds would be deserved. `MAX_MOUNTPOINTS` is the same trap caught
-early — declared, unread, and listed above as though it worked.
+refunds would be deserved. `MAX_MOUNTPOINTS` was the same trap, caught
+before it reached a listing: declared, read by nothing, and tabled as
+though it worked. It is implemented now.
 
 ### Why the sourcetable is viewable but not selectable
 
@@ -280,9 +281,10 @@ list, full ARP block).
 
 Two more before charging:
 
-- **Multiple saved mountpoints.** `MAX_MOUNTPOINTS = 16` is declared in
-  the pro flavor and read by nothing; the table below has been promising
-  a feature that does not exist.
+- ~~Multiple saved mountpoints.~~ **Built.** `MAX_MOUNTPOINTS` is now
+  the bound it always claimed to be, credentials moved to encrypted
+  storage in the same change, and the pre-profiles settings migrate into
+  profile 0 rather than being lost.
 - **The live-position GGA**, per the section above — the field-use half
   of the paid proposition.
 

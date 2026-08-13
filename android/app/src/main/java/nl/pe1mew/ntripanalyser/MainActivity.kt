@@ -112,8 +112,12 @@ fun MainScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val runState by MonitorService.state.collectAsStateWithLifecycle(MonitorService.RunState())
 
-    var settings by remember { mutableStateOf(Settings.load(context)) }
-    var showSettings by remember { mutableStateOf(!Settings.load(context).isComplete) }
+    // One source of truth for every saved connection; the active one is
+    // derived rather than copied, so the two cannot disagree.
+    var store by remember { mutableStateOf(Settings.loadProfiles(context)) }
+    val settings = store.current
+    var showSettings by remember { mutableStateOf(!store.current.isComplete) }
+    var showPicker by remember { mutableStateOf(false) }
     var showSourcetable by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf(Screen.STATION) }
     var tab by remember { mutableStateOf(AnalysisTab.SKY) }
@@ -140,10 +144,26 @@ fun MainScreen() {
             notice = if (cfg == null) {
                 context.getString(R.string.config_load_failed)
             } else {
-                settings = cfg.toSettings(settings)
-                Settings.save(context, settings)
-                context.getString(R.string.config_loaded, settings.mountpoint)
+                // Name the mountpoint just loaded, not the one replaced:
+                // `settings` is derived from the store as it was when
+                // this composition ran, so it still holds the old value.
+                val next = cfg.toSettings(settings)
+                store = Settings.save(context, next)
+                context.getString(R.string.config_loaded, next.mountpoint)
             }
+        }
+    }
+
+    // The daemon's format, not the desktop's: a list rather than one
+    // connection. docs/jsonConfigs.md sets out which is which.
+    val exportAll = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            val n = store.profiles.count { it.isComplete }
+            notice = if (ConfigFile.exportAll(context, uri, store))
+                context.getString(R.string.export_all_ok, n)
+            else context.getString(R.string.export_all_failed)
         }
     }
 
@@ -441,6 +461,10 @@ fun MainScreen() {
                             menuOpen = false
                             pickConfig.launch(arrayOf("application/json", "*/*"))
                         },
+                        onExportAll = {
+                            menuOpen = false
+                            exportAll.launch("monitord.json")
+                        },
                         onSaveConfig = {
                             menuOpen = false
                             saveConfig.launch("config.json")
@@ -467,7 +491,12 @@ fun MainScreen() {
             // subject is off screen is a measurement of nothing in
             // particular, and hiding it mid-run made the one tap into
             // the caster settings disappear with it. Tapping opens them.
-            ConfigSummary(settings) { showSettings = true }
+            // One slot means the tile is a shortcut to its settings;
+            // several mean it is the way to choose between them.
+            ConfigSummary(settings) {
+                if (Features.MAX_MOUNTPOINTS > 1) showPicker = true
+                else showSettings = true
+            }
 
             if (settings.caster.isNotBlank() && !runState.running) {
                 OutlinedButton(
@@ -553,8 +582,7 @@ fun MainScreen() {
             settings = settings,
             onDismiss = { showSourcetable = false },
             onPick = { mp ->
-                settings = settings.copy(mountpoint = mp)
-                Settings.save(context, settings)
+                store = Settings.save(context, settings.copy(mountpoint = mp))
                 showSourcetable = false
             },
         )
@@ -581,12 +609,103 @@ fun MainScreen() {
             initial = settings,
             onDismiss = { showSettings = false },
             onSave = {
-                settings = it
-                Settings.save(context, it)
+                store = Settings.save(context, it)
                 showSettings = false
             },
         )
     }
+
+    if (showPicker) {
+        ProfilePicker(
+            store = store,
+            onSelect = { store = Settings.selectProfile(context, it); showPicker = false },
+            onEdit = { showPicker = false; showSettings = true },
+            onAdd = {
+                store = Settings.addProfile(context, CasterSettings())
+                showPicker = false
+                showSettings = true
+            },
+            onDelete = { store = Settings.removeProfile(context, it) },
+            onDismiss = { showPicker = false },
+        )
+    }
+}
+
+/**
+ * Choose among the saved connections.
+ *
+ * It hangs off the configuration tile because the tile already names the
+ * connection in use and already opened settings when tapped. The main
+ * screen exists to show one verdict; a permanent control for something
+ * touched once a week does not belong on it.
+ */
+@Composable
+private fun ProfilePicker(
+    store: ProfileStore,
+    onSelect: (Int) -> Unit,
+    onEdit: () -> Unit,
+    onAdd: () -> Unit,
+    onDelete: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.profiles_title)) },
+        text = {
+            Column {
+                store.profiles.forEachIndexed { i, p ->
+                    val isActive = i == store.activeIndex
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(i) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                p.label,
+                                fontWeight = if (isActive) FontWeight.Bold
+                                             else FontWeight.Normal,
+                            )
+                            Text(
+                                if (p.isComplete) "${p.caster}:${p.port}"
+                                else stringResource(R.string.profiles_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                        if (isActive) {
+                            TextButton(onClick = onEdit) {
+                                Text(stringResource(R.string.action_edit))
+                            }
+                        }
+                        // The last connection is emptied rather than
+                        // removed: an app with none at all has nowhere to
+                        // put the next one.
+                        if (store.profiles.size > 1) {
+                            TextButton(onClick = { onDelete(i) }) {
+                                Text(stringResource(R.string.action_delete))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (store.profiles.size < Features.MAX_MOUNTPOINTS) {
+                TextButton(onClick = onAdd) {
+                    Text(stringResource(R.string.action_add_profile))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
 }
 
 @Composable
@@ -1343,6 +1462,7 @@ private fun AppMenu(
     onImportRinex: () -> Unit,
     onLoadConfig: () -> Unit,
     onSaveConfig: () -> Unit,
+    onExportAll: () -> Unit,
     onAbout: () -> Unit,
 ) {
     DropdownMenu(expanded = open, onDismissRequest = onDismiss) {
@@ -1366,6 +1486,12 @@ private fun AppMenu(
                 text = { Text(stringResource(R.string.menu_save_config)) },
                 onClick = onSaveConfig,
             )
+            if (Features.MAX_MOUNTPOINTS > 1) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.menu_export_all)) },
+                    onClick = onExportAll,
+                )
+            }
         }
         HorizontalDivider()
         DropdownMenuItem(

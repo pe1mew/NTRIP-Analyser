@@ -183,6 +183,7 @@ The analyser can perform the following operations on NTRIP streams:
 - **[Compilation Guide](docs/compile.md)** — Build instructions for Windows and Linux
 - **[GUI User Guide](docs/gui.md)** — Complete Windows GUI documentation
 - **[CLI Manual](docs/cli.md)** — Command-line usage and configuration
+- **[JSON Configurations](docs/jsonConfigs.md)** — The single- and multi-connection config formats, and handling their plain-text passwords
 - **[Service Manual](docs/service.md)** — ntrip-monitord and the Munin graphs
 - **[Feature Backlog](design/todo.md)** — What is shipped, what is planned, and why
 - **[Architecture](design/architecture.md)** — Structure for sharing one core across the CLI, GUI, monitoring service and Android app
