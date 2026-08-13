@@ -41,6 +41,14 @@ separate them.
 - **Overnight** is the honest way to catch a scheduled restart, a
   maintenance window, or a caster that sheds clients under load.
 
+⚠ **Android 15 sets a ceiling on this.** A phone running Android 15 or
+later allows an app about **six hours** of background streaming in a
+day, and then stops the service itself. The watch ends there and says
+so — *"stopped by Android's six-hour limit"* — and everything measured
+up to that point is kept and reported, so an interrupted overnight watch
+still yields the hours it did manage. To cover a longer period, start a
+fresh watch afterwards. Android 14 and earlier have no such ceiling.
+
 The numbers to quote are **availability**, **degradations** and **worst
 state**. A station at 99.9 % with one FAILED degradation is telling you
 something different from one at 99.9 % that never left CAUTION.

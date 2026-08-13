@@ -228,6 +228,29 @@ On a **release-signed** build, not a debug one. This is also the first
 run on Android 13/14 — the test handset is Android 10, so the tightened
 foreground-service and notification rules have never been exercised.
 
+**One of those rules was found unhandled, and is now handled.** The app
+targets API 35, where a `dataSync` foreground service may run about six
+hours in a day before the system calls `Service.onTimeout()` and expects
+it to stop within seconds; a service that does not is killed with
+`ForegroundServiceDidNotStopException`. Watch mode is exactly such a
+service and is sold on running for hours, so on a modern handset an
+overnight watch would have ended as a crash. `MonitorService.onTimeout`
+now winds the run up through the same path the Stop button uses, reports
+the outcome as `LIMIT_REACHED` — *"stopped by Android's six-hour
+limit"* — and posts a notification saying so, since a phone that has
+been watching all night is in a pocket. Documented in the wiki's *Watch
+mode*.
+
+The Android 13 rules it neighbours were already handled: the
+`POST_NOTIFICATIONS` runtime request is guarded on `TIRAMISU`, and
+location is asked for only when a view needs it.
+
+Checked statically, since the timeout cannot be provoked on Android 10.
+What the handset does confirm is the path it delegates to. **The
+device-side items are what Phase 6 still owes**: a release-signed
+install, a watch that survives Android 13/14 notification behaviour, and
+a run under Doze.
+
 ### Phase 7 — the free wiki — **drafted**
 
 Seven pages in `docs/wiki/`, written for a free user who will never see

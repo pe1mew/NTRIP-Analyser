@@ -6,7 +6,7 @@
     <string name="sustained_of">%1$d of %2$d s sustained</string>
 
     <string name="sustained_held">Held for %1$s</string>
-    <string name="run_limit">Watched %1$d s — free edition limit</string>
+    <string name="run_limit">Watched %1$d s — stopped by Android’s six-hour limit on background streaming</string>
     <string name="run_finished">Finished after %1$d s</string>
     <string name="run_stopped">Stopped after %1$d s — measurement incomplete</string>
 
@@ -142,4 +142,5 @@
     <string name="notif_connecting">Connecting…</string>
     <string name="notif_watching">%1$s — watching %2$d min, %3$d drops</string>
     <string name="notif_running">%1$d of %2$d s sustained</string>
+    <string name="notif_timeout">Android allows about six hours of background streaming a day, and the watch reached it. What it measured up to that point is in the app.</string>
 </resources>

@@ -7,14 +7,18 @@
     <!-- A KPI run needs sixty continuous seconds, longer than a
          backgrounded activity may keep a socket open, so the run lives
          in a foreground service.  dataSync is its type: it maintains a
-         network stream on the user's behalf. -->
+         network stream on the user's behalf.
+
+         Android 15 allows a dataSync service about six hours in a day
+         and then calls Service.onTimeout(); MonitorService handles it,
+         because an unhandled one is a crash rather than an ending. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- The sky view places satellites from this phone's own GNSS.
          Requested when that view is first opened, not at launch: the
-         seven-KPI check needs no location at all. -->
+         station check itself needs no location at all. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps"
                   android:required="false" />

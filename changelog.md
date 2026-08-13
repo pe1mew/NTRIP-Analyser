@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — an overnight watch would have ended as a crash on Android 15
+
+The app targets API 35, where a `dataSync` foreground service may run
+about six hours in a day. When that runs out the system calls
+`Service.onTimeout()` and gives the service seconds to stop; one that
+does not is killed with `ForegroundServiceDidNotStopException`. Watch
+mode is exactly such a service and is sold on running for hours, so the
+paid edition's headline feature would have produced a crash report
+instead of a result on any current handset. Nothing shows this on the
+Android 10 test phone, which is why it survived to now.
+
+`MonitorService.onTimeout` winds the run up through the same path the
+Stop button uses, and says which ending it was: `LIMIT_REACHED` —
+*"stopped by Android's six-hour limit on background streaming"* — with a
+notification carrying the same sentence, because a phone that has been
+watching all night is in a pocket. Everything measured up to that point
+is kept, so an interrupted overnight watch still yields the hours it
+managed.
+
+That outcome already existed for an abandoned free-edition watch cap and
+was set nowhere; a system timeout is precisely what "cut short by a
+limit that is not the station's fault and not the user's choice" means,
+so it now has the meaning its name promised.
+
+Both endings now run through one `endRun(outcome)`, so a third reason to
+stop cannot acquire a different shutdown. Verified on the handset by
+stopping a live run: *"Stopped after 62 s — measurement incomplete"*.
+The timeout entry point itself cannot be provoked on Android 10 and is
+marked as untested where it is defined.
+
+Documented in the wiki's **Watch mode**, where somebody planning a
+twelve-hour watch will meet it before the phone does.
+
 ### Fixed — three claims the app made about itself that were not true
 
 Found by auditing everything that has to agree at submission time, and

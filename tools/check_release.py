@@ -138,14 +138,18 @@ def check_claims():
     # and old changelog entries state what was true when written.
     surfaces = [
         ("android/app/src/main/res/values/strings.xml", "the About blurb"),
+        ("android/app/src/main/AndroidManifest.xml", "the manifest"),
+        ("android/app/src/free/java/nl/pe1mew/ntripanalyser/Features.kt",
+         "the free edition's feature flags"),
         ("docs/work-items/play-listing.md", "the store listing"),
         ("docs/wiki/The-eight-checks.md", "the wiki"),
         ("docs/wiki/Home.md", "the wiki's home page"),
     ]
     for rel, name in surfaces:
         text = read(*rel.split("/")).lower()
-        found = [w for w in wrong if (w + " kpi") in text
-                 or (w + " check") in text or (w + " rtk") in text]
+        # "seven KPIs", "seven-KPI check", "seven RTK service checks".
+        found = [w for w in wrong
+                 if re.search(w + r"[ -](kpi|check|rtk)", text)]
         check(not found, name + " does not miscount the checks",
               ", ".join(found))
 

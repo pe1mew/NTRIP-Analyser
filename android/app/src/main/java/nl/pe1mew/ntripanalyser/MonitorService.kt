@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +40,12 @@ class MonitorService : Service() {
      * differently.  A run that reached its verdict is **finished**;
      * calling that "stopped" borrows the word for aborting and tells the
      * user their measurement was cut short when it was not.
+     *
+     * [LIMIT_REACHED] is the third case: cut short, but by neither the
+     * station nor the user.  Android 15 ends a `dataSync` foreground
+     * service after about six hours in a day, and a watch that ran into
+     * that ceiling measured everything it reports -- it simply stopped
+     * measuring earlier than asked.  See [onTimeout].
      */
     enum class Outcome { IDLE, RUNNING, FINISHED, STOPPED, LIMIT_REACHED }
 
@@ -357,13 +364,62 @@ class MonitorService : Service() {
         }
     }
 
-    private fun stopRun() {
+    private fun stopRun() = endRun(Outcome.STOPPED)
+
+    /**
+     * Wind the run up and say how it ended.
+     *
+     * One path for every ending that is not the pump thread's own, so
+     * that a second reason to stop cannot quietly acquire a different
+     * shutdown: the thread is asked to stop, joined, the notification
+     * taken down, and the service released.
+     */
+    private fun endRun(outcome: Outcome) {
         stopRequested = true
         worker?.join(2000)
         worker = null
-        _state.value = _state.value.copy(running = false, outcome = Outcome.STOPPED)
+        _state.value = _state.value.copy(running = false, outcome = outcome)
         stopForegroundCompat()
         stopSelf()
+    }
+
+    /**
+     * Android 15 ending a long watch, on its own schedule.
+     *
+     * An app targeting API 35 may hold a `dataSync` foreground service
+     * for about six hours in a day. When that runs out the system calls
+     * this and gives the service a few seconds to stop itself; a service
+     * that does not is killed with `ForegroundServiceDidNotStopException`
+     * -- so an unhandled timeout would turn an overnight watch into a
+     * crash report.
+     *
+     * This is the one ending the user did not ask for, so it is the one
+     * that most needs saying. The measurement is kept and the outcome
+     * says the system stopped it, rather than borrowing the word for
+     * what the user does with the Stop button. A final notification
+     * carries the same sentence, because a phone that has been watching
+     * for six hours is in a pocket.
+     *
+     * The two-argument form is the one that matters here: the
+     * single-argument `onTimeout(startId)` added in API 34 fires only for
+     * `shortService`, which this app never uses.
+     *
+     * Untested on hardware -- the test handset is Android 10, where this
+     * is never called. What is exercised is the path it delegates to,
+     * which is the same shutdown the Stop button uses.
+     */
+    @RequiresApi(35)
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "foreground service timed out (type $fgsType); stopping")
+        endRun(Outcome.LIMIT_REACHED)
+        // Posted after endRun has cancelled the ongoing notification, so
+        // this is the one the user finds: dismissible, and not a progress
+        // indicator for something that is no longer running.
+        getSystemService(NotificationManager::class.java).notify(
+            NOTIFICATION_ID + 1,
+            buildNotification(getString(R.string.notif_timeout),
+                              ongoing = false),
+        )
     }
 
     override fun onDestroy() {
