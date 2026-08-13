@@ -64,8 +64,17 @@ and in what they can show.
 > [`bin/exampleConfig.json`](bin/exampleConfig.json) (and as an asset on
 > each [release](https://github.com/pe1mew/NTRIP-Analyser/releases)).
 > It targets the Dutch Kadaster open caster, ephemeris stream included,
-> so the sky plot works out of the box — substitute your own free
-> Kadaster registration for the placeholder username and password.
+> so the sky plot works out of the box. **No account is needed** — the
+> AGRS.NL streams it uses are served anonymously, which is why the
+> username and password in it are empty. Verified: that file returns
+> STATION OK on all eight KPIs with no credentials at all.
+>
+> Registration and payment apply to Kadaster's *NETPOS* network-RTK
+> service, which is a different thing — see
+> [NSGI](https://www.nsgi.nl/referentiepunten-en-gnss-data/gnss-data/real-time-streams).
+> For any other caster, holding valid access is yours to arrange: the
+> analyser connects where you point it and supplies no credentials of
+> its own.
 
 **Which should I use?**
 

@@ -2,13 +2,28 @@
 
 ## Code License: Commons Clause + Open Source License
 
-The code in this repository is licensed under an **Open Source License** with the **Commons Clause** condition applied. This means:
+The code in this repository is licensed under the **Apache License 2.0**
+with the **Commons Clause** condition applied. What that means in
+practice:
 
-- **Non-Commercial Use Only**: You may use, modify, and distribute the code, but **not for commercial purposes**. Commercial purposes include, but are not limited to, any use that generates revenue or is intended for profit, including paid services, consulting, or hosting.
-- **Modifications**: You may modify the code and distribute your modifications under the same license and Commons Clause condition.
-- **Attribution**: When using, modifying, or redistributing the code, you must provide appropriate attribution by including a reference to this repository and the original author(s).
+- **You may not sell it.** The Commons Clause withholds the right to
+  provide the software to third parties for a fee — or to provide a
+  service whose value derives substantially from it, which expressly
+  includes paid hosting, support and consulting built around it.
+- **You may use it commercially in your own work.** Running the
+  analyser on your own base stations, inside a company, as part of your
+  own operations, is permitted: the clause restricts *selling the
+  software*, not earning a living while using it.
+- **Modifications**: you may modify the code and distribute your
+  modifications under the same licence, carrying the Commons Clause
+  condition with them.
+- **Attribution**: keep the licence notice, and credit this repository
+  and its author.
 
-For the full terms of the Commons Clause, see the [LICENSE file](LICENSE).
+The clause's own wording governs; the above is a summary of it, not a
+substitute for it. See the [LICENSE file](LICENSE) for the text, and
+[docs/licences.md](docs/licences.md) for the third-party components this
+project ships and the services it connects to.
 
 ## Content License: Creative Commons Attribution-NonCommercial (CC BY-NC 4.0)
 

@@ -3,20 +3,20 @@
     "interval_s": 10,
     "mountpoints": [
         {
-            "name": "Kadaster APEL00NLD0",
+            "name": "Kadaster APEL00NLD0 (free, anonymous)",
             "caster": "ntrip.kadaster.nl",
             "port": 2101,
             "mountpoint": "APEL00NLD0",
-            "username": "ntrip-analyser",
-            "password": "password",
+            "username": "",
+            "password": "",
             "send_gga": false,
             "latitude": 52.230481,
             "longitude": 5.942016,
             "eph_caster": "ntrip.kadaster.nl",
             "eph_port": 2101,
             "eph_mountpoint": "BCEP00KAD0",
-            "eph_username": "ntrip-analyser",
-            "eph_password": "password"
+            "eph_username": "",
+            "eph_password": ""
         }
     ]
 }

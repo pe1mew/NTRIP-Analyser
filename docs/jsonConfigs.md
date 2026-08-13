@@ -176,8 +176,11 @@ program produces the list format above, which is how a file migrates.
 
 A ready-to-edit example ships as
 [`bin/exampleConfig.json`](../bin/exampleConfig.json), targeting the
-Dutch Kadaster open caster with its ephemeris stream. Substitute your
-own free registration for the placeholder credentials.
+Dutch Kadaster open caster with its ephemeris stream. Its `username`
+and `password` are empty on purpose: those streams are served
+anonymously, so the file works unedited. Fill them in for a caster that
+requires an account — obtaining one is the user's business, not the
+application's.
 
 ---
 

@@ -172,12 +172,18 @@ that the app neither supplies nor brokers credentials.
 
 ## 6. Actions this study produced
 
-| # | Action | Blocks |
-|---|---|---|
-| 1 | Align `license.md` with the Commons Clause's real scope | — |
-| 2 | Add an OSS notices screen (cJSON MIT + Apache 2.0 attribution) | free launch |
-| 3 | Ship the cJSON notice in the desktop release archive too | next release |
-| 4 | Fix the "free Kadaster registration" instruction; drop placeholder credentials from the example config | free launch |
-| 5 | Read the IGS terms PDF before any automatic download is reconsidered | RINEX auto-download only |
-| 6 | Decide on screenshots showing third-party mountpoints | listing |
-| 7 | State caster responsibility on the wiki and in the listing | free launch |
+| # | Action | Blocks | State |
+|---|---|---|---|
+| 1 | Align `license.md` with the Commons Clause's real scope | — | **done** 2026-08-13 |
+| 2 | Add an OSS notices screen (cJSON MIT + Apache 2.0 attribution) | free launch | open |
+| 3 | Ship the cJSON notice in the desktop release archive too | next release | open |
+| 4 | Fix the "free Kadaster registration" instruction; drop placeholder credentials from the example config | free launch | **done** 2026-08-13 |
+| 5 | Read the IGS terms PDF before any automatic download is reconsidered | RINEX auto-download only | open |
+| 6 | Decide on screenshots showing third-party mountpoints | listing | open |
+| 7 | State caster responsibility to the user | free launch | **partly** — in `readme.md`, `docs/cli.md` and `docs/jsonConfigs.md`; the wiki and listing copy follow in phase 7 |
+
+**Action 4 was verified, not assumed.** `bin/exampleConfig.json` with
+empty credentials fetches the Kadaster sourcetable (61 mountpoints) and
+returns **STATION OK on all eight KPIs** against `APEL00NLD0` — so the
+free AGRS streams are genuinely anonymous and the shipped example runs
+unedited.

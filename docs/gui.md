@@ -480,8 +480,9 @@ this one is a parallel NTRIP connection.
    when you generate a template config; the
    [Kadaster](https://www.nsgi.nl/) `BCEP00KAD0` mountpoint works the
    same way.
-2. Make sure the credentials are filled in (most public broadcast-eph
-   casters require a free registration).
+2. Fill in credentials **if that caster asks for them** — BKG's
+   `BCEP00BKG0` does, Kadaster's `BCEP00KAD0` is served anonymously and
+   works with the fields left empty.
 3. Open the main stream; the GUI will open the eph stream in parallel.
 
 **Caster registration:**
@@ -654,8 +655,8 @@ by capture time.
 **File Menu:**
 - **Load Configuration...** (`Ctrl+O`) — a ready-to-edit example to
   test with ships as `bin/exampleConfig.json`, targeting the Kadaster
-  open caster with its ephemeris stream; substitute your own free
-  registration for the placeholder credentials
+  open caster with its ephemeris stream; it needs no account, and its
+  credential fields are empty because those streams are anonymous
 - **Save Configuration...** (`Ctrl+S`)
 - **Generate Template Config** — write a default `template_config.json`
 - **Load Ephemerides (RINEX)...** — populate the eph cache from a file

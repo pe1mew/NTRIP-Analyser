@@ -15,8 +15,10 @@ The program will emulate a rover using preconfigured (static) coordinates. At co
 A ready-to-edit example ships as [`bin/exampleConfig.json`](../bin/exampleConfig.json)
 (and beside the binaries in each release). It points at the Dutch
 Kadaster open caster, including its ephemeris mountpoint for the sky
-plot — replace the username and password with your own free Kadaster
-registration. `--generate` writes a template too.
+plot. Its username and password are empty because those streams are
+served anonymously — it runs as shipped. `--generate` writes a template
+too. For a caster that does need credentials, they are yours to obtain;
+the analyser supplies none of its own.
 
 Before using the program, you must create a configuration file named `config.json` in the working directory. This file contains all necessary connection and authentication details as well as teh coordinates of the rover emulated. *The program will not work without it.* 
 
