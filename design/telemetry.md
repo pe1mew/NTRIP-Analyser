@@ -127,6 +127,9 @@ What follows for the launch:
   Play requires a contact address for the listing; that address is not a
   help desk and the wiki should say as much, plainly and without
   apology.
+- **The tracker opens with the free release**, not before. Until then
+  `design/todo.md` carries everything; two lists with no users to
+  report anything would only drift apart.
 - **The wiki carries the answers**, so the same question is answered
   once. Troubleshooting is a page, not a correspondence.
 - **User error is a documentation outcome**, not a support ticket: if

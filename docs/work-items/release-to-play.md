@@ -199,6 +199,10 @@ a wiki page serves, GitHub Pages is tidier. Decide once, use for both.
 Free ships first and its wiki must stand alone: a free user never sees
 pro's pages. Pro's wiki then documents only the differences.
 
+Going live also **opens the GitHub issue tracker**, which is not in
+use until then: from the free release it takes what users report,
+while `design/todo.md` keeps the design-level work.
+
 The wiki also carries the **support posture** (`design/telemetry.md`):
 a troubleshooting page so a question is answered once, the GitHub
 tracker as the route for issues, and no implied help desk behind the

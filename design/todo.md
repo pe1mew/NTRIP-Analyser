@@ -4,6 +4,10 @@ This is the single source of truth for planned and considered features. Every it
 **Inspiration** tag recording where the idea came from, so the provenance survives after the
 discussion that produced it is forgotten.
 
+**The GitHub issue tracker is not in use yet.** It opens when the free Android edition is
+released, and takes what users report from then on; this file keeps the design-level work
+either way. Two lists before there are any users would only drift apart.
+
 **Reconciled against `main` on 2026-08-10.** The first draft of this list was written against
 commit `e7a8757` and had drifted badly: two items were already shipped, and every source line
 reference pointed at the wrong code because `src/rtcm3x_parser.c` had grown from roughly 1000 to
