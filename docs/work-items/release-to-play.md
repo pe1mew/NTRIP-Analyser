@@ -18,7 +18,7 @@ Not started. Phases 1–3 can run in any order; 4 onwards are sequential.
 | # | Phase | Blocks | State |
 |---|---|---|---|
 | 1 | Telemetry decision | privacy policy, data-safety form | not started |
-| 2 | Licence study | store listings, wiki claims, RINEX auto-download | not started |
+| 2 | Licence study | store listings, wiki claims, RINEX auto-download | **done** → `docs/licences.md`, 7 actions |
 | 3 | Security assessment | any public release | not started |
 | 4 | Live GGA implementation | pro's launch scope | designed, not built |
 | 5 | Release plumbing | submission | not started |
@@ -53,7 +53,16 @@ larger data-safety declaration.
 
 **Decision needed before the privacy policy can be written.**
 
-### Phase 2 — Licences and usage conditions of everything we did not write
+### Phase 2 — Licences and usage conditions of everything we did not write — **DONE 2026-08-13**
+
+Full study in `docs/licences.md`; it produced seven actions, four of
+which block the free launch. The findings that changed something:
+`license.md` claims a broader restriction than the Commons Clause
+actually imposes; the app has no open-source notices screen; and the
+free Kadaster streams need no registration, which the readme currently
+says they do.
+
+Original scope:
 
 - **Our own**: Apache 2.0 + Commons Clause. The author may sell; nobody
   else may. Confirm nothing in the pro listing contradicts the repo.

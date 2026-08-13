@@ -20,7 +20,8 @@ application appears only when one genuinely needs multiple pages.
 | Page | Covers |
 |---|---|
 | **[compile.md](compile.md)** | Building the CLI and GUI on Windows and Linux; shell completion |
-| **[jsonConfigs.md](jsonConfigs.md)** | The two JSON configuration formats, which program reads which, and why the passwords in them are in the clear |
+| **[jsonConfigs.md](jsonConfigs.md)** | The one JSON configuration format, which program reads how many entries, and why the passwords in it are in the clear |
+| **[licences.md](licences.md)** | What the project licenses out, what it ships, and the terms of the data services it connects to |
 | `concepts.md` | *(planned)* Stream-health semantics — what CRC error rate, advertised-vs-observed and ARP stability mean, independent of which application renders them |
 
 ## For developers, not users
