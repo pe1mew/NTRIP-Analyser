@@ -140,30 +140,24 @@ fun MainScreen() {
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val cfg = ConfigFile.load(context, uri)
-            notice = if (cfg == null) {
+            val incoming = ConfigFile.loadConnections(context, uri)
+            notice = if (incoming.isNullOrEmpty()) {
                 context.getString(R.string.config_load_failed)
             } else {
-                // Name the mountpoint just loaded, not the one replaced:
-                // `settings` is derived from the store as it was when
-                // this composition ran, so it still holds the old value.
-                val next = cfg.toSettings(settings)
-                store = Settings.save(context, next)
-                context.getString(R.string.config_loaded, next.mountpoint)
+                val r = Settings.mergeConnections(context, incoming)
+                store = r.store
+                // Say what happened to every connection in the file. A
+                // user who exported five and sees one needs to know
+                // whether the file or the app dropped the rest.
+                if (r.dropped > 0)
+                    context.getString(
+                        R.string.config_loaded_dropped,
+                        r.added + r.updated, r.store.current.mountpoint, r.dropped)
+                else
+                    context.getString(
+                        R.string.config_loaded_n,
+                        r.added + r.updated, r.store.current.mountpoint)
             }
-        }
-    }
-
-    // The daemon's format, not the desktop's: a list rather than one
-    // connection. docs/jsonConfigs.md sets out which is which.
-    val exportAll = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) {
-            val n = store.profiles.count { it.isComplete }
-            notice = if (ConfigFile.exportAll(context, uri, store))
-                context.getString(R.string.export_all_ok, n)
-            else context.getString(R.string.export_all_failed)
         }
     }
 
@@ -171,8 +165,11 @@ fun MainScreen() {
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null) {
-            notice = if (ConfigFile.save(context, uri, settings))
-                context.getString(R.string.config_saved)
+            // One format for everything: a list, even when there is one
+            // connection in it. See docs/jsonConfigs.md.
+            val n = store.profiles.count { it.isComplete }
+            notice = if (ConfigFile.saveConnections(context, uri, store))
+                context.getString(R.string.config_saved_n, n)
             else context.getString(R.string.config_save_failed)
         }
     }
@@ -460,10 +457,6 @@ fun MainScreen() {
                         onLoadConfig = {
                             menuOpen = false
                             pickConfig.launch(arrayOf("application/json", "*/*"))
-                        },
-                        onExportAll = {
-                            menuOpen = false
-                            exportAll.launch("monitord.json")
                         },
                         onSaveConfig = {
                             menuOpen = false
@@ -1462,7 +1455,6 @@ private fun AppMenu(
     onImportRinex: () -> Unit,
     onLoadConfig: () -> Unit,
     onSaveConfig: () -> Unit,
-    onExportAll: () -> Unit,
     onAbout: () -> Unit,
 ) {
     DropdownMenu(expanded = open, onDismissRequest = onDismiss) {
@@ -1486,12 +1478,7 @@ private fun AppMenu(
                 text = { Text(stringResource(R.string.menu_save_config)) },
                 onClick = onSaveConfig,
             )
-            if (Features.MAX_MOUNTPOINTS > 1) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.menu_export_all)) },
-                    onClick = onExportAll,
-                )
-            }
+
         }
         HorizontalDivider()
         DropdownMenuItem(

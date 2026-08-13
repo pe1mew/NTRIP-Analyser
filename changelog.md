@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — one configuration format for the whole project
+
+There were two: a single-connection `config.json` for the CLI, the GUI
+and the phone, and a `mountpoints[]` list for the monitoring daemon.
+Two formats describing the same thing is a tax on everyone who touches
+either, so there is now **one** — the list — and every program reads and
+writes it.
+
+Which entries a program uses follows from what it does. The analysers
+examine one stream at a time, so they take the first and **say so**:
+
+    [CONFIG] fromphone.json lists 2 connections; using the first (HANESE)
+             and ignoring the other 1.
+
+A user who exported five connections and sees one is otherwise entitled
+to think the file was truncated. The daemon takes them all. The Android
+pro edition merges them into its saved connections, updating one it
+already has rather than duplicating it — loading a colleague's file
+should gain you a connection, not cost you five.
+
+The ephemeris block stays optional, per connection, exactly as it was.
+
+**Files written by earlier releases still work.** The upper-case
+single-connection layout is read everywhere it was before; nothing
+writes it any more, so saving a configuration migrates it. That
+compatibility is deliberate: those files exist on disks, in support
+e-mails and in released assets, and they still say exactly what they
+meant.
+
+`docs/jsonConfigs.md` documents the format, which program uses how many
+entries, and — in as many words — that the passwords in these files are
+in the clear, with what follows from that.
+
+Verified end to end: the phone wrote a two-connection file, the CLI read
+the first and reported the other, and the phone read the file back
+without duplicating either connection.
+
 ### Added — the station check in the Windows GUI
 
 `View > Station Check`. The GUI had no acceptance test at all: the CLI

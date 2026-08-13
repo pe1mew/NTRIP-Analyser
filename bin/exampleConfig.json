@@ -1,14 +1,22 @@
 {
-	"NTRIP_CASTER":	"ntrip.kadaster.nl",
-	"NTRIP_PORT":	2101,
-	"MOUNTPOINT":	"APEL00NLD0",
-	"USERNAME":	"ntrip-analyser",
-	"PASSWORD":	"password",
-	"LATITUDE":	52.230481,
-	"LONGITUDE":	5.942016,
-	"EPH_CASTER":	"ntrip.kadaster.nl",
-	"EPH_PORT":	2101,
-	"EPH_MOUNTPOINT":	"BCEP00KAD0",
-	"EPH_USERNAME":	"ntrip-analyser",
-	"EPH_PASSWORD":	"password"
+    "output_dir": "/var/lib/ntrip-monitor",
+    "interval_s": 10,
+    "mountpoints": [
+        {
+            "name": "Kadaster APEL00NLD0",
+            "caster": "ntrip.kadaster.nl",
+            "port": 2101,
+            "mountpoint": "APEL00NLD0",
+            "username": "ntrip-analyser",
+            "password": "password",
+            "send_gga": false,
+            "latitude": 52.230481,
+            "longitude": 5.942016,
+            "eph_caster": "ntrip.kadaster.nl",
+            "eph_port": 2101,
+            "eph_mountpoint": "BCEP00KAD0",
+            "eph_username": "ntrip-analyser",
+            "eph_password": "password"
+        }
+    ]
 }

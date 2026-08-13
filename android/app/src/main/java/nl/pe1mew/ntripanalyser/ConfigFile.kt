@@ -7,12 +7,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * The project's `config.json`, as the CLI and the Windows GUI write it.
+ * The single-connection layout every release before the shared format
+ * wrote: `NTRIP_CASTER` and friends, upper case, at the top level.
  *
- * The same file, field for field — a config saved on a desktop opens on
- * the phone and vice versa. That is the whole point: an installer should
- * not have to retype a caster because they changed device, and a support
- * request should be answerable by asking for the file.
+ * Read-only now. The project has one exchange format — the
+ * `mountpoints` array in [MonitordConfig] — and nothing writes this one
+ * any more, but files in it exist on disks, in support e-mails and in
+ * released assets, and they still say exactly what they meant.
  *
  * The field names are the C struct's, uppercase and all, which is why
  * this class does not follow Kotlin naming: matching the file matters
@@ -56,74 +57,51 @@ data class ConfigFile(
             explicitNulls = false
         }
 
-        fun from(s: CasterSettings) = ConfigFile(
-            caster = s.caster,
-            port = s.port,
-            mountpoint = s.mountpoint,
-            username = s.user,
-            password = s.password,
-            latitude = s.latitude,
-            longitude = s.longitude,
-            ephCaster = s.ephCaster,
-            ephPort = s.ephPort,
-            ephMountpoint = s.ephMountpoint,
-            // The ephemeris stream uses the same credentials as the
-            // observation stream, as the phone has only one pair to
-            // give; written out so a desktop reading the file finds
-            // what it expects rather than blanks.
-            ephUsername = s.user,
-            ephPassword = s.password,
-        )
+        /**
+         * Read every connection a file describes.
+         *
+         * The project has one exchange format -- a `mountpoints` array --
+         * and this reads it. Files written by releases before that format
+         * existed carry the older single-connection layout instead, and
+         * are read as a list of one rather than rejected: they still say
+         * exactly what they meant.
+         *
+         * @return the connections, or null when the file is neither.
+         */
+        fun loadConnections(context: Context, uri: Uri): List<CasterSettings>? {
+            val text = runCatching {
+                context.contentResolver.openInputStream(uri)!!
+                    .use { it.readBytes().decodeToString() }
+            }.getOrNull() ?: return null
 
-        /** Read a config the user picked; null when it cannot be parsed. */
-        fun load(context: Context, uri: Uri): ConfigFile? = runCatching {
-            context.contentResolver.openInputStream(uri)!!.use { input ->
-                json.decodeFromString<ConfigFile>(input.readBytes().decodeToString())
-            }
-        }.getOrNull()
+            runCatching { json.decodeFromString<MonitordConfig>(text) }
+                .getOrNull()
+                ?.takeIf { it.mountpoints.isNotEmpty() }
+                ?.let { doc -> return doc.mountpoints.map { it.toSettings() } }
 
-        /** Write settings to a file the user chose; true on success. */
-        fun save(context: Context, uri: Uri, s: CasterSettings): Boolean =
-            runCatching {
-                context.contentResolver.openOutputStream(uri, "wt")!!.use { out ->
-                    out.write(
-                        json.encodeToString(serializer(), from(s)).toByteArray()
-                    )
-                }
-                true
-            }.getOrDefault(false)
+            return runCatching { json.decodeFromString<ConfigFile>(text) }
+                .getOrNull()
+                ?.takeIf { it.caster.isNotBlank() || it.mountpoint.isNotBlank() }
+                ?.let { listOf(it.toSettings(CasterSettings())) }
+        }
 
         /**
-         * Write every saved connection in `ntrip-monitord`'s shape.
+         * Write every saved connection, in the shared exchange format.
          *
-         * A different format for a different job. `config.json` holds one
-         * connection and is what the CLI and the GUI read; the daemon's
-         * file holds a list. Exporting into the daemon's shape means a set
-         * configured in the field drops straight into a server's
-         * monitoring configuration -- see `docs/jsonConfigs.md`, including
-         * its warning that the passwords in these files are in the clear.
-         *
-         * `name` is carried for the user's benefit; the daemon's parser
-         * ignores keys it does not know.
+         * One file for one job: the analysers read the first entry, the
+         * daemon reads them all, and the phone reads them back. See
+         * `docs/jsonConfigs.md`, including its warning that the passwords
+         * in these files are in the clear.
          *
          * @return false when nothing was written, including when no saved
-         *         connection is complete enough to monitor.
+         *         connection is complete enough to be worth writing.
          */
-        fun exportAll(context: Context, uri: Uri, store: ProfileStore): Boolean {
+        fun saveConnections(
+            context: Context, uri: Uri, store: ProfileStore,
+        ): Boolean {
             val doc = MonitordConfig(
-                mountpoints = store.profiles.filter { it.isComplete }.map {
-                    MonitordMountpoint(
-                        name = it.name.ifBlank { null },
-                        caster = it.caster,
-                        port = it.port,
-                        mountpoint = it.mountpoint,
-                        username = it.user,
-                        password = it.password,
-                        sendGga = it.sendGga,
-                        latitude = it.latitude,
-                        longitude = it.longitude,
-                    )
-                },
+                mountpoints = store.profiles.filter { it.isComplete }
+                    .map { MonitordMountpoint.from(it) },
             )
             if (doc.mountpoints.isEmpty()) return false
             return runCatching {
@@ -136,10 +114,17 @@ data class ConfigFile(
                 true
             }.getOrDefault(false)
         }
+
     }
 }
 
-/** One entry of `ntrip-monitord`'s `mountpoints[]` array. */
+/**
+ * One entry of the `mountpoints[]` array.
+ *
+ * The ephemeris block is optional here exactly as it was in the older
+ * single-connection format: absent means the sky plot has no stream to
+ * borrow, not that the file is wrong.
+ */
 @Serializable
 data class MonitordMountpoint(
     val name: String? = null,
@@ -151,7 +136,48 @@ data class MonitordMountpoint(
     @SerialName("send_gga") val sendGga: Boolean = false,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-)
+    @SerialName("eph_caster") val ephCaster: String? = null,
+    @SerialName("eph_port") val ephPort: Int? = null,
+    @SerialName("eph_mountpoint") val ephMountpoint: String? = null,
+    @SerialName("eph_username") val ephUsername: String? = null,
+    @SerialName("eph_password") val ephPassword: String? = null,
+) {
+    fun toSettings() = CasterSettings(
+        name = name.orEmpty(),
+        caster = caster,
+        port = port,
+        mountpoint = mountpoint,
+        user = username,
+        password = password,
+        latitude = latitude,
+        longitude = longitude,
+        sendGga = sendGga,
+        ephCaster = ephCaster.orEmpty(),
+        ephPort = ephPort ?: 2101,
+        ephMountpoint = ephMountpoint.orEmpty(),
+    )
+
+    companion object {
+        fun from(s: CasterSettings) = MonitordMountpoint(
+            name = s.name.ifBlank { null },
+            caster = s.caster,
+            port = s.port,
+            mountpoint = s.mountpoint,
+            username = s.user,
+            password = s.password,
+            sendGga = s.sendGga,
+            latitude = s.latitude,
+            longitude = s.longitude,
+            // The ephemeris stream borrows the observation stream's
+            // credentials, as the phone has only one pair to give.
+            ephCaster = s.ephCaster.ifBlank { null },
+            ephPort = if (s.ephCaster.isBlank()) null else s.ephPort,
+            ephMountpoint = s.ephMountpoint.ifBlank { null },
+            ephUsername = if (s.ephCaster.isBlank()) null else s.user,
+            ephPassword = if (s.ephCaster.isBlank()) null else s.password,
+        )
+    }
+}
 
 /**
  * The monitoring daemon's configuration file.

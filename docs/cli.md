@@ -29,22 +29,43 @@ ntripanalysis.exe -g
 **Example `config.json`:**
 ```json
 {
-    "NTRIP_CASTER": "your.caster.example.com",
-    "NTRIP_PORT": 2101,
-    "MOUNTPOINT": "MOUNTPOINT",
-    "USERNAME": "your_username",
-    "PASSWORD": "your_password",
-    "LATITUDE": 0.0,
-    "LONGITUDE": 0.0
+    "mountpoints": [
+        {
+            "caster": "your.caster.example.com",
+            "port": 2101,
+            "mountpoint": "MOUNTPOINT",
+            "username": "your_username",
+            "password": "your_password",
+            "send_gga": false,
+            "latitude": 0.0,
+            "longitude": 0.0
+        }
+    ]
 }
 ```
-Set the various parameters 
-- **NTRIP_CASTER**: Hostname or IP address of the NTRIP caster.
-- **NTRIP_PORT**: TCP port of the NTRIP caster (usually 2101).
-- **MOUNTPOINT**: The mountpoint to request from the caster.
-- **USERNAME**: Username for HTTP Basic Authentication.
-- **PASSWORD**: Password for HTTP Basic Authentication.
-- **LATITUDE**/**LONGITUDE**: latitude and longitude of the rover ocation being emulated.
+Set the various parameters
+- **caster**: Hostname or IP address of the NTRIP caster.
+- **port**: TCP port of the NTRIP caster (usually 2101).
+- **mountpoint**: The mountpoint to request from the caster.
+- **username**, **password**: HTTP Basic Authentication credentials, held
+  **in the clear** — see [jsonConfigs.md](jsonConfigs.md).
+- **latitude**/**longitude**: position of the rover being emulated, sent
+  in the GGA uplink.
+
+The file is a **list** even when it holds one connection, because it is
+the same file the monitoring daemon and the Android app use. The CLI
+analyses one stream at a time, so it takes the **first** entry and says
+so when there are more:
+
+```
+[CONFIG] config.json lists 3 connections; using the first (RFSEE01) and ignoring the other 2.
+```
+
+An optional `eph_caster` / `eph_port` / `eph_mountpoint` block adds the
+second connection `--sky` needs for ephemerides. Files written by
+earlier releases, with `NTRIP_CASTER` and friends at the top level, are
+still read. The full description of the format is in
+**[jsonConfigs.md](jsonConfigs.md)**.
 
 ---
 

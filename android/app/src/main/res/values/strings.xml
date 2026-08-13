@@ -51,9 +51,9 @@
     <string name="action_add_profile">Add connection</string>
     <string name="action_edit">Edit</string>
     <string name="action_delete">Delete</string>
-    <string name="menu_export_all">Export all connections…</string>
-    <string name="export_all_ok">Exported %1$d connection(s) for ntrip-monitord. The passwords in that file are in the clear — treat it as a password file.</string>
-    <string name="export_all_failed">Nothing to export: no saved connection is complete.</string>
+    <string name="config_loaded_n">Loaded %1$d connection(s); using %2$s.</string>
+    <string name="config_loaded_dropped">Loaded %1$d connection(s); using %2$s. %3$d more were dropped — this edition saves fewer connections than the file holds.</string>
+    <string name="config_saved_n">Saved %1$d connection(s). The passwords in that file are in the clear — treat it as a password file.</string>
     <string name="rinex_loaded">Imported %1$s — %2$d orbit records. Compressed (.gz) files are unpacked automatically.</string>
     <string name="rinex_no_orbits">%1$s holds no orbits this app can read. A RINEX 3 navigation file is needed — an observation file will not do.</string>
     <string name="rinex_unreadable">That file could not be read.</string>
@@ -69,10 +69,8 @@
     <string name="menu_load_config">Load configuration…</string>
     <string name="menu_save_config">Save configuration…</string>
     <string name="menu_about">About and help</string>
-    <string name="config_loaded">Loaded configuration for %1$s</string>
     <string name="config_load_failed">That file could not be read as a configuration.</string>
-    <string name="config_saved">Configuration saved.</string>
-    <string name="config_save_failed">The configuration could not be written.</string>
+    <string name="config_save_failed">Nothing to save: no connection is complete.</string>
     <string name="about_version">Version %1$s</string>
     <string name="about_blurb">Checks an NTRIP base station against the seven RTK service KPIs, and analyses what it is sending. The same measurement code runs here, in the desktop tools and in the monitoring service.</string>
     <string name="about_repo">Source code on GitHub</string>

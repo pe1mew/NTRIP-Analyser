@@ -147,6 +147,73 @@ object Settings {
         return next
     }
 
+    /** What [mergeConnections] did, so the app can say so. */
+    data class MergeResult(
+        val store: ProfileStore,
+        val added: Int,
+        val updated: Int,
+        val dropped: Int,
+    )
+
+    /**
+     * Take the connections a file describes into the saved set.
+     *
+     * Merged rather than replacing: a user loading a colleague's file
+     * should gain a connection, not lose the five they had. An entry that
+     * names a caster and mountpoint already saved updates that one --
+     * otherwise loading the same file twice would quietly fill the list
+     * with duplicates.
+     *
+     * Anything past [Features.MAX_MOUNTPOINTS] is dropped, and counted so
+     * the caller can say how many. In the free edition that limit is one,
+     * which is the same rule the CLI and the GUI follow: use the first
+     * connection, mention the rest.
+     */
+    fun mergeConnections(
+        context: Context, incoming: List<CasterSettings>,
+    ): MergeResult {
+        val store = loadProfiles(context)
+        val list = store.profiles.toMutableList()
+        var added = 0
+        var updated = 0
+        var dropped = 0
+        var firstTouched = -1
+
+        fun sameConnection(a: CasterSettings, b: CasterSettings) =
+            a.caster.equals(b.caster, ignoreCase = true) &&
+            a.port == b.port &&
+            a.mountpoint.equals(b.mountpoint, ignoreCase = true)
+
+        for (c in incoming) {
+            // An empty slot -- a fresh install, or one just added -- is
+            // filled rather than left beside the connection just loaded.
+            val blank = list.indexOfFirst { !it.isComplete }
+            val existing = list.indexOfFirst { sameConnection(it, c) }
+            when {
+                existing >= 0 -> {
+                    list[existing] = c
+                    updated++
+                    if (firstTouched < 0) firstTouched = existing
+                }
+                blank >= 0 -> {
+                    list[blank] = c
+                    added++
+                    if (firstTouched < 0) firstTouched = blank
+                }
+                list.size < Features.MAX_MOUNTPOINTS -> {
+                    list.add(c)
+                    added++
+                    if (firstTouched < 0) firstTouched = list.lastIndex
+                }
+                else -> dropped++
+            }
+        }
+
+        val next = ProfileStore(list, if (firstTouched >= 0) firstTouched else store.activeIndex)
+        saveProfiles(context, next)
+        return MergeResult(next, added, updated, dropped)
+    }
+
     /** Switch to a saved connection. */
     fun selectProfile(context: Context, index: Int): ProfileStore {
         val store = loadProfiles(context)

@@ -37,55 +37,67 @@ static void cfg_copy_string(const cJSON *json, const char *key,
     dst[cap - 1] = '\0';
 }
 
-int load_config(const char *filename, NTRIP_Config *config) {
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        perror("Failed to open config file");
-        return -1;
-    }
+/* Read a number, or leave the default in place. */
+static int cfg_int(const cJSON *json, const char *key, int fallback)
+{
+    const cJSON *item = cJSON_GetObjectItem(json, key);
+    return (item && cJSON_IsNumber(item)) ? item->valueint : fallback;
+}
 
-    fseek(file, 0, SEEK_END);
-    long length = ftell(file);
-    fseek(file, 0, SEEK_SET);
+static double cfg_double(const cJSON *json, const char *key, double fallback)
+{
+    const cJSON *item = cJSON_GetObjectItem(json, key);
+    return (item && cJSON_IsNumber(item)) ? item->valuedouble : fallback;
+}
 
-    if (length < 0) {
-        perror("Failed to size config file");
-        fclose(file);
-        return -1;
-    }
+/**
+ * @brief Read one entry of the `mountpoints` array.
+ *
+ * The exchange format the whole project uses: the same file the
+ * monitoring daemon reads, so a set of connections written anywhere is
+ * readable everywhere.  Keys are the daemon's, lower case.
+ *
+ * The ephemeris block stays optional exactly as it was in the older
+ * single-connection format -- absent means the sky plot has no stream to
+ * borrow, not that the file is wrong.
+ */
+static void cfg_load_entry(const cJSON *e, NTRIP_Config *config)
+{
+    cfg_copy_string(e, "caster", config->NTRIP_CASTER,
+                    sizeof(config->NTRIP_CASTER));
+    cfg_copy_string(e, "mountpoint", config->MOUNTPOINT,
+                    sizeof(config->MOUNTPOINT));
+    cfg_copy_string(e, "username", config->USERNAME,
+                    sizeof(config->USERNAME));
+    cfg_copy_string(e, "password", config->PASSWORD,
+                    sizeof(config->PASSWORD));
 
-    char *data = (char *)malloc((size_t)length + 1);
-    if (!data) {
-        perror("Failed to allocate memory for config file");
-        fclose(file);
-        return -1;
-    }
+    config->NTRIP_PORT = cfg_int(e, "port", 0);
+    config->LATITUDE   = cfg_double(e, "latitude", 0.0);
+    config->LONGITUDE  = cfg_double(e, "longitude", 0.0);
 
-    /* Terminate at what was actually read, not at the size on disk.
-     *
-     * These differ routinely: the file is opened in text mode, so on
-     * Windows every CRLF becomes one LF and fread returns fewer bytes
-     * than ftell reported.  Writing the NUL at `length` therefore left
-     * uninitialised heap between the real end and the terminator, which
-     * cJSON then parsed.  A truncated read did the same. */
-    size_t got = fread(data, 1, (size_t)length, file);
-    if (ferror(file)) {
-        perror("Failed to read config file");
-        free(data);
-        fclose(file);
-        return -1;
-    }
-    data[got] = '\0';
-    fclose(file);
+    cfg_copy_string(e, "eph_caster", config->EPH_CASTER,
+                    sizeof(config->EPH_CASTER));
+    cfg_copy_string(e, "eph_mountpoint", config->EPH_MOUNTPOINT,
+                    sizeof(config->EPH_MOUNTPOINT));
+    cfg_copy_string(e, "eph_username", config->EPH_USERNAME,
+                    sizeof(config->EPH_USERNAME));
+    cfg_copy_string(e, "eph_password", config->EPH_PASSWORD,
+                    sizeof(config->EPH_PASSWORD));
+    config->EPH_PORT = cfg_int(e, "eph_port", 0);
+}
 
-    cJSON *json = cJSON_Parse(data);
-    free(data);
-
-    if (!json) {
-        fprintf(stderr, "Failed to parse JSON: %s\n", cJSON_GetErrorPtr());
-        return -1;
-    }
-
+/**
+ * @brief Read the older single-connection layout: `NTRIP_CASTER` and
+ *        friends, upper case, at the top level.
+ *
+ * Kept because configurations written by every release before the shared
+ * format exist on people's disks, in support e-mails and in the release
+ * assets.  Reading one is not deprecated behaviour to be warned about --
+ * it is a file that still says exactly what it meant.
+ */
+static void cfg_load_legacy(const cJSON *json, NTRIP_Config *config)
+{
     /* Extract configuration values.
      *
      * A missing key leaves the field empty rather than crashing: these
@@ -151,6 +163,83 @@ int load_config(const char *filename, NTRIP_Config *config) {
             (eph_pwd && cJSON_IsString(eph_pwd)) ? eph_pwd->valuestring : "",
             sizeof(config->EPH_PASSWORD) - 1);
     config->EPH_PASSWORD[sizeof(config->EPH_PASSWORD) - 1] = '\0';
+}
+
+int load_config(const char *filename, NTRIP_Config *config)
+{
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Failed to open config file");
+        return -1;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    if (length < 0) {
+        perror("Failed to size config file");
+        fclose(file);
+        return -1;
+    }
+
+    char *data = (char *)malloc((size_t)length + 1);
+    if (!data) {
+        perror("Failed to allocate memory for config file");
+        fclose(file);
+        return -1;
+    }
+
+    /* Terminate at what was actually read, not at the size on disk.
+     *
+     * These differ routinely: the file is opened in text mode, so on
+     * Windows every CRLF becomes one LF and fread returns fewer bytes
+     * than ftell reported.  Writing the NUL at `length` therefore left
+     * uninitialised heap between the real end and the terminator, which
+     * cJSON then parsed.  A truncated read did the same. */
+    size_t got = fread(data, 1, (size_t)length, file);
+    if (ferror(file)) {
+        perror("Failed to read config file");
+        free(data);
+        fclose(file);
+        return -1;
+    }
+    data[got] = '\0';
+    fclose(file);
+
+    cJSON *json = cJSON_Parse(data);
+    free(data);
+
+    if (!json) {
+        fprintf(stderr, "Failed to parse JSON: %s\n", cJSON_GetErrorPtr());
+        return -1;
+    }
+
+    /* One exchange format for the whole project: the `mountpoints` array
+     * the monitoring daemon reads.  A file written anywhere is readable
+     * everywhere, and a set of connections survives the trip between a
+     * phone, a desktop and a server.
+     *
+     * These programs analyse one stream at a time, so they take the first
+     * entry -- and say so when there are more, because a user who
+     * exported five connections and sees one is otherwise entitled to
+     * think the file was truncated. */
+    const cJSON *arr = cJSON_GetObjectItem(json, "mountpoints");
+    if (cJSON_IsArray(arr) && cJSON_GetArraySize(arr) > 0) {
+        cfg_load_entry(cJSON_GetArrayItem(arr, 0), config);
+
+        int n = cJSON_GetArraySize(arr);
+        if (n > 1) {
+            fprintf(stderr,
+                    "[CONFIG] %s lists %d connections; using the first (%s) "
+                    "and ignoring the other %d.\n",
+                    filename, n,
+                    config->MOUNTPOINT[0] ? config->MOUNTPOINT : "unnamed",
+                    n - 1);
+        }
+    } else {
+        cfg_load_legacy(json, config);
+    }
 
     config->EPH_AUTH_BASIC[0] = '\0';   /* recomputed by caller from user/pwd */
 
@@ -172,20 +261,33 @@ int initialize_config(const char *filename) {
         fprintf(stderr, "Could not create %s\n", filename);
         return 1;
     }
+    /* The shared exchange format: a list, even for one connection.  The
+     * analysers take the first entry; the monitoring daemon takes them
+     * all.  `output_dir` and `interval_s` mean something only to the
+     * daemon and are ignored here, but writing them means one file runs
+     * everywhere without editing. */
     fprintf(f,
         "{\n"
-        "    \"NTRIP_CASTER\": \"your.caster.example.com\",\n"
-        "    \"NTRIP_PORT\": 2101,\n"
-        "    \"MOUNTPOINT\": \"MOUNTPOINT\",\n"
-        "    \"USERNAME\": \"your_username\",\n"
-        "    \"PASSWORD\": \"your_password\",\n"
-        "    \"LATITUDE\": 0.0,\n"
-        "    \"LONGITUDE\": 0.0,\n"
-        "    \"EPH_CASTER\": \"products.igs-ip.net\",\n"
-        "    \"EPH_PORT\": 2101,\n"
-        "    \"EPH_MOUNTPOINT\": \"BCEP00BKG0\",\n"
-        "    \"EPH_USERNAME\": \"\",\n"
-        "    \"EPH_PASSWORD\": \"\"\n"
+        "    \"output_dir\": \"/var/lib/ntrip-monitor\",\n"
+        "    \"interval_s\": 10,\n"
+        "    \"mountpoints\": [\n"
+        "        {\n"
+        "            \"name\": \"my station\",\n"
+        "            \"caster\": \"your.caster.example.com\",\n"
+        "            \"port\": 2101,\n"
+        "            \"mountpoint\": \"MOUNTPOINT\",\n"
+        "            \"username\": \"your_username\",\n"
+        "            \"password\": \"your_password\",\n"
+        "            \"send_gga\": false,\n"
+        "            \"latitude\": 0.0,\n"
+        "            \"longitude\": 0.0,\n"
+        "            \"eph_caster\": \"products.igs-ip.net\",\n"
+        "            \"eph_port\": 2101,\n"
+        "            \"eph_mountpoint\": \"BCEP00BKG0\",\n"
+        "            \"eph_username\": \"\",\n"
+        "            \"eph_password\": \"\"\n"
+        "        }\n"
+        "    ]\n"
         "}\n"
     );
     fclose(f);

@@ -1069,20 +1069,31 @@ static void OnSaveConfig(HWND hwnd, AppState *state)
     if (!GetSaveFileName(&ofn))
         return;  /* user cancelled */
 
-    /* Build JSON using cJSON */
+    /* The project's one exchange format: a `mountpoints` array, as the
+     * monitoring daemon reads and the phone writes.  The GUI drives one
+     * connection, so it writes a list of one -- which the daemon will
+     * monitor and the phone will import without anything being
+     * translated on the way. */
     cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "NTRIP_CASTER",   state->config.NTRIP_CASTER);
-    cJSON_AddNumberToObject(json, "NTRIP_PORT",     state->config.NTRIP_PORT);
-    cJSON_AddStringToObject(json, "MOUNTPOINT",     state->config.MOUNTPOINT);
-    cJSON_AddStringToObject(json, "USERNAME",       state->config.USERNAME);
-    cJSON_AddStringToObject(json, "PASSWORD",       state->config.PASSWORD);
-    cJSON_AddNumberToObject(json, "LATITUDE",       state->config.LATITUDE);
-    cJSON_AddNumberToObject(json, "LONGITUDE",      state->config.LONGITUDE);
-    cJSON_AddStringToObject(json, "EPH_CASTER",     state->config.EPH_CASTER);
-    cJSON_AddNumberToObject(json, "EPH_PORT",       state->config.EPH_PORT);
-    cJSON_AddStringToObject(json, "EPH_MOUNTPOINT", state->config.EPH_MOUNTPOINT);
-    cJSON_AddStringToObject(json, "EPH_USERNAME",   state->config.EPH_USERNAME);
-    cJSON_AddStringToObject(json, "EPH_PASSWORD",   state->config.EPH_PASSWORD);
+    cJSON_AddStringToObject(json, "output_dir", "/var/lib/ntrip-monitor");
+    cJSON_AddNumberToObject(json, "interval_s", 10);
+
+    cJSON *arr = cJSON_AddArrayToObject(json, "mountpoints");
+    cJSON *e   = cJSON_CreateObject();
+    cJSON_AddStringToObject(e, "caster",         state->config.NTRIP_CASTER);
+    cJSON_AddNumberToObject(e, "port",           state->config.NTRIP_PORT);
+    cJSON_AddStringToObject(e, "mountpoint",     state->config.MOUNTPOINT);
+    cJSON_AddStringToObject(e, "username",       state->config.USERNAME);
+    cJSON_AddStringToObject(e, "password",       state->config.PASSWORD);
+    cJSON_AddBoolToObject  (e, "send_gga",       state->ggaSendEnabled ? 1 : 0);
+    cJSON_AddNumberToObject(e, "latitude",       state->config.LATITUDE);
+    cJSON_AddNumberToObject(e, "longitude",      state->config.LONGITUDE);
+    cJSON_AddStringToObject(e, "eph_caster",     state->config.EPH_CASTER);
+    cJSON_AddNumberToObject(e, "eph_port",       state->config.EPH_PORT);
+    cJSON_AddStringToObject(e, "eph_mountpoint", state->config.EPH_MOUNTPOINT);
+    cJSON_AddStringToObject(e, "eph_username",   state->config.EPH_USERNAME);
+    cJSON_AddStringToObject(e, "eph_password",   state->config.EPH_PASSWORD);
+    cJSON_AddItemToArray(arr, e);
 
     char *jsonStr = cJSON_Print(json);
     cJSON_Delete(json);
@@ -1142,20 +1153,29 @@ static void OnGenerateConfig(HWND hwnd, AppState *state)
         return;
     }
 
+    /* Same shape as everything else writes; see docs/jsonConfigs.md. */
     fprintf(f,
         "{\n"
-        "    \"NTRIP_CASTER\": \"your.caster.example.com\",\n"
-        "    \"NTRIP_PORT\": 2101,\n"
-        "    \"MOUNTPOINT\": \"MOUNTPOINT\",\n"
-        "    \"USERNAME\": \"your_username\",\n"
-        "    \"PASSWORD\": \"your_password\",\n"
-        "    \"LATITUDE\": 0.0,\n"
-        "    \"LONGITUDE\": 0.0,\n"
-        "    \"EPH_CASTER\": \"products.igs-ip.net\",\n"
-        "    \"EPH_PORT\": 2101,\n"
-        "    \"EPH_MOUNTPOINT\": \"BCEP00BKG0\",\n"
-        "    \"EPH_USERNAME\": \"\",\n"
-        "    \"EPH_PASSWORD\": \"\"\n"
+        "    \"output_dir\": \"/var/lib/ntrip-monitor\",\n"
+        "    \"interval_s\": 10,\n"
+        "    \"mountpoints\": [\n"
+        "        {\n"
+        "            \"name\": \"my station\",\n"
+        "            \"caster\": \"your.caster.example.com\",\n"
+        "            \"port\": 2101,\n"
+        "            \"mountpoint\": \"MOUNTPOINT\",\n"
+        "            \"username\": \"your_username\",\n"
+        "            \"password\": \"your_password\",\n"
+        "            \"send_gga\": false,\n"
+        "            \"latitude\": 0.0,\n"
+        "            \"longitude\": 0.0,\n"
+        "            \"eph_caster\": \"products.igs-ip.net\",\n"
+        "            \"eph_port\": 2101,\n"
+        "            \"eph_mountpoint\": \"BCEP00BKG0\",\n"
+        "            \"eph_username\": \"\",\n"
+        "            \"eph_password\": \"\"\n"
+        "        }\n"
+        "    ]\n"
         "}\n");
     fclose(f);
 

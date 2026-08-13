@@ -333,21 +333,26 @@ and a better answer on the Play data-safety form.
 `MAX_MOUNTPOINTS` stops being decorative and becomes the bound it always
 claimed to be.
 
-### Interop: keep the desktop's file, add the daemon's
+### Interop: one format, everywhere
 
-`config.json` holds exactly one mountpoint, and that is what the CLI and
-the GUI read. Loading and saving it stays exactly as it is, for the
-active profile — nothing about desktop compatibility changes.
+**Superseded, by the better answer.** This section first proposed
+keeping two formats: the desktop's single-connection `config.json`, plus
+an export in the daemon's `mountpoints[]` shape for a set. Two formats
+for one job taxes everyone who touches either, and it was replaced by
+**one exchange format across the whole project** — the list.
 
-For a *set*, the project already has a format: `service/monitord.json`,
-with its `mountpoints[]` array. Pro exports into that shape, so a set
-configured on site drops straight into `ntrip-monitord` on a server.
-That is worth more than a phone-only format would be: configure in the
-field, monitor from the rack.
+Every program reads and writes it now. The analysers take the first
+entry and say how many they ignored; the daemon takes them all; the
+phone merges them into its saved connections, updating a connection it
+already has rather than duplicating it. Files in the older
+single-connection layout are still read everywhere, so nothing anyone
+already has stops working — see
+[`docs/jsonConfigs.md`](../../docs/jsonConfigs.md).
 
-Extending `config.json` into a list was rejected. It would turn a phone
-feature into a change across every frontend, for a file the desktop
-reads perfectly well as it is.
+The argument against extending the format — that it turns a phone
+feature into a change across every frontend — was true, and was worth
+paying: `src/core/config.c` serves the CLI and the GUI at once, so
+three of the four programs moved in one change.
 
 ### Switching: a picker on the tile that already exists
 
