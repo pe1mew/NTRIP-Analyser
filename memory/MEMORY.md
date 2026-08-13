@@ -59,6 +59,12 @@
   `docs/work-items/release-to-play.md` [in progress] — eight phases, of which
   telemetry, licences and the security assessment are decisions that gate the
   privacy policy and the data-safety declaration.
+- **Orbits now come off the observation stream** wherever a station
+  broadcasts them, in every frontend. `rtcm_decode_eph()` is the single
+  copy of the seven-type switch. The free Android edition draws a sky
+  view with nothing configured; the paid edition dials its ephemeris
+  side-stream only when nothing has reached the cache for 20 s
+  (`android/design/views.md`).
 - **Known gaps**: no CI; two tests; the GUI station check has no saved report;
   seven pro rows in the editions table are marked *planned*, not built.
 

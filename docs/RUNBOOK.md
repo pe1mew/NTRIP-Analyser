@@ -130,6 +130,41 @@ sentence's timing and a mid-run position change are all visible:
 With `send_gga` 0 the stub must print nothing at all — a mountpoint that
 does not ask for a position must not be sent one.
 
+### Verifying where a run's *orbits* come from
+
+The same trick answers the sky view's question. `eph_probe` opens the
+bridge with no ephemeris side-stream — which is exactly the free
+edition — and prints the `eph` block of the bridge's own snapshot each
+second, so what a phone would show is visible on a desktop:
+
+```bash
+export PATH="/c/Program Files/CodeBlocks/MinGW/bin:$PATH"
+gcc -std=c99 -I src -I android/app/src/main/cpp -I lib/cJSON \
+    test/tools/eph_probe.c android/app/src/main/cpp/ntrip_bridge.c \
+    -o bin/eph_probe.exe -L build -lntrip_session -lntrip_core -lcjson -lws2_32 -lm
+```
+
+```bash
+./bin/eph_probe.exe caster.centipede.fr 2101 NEAR centipede centipede 45
+```
+
+`from_obs` counts ephemerides decoded off the observation stream;
+`placeable` of `tracked` is what the sky view can draw. On a station
+that broadcasts its own orbits both climb and the last line reports the
+sky view drawn:
+
+    eph_probe: t= 24.0 s  "eph":{"tracked":38,"placeable":38,"cached":38,"from_obs":47,"age_s":0}
+    eph_probe: 38 of 38 tracked satellites placeable; 38 orbits cached, 79 ephemerides off the observation stream
+    eph_probe: sky view drawn
+
+On a station that carries none, `from_obs` stays 0 and the sky view is
+reported EMPTY — which is the case the ephemeris side-stream and the
+imported navigation file exist for.
+
+The orbit cache is process-wide, so an earlier `-R` load or another run
+in the same process would flatter the result; the probe starts clean
+each time for that reason.
+
 ### Android: release builds
 
 ```powershell

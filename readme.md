@@ -105,8 +105,9 @@ ntrip-analyser --sky -R nav.rnx --duration 900   # 15-min coverage heatmap PNG
 ```
 
 Reads `config.json` from the working directory. `--sky` needs ephemerides,
-so it requires either an `EPH_CASTER` block in the config or a RINEX 3 NAV
-file via `-R`. It can also replay a capture offline:
+and takes them from the station itself where it broadcasts them; for a
+station that does not, supply an `EPH_CASTER` block in the config or a
+RINEX 3 NAV file via `-R`. It can also replay a capture offline:
 
 ```sh
 ntrip-analyser --sky --rtcm-stdin -R nav.rnx < capture.rtcm3

@@ -147,13 +147,15 @@ struct NtripBridge {
     bool      watch;     /**< keep going past the first verdict */
     KpiWatch  w;
 
-    /* Sky coverage.  The observation stream cannot place a satellite in
-     * the sky by itself, so this stays empty until an ephemeris
-     * side-stream is attached and has delivered orbits. */
+    /* Sky coverage.  Orbits come from whichever source has them: a
+     * RINEX file the user supplied, the observation stream itself when
+     * the station broadcasts ephemerides on it, or the side-stream
+     * below when it does not. */
     NtripSession *eph;
     SkyRenderSector sky[SKY_RENDER_N_EL_BANDS][SKY_RENDER_MAX_AZ_BINS];
     RtcmStrBuf sink;           /**< swallows decoder chatter */
     int       eph_frames;      /**< frames seen on the eph stream */
+    int       obs_eph;         /**< ephemerides decoded off the obs stream */
     bool      have_ecef;
     RtcmArpInfo arp;           /**< the last 1005/1006, decoded in full */
     bool      have_arp_info;
@@ -174,11 +176,44 @@ struct NtripBridge {
 #define BRIDGE_GGA_INTERVAL_S 10.0
 
 /**
+ * @brief Decode a frame into the shared cache if it carries an ephemeris.
+ *
+ * Takes any frame, so both handlers can hand it everything they see.
+ *
+ * The decoders print as they decode.  On a phone that output has
+ * nowhere useful to go, so it is swallowed -- the same sink the CLI uses
+ * in --sky mode.  Cleared each frame so an hours-long run cannot grow it
+ * without bound.
+ *
+ * The sink is thread-local and both sessions are pumped on the one
+ * bridge thread, so installing and removing it per frame is what keeps
+ * it from leaking into anything else that prints.
+ *
+ * @return 1 when the frame was an ephemeris, 0 when it was not.
+ */
+static int bridge_decode_eph(NtripBridge *b, const unsigned char *payload,
+                             int payload_len, int msg_type)
+{
+    rtcm_strbuf_clear(&b->sink);
+    rtcm_set_output_buffer(&b->sink);
+    int decoded = rtcm_decode_eph(payload, payload_len, msg_type);
+    rtcm_set_output_buffer(NULL);
+    return decoded;
+}
+
+/**
  * @brief Observation-stream events.
  *
  * The snapshot carries everything the KPI screen needs, so this exists
- * only for the sky plot: sector accumulation needs the frame itself,
- * which the snapshot does not retain.
+ * for the sky plot: sector accumulation needs the frame itself, which
+ * the snapshot does not retain, and so do the orbits.
+ *
+ * Many stations broadcast ephemerides on the observation stream beside
+ * their MSM -- measured on caster.centipede.fr/NEAR, which sent 1020 x16,
+ * 1042 x8 and 1046 x23 in fifteen seconds, and advertised by Kadaster's
+ * APEL00NLD0 as 1019,1020,1042,1044,1045,1046.  Decoding them here is
+ * what lets the free edition draw a sky at all, and saves the paid
+ * edition a second connection it does not need.
  */
 static void bridge_on_event(const NsEvent *ev, void *user)
 {
@@ -188,6 +223,11 @@ static void bridge_on_event(const NsEvent *ev, void *user)
     const unsigned char *payload = ev->u.frame.data + 3;
     int payload_len = ev->u.frame.len - 6;      /* header and CRC removed */
     int t = ev->u.frame.msg_type;
+
+    if (bridge_decode_eph(b, payload, payload_len, t)) {
+        b->obs_eph++;
+        return;
+    }
 
     if (t == 1005 || t == 1006) {
         RtcmArpInfo a;
@@ -219,28 +259,8 @@ static void bridge_eph_event(const NsEvent *ev, void *user)
 
     b->eph_frames++;
 
-    const unsigned char *p = ev->u.frame.data + 3;
-    int len = ev->u.frame.len - 6;
-
-    /* The decoders print as they decode.  On a phone that output has
-     * nowhere useful to go, so it is swallowed -- the same sink the CLI
-     * uses in --sky mode.  Cleared each frame so an hours-long run
-     * cannot grow it without bound. */
-    rtcm_strbuf_clear(&b->sink);
-    rtcm_set_output_buffer(&b->sink);
-
-    switch (ev->u.frame.msg_type) {
-    case 1019: decode_rtcm_1019(p, len); break;
-    case 1020: decode_rtcm_1020(p, len); break;
-    case 1041: decode_rtcm_1041(p, len); break;
-    case 1042: decode_rtcm_1042(p, len); break;
-    case 1044: decode_rtcm_1044(p, len); break;
-    case 1045: decode_rtcm_1045(p, len); break;
-    case 1046: decode_rtcm_1046(p, len); break;
-    default: break;
-    }
-
-    rtcm_set_output_buffer(NULL);
+    bridge_decode_eph(b, ev->u.frame.data + 3, ev->u.frame.len - 6,
+                      ev->u.frame.msg_type);
 }
 
 static NtripBridge *bridge_alloc(void)
@@ -496,15 +516,21 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
     /* How well the orbit cache can serve the satellites being tracked,
      * and how old it is.  Incompleteness and age are shown in the app
      * rather than left implicit: a sky view drawn from stale or partial
-     * orbits looks exactly like one drawn from fresh, complete ones. */
+     * orbits looks exactly like one drawn from fresh, complete ones.
+     *
+     * `from_obs` counts the ephemerides this station broadcast on its own
+     * observation stream.  Above zero, the sky view owes nothing to a
+     * second connection -- which is the difference between a free edition
+     * that can draw a sky and one that cannot. */
     {
         int tracked = 0;
         int placeable = bridge_placeable(b, &tracked);
         double age = bridge_eph_age_s(b);
 
         app(out, cap, &pos,
-            ",\"eph\":{\"tracked\":%d,\"placeable\":%d,\"cached\":%d,",
-            tracked, placeable, bridge_eph_cached(b));
+            ",\"eph\":{\"tracked\":%d,\"placeable\":%d,\"cached\":%d,"
+            "\"from_obs\":%d,",
+            tracked, placeable, bridge_eph_count(b), b->obs_eph);
         if (age >= 0.0) app(out, cap, &pos, "\"age_s\":%.0f}", age);
         else            app(out, cap, &pos, "\"age_s\":null}");
     }
@@ -657,14 +683,14 @@ int bridge_eph_frames(const NtripBridge *b)
 
 int bridge_eph_count(const NtripBridge *b)
 {
-    if (!b || !b->eph) return 0;
-    int n = 0;
-    /* PRNs are 1-based: sv_eph_get rejects 0, and a loop ending at
-     * MAX-1 never looks at the last satellite. */
-    for (int g = 0; g < SV_EPH_MAX_GNSS; g++)
-        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++)
-            if (sv_eph_get(g, p)) n++;
-    return n;
+    (void)b;                       /* the cache is process-wide */
+    /* Not conditional on a side-stream being open.  It used to be, and
+     * that answered a different question than the one it was asked:
+     * orbits also arrive from a RINEX file, from the observation stream,
+     * and from a side-stream already closed because the cache was full.
+     * Each of those reported "0 ephemerides" while the sky view was
+     * drawing a complete constellation. */
+    return sv_eph_count();
 }
 
 bool bridge_sky_rgb(NtripBridge *b, unsigned char *rgb,
@@ -713,16 +739,9 @@ void bridge_close_eph(NtripBridge *b)
     b->eph = NULL;              /* the orbits it delivered stay cached */
 }
 
-int bridge_eph_cached(const NtripBridge *b)
+int bridge_obs_eph(const NtripBridge *b)
 {
-    (void)b;                       /* the cache is process-wide */
-    int n = 0;
-    /* PRNs are 1-based: sv_eph_get rejects 0, and a loop ending at
-     * MAX-1 never looks at the last satellite. */
-    for (int g = 0; g < SV_EPH_MAX_GNSS; g++)
-        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++)
-            if (sv_eph_get(g, p)) n++;
-    return n;
+    return b ? b->obs_eph : 0;
 }
 
 double bridge_eph_age_s(const NtripBridge *b)

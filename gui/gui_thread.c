@@ -817,19 +817,10 @@ static void EphOnEvent(const NsEvent *ev, void *user)
         const unsigned char *frame = ev->u.frame.data;
         int payload_len = ev->u.frame.len - 6;
 
-        switch (ev->u.frame.msg_type) {
-        case 1019: decode_rtcm_1019(frame + 3, payload_len); c->eph_count++; break;
-        case 1020: decode_rtcm_1020(frame + 3, payload_len); c->eph_count++; break;
-        case 1041: decode_rtcm_1041(frame + 3, payload_len); c->eph_count++; break;
-        case 1042: decode_rtcm_1042(frame + 3, payload_len); c->eph_count++; break;
-        case 1044: decode_rtcm_1044(frame + 3, payload_len); c->eph_count++; break;
-        case 1045: decode_rtcm_1045(frame + 3, payload_len); c->eph_count++; break;
-        case 1046: decode_rtcm_1046(frame + 3, payload_len); c->eph_count++; break;
-        default:
-            /* Silently drop everything else -- including 1005/1006, which
-             * must not overwrite the obs caster's ARP. */
-            break;
-        }
+        /* Everything else is silently dropped -- including 1005/1006,
+         * which must not overwrite the obs caster's ARP. */
+        c->eph_count += rtcm_decode_eph(frame + 3, payload_len,
+                                        ev->u.frame.msg_type);
         break;
     }
 

@@ -15,14 +15,17 @@
  *
  * Threading model assumed by this implementation:
  *   - ONE writer per slot at a time (per-PRN).  Multiple writers across
- *     different PRNs are fine.  The CLI eph worker thread is the only
- *     writer in CLI sky mode; the GUI's eph worker (gui_thread.c
- *     WorkerOpenEphStream) is the writer in GUI sky mode.  The GUI also
- *     decodes obs-side eph messages on the UI thread via
- *     WM_APP_MSG_RAW -> analyze_rtcm_message -- if your obs stream
- *     carries 1019/1020/etc.  In practice both decoders see the same
- *     broadcast and write the same values, so a multi-writer collision
- *     just wastes the work, not the correctness.
+ *     different PRNs are fine.  Two writers per slot is the normal case
+ *     on a station that broadcasts ephemerides on its observation stream
+ *     as well as on a dedicated mountpoint: the obs stream decodes them
+ *     too (rtcm_decode_eph), so the CLI's eph worker thread and its obs
+ *     thread can both write, as can the GUI's eph worker and its UI
+ *     thread (WM_APP_MSG_RAW -> analyze_rtcm_message).  In practice both
+ *     decoders see the same broadcast and write the same values, so a
+ *     multi-writer collision just wastes the work, not the correctness --
+ *     and the double buffer means a reader never sees a torn struct
+ *     either way.  Android pumps both sessions on one thread, so there
+ *     the question does not arise.
  *
  * Atomic primitives use the GCC/Clang __atomic_* builtins so this file
  * compiles cleanly under both MinGW (GUI + CLI Windows) and Linux GCC
@@ -91,6 +94,17 @@ const SvEphemeris* sv_eph_get(int gnss_id, int prn)
     int idx = EPH_ATOMIC_LOAD(&slot->active);
     const SvEphemeris *e = &slot->bufs[idx];
     return e->valid ? e : NULL;
+}
+
+int sv_eph_count(void)
+{
+    int n = 0;
+    /* PRNs are 1-based: sv_eph_get rejects 0, and a loop ending at
+     * MAX-1 never looks at the last satellite. */
+    for (int g = 0; g < SV_EPH_MAX_GNSS; g++)
+        for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++)
+            if (sv_eph_get(g, p)) n++;
+    return n;
 }
 
 bool sv_eph_is_valid_at(const SvEphemeris *eph, int week, double tow_s)

@@ -6,6 +6,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — orbits are decoded from the observation stream, wherever a station sends them
+
+Many stations broadcast ephemerides beside their observations, and the
+app ignored orbits it was already receiving. Measured on
+`caster.centipede.fr/NEAR`: **1020 ×16, 1042 ×8 and 1046 ×23 in fifteen
+seconds**; Kadaster's APEL00NLD0 advertises
+`1019,1020,1042,1044,1045,1046` in its sourcetable. The Android bridge
+decoded those seven types only on the dedicated ephemeris side-stream,
+so the free edition — which has no side-stream — showed an empty sky
+view on a station that was supplying everything needed to fill it, and
+the paid edition opened a connection it did not need.
+
+**The observation handler now decodes them into the same cache**
+(`bridge_on_event`, `sky_on_event`), with the decoders' output sunk as
+the side-stream handler already did. The seven-type switch, which had
+been copied into four handlers and was about to be copied into two
+more, is now one function in the core: `rtcm_decode_eph()`.
+
+Measured, Android, pro edition, five minutes on NEAR: **603 ephemerides
+off the observation stream, 41 orbits cached, 40 of 40 tracked
+satellites placed, 0 frames off the ephemeris stream** — it was never
+opened. The free edition draws the same plot. On the desktop, `--sky`
+against NEAR with no ephemeris source configured at all: **67
+ephemerides, 1136 sector updates, PNG written**; before this the run was
+refused before it connected.
+
+**The ephemeris stream is now dialled only when nothing is filling the
+cache.** Asking "is the cache complete?" alone opened a connection on
+the first pump, before a single frame had arrived, and again at 40 of 41
+placeable for one satellite that had just risen — measured at 179 s on a
+station broadcasting orbits throughout. The condition is now that
+neither coverage nor the count of ephemerides off the observation stream
+has moved for twenty seconds, against NEAR's twelve-second broadcast
+cycle.
+
+**`--sky` no longer refuses to start without a configured source.** It
+cannot be known before connecting whether a station carries its own
+orbits, so the run goes ahead and the cache is checked afterwards: a
+station that turns out to send none still exits `EXIT_NO_EPH`, having
+had to look first. The `[OBS]` summary and the `--json` ticks carry an
+`eph` count, and a run that got its orbits free says so.
+
+**`bridge_eph_count()` stopped reporting zero for a full cache.** It was
+gated on a side-stream being open, so orbits from an imported RINEX
+file, from the observation stream, or from a side-stream already closed
+because the cache was full all read as "0 ephemerides" beneath a sky
+view plainly drawing a constellation.
+
+The Windows GUI already decoded obs-side ephemerides, through
+`analyze_rtcm_message()` on its detail-window path; it is unchanged
+apart from using the shared decoder.
 ### Fixed — a network mountpoint could not be checked at all
 
 Testing the new GGA uplink against a real network service found three

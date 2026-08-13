@@ -82,6 +82,15 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
     fun ephCount(): Int = if (handle == 0L) 0 else nativeEphCount(handle)
 
     /**
+     * Ephemerides decoded off the observation stream.
+     *
+     * Rising means this station broadcasts its own orbits, so there is
+     * nothing for an ephemeris stream to add. Messages rather than
+     * satellites: each is rebroadcast every few seconds.
+     */
+    fun obsEph(): Int = if (handle == 0L) 0 else nativeObsEph(handle)
+
+    /**
      * Render the sky heatmap into [pixels] as ARGB.
      *
      * The caller owns the array so the bitmap can be reused between
@@ -178,6 +187,7 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         ): Boolean
         @JvmStatic private external fun nativeEphCount(h: Long): Int
         @JvmStatic private external fun nativeEphFrames(h: Long): Int
+        @JvmStatic private external fun nativeObsEph(h: Long): Int
         @JvmStatic private external fun nativeLoadRinex(h: Long, path: String): Int
         @JvmStatic private external fun nativeCheckRinex(path: String): Int
         @JvmStatic private external fun nativePlaceable(h: Long): Int

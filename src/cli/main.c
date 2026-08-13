@@ -35,6 +35,7 @@
 #include "core/sky_collect.h"
 #include "core/sky_render.h"
 #include "core/rinex_nav.h"
+#include "core/sv_ephemeris.h"
 #include "core/nmea_parser.h"
 
 #define BUFFER_SIZE 4096
@@ -66,7 +67,7 @@ int filter_count = 0;
 #define EXIT_GENERIC         1   /* connect/runtime failure */
 #define EXIT_BAD_ARGS        2   /* getopt unknown / malformed flag */
 #define EXIT_CONFIG_ERROR    3   /* load_config() failed */
-#define EXIT_NO_EPH          4   /* --sky pre-flight: no eph source */
+#define EXIT_NO_EPH          4   /* --sky: the run ended with an empty orbit cache */
 #define EXIT_ABORTED         5   /* user pressed Ctrl-A */
 
 /* INFO / ERR macros.  Both write to stderr so that stdout stays reserved
@@ -345,10 +346,12 @@ typedef struct {
     long frame_total;
     long msm_total;
     long obs_total;    /* sector updates contributed */
+    long eph_total;    /* ephemerides decoded off the obs stream */
     long bytes_total;
     int  end_reason;   /* NsEndReason, or -1 while running */
     bool accepted;     /* the caster answered and the stream began   */
     bool announce;     /* print "[OBS] Connected" -- obs source only  */
+    RtcmStrBuf *sink;  /* decoder mute, or NULL under -v */
 } SkyCtx;
 
 static void sky_on_event(const NsEvent *ev, void *user)
@@ -389,6 +392,19 @@ static void sky_on_event(const NsEvent *ev, void *user)
         int  mt = ev->u.frame.msg_type;
 
         c->frame_total++;
+
+        /* Reset the mute between frames: it is a plain buffer, and an
+         * unattended --duration run would otherwise grow it for hours.
+         * It matters more now that ephemerides are decoded here too --
+         * each one prints a screenful. */
+        if (c->sink) rtcm_strbuf_clear(c->sink);
+
+        /* Orbits off the observation stream.  A station that broadcasts
+         * its own ephemerides beside its MSM needs no side-stream and no
+         * navigation file, and there are many of them: caster.centipede.fr
+         * /NEAR sent 1020 x16, 1042 x8 and 1046 x23 in fifteen seconds.
+         * Before this the plot ignored orbits it was already receiving. */
+        c->eph_total += rtcm_decode_eph(payload, payload_len, mt);
 
         if (mt == 1005) {
             decode_rtcm_1005(payload, payload_len, c->config);
@@ -477,6 +493,7 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
     ctx.config     = config;
     ctx.sectors    = sectors;
     ctx.end_reason = -1;
+    ctx.sink       = sink_used ? &sink : NULL;
 
     /* stdin is not a path, so this is the one source ns_open_file()
      * cannot express; ns_open_stream() takes the handle directly and
@@ -533,9 +550,10 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
             if (json_output) {
                 fprintf(stderr,
                     "{\"event\":\"tick\",\"t\":%ld,\"frames\":%ld,\"msm\":%ld,"
-                    "\"upd\":%ld,\"kBps\":%.2f,\"total_kb\":%ld,\"source\":\"stdin\"}\n",
+                    "\"upd\":%ld,\"eph\":%ld,\"kBps\":%.2f,\"total_kb\":%ld,"
+                    "\"source\":\"stdin\"}\n",
                     (long)now, ctx.frame_total, ctx.msm_total, ctx.obs_total,
-                    kBps, ctx.bytes_total / 1024);
+                    ctx.eph_total, kBps, ctx.bytes_total / 1024);
             } else if (stderr_is_tty) {
                 fprintf(stderr,
                     "\r [%c] stdin frames=%ld  MSM=%ld  upd=%ld  rate=%5.1f kB/s  total=%ld KB    ",
@@ -560,8 +578,10 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
     }
 
     if (show_progress && stderr_is_tty && !json_output) INFO("\n");
-    INFO("[OBS] stdin closed (frames=%ld  MSM=%ld  sector updates=%ld  total=%ld KB)\n",
-         ctx.frame_total, ctx.msm_total, ctx.obs_total, ctx.bytes_total / 1024);
+    INFO("[OBS] stdin closed (frames=%ld  MSM=%ld  sector updates=%ld  "
+         "eph=%ld  total=%ld KB)\n",
+         ctx.frame_total, ctx.msm_total, ctx.obs_total, ctx.eph_total,
+         ctx.bytes_total / 1024);
 
     /* Closes the session, not stdin: ns_open_stream() was told we do not
      * own the handle. */
@@ -645,6 +665,9 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
         rtcm_set_output_buffer(&sink);
         sink_used = 1;
     }
+    /* Safe to attach after ns_open(): the callback first runs inside
+     * ns_pump(), below. */
+    ctx.sink = sink_used ? &sink : NULL;
 
     long  bytes_at_tick  = 0;       /* snapshot at the start of the current second */
     time_t t_start       = time(NULL);
@@ -704,9 +727,9 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
             if (json_output) {
                 fprintf(stderr,
                     "{\"event\":\"tick\",\"t\":%ld,\"frames\":%ld,\"msm\":%ld,"
-                    "\"upd\":%ld,\"kBps\":%.2f,\"total_kb\":%ld}\n",
+                    "\"upd\":%ld,\"eph\":%ld,\"kBps\":%.2f,\"total_kb\":%ld}\n",
                     (long)now, ctx.frame_total, ctx.msm_total, ctx.obs_total,
-                    kBps, ctx.bytes_total / 1024);
+                    ctx.eph_total, kBps, ctx.bytes_total / 1024);
             } else if (stderr_is_tty) {
                 fprintf(stderr,
                     "\r [%c] frames=%ld  MSM=%ld  obs+exp updates=%ld  rate=%5.1f kB/s  total=%ld KB    ",
@@ -733,8 +756,15 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
     /* Final newline so subsequent output starts on a clean row.
      * Only needed when the TTY spinner left the cursor mid-line. */
     if (show_progress && stderr_is_tty && !json_output) INFO("\n");
-    INFO("[OBS] Stream stopped (frames=%ld  MSM=%ld  sector updates=%ld  total=%ld KB)\n",
-         ctx.frame_total, ctx.msm_total, ctx.obs_total, ctx.bytes_total / 1024);
+    INFO("[OBS] Stream stopped (frames=%ld  MSM=%ld  sector updates=%ld  "
+         "eph=%ld  total=%ld KB)\n",
+         ctx.frame_total, ctx.msm_total, ctx.obs_total, ctx.eph_total,
+         ctx.bytes_total / 1024);
+    /* A fact about the station, worth stating plainly: it is what
+     * decides whether an ephemeris source needs configuring at all. */
+    if (ctx.eph_total > 0)
+        INFO("[OBS] The station broadcasts its own ephemerides (%ld decoded).\n",
+             ctx.eph_total);
     if (g_abort_requested)
         INFO("[OBS] Aborted by Ctrl-A; PNG will NOT be written.\n");
     fflush(stdout);
@@ -760,16 +790,23 @@ static int run_sky_mode(NTRIP_Config *config,
                         int duration_s,
                         bool verbose)
 {
-    /* Pre-flight: need an ephemeris source -- RINEX file OR EPH stream. */
+    /* Ephemeris sources, in the order they fill the cache.  This used to
+     * refuse to run without one of the two configured ones, on the
+     * premise that nothing else could supply orbits.  That premise was
+     * wrong: many stations broadcast ephemerides on the observation
+     * stream itself, and sky_on_event() now decodes them.  Whether this
+     * one does cannot be known before connecting, so the run goes ahead
+     * and the cache is checked afterwards -- a station that turns out to
+     * send none still exits EXIT_NO_EPH, just having had to look. */
     bool have_eph_stream =
         config->EPH_CASTER[0] && config->EPH_PORT > 0 && config->EPH_MOUNTPOINT[0];
     bool have_rinex = (rinex_path && rinex_path[0]);
 
     if (!have_eph_stream && !have_rinex) {
-        ERR("[ERROR] --sky requires an ephemeris source.\n"
-            "        Either configure an EPH_CASTER / EPH_PORT / EPH_MOUNTPOINT\n"
-            "        in the config file, or pass a RINEX 3 NAV file with -R/--RINEX.\n");
-        return EXIT_NO_EPH;
+        INFO("[INFO] No ephemeris source configured; relying on the station\n"
+             "       broadcasting its own (1019/1020/1041/1042/1044/1045/1046).\n"
+             "       If it does not, configure an EPH_CASTER / EPH_PORT /\n"
+             "       EPH_MOUNTPOINT or pass a RINEX 3 NAV file with -R/--RINEX.\n");
     }
 
     /* Prepare EPH HTTP Basic auth if we have an eph stream. */
@@ -876,6 +913,29 @@ static int run_sky_mode(NTRIP_Config *config,
         free(sectors);
         return EXIT_ABORTED;
     }
+
+    /* No orbits from any source: the plot would be an empty circle, and
+     * saying so beats saving one.  This is the check the pre-flight used
+     * to make before connecting; it has to run here instead, because
+     * whether the observation stream carries ephemerides is only
+     * knowable once it has been listened to. */
+    if (sv_eph_count() == 0) {
+        ERR("[ERROR] No ephemerides reached the cache: the station broadcast\n"
+            "        none, and no configured source delivered any.  Nothing\n"
+            "        can be placed in the sky, so no PNG is written.\n");
+        if (!have_eph_stream && !have_rinex)
+            ERR("        Configure an EPH_CASTER / EPH_PORT / EPH_MOUNTPOINT,\n"
+                "        or pass a RINEX 3 NAV file with -R/--RINEX.\n");
+        if (json_output) {
+            fprintf(stderr,
+                "{\"event\":\"stop\",\"reason\":\"%s\",\"saved\":null,"
+                "\"error\":\"no_ephemerides\"}\n",
+                stop_reason_name(stop_reason));
+        }
+        free(sectors);
+        return EXIT_NO_EPH;
+    }
+
     /* Pick the output path: --output wins; otherwise default to the
      * timestamped name (same convention as the GUI snapshot). */
     char filename_buf[260];

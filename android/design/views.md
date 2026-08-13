@@ -122,13 +122,46 @@ anything the app or the user controls, so it cannot be what the sky view
 rests on. It stays as a fallback because it needs no file and no
 connection, and on a better handset it is genuinely useful.
 
-### Why the observation stream is not enough either
+### Why the observation stream is not enough *on its own*
 
 Some casters interleave ephemerides with observations. Measured on
 APEL00NLD0: **7 satellites in five minutes**, against 46 tracked. RFSEE01
-carries none at all. Useful as a free supplement, never a source.
+carries none at all.
+
+That measurement was read as "useful as a free supplement, never a
+source", and the app acted on it by not decoding those messages at all.
+The reading was too strong. Measured on `caster.centipede.fr/NEAR`:
+**1020 ×16, 1042 ×8 and 1046 ×23 in fifteen seconds**, and over a
+five-minute run on the phone, **603 ephemerides, 40 of 40 tracked
+satellites placed, no second connection opened**. Kadaster's own
+APEL00NLD0 advertises `1019,1020,1042,1044,1045,1046` in its sourcetable.
+
+So it is a source where the station makes it one, and no source where
+the station does not — which cannot be known before connecting. The app
+therefore decodes it always and keeps the other sources for the
+stations that carry nothing. A station like RFSEE01 is exactly why the
+ephemeris stream and the imported file remain.
 
 ## Where the orbits actually come from
+
+### The station's own observation stream
+
+Free, immediate, and needing no setup at all: the ephemeris messages
+many stations broadcast beside their observations are decoded straight
+into the same cache. Nothing distinguishes them once cached — they are
+the same broadcast the ephemeris mountpoint carries.
+
+Measured on `caster.centipede.fr/NEAR`, pro edition, five-minute run:
+**603 ephemerides received, 41 orbits cached, 40 of 40 tracked
+satellites placed, and 0 frames off the ephemeris stream** — it was
+never opened. The free edition, which cannot open one, draws the same
+plot from the same source.
+
+The count is reported in the app (`from_obs` in the bridge document)
+rather than left implicit, because "this station broadcasts its own
+orbits" is a fact about the station that an installer signing one off
+wants, and because without it an empty sky view cannot be told from a
+station that sends no orbits.
 
 ### A RINEX navigation file, supplied by the user
 
@@ -153,9 +186,15 @@ Where a caster publishes an ephemeris mountpoint, it fills the cache in
 about thirty seconds. The app treats it as a resource to borrow, not to
 hold:
 
-- **Open only when the cache cannot place the satellites being tracked.**
-  A run with a fresh RINEX file, or with a cache from an earlier run,
-  never opens it at all.
+- **Open only when the cache cannot place the satellites being tracked
+  and has stopped filling.** A run with a fresh RINEX file, with a cache
+  from an earlier run, or on a station that broadcasts its own orbits
+  never opens it at all. "Complete yet?" alone was not enough on either
+  end: asked on the first pump it opened a connection before a single
+  frame had arrived, and asked at 40 of 41 placeable it opened one for a
+  satellite that had just risen and whose orbit was on its way. The
+  condition is therefore that nothing has reached the cache for twenty
+  seconds — measured against NEAR's twelve-second broadcast cycle.
 - **Close as soon as it has what it needs** — every tracked satellite
   placed — or after a bounded attempt if the caster is not delivering.
 - **Do not reopen until the cache has aged**, at which point the orbits
@@ -261,6 +300,8 @@ cannot tell that from a fact.
   useful: the coverage heatmap remains a legitimate pro extra, and the
   entry point is what any core-side renderer would use.
 - `rtcm_extract_arp_ecef()` stays needed by every position source.
-- The ephemeris side-stream stays, as one of pro's three sources.
+- The ephemeris side-stream stays, as one of pro's sources — now the
+  fallback rather than the first answer.
 - The free edition no longer needs an ephemeris caster configured at
-  all, which removes the largest piece of setup from the free flow.
+  all, which removes the largest piece of setup from the free flow. On a
+  station that broadcasts its own orbits it needs no file either.

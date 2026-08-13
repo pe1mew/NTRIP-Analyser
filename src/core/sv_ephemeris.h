@@ -81,6 +81,16 @@ void sv_eph_store(const SvEphemeris *eph);
 const SvEphemeris* sv_eph_get(int gnss_id, int prn);
 
 /**
+ * @brief How many satellites hold an ephemeris, across every system.
+ *
+ * The cache is process-wide, so this takes no handle and answers the
+ * same question for every source that fills it: a RINEX file, an
+ * ephemeris side-stream, or an observation stream that carries its own
+ * orbits.  Zero means nothing can be placed in the sky.
+ */
+int sv_eph_count(void);
+
+/**
  * @brief Test whether @p eph is usable for propagation at @p week / @p tow_s.
  *
  * GPS broadcast ephemerides are nominally valid for ~2 h; Galileo for ~10 min.

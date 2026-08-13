@@ -352,16 +352,9 @@ static void eph_cli_on_event(const NsEvent *ev, void *user)
          * unbounded over an hours-long run. */
         if (c->sink_used) rtcm_strbuf_clear(&c->sink);
 
-        switch (mt) {
-        case 1019: decode_rtcm_1019(frame + 3, payload_len); c->eph_count++; break;
-        case 1020: decode_rtcm_1020(frame + 3, payload_len); c->eph_count++; break;
-        case 1041: decode_rtcm_1041(frame + 3, payload_len); c->eph_count++; break;
-        case 1042: decode_rtcm_1042(frame + 3, payload_len); c->eph_count++; break;
-        case 1044: decode_rtcm_1044(frame + 3, payload_len); c->eph_count++; break;
-        case 1045: decode_rtcm_1045(frame + 3, payload_len); c->eph_count++; break;
-        case 1046: decode_rtcm_1046(frame + 3, payload_len); c->eph_count++; break;
-        default: break;   /* incl. 1005/1006: must not touch the obs ARP */
-        }
+        /* 1005/1006 are among the types this deliberately ignores: an
+         * eph caster's own station position must not touch the obs ARP. */
+        c->eph_count += rtcm_decode_eph(frame + 3, payload_len, mt);
 
         if (c->verbose && mt >= 1019 && mt <= 1046) {
             fprintf(stderr, "[EPH] type=%d  (total cached: %d)\n",

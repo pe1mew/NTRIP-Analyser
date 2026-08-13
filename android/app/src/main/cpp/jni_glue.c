@@ -244,6 +244,13 @@ JNI_FN(nativeEphFrames)(JNIEnv *env, jobject thiz, jlong handle)
 }
 
 JNIEXPORT jint JNICALL
+JNI_FN(nativeObsEph)(JNIEnv *env, jobject thiz, jlong handle)
+{
+    (void)env; (void)thiz;
+    return (jint)bridge_obs_eph((const NtripBridge *)(intptr_t)handle);
+}
+
+JNIEXPORT jint JNICALL
 JNI_FN(nativeLoadRinex)(JNIEnv *env, jobject thiz, jlong handle, jstring path)
 {
     (void)thiz;

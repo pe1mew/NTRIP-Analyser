@@ -106,8 +106,17 @@ data class SatPosition(
     val phoneCn0: Float = 0f,
 )
 
-/** Which source supplied the positions, for the header to name. */
-enum class PositionSource { NONE, PHONE_GNSS, EPHEMERIS, RINEX }
+/**
+ * Which source supplied the positions, for the header to name.
+ *
+ * [OBS_STREAM] is the station's own observation stream, which many
+ * stations use to broadcast ephemerides beside their observations. It
+ * needs no second connection and no file, so it is the source both
+ * editions get for free -- and the one the header must be able to name,
+ * because crediting a navigation file the user never imported would be
+ * a plain untruth about where the plot came from.
+ */
+enum class PositionSource { NONE, PHONE_GNSS, OBS_STREAM, EPHEMERIS, RINEX }
 
 /**
  * Satellite positions from the phone's own GNSS receiver.

@@ -233,6 +233,15 @@ data class EphState(
     val placeable: Int = 0,
     /** Satellites in the cache, tracked or not. */
     val cached: Int = 0,
+    /**
+     * Ephemeris messages decoded off the *observation* stream.
+     *
+     * Above zero this station broadcasts its own orbits, so the sky view
+     * owes nothing to a second connection and the free edition can draw
+     * one. Messages, not satellites: each is rebroadcast every few
+     * seconds, so this climbs well past [cached].
+     */
+    @SerialName("from_obs") val fromObs: Int = 0,
     /** Seconds since the newest orbit was issued; null when empty. */
     @SerialName("age_s") val ageS: Double? = null,
 ) {
@@ -296,8 +305,10 @@ data class CasterSettings(
      */
     val ggaLive: Boolean = false,
     /**
-     * Ephemeris stream, which the sky plot needs: observations say which
-     * satellites are tracked, not where they are. Blank disables it.
+     * A fallback ephemeris stream, for stations that broadcast no orbits
+     * of their own. Observations say which satellites are tracked, not
+     * where they are; many stations answer that on the observation
+     * stream itself, and only the rest need this. Blank disables it.
      */
     val ephCaster: String = "",
     val ephPort: Int = 2101,
@@ -306,7 +317,13 @@ data class CasterSettings(
     val isComplete: Boolean get() =
         caster.isNotBlank() && mountpoint.isNotBlank() && port > 0
 
-    /** The sky plot needs an ephemeris source; without one it is hidden. */
+    /**
+     * Whether a fallback ephemeris stream is configured to fall back to.
+     *
+     * Not a precondition for the sky plot any more: a station that
+     * broadcasts its own orbits draws one with this blank, which is what
+     * the free edition relies on.
+     */
     val hasEph: Boolean get() =
         ephCaster.isNotBlank() && ephMountpoint.isNotBlank()
 

@@ -345,6 +345,24 @@ This was filed as a gateway item, and it opened the gate as predicted: the polar
 ephemeris-only casters was added alongside it (`WorkerOpenEphStream`, `gui/gui_state.h:443`) —
 see item 4.3.
 
+### 1.6 Decode ephemerides from the observation stream — **Shipped**
+
+The decoders existed; two frontends only ever reached them from a *separate* connection. The
+Android bridge decoded 1019/1020/1041/1042/1044/1045/1046 in `bridge_eph_event()` alone, and the
+CLI's `--sky` observation handler not at all — so on a station that broadcasts ephemerides beside
+its observations, both ignored orbits they were already receiving. Measured on
+`caster.centipede.fr/NEAR`: 1020 ×16, 1042 ×8, 1046 ×23 in fifteen seconds; Kadaster's
+APEL00NLD0 advertises `1019,1020,1042,1044,1045,1046`.
+
+`rtcm_decode_eph()` in `src/core/rtcm3x_parser.c` is now the one copy of that switch — it had been
+duplicated into four handlers — and `bridge_on_event()` and `sky_on_event()` call it. Consequences,
+each measured: the free Android edition draws a sky view with nothing configured (603 ephemerides,
+40 of 40 placed, in five minutes); the paid edition no longer dials a second caster on such a
+station (0 frames off the ephemeris stream in the same run); and `--sky` no longer refuses to start
+without a configured ephemeris source, checking the cache after the run instead.
+
+The Windows GUI already had this, by way of `analyze_rtcm_message()` on its detail-window path.
+
 ---
 
 ## 1. Tier 1 — High value, low effort
@@ -452,6 +470,8 @@ Applies to `SkyView` in `android/app/src/main/java/nl/pe1mew/ntripanalyser/Views
 
 Cosmetic, and it bites only where the sky is crowded — which is where someone is most likely to be
 reading one specific PRN.
+
+### 1.6 Decode ephemerides from the observation stream — **Shipped**, see §0
 
 ---
 

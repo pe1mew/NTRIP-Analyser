@@ -2163,6 +2163,23 @@ void decode_rtcm_1012(const unsigned char *payload, int payload_len) {
     }
 }
 
+int rtcm_decode_eph(const unsigned char *payload, int payload_len,
+                    int msg_type)
+{
+    if (!payload || payload_len <= 0) return 0;
+
+    switch (msg_type) {
+    case 1019: decode_rtcm_1019(payload, payload_len); return 1;
+    case 1020: decode_rtcm_1020(payload, payload_len); return 1;
+    case 1041: decode_rtcm_1041(payload, payload_len); return 1;
+    case 1042: decode_rtcm_1042(payload, payload_len); return 1;
+    case 1044: decode_rtcm_1044(payload, payload_len); return 1;
+    case 1045: decode_rtcm_1045(payload, payload_len); return 1;
+    case 1046: decode_rtcm_1046(payload, payload_len); return 1;
+    default:   return 0;   /* incl. 1005/1006: never touch a stream's ARP */
+    }
+}
+
 int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output,const NTRIP_Config *config) {
     if (length < 6) return -1;
 

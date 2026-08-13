@@ -32,7 +32,7 @@ edition withholds is convenience, never protection.
 | Sourcetable | **viewable, not selectable** | browse and tap to use |
 | Watch mode | **not available** | yes, unlimited |
 | Sky plot (coverage heatmap) | yes | yes |
-| Ephemeris source | **imported RINEX file, phone GNSS** | on-demand ephemeris stream, and an imported file |
+| Ephemeris source | the station's own stream, an imported RINEX file, phone GNSS | the same three, plus an on-demand ephemeris stream when the station carries none |
 | GGA position sent to the caster | **fixed, from the mountpoint's sourcetable entry** | the phone's live position |
 | TLS to the caster *(planned)* | yes, the same day pro has it | yes — scheduled here, withheld from no one |
 | Configuration files (load / save) | — | yes |
@@ -70,12 +70,21 @@ free edition restricted to those would ship a sky view that is mostly
 empty through no fault of the user — which sells nothing and teaches the
 user to distrust the plot.
 
-So the free edition keeps the sources that make its sky view honest: an
-imported navigation file, which places everything, and the phone's own
-GNSS as the fallback when no file has been imported. What it does not
-get is the **on-demand ephemeris stream** (`HAS_EPH_STREAM = false`) —
-that is a second connection to a caster on the user's behalf, and
-borrowing someone's infrastructure is a reasonable thing to charge for.
+The second of those measurements has since been shown to be one station
+rather than a rule. On `caster.centipede.fr/NEAR` the observation stream
+delivers **603 ephemerides in five minutes and places 40 of 40 tracked
+satellites**, and the free edition now draws that plot with no file, no
+second connection and nothing configured. Where a station carries none,
+the earlier finding still holds and the other sources still matter.
+
+So the free edition keeps every source that costs nobody anything: the
+station's own stream, an imported navigation file, and the phone's own
+GNSS as the fallback. What it does not get is the **on-demand ephemeris
+stream** (`HAS_EPH_STREAM = false`) — that is a second connection to a
+caster on the user's behalf, and borrowing someone's infrastructure is a
+reasonable thing to charge for. It is also the source pro now reaches
+for least, because a station that broadcasts its own orbits is never
+dialled.
 
 The free edition is limited by *time*, as it always was: one capture,
 then it stops. That is a limit the user understands and can work with,

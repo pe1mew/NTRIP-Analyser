@@ -174,14 +174,16 @@ int bridge_overall(const NtripBridge *b);
 /**
  * @brief Attach an ephemeris side-stream, enabling the sky plot.
  *
- * The observation stream says *which* satellites are being tracked; it
- * cannot say *where* they are. Azimuth and elevation need broadcast
- * ephemerides, which casters publish on a separate mountpoint, so the
- * sky plot needs a second session -- exactly as the desktop's `--sky`
- * mode does.
+ * An observation stream says *which* satellites are being tracked; it
+ * takes broadcast ephemerides to say *where* they are.  Many stations
+ * send those on the observation stream itself, and @ref bridge_pump
+ * decodes them there, so this is for the stations that do not: casters
+ * publish the same orbits on a separate mountpoint.
  *
- * Optional: without it everything else still works and
- * @ref bridge_sky_rgb reports that it has nothing to draw.
+ * Optional, and worth checking @ref bridge_placeable before calling --
+ * a cache that already places every tracked satellite has nothing to
+ * gain from a second connection.  Without it everything else still
+ * works, and @ref bridge_sky_rgb reports when it has nothing to draw.
  *
  * @param b          Bridge handle.
  * @param caster     Ephemeris caster hostname.
@@ -196,10 +198,13 @@ bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
                      const char *user, const char *password);
 
 /**
- * @brief How many satellites currently have a usable ephemeris.
+ * @brief How many satellites hold an orbit, whether tracked or not.
  *
- * Zero means the sky plot has nothing to place: either no ephemeris
- * stream is attached, or it has not yet delivered a full set.
+ * The cache is process-wide, so the handle is accepted and ignored, and
+ * every source counts the same: a RINEX file, the observation stream
+ * when the station broadcasts ephemerides on it, or a side-stream --
+ * including one already closed, since what it delivered stays cached.
+ * Zero means the sky plot has nothing to place.
  */
 int bridge_eph_count(const NtripBridge *b);
 
@@ -242,8 +247,15 @@ int bridge_check_rinex(const char *path);
  */
 int bridge_placeable(const NtripBridge *b, int *tracked);
 
-/** @brief Satellites holding an orbit, whether tracked or not. */
-int bridge_eph_cached(const NtripBridge *b);
+/**
+ * @brief Ephemerides decoded off the *observation* stream.
+ *
+ * Above zero the station broadcasts its own orbits and the sky view owes
+ * nothing to a second connection.  Reported so that "the sky is empty"
+ * can be told apart from "this station does not send orbits", which look
+ * identical from the cache count alone.
+ */
+int bridge_obs_eph(const NtripBridge *b);
 
 /**
  * @brief Seconds since the newest orbit in the cache was issued.

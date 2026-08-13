@@ -547,6 +547,7 @@ fun ElevationView(
 
 private fun sourceName(s: PositionSource): String = when (s) {
     PositionSource.PHONE_GNSS -> "phone GNSS"
+    PositionSource.OBS_STREAM -> "the station's own stream"
     PositionSource.EPHEMERIS -> "ephemeris stream"
     PositionSource.RINEX -> "navigation file"
     PositionSource.NONE -> "no source"

@@ -63,8 +63,9 @@ so when there are more:
 [CONFIG] config.json lists 3 connections; using the first (RFSEE01) and ignoring the other 2.
 ```
 
-An optional `eph_caster` / `eph_port` / `eph_mountpoint` block adds the
-second connection `--sky` needs for ephemerides. Files written by
+An optional `eph_caster` / `eph_port` / `eph_mountpoint` block adds a
+second connection for ephemerides, for stations that do not broadcast
+their own on the observation stream. Files written by
 earlier releases, with `NTRIP_CASTER` and friends at the top level, are
 still read. The full description of the format is in
 **[jsonConfigs.md](jsonConfigs.md)**.

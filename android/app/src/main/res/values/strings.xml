@@ -19,7 +19,7 @@
     <string name="sky_title">Sky coverage</string>
     <string name="sky_waiting">Waiting for a station position and orbits (%1$d ephemerides so far)…</string>
     <string name="sky_eph">%1$d ephemerides cached</string>
-    <string name="eph_explain">Ephemeris stream — needed for the sky plot, which places satellites the observation stream only counts. Leave blank to skip.</string>
+    <string name="eph_explain">Ephemeris stream — only for stations that do not broadcast orbits themselves. The sky plot uses the station\'s own where it sends them. Leave blank to skip.</string>
     <string name="field_eph_caster">Ephemeris caster</string>
     <string name="field_eph_port">Ephemeris port</string>
     <string name="field_eph_mp">Ephemeris mountpoint</string>
@@ -37,6 +37,7 @@
     <string name="action_back">Back</string>
     <string name="eph_title">Satellite orbits</string>
     <string name="eph_coverage">%1$d of %2$d tracked satellites have an orbit (%3$d cached)</string>
+    <string name="eph_from_station">This station broadcasts its own orbits (%1$d received) — no ephemeris stream needed</string>
     <string name="eph_from_phone">The sky view places %1$d more from this phone’s GNSS</string>
     <string name="eph_only_phone">The sky view places %1$d from this phone’s GNSS</string>
     <string name="eph_age_min">Newest orbit %1$d min old</string>

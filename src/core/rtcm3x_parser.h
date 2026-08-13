@@ -474,6 +474,32 @@ void calc_distance_heading(double lat1, double lon1, double lat2, double lon2, d
 int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_output, const NTRIP_Config *config);
 
 /**
+ * @brief Decode a frame into the orbit cache if it carries an ephemeris.
+ *
+ * The seven broadcast-ephemeris types in one place: 1019 GPS, 1020
+ * GLONASS, 1041 NavIC, 1042 BeiDou, 1044 QZSS, 1045 Galileo F/NAV and
+ * 1046 Galileo I/NAV.  Every frontend needs the same switch, and four
+ * copies of it had drifted apart -- a type added to one was silently
+ * absent from the others.
+ *
+ * Anything else is ignored, deliberately including 1005/1006: a caller
+ * feeding this from an ephemeris side-stream must not let that stream's
+ * station position overwrite the observation stream's ARP.
+ *
+ * Decoding writes to the process-wide cache in `sv_ephemeris.c` and
+ * prints as it goes, so a caller that does not want the text must
+ * install a sink with @ref rtcm_set_output_buffer first.
+ *
+ * @param payload     Message payload, i.e. the frame after its 3-byte header.
+ * @param payload_len Payload length in bytes (frame length less 6).
+ * @param msg_type    RTCM message type.
+ * @return 1 when the type was an ephemeris and was handed to a decoder,
+ *         0 otherwise.  Suitable for `count += rtcm_decode_eph(...)`.
+ */
+int rtcm_decode_eph(const unsigned char *payload, int payload_len,
+                    int msg_type);
+
+/**
  * @brief Decode and print the contents of an RTCM 3.x Type 1005 message (Stationary RTK Reference Station ARP).
  * 
  * Provides the Antenna Reference Point (ARP) position in ECEF coordinates for a stationary reference station.

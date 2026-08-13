@@ -520,9 +520,20 @@ fun MainScreen() {
                             sats = plotted,
                             missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
                                 .coerceAtLeast(0),
+                            // One cache, several possible fillers, and no
+                            // per-satellite provenance in it -- so the
+                            // header names the source that did the work,
+                            // most specific first. The station's own
+                            // stream is claimed only when it actually
+                            // delivered ephemerides, and it outranks an
+                            // imported file because it is this run's own
+                            // measurement rather than something read off
+                            // a disk.
                             source = when {
                                 usedOrbits > 0 && MonitorService.usedEphStream ->
                                     PositionSource.EPHEMERIS
+                                usedOrbits > 0 && (liveDoc?.eph?.fromObs ?: 0) > 0 ->
+                                    PositionSource.OBS_STREAM
                                 usedOrbits > 0 -> PositionSource.RINEX
                                 haveLocation -> PositionSource.PHONE_GNSS
                                 else -> PositionSource.NONE
@@ -1697,10 +1708,10 @@ private fun EphCard(eph: EphState, rinexName: String?, phonePlaced: Int) {
             Spacer(Modifier.height(4.dp))
 
             // Coverage is worth stating once there are orbits to cover
-            // with. With none at all -- the free edition's ordinary
-            // state, having no ephemeris stream -- "0 of 41" in red
-            // announces a fault that is not one; what the sky view is
-            // actually drawing from is said below instead.
+            // with. With none at all -- a station that broadcasts none,
+            // with no file imported and no stream attached -- "0 of 41"
+            // in red announces a fault that is not one; what the sky view
+            // is actually drawing from is said below instead.
             val hasOrbits = eph.placeable > 0 || eph.cached > 0
             if (hasOrbits) {
                 Text(
@@ -1708,6 +1719,18 @@ private fun EphCard(eph: EphState, rinexName: String?, phonePlaced: Int) {
                     style = MaterialTheme.typography.bodySmall,
                     color = if (eph.isComplete) MaterialTheme.colorScheme.onSurfaceVariant
                             else MaterialTheme.colorScheme.error,
+                )
+            }
+
+            // A fact about the station, not just about this app's plot:
+            // an installer signing off a base wants to know it serves
+            // orbits as well as observations, and a user comparing the
+            // two editions wants to know why this one needed no stream.
+            if (eph.fromObs > 0) {
+                Text(
+                    stringResource(R.string.eph_from_station, eph.fromObs),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 

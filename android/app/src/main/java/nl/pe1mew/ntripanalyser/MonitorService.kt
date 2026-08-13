@@ -141,6 +141,13 @@ class MonitorService : Service() {
                 var ephOpen = false
                 var ephOpenedAtS = 0.0
                 var ephRetryAtS = 0.0
+                // The best coverage seen and the ephemerides counted off
+                // the observation stream, with the moment either last
+                // moved: together they say whether orbits are still
+                // arriving from what is already connected.
+                var bestPlaceable = 0
+                var lastObsEph = 0
+                var filledAtS = 0.0
 
                 // Publishing is a named action because the final
                 // document must be forced out below.  Rate-limiting it
@@ -206,15 +213,35 @@ class MonitorService : Service() {
                     // when the user stops it.
                     // ── Ephemeris policy ────────────────────────────
                     // Open the stream only when the cache cannot place
-                    // what is being tracked; close it the moment it can.
-                    // A connection held open for hours to receive a few
-                    // messages is rude to the caster and pointless to the
-                    // user, so it is borrowed and returned.
+                    // what is being tracked and has stopped trying; close
+                    // it the moment it can. A connection held open for
+                    // hours to receive a few messages is rude to the
+                    // caster and pointless to the user, so it is borrowed
+                    // and returned -- and on a station that broadcasts its
+                    // own orbits it is never borrowed at all.
                     if (Features.HAS_EPH_STREAM && settings.hasEph) {
                         val (tracked, placeable) = b.coverage()
                         val complete = tracked > 0 && placeable >= tracked
 
-                        if (!ephOpen && !complete && nowS >= ephRetryAtS) {
+                        // Two signs that nothing needs fetching: coverage
+                        // still climbing, or this station still sending
+                        // orbits of its own. The second matters on its
+                        // own because the first saturates -- 40 of 41
+                        // placeable, with a satellite that has just risen
+                        // waiting for its turn in the broadcast cycle,
+                        // stops climbing and looks stalled. Measured: it
+                        // dialled a caster at 179 s for that one
+                        // satellite, on a station that was broadcasting
+                        // ephemerides throughout.
+                        val obsEph = b.obsEph()
+                        if (placeable > bestPlaceable || obsEph > lastObsEph) {
+                            bestPlaceable = maxOf(bestPlaceable, placeable)
+                            lastObsEph = obsEph
+                            filledAtS = nowS
+                        }
+                        val filling = nowS - filledAtS < EPH_FILL_QUIET_S
+
+                        if (!ephOpen && !complete && !filling && nowS >= ephRetryAtS) {
                             ephOpen = b.openEph(
                                 settings.ephCaster, settings.ephPort,
                                 settings.ephMountpoint,
@@ -281,8 +308,13 @@ class MonitorService : Service() {
                         lastSky = px
                         lastEphCount = b.ephCount()
                     }
-                    Log.i(TAG, "final sky render: $ok (${b.ephCount()} ephemerides, " +
-                        "${b.ephFrames()} eph frames)")
+                    // What placed the satellites, in the one line a field
+                    // report is built from: an empty sky and a station
+                    // that sends no orbits look identical without it.
+                    val fromObs = _state.value.document?.eph?.fromObs ?: 0
+                    Log.i(TAG, "final sky render: $ok (${b.ephCount()} orbits cached, " +
+                        "$fromObs ephemerides off the observation stream, " +
+                        "${b.ephFrames()} frames off the ephemeris stream)")
                 }.onFailure { Log.w(TAG, "final sky render threw", it) }
             }
 
@@ -404,6 +436,26 @@ class MonitorService : Service() {
 
         /** How long before an incomplete cache is worth another attempt. */
         private const val EPH_RETRY_S = 900.0
+
+        /**
+         * How long orbits must stop arriving before a stream is dialled.
+         *
+         * Many stations broadcast ephemerides on the observation stream,
+         * which the C side decodes, so the cache often fills with no help
+         * at all -- but not instantly, and a policy that only asked "is it
+         * complete yet?" opened a second connection on the first pump,
+         * before the first frame had arrived. Waiting for the flow to stop
+         * asks the right question of any source: something is still
+         * feeding the cache, or nothing is and the rest must be fetched.
+         *
+         * Twenty seconds is set by measurement: caster.centipede.fr/NEAR
+         * sends its ephemerides in bursts about twelve seconds apart and
+         * placed all 38 tracked satellites within 24 s of connecting. A
+         * station that sends none goes quiet from the start and is dialled
+         * at 20 s -- late enough to have looked, early enough to be well
+         * inside a ~90 s check.
+         */
+        private const val EPH_FILL_QUIET_S = 20.0
 
         /** A RINEX navigation file the user imported, if any. */
         @Volatile

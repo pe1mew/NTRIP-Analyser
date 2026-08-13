@@ -30,8 +30,9 @@ void print_help(const char *progname) {
     printf("  -t, --time [seconds]     Analyze message types for N seconds (default: 60)\n");
     printf("  -S, --sky                Sky-heatmap mode: collect obs + ephemerides until\n");
     printf("                           Ctrl-C, then save YYYYMMDDHHmmss_ARP-EPG.png.\n");
-    printf("                           Requires either an EPH_CASTER block in the config\n");
-    printf("                           file, or -R / --RINEX.\n");
+    printf("                           Orbits come from the station itself when it sends\n");
+    printf("                           them; otherwise supply an EPH_CASTER block in the\n");
+    printf("                           config file, or -R / --RINEX.\n");
     printf("  -R, --RINEX <file>       RINEX 3 NAV file to preload ephemerides from before\n");
     printf("                           the live EPH stream takes over (use with -S/--sky).\n");
     printf("      --duration <sec>     Auto-stop --sky mode after N seconds and save normally.\n");
@@ -97,7 +98,7 @@ void print_help(const char *progname) {
     printf("  1   Generic / runtime / connect failure\n");
     printf("  2   Bad command-line arguments\n");
     printf("  3   Could not open or parse config file\n");
-    printf("  4   --sky pre-flight: no ephemeris source configured\n");
+    printf("  4   --sky: the run ended with no orbits to draw\n");
     printf("  5   Aborted by user (Ctrl-A)\n");
     printf("\n");
 }
