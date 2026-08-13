@@ -136,9 +136,13 @@ add_test(NAME rinex_nav
 
 # `ctest` prints pass/fail; this target also shows what the test said,
 # which is the part that names the defect when it breaks.
+add_executable(test_rtcm_hostile test/test_rtcm_hostile.c)
+target_link_libraries(test_rtcm_hostile PRIVATE ntrip_core)
+add_test(NAME rtcm_hostile COMMAND test_rtcm_hostile)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_rinex_nav)
+    DEPENDS test_rinex_nav test_rtcm_hostile)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

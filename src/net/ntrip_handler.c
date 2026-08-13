@@ -215,6 +215,13 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     }
 #endif
 
+    /* A sourcetable is a few hundred kilobytes at the largest public
+     * casters.  The ceiling is not tidiness: this loop grows the buffer
+     * by whatever arrives, from a host the user named but nobody
+     * vouches for, so without a limit a caster that streams forever
+     * exhausts memory -- on a phone, until the app is killed. */
+    const size_t MOUNT_TABLE_MAX = 4u * 1024u * 1024u;
+
     int received;
     while (
 #ifdef _WIN32
@@ -225,6 +232,13 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     ) {
         buffer[received] = '\0';
         size_t old_size = mount_table_size;
+        if (old_size + (size_t)received > MOUNT_TABLE_MAX) {
+            fprintf(stderr,
+                    "[WARN] Sourcetable exceeded %zu bytes; truncating. "
+                    "A caster sending more than this is not serving a "
+                    "mountpoint list.\n", MOUNT_TABLE_MAX);
+            break;
+        }
         mount_table_size += received;
         char *new_table = realloc(mount_table, mount_table_size + 1);
         if (!new_table) {

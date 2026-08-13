@@ -13,13 +13,14 @@ privacy policy and the data-safety declaration, which block submission.
 
 ## Current Status
 
-Not started. Phases 1–3 can run in any order; 4 onwards are sequential.
+Phases 2 and 3 are done. Phase 1 (telemetry) is a decision and blocks
+the privacy policy; 4 onwards are sequential.
 
 | # | Phase | Blocks | State |
 |---|---|---|---|
 | 1 | Telemetry decision | privacy policy, data-safety form | not started |
 | 2 | Licence study | store listings, wiki claims, RINEX auto-download | **done** → `docs/licences.md`, 7 actions |
-| 3 | Security assessment | any public release | not started |
+| 3 | Security assessment | any public release | **done** → `docs/security-review.md`, 2 fixed |
 | 4 | Live GGA implementation | pro's launch scope | designed, not built |
 | 5 | Release plumbing | submission | not started |
 | 6 | Samsung S23 verification | submission | not started |
@@ -81,7 +82,20 @@ Original scope:
 - **Store listing**: screenshots showing a real caster's mountpoint
   names — permitted, or replace with our own.
 
-### Phase 3 — Security assessment
+### Phase 3 — Security assessment — **DONE 2026-08-13**
+
+Report in `docs/security-review.md`. Two defects found and fixed: RTCM
+1033 read past its payload and printed what it found there, and the
+sourcetable accumulated without limit from an untrusted caster. Both are
+covered by `test/test_rtcm_hostile.c`, which fails against the pre-fix
+parser.
+
+The finding that needs a decision is **F3**: NTRIP sends credentials
+base64-encoded over plain TCP and this client has no TLS support, while
+Kadaster already offers a TLS caster on port 443. That is the largest
+security improvement available to the project, and it is a feature.
+
+Original scope:
 
 The real surface is **3,634 lines of C parsing bytes an attacker
 controls**: `rtcm3x_parser.c` (2,527), `ntrip_handler.c`, `ntrip_proto.c`,

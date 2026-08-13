@@ -21,6 +21,7 @@ application appears only when one genuinely needs multiple pages.
 |---|---|
 | **[compile.md](compile.md)** | Building the CLI and GUI on Windows and Linux; shell completion |
 | **[jsonConfigs.md](jsonConfigs.md)** | The one JSON configuration format, which program reads how many entries, and why the passwords in it are in the clear |
+| **[security-review.md](security-review.md)** | What a hostile caster can do to this software, what was fixed, and what is still open |
 | **[licences.md](licences.md)** | What the project licenses out, what it ships, and the terms of the data services it connects to |
 | `concepts.md` | *(planned)* Stream-health semantics — what CRC error rate, advertised-vs-observed and ARP stability mean, independent of which application renders them |
 

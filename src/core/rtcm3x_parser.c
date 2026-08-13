@@ -1283,6 +1283,46 @@ void decode_rtcm_1013(const unsigned char *payload, int payload_len) {
     }
 }
 
+/**
+ * @brief Read one counted string of a 1033, bounded by the payload.
+ *
+ * Each of 1033's four strings is preceded by an eight-bit length, so a
+ * frame may claim 255 characters while carrying eight bytes.  The
+ * counter is caster-supplied and therefore never trusted: the read stops
+ * at the end of the payload, and the cursor advances past the whole
+ * declared string even when the copy was capped, so the next field is
+ * read from the right offset instead of from the middle of this one.
+ *
+ * @param payload     Frame payload.
+ * @param payload_len Its length in bytes.
+ * @param bit         [in,out] Bit cursor.
+ * @param dst         Destination, always NUL-terminated.
+ * @param cap         Capacity of @p dst including the terminator.
+ * @return Characters copied, or -1 when the payload ends mid-field.
+ */
+static int rtcm_read_counted_string(const unsigned char *payload,
+                                    int payload_len, int *bit,
+                                    char *dst, size_t cap)
+{
+    const int total_bits = payload_len * 8;
+    dst[0] = '\0';
+
+    if (*bit + 8 > total_bits) return -1;
+    int len = (int)get_bits(payload, *bit, 8);
+    *bit += 8;
+
+    if (*bit + len * 8 > total_bits) return -1;
+
+    int copied = 0;
+    for (int i = 0; i < len; i++) {
+        char c = (char)get_bits(payload, *bit, 8);
+        *bit += 8;
+        if ((size_t)copied < cap - 1) dst[copied++] = c;
+    }
+    dst[copied] = '\0';
+    return copied;
+}
+
 void decode_rtcm_1033(const unsigned char *payload, int payload_len) {
     int bit = 0;
     if (payload_len < 8) {
@@ -1293,33 +1333,21 @@ void decode_rtcm_1033(const unsigned char *payload, int payload_len) {
     uint16_t msg_number = (uint16_t)get_bits(payload, bit, 12); bit += 12; // Should be 1033
     uint16_t ref_station_id = (uint16_t)get_bits(payload, bit, 12); bit += 12;
 
-    uint8_t ant_desc_len = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-    char ant_desc[65] = {0};
-    for (int i = 0; i < ant_desc_len && i < 64; ++i) {
-        ant_desc[i] = (char)get_bits(payload, bit, 8); bit += 8;
-    }
-    ant_desc[64] = '\0';
+    char ant_desc[65], ant_serial[65], recv_type[65], recv_serial[65];
+    int ant_desc_len   = rtcm_read_counted_string(payload, payload_len, &bit,
+                                                  ant_desc, sizeof(ant_desc));
+    int ant_serial_len = rtcm_read_counted_string(payload, payload_len, &bit,
+                                                  ant_serial, sizeof(ant_serial));
+    int recv_type_len  = rtcm_read_counted_string(payload, payload_len, &bit,
+                                                  recv_type, sizeof(recv_type));
+    int recv_serial_len = rtcm_read_counted_string(payload, payload_len, &bit,
+                                                   recv_serial, sizeof(recv_serial));
 
-    uint8_t ant_serial_len = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-    char ant_serial[65] = {0};
-    for (int i = 0; i < ant_serial_len && i < 64; ++i) {
-        ant_serial[i] = (char)get_bits(payload, bit, 8); bit += 8;
+    if (ant_desc_len < 0 || ant_serial_len < 0 ||
+        recv_type_len < 0 || recv_serial_len < 0) {
+        rtcm_printf("Type 1033: Payload ends mid-field; truncated frame.\n");
+        return;
     }
-    ant_serial[64] = '\0';
-
-    uint8_t recv_type_len = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-    char recv_type[65] = {0};
-    for (int i = 0; i < recv_type_len && i < 64; ++i) {
-        recv_type[i] = (char)get_bits(payload, bit, 8); bit += 8;
-    }
-    recv_type[64] = '\0';
-
-    uint8_t recv_serial_len = (uint8_t)get_bits(payload, bit, 8); bit += 8;
-    char recv_serial[65] = {0};
-    for (int i = 0; i < recv_serial_len && i < 64; ++i) {
-        recv_serial[i] = (char)get_bits(payload, bit, 8); bit += 8;
-    }
-    recv_serial[64] = '\0';
 
     rtcm_printf("RTCM 1033 (Receiver & Antenna Descriptor):\n");
     rtcm_printf("  Message Number: %u\n", msg_number);
