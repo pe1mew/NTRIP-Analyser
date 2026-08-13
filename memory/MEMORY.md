@@ -1,50 +1,86 @@
-# Memory index
+# Memory
 
-Knowledge that is not obvious from reading the code. This file is an
-**index**, not a store: most of what an agent needs is already written
-down in `design/`, and this points at it. Add a topic file here only for
-knowledge that has no home in the design docs.
+<!-- NOT loaded automatically. A task-triggered pointer in CLAUDE.md is what
+     brings it into a session; without that row nothing here is ever read,
+     and the failure is silent.
 
-## Where knowledge lives
+     Keep it lean — it is read in full whenever it is reached, and it is an
+     INDEX: deep knowledge belongs in topic files, and most of this project's
+     deep knowledge already lives in design/ and docs/. Point at those rather
+     than restating them, or the copy drifts from the original.
 
-| Topic | File | Load it when |
-|---|---|---|
-| Layering, session loop, statistics snapshot | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend |
-| What is shipped, planned, or rejected | `design/todo.md` | Asking "does X exist?" before building it |
-| Windows GUI structure; §13 station check | `design/gui-design.md` | Any `gui/` work |
-| Free/pro split, payment model, saved profiles, GGA sources | `android/design/editions.md` | Any edition or Android product decision |
-| What each Android view is for, and where orbits come from | `android/design/views.md` | Android UI or sky-plot work |
-| Android KPI/VRS decisions D1–D7, dated | `android/design/design-review.md` | Changing anything the code cites as `design-review Dn` |
-| The one JSON config format, and its plain-text passwords | `docs/jsonConfigs.md` | Config reading, writing, or interop |
-| Build, test, deploy, extension points | `docs/RUNBOOK.md` | Any build or device work |
-| Non-obvious failures and their root causes | `memory/gotcha-log.md` | Stuck, or something behaves impossibly |
-| Doxygen goes in headers only | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments |
+     END-OF-SESSION CURATION (/curate):
+     1. Review gotcha-log for recurring patterns — promote them here or to a topic file
+     2. Retire entries that are fixed, refactored away, or now encoded in code
+     3. Update "Current State" to reflect what shipped or changed
+     Monthly (/audit-context): prune as much as you add. -->
 
-## Current state (2026-08-13)
+## Topic Files
 
-- **Version 3.3.0**; substantial unreleased work in `changelog.md`.
-- **Shipped recently**: eight KPIs including advertised-versus-actual;
-  the station check in the Windows GUI; the RINEX GLONASS fixes and the
-  first regression test; Android saved connection profiles with
-  encrypted credentials; one shared JSON config format everywhere.
-- **Decided, not yet built**: GGA position sources — sending follows the
-  sourcetable's `nmea` flag, free sends a fixed position prefilled from
-  the sourcetable, pro sends the phone's live position with consent
+| File | When to load | Key insight |
+|------|-------------|-------------|
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly | Problem→root cause→fix archive; six entries are resolved history |
+| `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
+| `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
+| `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
+| `design/gui-design.md` | Any `gui/` work | Window patterns; §13 is the station check as built |
+| `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
+| `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
+| `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
+| `docs/jsonConfigs.md` | Config reading, writing or interop | One format everywhere; passwords in the clear |
+
+## Current State
+
+<!-- 2026-08-13 -->
+
+- **v3.3.0 released** on the desktop; substantial unreleased work in `changelog.md`.
+- **Shipped recently**: KPI 8 (advertised versus actual) across all frontends;
+  the station check in the Windows GUI; RINEX GLONASS fixes plus the project's
+  first regression test; Android saved connection profiles with encrypted
+  credentials; one shared JSON config format everywhere.
+- **Decided, not built**: GGA position sources — sending follows the
+  sourcetable's `nmea` flag; free sends a fixed position prefilled from the
+  sourcetable entry; pro sends the phone's live position after a one-time
+  consent. See `android/design/editions.md`.
+- **Next**: Android release plumbing (signing config, `versionName` wired to
+  `src/core/version.h`, icons, two store listings, privacy policy and Play
+  data-safety), then testing on a Samsung S23.
+- **Known gaps**: no CI; one test; the GUI station check has no saved report;
+  seven pro rows in the editions table are marked *planned*, not built.
+
+## Recently Promoted
+
+<!-- Format: "if [situation], then [what to do] — promoted from gotcha-log YYYY-MM-DD"
+     Retire an entry as soon as it appears in its destination. -->
+
+*(nothing yet — the loop starts at the next session)*
+
+## Key File Paths
+
+Supplementing CLAUDE.md's list with paths found during work:
+
+- `src/core/ns_stats.{c,h}` — the snapshot every frontend renders; `null` in
+  its JSON means "not measured", so Kotlin models must be nullable.
+- `src/net/ntrip_handler.c` — derives Basic auth when `AUTH_BASIC` is empty;
+  a sourcetable fetch fails without it.
+- `gui/gui_parsers.c` — sourcetable rows, advertised types, handshake parsing.
+- `android/app/src/main/java/nl/pe1mew/ntripanalyser/Settings.kt` — encrypted
+  profile store and the migration from the pre-profiles preferences file.
+- `service/monitord.example.json`, `bin/exampleConfig.json` — the shared
+  config format, daemon side and desktop side.
+
+## Active Decisions
+
+- **One measurement core, four frontends** — no threshold or verdict in any
+  UI layer (`design/architecture.md`).
+- **Android ships as two Play listings, not one app with an in-app unlock** —
+  entitlement is the installed APK, which works in the field with no signal
   (`android/design/editions.md`).
-- **Next**: release plumbing for Android (signing, version wiring to
-  `version.h`, icons, store listings, privacy policy), then testing on a
-  Samsung S23.
-- **Known gaps**: the Windows GUI has no station-check report file;
-  `versionName` is hand-maintained; no CI; one test.
+- **One JSON exchange format everywhere**, a `mountpoints[]` list; analysers
+  read the first entry and say how many they ignored (`docs/jsonConfigs.md`).
+- **The app never downloads a navigation file** — the user supplies it, so the
+  licence relationship stays theirs (`android/design/views.md`).
+- **KPI 8 judges constellations by the sourcetable's NavSys field**, never by
+  the 1005/1006 indicator bits, which cannot express BeiDou.
 
-## Facts an agent should not have to rediscover
-
-- Four programs are built from one core; `src/core` changes reach all of
-  them. The GUI is listed in **two** build files.
-- The Android free and pro editions differ only in the UI layer
-  (`Features.kt` per flavor). Measurements are identical by design.
-- The Android app's own log tag is `ntrip_android`; settings use
-  `ntrip_settings`.
-- Verification in this project means a live caster: `rfsee.net/RFSEE01`
-  and `HANESE`, `ntrip.kadaster.nl/APEL00NLD0` and `AMEL00NLD0`, with
-  `BCEP00KAD0` for ephemerides.
+---

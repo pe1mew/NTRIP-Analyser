@@ -4,7 +4,7 @@ How to build, test, deploy and extend NTRIP-Analyser. Paths and commands
 here are the ones actually used on the author's machine; where they are
 machine-specific it says so.
 
-## Operational principles
+## Principles
 
 - **One core, four programs.** A change under `src/core` reaches the CLI,
   the GUI, the daemon and the Android app. Rebuild and re-run every one
@@ -18,7 +18,9 @@ machine-specific it says so.
 - **The device is part of the toolchain.** Android behaviour that matters
   — foreground service, GNSS, permissions — cannot be seen in a build.
 
-## Toolchains (this machine)
+## Local Development
+
+### Prerequisites
 
 | Need | Path |
 |---|---|
@@ -31,7 +33,7 @@ The JDK is **Adoptium**, not the Microsoft build the name pattern
 suggests. Gradle rejects a POSIX-style `JAVA_HOME`; give it the Windows
 path.
 
-## Desktop: build and test
+### Desktop: build and test
 
 ```bash
 export PATH="/c/Program Files/CodeBlocks/MinGW/bin:$PATH"
@@ -53,7 +55,7 @@ Binaries always land in `bin/`, never in the build tree — the programs
 look for `config.json` in the working directory, and a clean rebuild
 must not delete someone's configuration.
 
-## Desktop: verify against a live caster
+### Desktop: verify against a live caster
 
 ```bash
 cd bin
@@ -67,7 +69,7 @@ fill the connection fields, *Connection → Open Stream*, then the window
 under test. Its log window captures `stdout`/`stderr`, so `printf` from
 core code is visible there.
 
-## Android: build, install, observe
+### Android: build, install, observe
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot'
@@ -99,7 +101,7 @@ empty after a migration.
 A station check takes ~90 s and the sustain window is 60 s, so allow
 about 105 s before expecting a settled verdict.
 
-## Extension points
+## Adding a New Frontend, Window, KPI or Config Field
 
 **Adding a GUI source file** — add it to *both* `CMakeLists.txt`
 (`ntrip-analyser-gui` target) and `build-gui.bat`.
@@ -126,7 +128,7 @@ and the legacy reader if it applies), the GUI's writer in
 and the path is passed as `argv[1]` so the working directory does not
 matter.
 
-## Debugging common problems
+## Common Problems
 
 | Symptom | Look at |
 |---|---|
@@ -139,7 +141,7 @@ matter.
 | `adb` cannot see the device | `adb kill-server`, then `adb reconnect offline` |
 | A run never settles | A pending KPI holds the roll-up at RUNNING; there is a 300 s ceiling |
 
-## Releasing
+## Deployment
 
 `cmake --build build --target release` stages the artefacts and writes
 per-platform `SHA256SUMS` (Windows and Linux assets are built on
@@ -151,7 +153,27 @@ against that header.
 
 **The agent never publishes.** Prepare the assets, then hand off.
 
-## Documentation practices
+### Post-deploy verification
+
+There is no server and no CI here, so "deployed" means an artefact
+someone downloads. Verify the artefact itself, not the build tree:
+
+- [ ] Run the built binary from `bin/`, not from the build directory —
+      the working directory decides which `config.json` it finds.
+- [ ] `ntrip-analyser --version` matches `src/core/version.h`.
+- [ ] `--check` completes against a live caster and exits 0, 6 or 1.
+- [ ] For Android, install the APK on a device and run one station
+      check: the foreground service, GNSS and permissions cannot be
+      exercised by a build.
+
+## Document Size Heuristic
+
+If a document passes ~150 lines during a session, split the new content
+into its own file and link back. This runbook is at that boundary; the
+next operational area (store listings, signing) becomes a separate file
+rather than a section here.
+
+## Documentation Practices
 
 | Change | Update |
 |---|---|
