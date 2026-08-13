@@ -228,6 +228,28 @@ On a **release-signed** build, not a debug one. This is also the first
 run on Android 13/14 — the test handset is Android 10, so the tightened
 foreground-service and notification rules have never been exercised.
 
+### Phase 7 — the free wiki — **drafted**
+
+Seven pages in `docs/wiki/`, written for a free user who will never see
+pro's documentation: Home, Getting started, The eight checks, The
+analysis views, Troubleshooting, What the paid edition adds, and
+Privacy and support, plus a `_Sidebar`.
+
+They are kept in this repository so they are reviewed and versioned with
+the code that they describe — the wiki is a separate repository and
+nothing in it would be. Publishing is a copy:
+
+```bash
+git clone https://github.com/pe1mew/NTRIP-Analyser.wiki.git
+cp docs/wiki/*.md NTRIP-Analyser.wiki/
+cd NTRIP-Analyser.wiki && git add -A && git commit && git push
+```
+
+**They must be re-read before launch**, because they state behaviour:
+every threshold and every quoted message was taken from `src/core/kpi.c`
+and the app's strings on the day they were written, and a wiki that
+describes the tool inaccurately is worse than no wiki.
+
 ### Phases 7 and 8 — Wiki, then launch
 
 GitHub's wiki is a separate repository (`NTRIP-Analyser.wiki.git`). It is

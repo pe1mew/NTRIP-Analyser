@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — user documentation for the free edition
+
+Seven wiki pages in `docs/wiki/`, written for someone who has just
+installed the app and knows nothing about it: a first run in five
+minutes, what each of the eight checks means **and what to do when it is
+not green**, how to read the three analysis views, the failures a user
+is most likely to meet, what the paid edition adds, and how privacy and
+support actually work here.
+
+Kept in this repository rather than typed into the wiki, so they are
+reviewed and versioned beside the code they describe; publishing is a
+copy into `NTRIP-Analyser.wiki.git`.
+
+Every threshold and every quoted message comes from `src/core/kpi.c` and
+the app's own strings — 40 dB-Hz, one CRC error in a thousand, 0.5 Hz,
+the thirty-second ARP allowance, the sixty-second sustain — because a
+wiki that describes the tool inaccurately is worse than no wiki. The
+pages also carry the two things a user would otherwise report as bugs:
+that a station's message format decides the resolution of the C/N0
+views, and that a satellite with no known orbit is counted but
+deliberately not drawn.
+
+The support posture is stated rather than implied: the wiki answers a
+question once, issues go to the public tracker, and the contact address
+Play requires is not a help desk.
+
 ### Fixed — the C/N0-versus-elevation plot
 
 Three faults in one view, found by looking at it on a handset beside a
