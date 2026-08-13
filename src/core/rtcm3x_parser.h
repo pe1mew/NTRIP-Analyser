@@ -851,6 +851,16 @@ void decode_rtcm_1046(const unsigned char *payload, int payload_len);
  */
 void decode_rtcm_1230(const unsigned char *payload, int payload_len);
 
+/**
+ * @brief Print any legacy observation message: 1001-1004, 1009-1012.
+ *
+ * The whole pre-MSM family, from one description of the layout. The
+ * 1004 and 1012 entry points below remain because the dispatcher and
+ * the GUI name them.
+ */
+void decode_rtcm_legacy_obs(const unsigned char *payload, int payload_len,
+                            int msg_type);
+
 /** @brief Print an RTCM 1004 (GPS L1/L2 RTK observables). */
 void decode_rtcm_1004(const unsigned char *payload, int payload_len);
 

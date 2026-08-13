@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — every legacy observation message can be read on screen
+
+1001, 1002, 1003, 1009, 1010 and 1011 join 1004 and 1012, so a station
+sending any pre-MSM observation message can be inspected field by field
+rather than appearing as a type number with nothing behind it.
+
+**Written once, not eight times.** The eight messages differ in four
+things — whether there is a second band, whether C/N0 is carried at all,
+GLONASS's frequency channel number, and two field widths — so they are
+one printer parameterised from the same table `rtcm_legacy_extract()`
+reads. That is not tidiness: of the two that had been written by hand,
+one was misaligned for years and the other did not exist. A ninth copy
+would have been a ninth chance to be wrong.
+
+The refactor is provably behaviour-preserving where behaviour could be
+checked: printing 1004 and 1012 from a live capture of
+`rtk2go.com/Mirmenhof` gives **byte-identical output** before and after.
+The six new ones have no live station to point at — they are the rarer
+shapes, L1-only or without C/N0 — so they are verified by construction:
+frames built with known values print those values back, including
+"C/N0 not carried by this message" for the four types that carry none,
+and GLONASS's channel number decoded from DF040's 0..20 to -7..+13.
+
 ### Added — the 1004 decoder, which never existed
 
 1012 was dispatched and 1004 was not, so a station sending both showed
