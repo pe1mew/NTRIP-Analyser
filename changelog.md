@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — whose caster it is, said where the user is choosing one
+
+The app is a client: it connects where it is told, with the user's own
+credentials, which keeps the relationship and the terms between the user
+and the caster. That was already stated in the developer documentation
+and nowhere a user would meet it.
+
+It is now in the wiki's **Getting started**, next to the fields where a
+caster is typed in — have permission to be there, public networks are
+meant to be used and commercial ones are for subscribers, some casters
+limit concurrent connections, and the data belongs to whoever operates
+the station. It is repeated in one line on the privacy page, in the
+store listing's privacy paragraph, and beside **Watch mode**'s data
+figures, where a multi-hour watch is a multi-hour client on somebody
+else's caster and not only megabytes on your own plan.
+
+Ordinary for any NTRIP client, but a tool that makes connecting easy
+should say it once, plainly.
+
+### Decided — what a store screenshot may show
+
+Two rules, written into `tools/make_store_shots.py` rather than into
+someone's memory: capture against the author's own station where a
+station is prominent, and redact the caster address regardless, to a
+domain reserved for documentation (RFC 2606). The mountpoint name and
+the measurements stay — they are what the screenshot is *for*, and a
+public anonymous stream's name discloses nothing private. A listing seen
+by thousands should not advertise a host that belongs to a person.
+
+With this and the notices screen, **all seven licence actions that
+blocked the free launch are closed**; the one still open concerns a PDF
+that only matters if automatic RINEX download is ever reconsidered.
+
 ### Added — open-source notices, in the app and in the release archive
 
 cJSON is MIT and is compiled into every artefact this project produces;

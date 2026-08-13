@@ -17,6 +17,27 @@ every stream it publishes, its format, its constellations, and whether
 it expects a position from you. Free shows the list so you can read it;
 type the name you want into the mountpoint field.
 
+### Whose caster is it?
+
+**The app is a client. It connects where you tell it to, with your
+credentials, and that keeps the relationship — and the terms — between
+you and the caster.**
+
+So before you point it somewhere: have permission to be there. Public
+reference networks publish open streams and are meant to be used; a
+commercial network's mountpoints are for its subscribers; a station
+belonging to someone else's project is theirs. Some casters limit how
+many connections one account may hold, and a measurement tool that
+reconnects is still a connection.
+
+The data you receive belongs to whoever operates the station, under
+their terms and not ours, and what you do with it is between you and
+them.
+
+None of this is unusual — it is the ordinary position of any NTRIP
+client — but a tool that makes connecting easy should say it once,
+plainly.
+
 ## 2. Run the check
 
 Tap **Run the check**. It takes about ninety seconds, and the eight rows

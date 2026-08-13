@@ -157,20 +157,34 @@ placeholder credentials from the example.
 
 ### Casters in general
 
-The app connects to third-party infrastructure on the user's behalf.
-The wiki and the listing should state plainly that the user is
-responsible for holding valid access to any caster they configure, and
-that the app neither supplies nor brokers credentials.
+The app connects to third-party infrastructure on the user's behalf,
+and **says so where a user meets it**: the wiki's *Getting started*
+carries a *Whose caster is it?* section beside the fields where a caster
+is typed in, *Privacy and support* repeats it in a line, and the
+listing's privacy paragraph states it for anyone reading before they
+install. Holding valid access is the user's; the app neither supplies
+nor brokers credentials.
 
 ---
 
 ## 5. Store listing
 
-- **Screenshots** taken against Kadaster and rfsee mountpoints show a
-  third party's station identifiers. The free AGRS streams are public
-  and anonymous, so showing a mountpoint name is disclosure of nothing
-  private — but ⚠ prefer screenshots of the author's own `RFSEE01` /
-  `HANESE` where a station is prominent, which removes the question.
+- **Screenshots** — decided 2026-08-13, and enforced by the tool that
+  builds them rather than by remembering. Two rules:
+  1. **Capture against the author's own station** where a station is
+     prominent, which removes the question of showing somebody else's
+     identifiers. The 3.3.0 pro set is `RFSEE01`.
+  2. **Redact the caster address anyway**, to a domain reserved for
+     documentation (RFC 2606 `example.com`), so a listing seen by
+     thousands does not advertise a host that belongs to a person and
+     invite traffic to it. The mountpoint name and the measurements
+     stay — they are what the screenshot is *for*, and a public
+     anonymous stream's name discloses nothing private.
+
+  The redaction is a table of measured boxes in
+  `tools/make_store_shots.py`, so a re-capture cannot quietly lose it.
+  Where a third-party stream is unavoidable, prefer a public anonymous
+  one and apply the same redaction.
 - The listing must not imply endorsement by RTCM, IGS, BKG, Kadaster or
   NSGI.
 - Naming a caster as an example is factual description, not a claim of
@@ -187,8 +201,8 @@ that the app neither supplies nor brokers credentials.
 | 3 | Ship the cJSON notice in the desktop release archive too | next release | **done** 2026-08-13 |
 | 4 | Fix the "free Kadaster registration" instruction; drop placeholder credentials from the example config | free launch | **done** 2026-08-13 |
 | 5 | Read the IGS terms PDF before any automatic download is reconsidered | RINEX auto-download only | open |
-| 6 | Decide on screenshots showing third-party mountpoints | listing | open |
-| 7 | State caster responsibility to the user | free launch | **partly** — in `readme.md`, `docs/cli.md` and `docs/jsonConfigs.md`; the wiki and listing copy follow in phase 7 |
+| 6 | Decide on screenshots showing third-party mountpoints | listing | **done** 2026-08-13 — author's own station, address redacted regardless, enforced in `tools/make_store_shots.py` |
+| 7 | State caster responsibility to the user | free launch | **done** 2026-08-13 — `readme.md`, `docs/cli.md`, `docs/jsonConfigs.md`, the wiki's *Getting started* and *Privacy and support*, and the listing's privacy paragraph |
 
 **Action 4 was verified, not assumed.** `bin/exampleConfig.json` with
 empty credentials fetches the Kadaster sourcetable (61 mountpoints) and

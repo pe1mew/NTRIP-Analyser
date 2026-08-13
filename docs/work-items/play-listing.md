@@ -84,6 +84,10 @@ no formatting beyond line breaks.
     device; NTRIP itself sends them over a plain connection, and the app
     says so where you type them.
 
+    The app is a client: it connects where you tell it to, with your own
+    credentials. Having permission to use a caster, and observing its
+    terms, is yours -- the data belongs to whoever operates the station.
+
 **Free — append**
 
     THIS EDITION

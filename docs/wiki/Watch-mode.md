@@ -49,7 +49,10 @@ something different from one at 99.9 % that never left CAUTION.
 
 - It holds a network connection open for the whole watch. On mobile
   data, that is measurable — a typical station runs at 1–3 kB/s, so
-  roughly 4–10 MB per hour.
+  roughly 4–10 MB per hour. It is measurable at the other end too: a
+  multi-hour watch is a multi-hour client on somebody's caster, so watch
+  a station you are entitled to watch ([Getting
+  started](Getting-started#whose-caster-is-it)).
 - Keep the phone on power for anything longer than an hour or two.
 - If a watch stops unexpectedly, check battery optimisation for this
   app. The notification should prevent it, but some manufacturers are

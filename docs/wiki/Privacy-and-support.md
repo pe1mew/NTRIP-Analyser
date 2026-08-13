@@ -26,6 +26,11 @@ satellites in the sky view.
 The full policy is at
 **<https://pe1mew.github.io/NTRIP-Analyser/privacy-policy>**.
 
+**The caster is somebody else's service.** What it logs about your
+connection is governed by its own terms, not by this policy, and having
+permission to connect is yours to hold — see
+[Getting started](Getting-started).
+
 ## Support, honestly
 
 This is a personal project, held to professional standards but built in
