@@ -76,12 +76,22 @@ typedef struct {
     bool seen;
 } MsgStats;
 
-void base64_encode(const char *input, char *output) {
+bool base64_encode_n(const char *input, char *output, size_t out_cap) {
     const char *base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     unsigned char in[3];
     int i, j;
-    int input_len = strlen(input);
+    int input_len = (int)strlen(input);
     int output_index = 0;
+
+    if (!output || out_cap == 0) return false;
+    output[0] = '\0';
+
+    /* Base64 expands by 4/3, rounded up to a whole group, plus the
+     * terminator.  Refusing here beats truncating: a half-encoded
+     * credential authenticates as nothing and looks like a caster
+     * problem. */
+    size_t need = ((size_t)input_len + 2) / 3 * 4 + 1;
+    if (need > out_cap) return false;
 
     for (i = 0; i < input_len;) {
         int len = 0;
@@ -96,6 +106,7 @@ void base64_encode(const char *input, char *output) {
         output[output_index++] = (len >= 1) ? '=' : base64_chars[in[2] & 0x3f];
     }
     output[output_index] = '\0';
+    return true;
 }
 
 char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
@@ -181,7 +192,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
         char userpass[512];
         snprintf(userpass, sizeof(userpass), "%s:%s",
                  config->USERNAME, config->PASSWORD);
-        base64_encode(userpass, auth);
+        if (!base64_encode_n(userpass, auth, sizeof(auth))) auth[0] = 0;
     } else {
         auth[0] = '\0';
     }

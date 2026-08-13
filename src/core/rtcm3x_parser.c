@@ -120,6 +120,16 @@ uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len) {
     return result;
 }
 
+bool get_bits_checked(const unsigned char *buf, int buf_len,
+                      int start_bit, int bit_len, uint64_t *out)
+{
+    if (!buf || !out || bit_len < 0 || bit_len > 64 || start_bit < 0)
+        return false;
+    if (start_bit + bit_len > buf_len * 8) return false;
+    *out = get_bits(buf, start_bit, bit_len);
+    return true;
+}
+
 int64_t extract_signed(const unsigned char *buf, int start_bit, int bit_len) {
     uint64_t val = get_bits(buf, start_bit, bit_len);
     // Sign-extend if needed

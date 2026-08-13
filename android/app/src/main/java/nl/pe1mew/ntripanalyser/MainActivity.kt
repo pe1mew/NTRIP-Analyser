@@ -1125,6 +1125,18 @@ private fun SettingsDialog(
                     label = { Text(stringResource(R.string.field_user)) }, singleLine = true)
                 OutlinedTextField(password, { password = it },
                     label = { Text(stringResource(R.string.field_password)) }, singleLine = true)
+                // Said here rather than only in the documentation: the
+                // credential is stored encrypted but travels as NTRIP
+                // specifies, which is base64 over plain TCP. A user
+                // typing a password deserves to know that at the moment
+                // they type it (security review, F3).
+                if (user.isNotBlank()) {
+                    Text(
+                        stringResource(R.string.field_password_plain),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(gga, { gga = it })
                     Text(stringResource(R.string.field_gga))

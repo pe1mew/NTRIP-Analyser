@@ -19,11 +19,11 @@ frame that lies about its contents*.
 |---|---|---|---|
 | F1 | RTCM 1033 read past the payload and printed what it found | Medium | **fixed** + regression test |
 | F2 | Sourcetable accumulated without limit from an untrusted caster | Low–Medium | **fixed** |
-| F3 | Credentials cross the network in the clear; no TLS support | Medium | **accepted, documented** — feature gap |
-| F4 | `get_bits()` has no bounds checking; safety rests on callers | Low (latent) | open, recommendation |
-| F5 | `base64_encode()` takes no output capacity | Low (latent) | open, recommendation |
-| F6 | cJSON 1.7.18 is affected by CVE-2025-57052 (CVSS 9.8) | None as built | **not compiled** — see below |
-| F7 | Android release build has no minification; alpha crypto dependency | Low | decision |
+| F3 | Credentials cross the network in the clear; no TLS support | Medium | **mitigated** — disclosed in the app and on every session; TLS is a decision |
+| F4 | `get_bits()` has no bounds checking; safety rests on callers | Low (latent) | **mitigated** — `get_bits_checked()` added, hazard documented at the declaration |
+| F5 | `base64_encode()` took no output capacity | Low (latent) | **fixed** — `base64_encode_n()`, every caller moved |
+| F6 | cJSON 1.7.18 is affected by CVE-2025-57052 (CVSS 9.8) | None as built | **removed** — the vulnerable file is deleted from the vendored copy |
+| F7 | Alpha crypto dependency guarding credentials | Low | **fixed** — pinned to stable 1.0.0, migration verified on device |
 
 ---
 
@@ -77,7 +77,7 @@ exhausts memory — on a phone, until the app is killed.
 Capped at 4 MB, well above any real sourcetable (the largest public ones
 are a few hundred kilobytes), with a warning when it triggers.
 
-## F3 — Credentials cross the network in the clear *(accepted)*
+## F3 — Credentials cross the network in the clear *(mitigated; TLS is a decision)*
 
 NTRIP authenticates with HTTP Basic: `username:password`, **base64, not
 encrypted**, over a plain TCP connection. Anyone on the path — a hotel
@@ -93,15 +93,29 @@ credentials:
 - Supporting NTRIP over TLS would need a TLS library on all four
   frontends — significant work, and the largest security improvement
   available to this project.
-- Until then, say so plainly in the wiki: credentials are sent as the
-  NTRIP protocol specifies, and a caster reachable only over plain TCP
-  cannot protect them.
+
+**Mitigated now, in the two places a user can act on it.** The session
+layer prints once per run, when credentials are actually sent — never
+for an anonymous stream, which would only train people to ignore it:
+
+```
+[SECURITY] Credentials for rfsee.net are sent as HTTP Basic over a plain
+TCP connection: base64 is an encoding, not encryption, and anything on
+the network path can read them. This client does not support TLS.
+```
+
+And the Android settings screen says it under the password field, at the
+moment someone types one: stored encrypted on this phone, sent as NTRIP
+specifies.
+
+That is disclosure, not protection. **TLS remains the open decision** and
+the largest security improvement available to the project.
 
 Storage is not the weak point: the Android app holds credentials in
 `EncryptedSharedPreferences` keyed from the Keystore, and configuration
 files are documented as plain text (`docs/jsonConfigs.md`).
 
-## F4 — `get_bits()` is unchecked *(recommendation)*
+## F4 — `get_bits()` is unchecked *(mitigated)*
 
 ```c
 uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len);
@@ -115,20 +129,25 @@ The decoders are otherwise disciplined: 1019 guards 61 bytes and
 consumes exactly 488 bits; the MSM paths check `total_bits` before each
 field. But the invariant is unenforced and unenforceable by review alone.
 
-**Recommended**: a `get_bits_checked(buf, len, start, n, *out)` returning
-false past the end, used by new code, with the existing function kept
-for the hot MSM loops where the caller has already proven the bound.
+**Done**: `get_bits_checked(buf, buf_len, start, n, *out)` returns false
+rather than reading past the end. The unchecked function stays for the
+MSM loops, which have already proven their bounds, and its declaration
+now carries a warning naming F1 as what one forgotten check costs.
 
-## F5 — `base64_encode()` has no output bound *(recommendation)*
+## F5 — `base64_encode()` had no output bound *(fixed)*
 
 ```c
 void base64_encode(const char *input, char *output);
 ```
 
-Safe today only because `USERNAME` and `PASSWORD` are 128 bytes each, so
-the worst case is 257 input bytes → ~344 encoded into a 512-byte buffer.
-Enlarging either field silently makes this a stack overflow. Add a
-capacity parameter, or document the requirement at the declaration.
+Safe only because `USERNAME` and `PASSWORD` are 128 bytes each, so the
+worst case was 257 input bytes → ~344 encoded into a 512-byte buffer.
+Enlarging either field would silently have made it a stack overflow.
+
+Replaced by `base64_encode_n(input, output, out_cap)`, which refuses
+rather than truncates — a half-encoded credential authenticates as
+nothing and looks like a caster fault. All five call sites in the CLI,
+the GUI and the handler now pass `sizeof` the destination.
 
 ## F6 — cJSON: vulnerable version, unreachable code
 
@@ -137,14 +156,18 @@ by [CVE-2025-57052](https://github.com/advisories/GHSA-98j5-4649-rfv2)
 (CVSS 9.8) — an out-of-bounds access in
 `decode_array_index_from_pointer()` in **`cJSON_Utils.c`**.
 
-**Not exploitable as built**: every build compiles `lib/cJSON/cJSON.c`
-only — CMake, `build-gui.bat` and the Android NDK build alike — and
-nothing in this project references `cJSONUtils_*`. The vulnerable file
-ships in the repository but is never compiled into any artefact.
+**It was never exploitable here**: every build compiles
+`lib/cJSON/cJSON.c` only — CMake, `build-gui.bat` and the Android NDK
+build alike — and nothing in this project references `cJSONUtils_*`. The
+vulnerable file shipped in the repository without ever reaching an
+artefact.
 
-**Recommended**: update the vendored cJSON to a release carrying the
-fix, and delete the unused `cJSON_Utils.*` from the vendored tree so a
-future build cannot pick it up by accident.
+**Done**: `cJSON_Utils.c` and `cJSON_Utils.h` are deleted from the
+vendored copy, with `lib/cJSON/NTRIP-ANALYSER-NOTE.md` recording why —
+so no future build can compile them by accident, and a dependency
+scanner reading this tree does not report a vulnerability the artefacts
+never carried. Restoring JSON Pointer support means taking it from a
+fixed upstream release, not from these files.
 
 ## F7 — Android build and dependency posture
 
@@ -161,8 +184,12 @@ Two decisions rather than defects:
 - `isMinifyEnabled = false` in the release build type. Not a security
   control on its own, and the reflection kotlinx-serialization relies on
   needs ProGuard rules if it is turned on.
-- `androidx.security:security-crypto` is pinned at **1.1.0-alpha06**
-  while guarding user credentials. `1.0.0` is stable.
+- ~~`androidx.security:security-crypto` at **1.1.0-alpha06** while
+  guarding user credentials.~~ **Fixed**: pinned to **1.0.0**, the
+  stable release, which uses the older `MasterKeys` alias API. Both
+  create the same Keystore entry with the same schemes, so an existing
+  store stays readable — verified by installing over the alpha-written
+  one and finding both saved connections and their credentials intact.
 
 `ACCESS_FINE_LOCATION` needs a plain-language justification in the Play
 data-safety form: the free edition uses it **on-device only**, to turn

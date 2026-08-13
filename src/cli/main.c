@@ -777,7 +777,8 @@ static int run_sky_mode(NTRIP_Config *config,
         char auth[512];
         snprintf(auth, sizeof(auth), "%s:%s",
                  config->EPH_USERNAME, config->EPH_PASSWORD);
-        base64_encode(auth, config->EPH_AUTH_BASIC);
+        base64_encode_n(auth, config->EPH_AUTH_BASIC,
+                        sizeof(config->EPH_AUTH_BASIC));
     }
 
     /* SIGINT handler. */
@@ -1159,7 +1160,7 @@ int main(int argc, char *argv[]) {
 
     char auth[512];
     snprintf(auth, sizeof(auth), "%s:%s", config.USERNAME, config.PASSWORD);
-    base64_encode(auth, config.AUTH_BASIC);
+    base64_encode_n(auth, config.AUTH_BASIC, sizeof(config.AUTH_BASIC));
 
     // === --check-config: dry-run validation, then exit ===
     if (check_config_only) {

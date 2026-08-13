@@ -20,7 +20,7 @@ the privacy policy; 4 onwards are sequential.
 |---|---|---|---|
 | 1 | Telemetry decision | privacy policy, data-safety form | not started |
 | 2 | Licence study | store listings, wiki claims, RINEX auto-download | **done** → `docs/licences.md`, 7 actions |
-| 3 | Security assessment | any public release | **done** → `docs/security-review.md`, 2 fixed |
+| 3 | Security assessment | any public release | **done** → `docs/security-review.md`; 6 of 7 closed, TLS open |
 | 4 | Live GGA implementation | pro's launch scope | designed, not built |
 | 5 | Release plumbing | submission | not started |
 | 6 | Samsung S23 verification | submission | not started |
@@ -90,10 +90,19 @@ sourcetable accumulated without limit from an untrusted caster. Both are
 covered by `test/test_rtcm_hostile.c`, which fails against the pre-fix
 parser.
 
-The finding that needs a decision is **F3**: NTRIP sends credentials
-base64-encoded over plain TCP and this client has no TLS support, while
-Kadaster already offers a TLS caster on port 443. That is the largest
-security improvement available to the project, and it is a feature.
+Six of the seven findings are closed: two decoder defects fixed, the
+unbounded bit reader given a checked variant, base64 encoding given a
+capacity, the vulnerable-but-unused cJSON file deleted, and the alpha
+crypto dependency replaced with stable 1.0.0 (existing encrypted stores
+verified readable on the handset).
+
+**F3 remains a decision, not a defect.** NTRIP sends credentials
+base64-encoded over plain TCP and this client speaks no TLS, while
+Kadaster already offers a TLS caster on port 443. It is now disclosed
+where a user can act on it -- once per session in the log, and under the
+password field in the app -- but disclosure is not protection. Adding
+TLS is the largest security improvement available to the project and
+would touch all four frontends.
 
 Original scope:
 

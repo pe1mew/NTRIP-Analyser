@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import kotlinx.serialization.json.Json
 
 /**
@@ -34,13 +34,25 @@ object Settings {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
+    /*
+     * androidx.security-crypto is pinned at 1.0.0, the stable release.
+     * The profiles work first used 1.1.0-alpha06 and its MasterKey
+     * builder; shipping an alpha in a paid app to guard credentials is
+     * not a decision to inherit by accident (security review, F7).
+     *
+     * 1.0.0 offers the older MasterKeys alias API instead. Both create
+     * the same Keystore entry -- `_androidx_security_master_key_` -- with
+     * the same AES256-GCM spec and the same Tink schemes, so a store
+     * written by the alpha is readable here; verified on the test
+     * handset by installing over it and finding the saved connections
+     * intact.
+     */
+    @Suppress("DEPRECATION")
     private fun prefs(context: Context): SharedPreferences =
         runCatching {
-            val key = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
+            val alias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
             EncryptedSharedPreferences.create(
-                context, FILE, key,
+                FILE, alias, context,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             ) as SharedPreferences

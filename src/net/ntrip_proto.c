@@ -88,6 +88,15 @@ int ns_proto_build_request(char *out, size_t cap,
     const char *mp = mountpoint ? mountpoint : "";
     if (mp[0] == '/') mp++;          /* callers pass it both ways */
 
+    /* HTTP Basic is what NTRIP specifies, and base64 is an encoding, not
+     * encryption: on a plain TCP connection these credentials are
+     * readable by anything on the path.  This client speaks no TLS, so
+     * the honest thing is to say so once per session rather than let a
+     * user assume otherwise -- see docs/security-review.md F3.
+     *
+     * Only when credentials are actually sent: an anonymous stream has
+     * nothing to expose, and warning about it would train the user to
+     * ignore the warning that matters. */
     char auth_line[512] = "";
     if (user && *user) {
         char raw[256];
@@ -96,6 +105,17 @@ int ns_proto_build_request(char *out, size_t cap,
         if (b64_encode(raw, enc, sizeof(enc)) > 0)
             snprintf(auth_line, sizeof(auth_line),
                      "Authorization: Basic %s\r\n", enc);
+
+        static bool warned = false;
+        if (!warned) {
+            warned = true;
+            fprintf(stderr,
+                    "[SECURITY] Credentials for %s are sent as HTTP Basic "
+                    "over a plain TCP connection: base64 is an encoding, "
+                    "not encryption, and anything on the network path can "
+                    "read them. This client does not support TLS.\n",
+                    host ? host : "the caster");
+        }
     }
 
     int n = snprintf(out, cap,

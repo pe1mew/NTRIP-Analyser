@@ -120,12 +120,21 @@ typedef struct {
 /**
  * @brief Encode a string to Base64 for HTTP Basic Authentication.
  *
- * Encodes the input string (typically "username:password") to Base64 for use in HTTP Basic Authentication.
+ * Encodes the input (typically "username:password") for an
+ * `Authorization: Basic` header.
  *
- * @param input  Null-terminated input string.
- * @param output Output buffer for Base64 string (must be large enough).
+ * The capacity is not optional.  The previous signature took a bare
+ * pointer, so every call's safety rested on the caller having sized a
+ * buffer for a 4/3 expansion it could not see -- true today only
+ * because `USERNAME` and `PASSWORD` are 128 bytes each, and a stack
+ * overflow the day either grows (security review, F5).
+ *
+ * @param input   Null-terminated input string.
+ * @param output  Destination; emptied on failure, never truncated.
+ * @param out_cap Capacity of @p output including the terminator.
+ * @return true when the whole input was encoded.
  */
-void base64_encode(const char *input, char *output);
+bool base64_encode_n(const char *input, char *output, size_t out_cap);
 
 /**
  * @brief Receives the NTRIP mountpoint table (sourcetable) from the caster.

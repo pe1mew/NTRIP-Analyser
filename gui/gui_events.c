@@ -940,7 +940,8 @@ void GuiToConfig(AppState *state)
     char auth[512];
     snprintf(auth, sizeof(auth), "%s:%s",
              state->config.USERNAME, state->config.PASSWORD);
-    base64_encode(auth, state->config.AUTH_BASIC);
+    base64_encode_n(auth, state->config.AUTH_BASIC,
+                    sizeof(state->config.AUTH_BASIC));
 
     /* ── Ephemeris stream fields ─────────────────────────── */
     GetWindowText(state->hEditEphCaster, state->config.EPH_CASTER,
@@ -964,7 +965,8 @@ void GuiToConfig(AppState *state)
     /* Recompute EPH_AUTH_BASIC */
     snprintf(auth, sizeof(auth), "%s:%s",
              state->config.EPH_USERNAME, state->config.EPH_PASSWORD);
-    base64_encode(auth, state->config.EPH_AUTH_BASIC);
+    base64_encode_n(auth, state->config.EPH_AUTH_BASIC,
+                    sizeof(state->config.EPH_AUTH_BASIC));
 }
 
 /* Documented in gui_state.h -- the contract lives with the declaration.

@@ -384,12 +384,37 @@ void azel_from_ecef(double sta_x, double sta_y, double sta_z,
  *
  * Extracts a bitfield of length @p bit_len starting at @p start_bit from the buffer @p buf.
  *
+ * @warning **Unchecked.** It reads wherever it is told to, so the caller
+ * carries the whole bounds obligation -- over a payload that came from a
+ * caster nobody vouches for. One decoder that forgot cost an
+ * out-of-bounds read which printed adjacent memory as an antenna
+ * descriptor (security review, F1). Use it only where the bound has
+ * already been proven, as the MSM loops do; prefer
+ * @ref get_bits_checked in new code.
+ *
  * @param buf        Pointer to the buffer.
  * @param start_bit  Start bit index (0 = first bit of buf[0]).
  * @param bit_len    Number of bits to extract.
  * @return Extracted bits as an unsigned 64-bit integer.
  */
 uint64_t get_bits(const unsigned char *buf, int start_bit, int bit_len);
+
+/**
+ * @brief Extract bits, refusing to read past the end of the buffer.
+ *
+ * The same extraction as @ref get_bits with the bound enforced rather
+ * than assumed: a field that does not fit fails instead of returning
+ * whatever follows the payload in memory.
+ *
+ * @param buf       Buffer.
+ * @param buf_len   Its length in bytes -- the payload length.
+ * @param start_bit Start bit index.
+ * @param bit_len   Number of bits, 0..64.
+ * @param out       [out] The value; untouched when the read is refused.
+ * @return true when the field lies entirely inside the buffer.
+ */
+bool get_bits_checked(const unsigned char *buf, int buf_len,
+                      int start_bit, int bit_len, uint64_t *out);
 
 /**
  * @brief Calculate CRC-24Q for the given data.
