@@ -431,6 +431,26 @@ new parsing, no new plumbing.
 
 ---
 
+### 1.5 Sky-view labels can overwrite each other — **Open**
+
+An elevation ring label and a satellite's PRN label can land in the same place. Observed on a live
+run against `APEL00NLD0`: the `15°` ring label was drawn over `R17`, leaving it unreadable.
+
+This is the second half of a fix already half-made. Ring labels used to disappear *under* satellite
+markers, so they are now drawn last over a halo in the background colour — which makes the
+elevation axis readable and makes the ring label win any collision with a PRN label. Each is
+legible alone; together, whichever is drawn later wins.
+
+The fix is to place labels that collide rather than to reorder them: offset a ring label along its
+own circle, or move a PRN label to the other side of its marker, when their rectangles overlap.
+Applies to `SkyView` in `android/app/src/main/java/nl/pe1mew/ntripanalyser/Views.kt` and to
+`gui/gui_sky_window.c`, which draws the same furniture.
+
+Cosmetic, and it bites only where the sky is crowded — which is where someone is most likely to be
+reading one specific PRN.
+
+---
+
 ## 2. Tier 2 — High value, moderate effort
 
 ### 2.1 Session history ring buffer with time-series charts — **Shipped**, see §0
