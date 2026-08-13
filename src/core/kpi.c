@@ -39,6 +39,66 @@ const char *kpi_run_verdict_name(int v)
     }
 }
 
+/**
+ * @brief Message-type ranges that carry observations for a constellation.
+ *
+ * MSM exists for all seven; the legacy observation messages exist only
+ * for GPS and GLONASS, because there never were any others -- which is
+ * exactly why a station sending them cannot be asked for Galileo.
+ *
+ * @param gnss    Core 1-based GNSS id.
+ * @param lo, hi  MSM range, out.
+ * @param llo, lhi  Legacy range, out; 0 when the constellation has none.
+ */
+static void obs_ranges(int gnss, int *lo, int *hi, int *llo, int *lhi)
+{
+    *lo = *hi = *llo = *lhi = 0;
+    switch (gnss) {
+    case 1: *lo = 1071; *hi = 1077; *llo = 1001; *lhi = 1004; break;  /* GPS */
+    case 2: *lo = 1081; *hi = 1087; *llo = 1009; *lhi = 1012; break;  /* GLONASS */
+    case 3: *lo = 1091; *hi = 1097; break;                            /* Galileo */
+    case 4: *lo = 1111; *hi = 1117; break;                            /* QZSS */
+    case 5: *lo = 1121; *hi = 1127; break;                            /* BeiDou */
+    case 6: *lo = 1101; *hi = 1107; break;                            /* SBAS */
+    case 7: *lo = 1131; *hi = 1137; break;                            /* NavIC */
+    default: break;
+    }
+}
+
+/**
+ * @brief Is this constellation's observation stream present, and at rate?
+ *
+ * Counts legacy and MSM alike: what matters is that observations arrive
+ * often enough to position with, not which generation of message
+ * carries them.
+ *
+ * @param at_rate [out] true when something in range meets
+ *                @ref KPI_MSM_MAX_DT_S.
+ * @return true when any observation message for @p gnss was seen at all.
+ */
+static bool obs_present(const NsStatsSnapshot *s, int gnss, bool *at_rate)
+{
+    int lo, hi, llo, lhi;
+    obs_ranges(gnss, &lo, &hi, &llo, &lhi);
+    bool present = false;
+    if (at_rate) *at_rate = false;
+
+    for (int i = 0; i < s->n_types; i++) {
+        const NsTypeStats *t = &s->types[i];
+        int m = t->msg_type;
+        bool in_msm = (lo && m >= lo && m <= hi &&
+                       (m % 10) >= 4 && (m % 10) <= 7);
+        bool in_leg = (llo && m >= llo && m <= lhi);
+        if (!in_msm && !in_leg) continue;
+
+        present = true;
+        if (t->epochs < 3) continue;          /* one epoch has no rate yet */
+        if (t->avg_dt > 0.0 && t->avg_dt <= KPI_MSM_MAX_DT_S && at_rate)
+            *at_rate = true;
+    }
+    return present;
+}
+
 /** @brief Does types[] carry an MSM of @p gnss at KPI_MSM_MAX_DT_S or faster? */
 static bool msm_flowing(const NsStatsSnapshot *s, int lo, int hi, double *dt_out)
 {
@@ -134,42 +194,74 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         k[2].detail  = "No RTCM 1005/1006 within the 30 s allowance";
     }
 
-    /* ── 4: multi-GNSS MSM flowing ──────────────────────────────────── */
-    k[3].label = "Multi-GNSS observations";
-    double dt_gps = 0.0, dt_gal = 0.0;
-    bool gps = msm_flowing(s, 1070, 1079, &dt_gps);
-    bool gal = msm_flowing(s, 1090, 1099, &dt_gal);
-    k[3].value = (gps ? 1.0 : 0.0) + (gal ? 2.0 : 0.0);
-    if (gps && gal) {
+    /* ── 4: observations flowing ────────────────────────────────────
+     * Every constellation the station is streaming must stream at rate.
+     * Not "GPS and Galileo": the legacy messages cannot express Galileo
+     * at all, so demanding it failed an old station for something its
+     * format forbids (design/legacy-observations.md).
+     *
+     * Whether an *advertised* constellation is missing altogether stays
+     * KPI 8's question.  One fault should produce one failing verdict,
+     * not two. */
+    k[3].label = "Observations flowing";
+    int streaming = 0, at_rate_n = 0;
+    for (int g = 1; g <= 7; g++) {
+        bool at_rate = false;
+        if (!obs_present(s, g, &at_rate)) continue;
+        streaming++;
+        if (at_rate) at_rate_n++;
+    }
+    k[3].value = (double)at_rate_n;
+    if (streaming > 0 && at_rate_n == streaming) {
         k[3].verdict = KPI_PASS;
-        k[3].detail  = "GPS and Galileo MSM at 0.5 Hz or faster";
+        k[3].detail  = "Every constellation streaming at 0.5 Hz or faster";
     } else if (out->elapsed_s < 15.0) {
         k[3].verdict = KPI_PENDING;
-        k[3].detail  = "Waiting for MSM epochs to establish a rate";
-    } else if (gps || gal) {
+        k[3].detail  = "Waiting for epochs to establish a rate";
+    } else if (at_rate_n > 0) {
         k[3].verdict = KPI_WARN;
-        k[3].detail  = gps ? "GPS flowing, Galileo missing or slow"
-                           : "Galileo flowing, GPS missing or slow";
+        k[3].detail  = "Some constellations slower than 0.5 Hz";
     } else {
         k[3].verdict = KPI_FAIL;
-        k[3].detail  = "Neither GPS nor Galileo MSM at rate";
+        k[3].detail  = "No observations arriving at rate";
     }
 
-    /* ── 5: satellite count ─────────────────────────────────────────── */
+    /* ── 5: satellite count ─────────────────────────────────────────
+     * Against what this station said it would deliver, not against a
+     * flat number: a GPS+GLONASS station cannot reach 25 satellites
+     * whatever its health, and failing it for that is failing it for
+     * its age.
+     *
+     * The advertisement is the sourcetable's, as KPI 8 uses; failing
+     * that, the constellations actually streaming, so a caster whose
+     * sourcetable we could not read never costs the station a verdict. */
     k[4].label = "Satellites in view";
     k[4].value = (double)s->sats_total;
-    if (out->elapsed_s < 10.0 && s->sats_total == 0) {
-        k[4].verdict = KPI_PENDING;
-        k[4].detail  = "Counting";
-    } else if (s->sats_total >= KPI_MIN_SATS) {
-        k[4].verdict = KPI_PASS;
-        k[4].detail  = "At or above the 25-SV threshold";
-    } else if (s->sats_total >= KPI_MIN_SATS / 2) {
-        k[4].verdict = KPI_WARN;
-        k[4].detail  = "Below 25 SVs -- obstruction or partial tracking?";
-    } else {
-        k[4].verdict = KPI_FAIL;
-        k[4].detail  = "Fewer than half the expected satellites";
+    {
+        static const int expect[8] = KPI_EXPECT_SATS;
+        int want = 0;
+        for (int g = 1; g <= 7; g++) {
+            bool judged_advertised = (s->advertised_gnss != 0);
+            bool counted = judged_advertised
+                           ? ((s->advertised_gnss & (1u << g)) != 0)
+                           : obs_present(s, g, NULL);
+            if (counted) want += expect[g];
+        }
+        if (want <= 0) want = KPI_EXPECT_UNKNOWN;
+
+        if (out->elapsed_s < 10.0 && s->sats_total == 0) {
+            k[4].verdict = KPI_PENDING;
+            k[4].detail  = "Counting";
+        } else if (s->sats_total >= want) {
+            k[4].verdict = KPI_PASS;
+            k[4].detail  = "At or above what this station advertises";
+        } else if (s->sats_total >= want / 2) {
+            k[4].verdict = KPI_WARN;
+            k[4].detail  = "Below expectation -- obstruction or partial tracking?";
+        } else {
+            k[4].verdict = KPI_FAIL;
+            k[4].detail  = "Fewer than half the expected satellites";
+        }
     }
 
     /* ── 6: median C/N0 ─────────────────────────────────────────────── */
@@ -340,7 +432,6 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         out->overall = candidate;
 
     (void)any_pending;
-    (void)dt_gps; (void)dt_gal;
 }
 
 /* ── Watch mode ──────────────────────────────────────────────────────── */

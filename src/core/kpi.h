@@ -57,6 +57,26 @@ extern "C" {
 /** KPI 5: minimum satellites in view (warn below, fail at half). */
 #define KPI_MIN_SATS        25
 
+/**
+ * @brief Satellites a healthy station is expected to deliver, per
+ *        constellation, indexed by the core's 1-based GNSS id.
+ *
+ * Above a 10-degree mask at mid latitude, and deliberately modest: this
+ * decides a verdict, so it is the number a station should comfortably
+ * exceed rather than the best it could manage. Measured against our own
+ * runs -- Kadaster's APEL00NLD0 delivers 47 across five systems where
+ * this table expects 29, and Centipede's NEAR 40 across five where it
+ * expects 30.
+ *
+ * The point of a table rather than one number: a GPS+GLONASS station
+ * cannot reach a flat 25 whatever its health, and failing it for that
+ * is failing it for its age. See `design/legacy-observations.md`.
+ */
+#define KPI_EXPECT_SATS { 0, 8, 6, 6, 1, 8, 2, 2 }
+
+/** @brief Fallback when neither the sourcetable nor the stream says. */
+#define KPI_EXPECT_UNKNOWN  KPI_MIN_SATS
+
 /** KPI 6: minimum median C/N0, dB-Hz, all bands (design-review D4). */
 #define KPI_MIN_CNR_MEDIAN  40.0
 

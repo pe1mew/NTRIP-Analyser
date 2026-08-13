@@ -13,8 +13,8 @@ The minimum-viable set that answers *"does this station meet basic KPIs for RTK 
 | 1 | **Stream connected and producing** | Auth ok, TCP open, bytes/s > 100 sustained for 10 s |
 | 2 | **Format is RTCM 3.x** | First 0xD3 + valid length within 10 s |
 | 3 | **ARP broadcast** | 1005 or 1006 received within 30 s, coords non-zero |
-| 4 | **Multi-GNSS observations flowing** | MSM frames for at least GPS *and* Galileo at ≥ 0.5 Hz |
-| 5 | **SV count in expected range** | Total ≥ 25 SVs (typical mid-latitudes) |
+| 4 | **Observations flowing** | every constellation it streams, MSM or legacy, at ≥ 0.5 Hz |
+| 5 | **SV count in expected range** | at or above what its sourcetable advertises (`KPI_EXPECT_SATS`) |
 | 6 | **Median L1 CNR ≥ 40 dB-Hz** | Antenna + LNA chain healthy |
 | 7 | **No CRC error spike** | < 1 error in 1 000 frames over the 60 s window |
 

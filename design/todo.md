@@ -485,7 +485,7 @@ out on their merits, their DF401 phase range being 22 bits at a coarser scale.
 Found while widening C/N0 to MSM4/5/6 (§0). Same family of error: a limit of the reader documented
 as a property of the format.
 
-### 1.7 Legacy observation messages — **Open**, decided but not built
+### 1.7 Legacy observation messages — **Shipped**, see §0
 
 **Inspiration**: found while widening C/N0 to MSM4/5/6 (§0), by running the tool against a station
 it could not measure at all.

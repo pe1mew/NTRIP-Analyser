@@ -145,7 +145,9 @@ int msm_extract_prns(const unsigned char *payload, int payload_len,
  *
  * @param payload     RTCM payload (starting at the message-number bit).
  * @param payload_len Payload length in bytes.
- * @param msg_type    MSM message type (1071..1137).
+ * @param msg_type    An MSM (1071..1137), or a legacy observation
+ *                    message (1001-1004, 1009-1012), which carries
+ *                    its epoch at the same offset.
  * @param epoch_out   [out] 30-bit epoch field, comparable between frames
  *                    of the same type.
  * @return 1 on success, 0 if this is not an MSM frame or is too short.
@@ -188,6 +190,36 @@ int msm_extract_cnr(const unsigned char *payload, int payload_len,
                     int msg_type,
                     int *prns_out, float *cnr_out, int max_prns,
                     int *gnss_id_out);
+
+/**
+ * @brief Extract satellites and C/N0 from a legacy observation message.
+ *
+ * Types 1001-1004 (GPS) and 1009-1012 (GLONASS) -- what a station built
+ * before MSM still sends, and what several still send beside it. The
+ * even-numbered ones carry C/N0 in 8 bits at 0.25 dB-Hz; the odd ones
+ * carry none, and report their satellites with a C/N0 of zero.
+ *
+ * Legacy messages exist only for GPS and GLONASS. A station carrying
+ * any other constellation must use MSM, which is why judging one of
+ * these stations against a fixed "GPS and Galileo" rule fails it for
+ * something its format cannot express -- see
+ * `design/legacy-observations.md`.
+ *
+ * @param payload     RTCM payload (starting at the message-number bit).
+ * @param payload_len Payload length in bytes.
+ * @param msg_type    1001-1004 or 1009-1012; anything else returns 0.
+ * @param prns_out    Output satellite ids (GPS PRN, GLONASS slot).
+ * @param cnr_out     Output C/N0 in dB-Hz, parallel to @p prns_out;
+ *                    the strongest band per satellite, 0 when the
+ *                    message carries none.
+ * @param max_prns    Capacity of both arrays.
+ * @param gnss_id_out [out, optional] 1 for GPS, 2 for GLONASS.
+ * @return Number of satellites written, or 0 on error or a non-legacy type.
+ */
+int rtcm_legacy_extract(const unsigned char *payload, int payload_len,
+                        int msg_type,
+                        int *prns_out, float *cnr_out, int max_prns,
+                        int *gnss_id_out);
 
 /**
  * @brief Update the per-(GNSS, PRN, signal) CNR cache from an MSM frame.

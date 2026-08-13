@@ -472,7 +472,9 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                     bool new_epoch = stats_frame(s, msg_type, epoch,
                                                  has_epoch, now);
 
-                    /* Both ignore non-MSM types, so no classification here. */
+                    /* sv_track also reads the legacy observation
+                     * messages; iono ignores everything but MSM6/7.
+                     * Neither needs the caller to classify. */
                     sv_track_feed(&s->sv, s->frame + 3, payload_len,
                                   msg_type, now);
                     iono_feed(&s->iono, s->frame + 3, payload_len,

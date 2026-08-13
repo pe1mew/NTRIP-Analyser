@@ -23,11 +23,50 @@ void sv_track_reset(SvTrack *t)
     memset(t, 0, sizeof(*t));
 }
 
+/** @brief Fold one satellite's C/N0 into its running figures. */
+static void note_cnr(SvTrack *t, int gnss_id, int prn, float cnr_dbhz)
+{
+    if (cnr_dbhz <= 0.0f) return;
+    if (gnss_id < 1 || gnss_id >= SV_TRACK_MAX_GNSS) return;
+    if (prn < 1 || prn > SV_TRACK_MAX_PRN) return;
+
+    SvTrackSat *sat = &t->sat[gnss_id][prn - 1];
+    sat->cnr_dbhz = cnr_dbhz;
+    /* Accumulate in power, not decibels -- see the note on
+     * SvTrackSat::cnr_pow_sum. */
+    sat->cnr_pow_sum += pow(10.0, cnr_dbhz / 10.0);
+    sat->cnr_samples++;
+}
+
 int sv_track_feed(SvTrack *t, const unsigned char *payload, int payload_len,
                   int msg_type, double now)
 {
     if (!t || !payload) return 0;
-    if (msg_type < MSM_TYPE_MIN || msg_type > MSM_TYPE_MAX) return 0;
+
+    /* The legacy observation messages, which stations built before MSM
+     * still send and several send beside it.  Ignoring them did not
+     * merely lose their C/N0: it counted none of their satellites, so a
+     * working RTCM 3.1 station reported zero satellites in view and
+     * failed on arithmetic.  See design/legacy-observations.md. */
+    if (msg_type < MSM_TYPE_MIN || msg_type > MSM_TYPE_MAX) {
+        int   lprns[SV_TRACK_MAX_PRN];
+        float lcnr[SV_TRACK_MAX_PRN];
+        int   lgnss = 0;
+        int   ln = rtcm_legacy_extract(payload, payload_len, msg_type,
+                                       lprns, lcnr, SV_TRACK_MAX_PRN, &lgnss);
+        if (ln <= 0) return 0;
+        if (lgnss < 1 || lgnss >= SV_TRACK_MAX_GNSS) return 0;
+
+        for (int i = 0; i < ln; i++) {
+            int p = lprns[i];
+            if (p < 1 || p > SV_TRACK_MAX_PRN) continue;
+            /* Keyed by (constellation, PRN), so a station sending both
+             * legacy and MSM for the same satellite is counted once. */
+            t->sat[lgnss][p - 1].last_seen = now;
+            note_cnr(t, lgnss, p, lcnr[i]);
+        }
+        return ln;
+    }
 
     int prns[SV_TRACK_MAX_PRN];
     int gnss_id = 0;
@@ -55,18 +94,8 @@ int sv_track_feed(SvTrack *t, const unsigned char *payload, int payload_len,
                                    cnr_prns, cnr_vals, SV_TRACK_MAX_PRN,
                                    &cnr_gnss);
         if (cnr_gnss >= 1 && cnr_gnss < SV_TRACK_MAX_GNSS) {
-            for (int i = 0; i < cn; i++) {
-                int p = cnr_prns[i];
-                if (p < 1 || p > SV_TRACK_MAX_PRN) continue;
-                if (cnr_vals[i] > 0.0f) {
-                    SvTrackSat *sat = &t->sat[cnr_gnss][p - 1];
-                    sat->cnr_dbhz = cnr_vals[i];
-                    /* Accumulate in power, not decibels -- see the note
-                     * on SvTrackSat::cnr_pow_sum. */
-                    sat->cnr_pow_sum += pow(10.0, cnr_vals[i] / 10.0);
-                    sat->cnr_samples++;
-                }
-            }
+            for (int i = 0; i < cn; i++)
+                note_cnr(t, cnr_gnss, cnr_prns[i], cnr_vals[i]);
         }
     }
 

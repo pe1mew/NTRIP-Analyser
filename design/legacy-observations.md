@@ -1,7 +1,15 @@
 # Legacy observation messages — design note
 
-**Status:** decided, not built. Backlog item `design/todo.md` §1.7.
+**Status:** **built**, 13 August 2026. Backlog item `design/todo.md` §1.7.
 **Decision taken:** 13 August 2026.
+
+*What follows is the note as written before implementation, kept as the
+record of why. What was built matches it, with two things settled that
+were open questions here: KPI 4 is renamed **"Observations flowing"**,
+and the expected-satellite table went in as
+`KPI_EXPECT_SATS` — GPS 8, GLONASS 6, Galileo 6, QZSS 1, BeiDou 8,
+SBAS 2, NavIC 2 — checked against live stations before it was allowed to
+decide anything.*
 
 ## The problem, measured
 

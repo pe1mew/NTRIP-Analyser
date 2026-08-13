@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — an old station is measured, not failed
+
+A station streaming the legacy 1002/1004/1010/1012 was reported
+**FAILED**. Not because anything was wrong with it: `sv_track_feed()`
+accepted only MSM message types, so **not one of its satellites was ever
+counted**, and three of the eight verdicts described this tool's
+coverage rather than the station. Kadaster's `APEL0` — a working RTCM
+3.1 reference station at 1 Hz — failed in fifteen seconds.
+
+It now reads **STATION OK**, eight of eight, 23 satellites, median C/N0
+46.40 dB-Hz.
+
+**The judgement changed with the decoding, and had to.** Legacy messages
+exist only for GPS and GLONASS; there is no legacy Galileo. KPI 4 asked
+for *"GPS and Galileo MSM at 0.5 Hz"*, so decoding the messages without
+touching it would only have moved the false verdict from KPI 5 to
+KPI 4 — failing a station for something its format forbids.
+
+- **KPI 4 is now "Observations flowing"**: every constellation the
+  station streams must stream at rate, counted across legacy and MSM
+  alike. Whether an *advertised* constellation is missing stays KPI 8's
+  question, so one fault still produces one failing verdict.
+- **KPI 5 judges against the advertisement**, not a flat 25 satellites,
+  which a GPS+GLONASS station cannot reach whatever its health. The
+  expectation is now per constellation (`KPI_EXPECT_SATS`), summed over
+  what the sourcetable advertises, falling back to what is actually
+  streaming when no sourcetable could be read — so a caster we cannot
+  interrogate never costs a station its verdict.
+
+**The layout was measured, not assumed.** `rtk2go.com/Mirmenhof` sends
+1004 and 1012 beside a full MSM6 set, which makes it its own reference:
+the satellite lists match exactly — 10 of 10 GPS, 8 of 8 GLONASS, no
+extras either way — and every legacy L1 C/N0 lands within the 0.25 dB-Hz
+quantisation of the same satellite's L1 in MSM6. The frame lengths agree
+too (64 + n×125 bits for 1004, 61 + n×130 for 1012, on every frame of a
+64-second capture), which is what settled two details this repository's
+own 1012 *printer* has had wrong since it was written: a 6-bit satellite
+count, and no frequency channel number.
+
+Counting is by (constellation, PRN), so a station sending both
+generations is counted once: `NEAR` reads 43 satellites, not 86, and
+Centipede's legacy and MSM7 satellite lists match to the satellite.
+
+`test/test_legacy_obs.c` pins the layout by construction — synthetic
+1002/1003/1004/1010/1012 frames whose values no other reading could
+produce, verified to fail when a record size is deliberately broken.
+
 ### Fixed — the ionospheric monitor sees MSM6 stations
 
 `iono_feed()` accepted only MSM7, and `iono.h` explained why: *"MSM4/5/6

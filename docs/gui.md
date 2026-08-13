@@ -578,8 +578,8 @@ ninety seconds and reports eight KPIs:
 | 1 | Connected and producing | nothing is arriving |
 | 2 | RTCM 3.x format | no CRC-valid RTCM 3 frames decode |
 | 3 | Reference position (ARP) | no 1005/1006, or zero coordinates |
-| 4 | Multi-GNSS observations | fewer than two constellations at 0.5 Hz |
-| 5 | Satellites in view | below the 25-SV threshold *(soft)* |
+| 4 | Observations flowing | a constellation it streams arriving slower than 0.5 Hz |
+| 5 | Satellites in view | below what its sourcetable advertises *(soft)* |
 | 6 | Median C/N0 | below 40 dB-Hz *(soft)* |
 | 7 | Frame integrity (CRC) | more than 1 error per 1000 frames |
 | 8 | Advertised versus actual | advertised message types never arrive |

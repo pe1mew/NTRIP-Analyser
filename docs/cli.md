@@ -206,8 +206,8 @@ ntrip-analyser --check
 1 Connected and producing    PASS   1695.40  Authenticated, connected, data flowing
 2 RTCM 3.x format            PASS    543.00  CRC-valid RTCM 3.x frames decoded
 3 Reference position (ARP)   PASS      1.00  1005/1006 received with non-zero coordinates
-4 Multi-GNSS observations    PASS      3.00  GPS and Galileo MSM at 0.5 Hz or faster
-5 Satellites in view         PASS     40.00  At or above the 25-SV threshold
+4 Observations flowing       PASS      5.00  Every constellation streaming at 0.5 Hz or faster
+5 Satellites in view         PASS     46.00  At or above what this station advertises
 6 Median C/N0                PASS     45.02  Antenna and LNA chain healthy
 7 Frame integrity (CRC)      PASS      0.00  Fewer than 1 error per 1000 frames
 8 Advertised versus actual   WARN      1.00  Streaming a constellation the sourcetable omits

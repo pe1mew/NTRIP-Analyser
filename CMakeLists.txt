@@ -147,9 +147,15 @@ add_executable(test_msm_cnr test/test_msm_cnr.c)
 target_link_libraries(test_msm_cnr PRIVATE ntrip_core)
 add_test(NAME msm_cnr COMMAND test_msm_cnr)
 
+# Same reasoning as the MSM layout above: a wrong offset in a
+# fixed-layout message returns plausible satellites, not an error.
+add_executable(test_legacy_obs test/test_legacy_obs.c)
+target_link_libraries(test_legacy_obs PRIVATE ntrip_core)
+add_test(NAME legacy_obs COMMAND test_legacy_obs)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr)
+    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)
