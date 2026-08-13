@@ -1,0 +1,38 @@
+{
+    "output_dir": "/var/lib/ntrip-monitor",
+    "interval_s": 10,
+    "mountpoints": [
+        {
+            "name": "Centipede NEAR (open, anonymous, wants GGA)",
+            "caster": "caster.centipede.fr",
+            "port": 2101,
+            "mountpoint": "NEAR",
+            "username": "",
+            "password": "",
+            "send_gga": true,
+            "latitude": 52.230481,
+            "longitude": 5.942016,
+            "eph_caster": "ntrip.kadaster.nl",
+            "eph_port": 2101,
+            "eph_mountpoint": "BCEP00KAD0",
+            "eph_username": "",
+            "eph_password": ""
+        },
+        {
+            "name": "Centipede NEAR4 (the same, second variant)",
+            "caster": "caster.centipede.fr",
+            "port": 2101,
+            "mountpoint": "NEAR4",
+            "username": "",
+            "password": "",
+            "send_gga": true,
+            "latitude": 52.230481,
+            "longitude": 5.942016,
+            "eph_caster": "",
+            "eph_port": 2101,
+            "eph_mountpoint": "",
+            "eph_username": "",
+            "eph_password": ""
+        }
+    ]
+}

@@ -66,6 +66,17 @@
 **Root cause**: Once settings became derived from a profile store, the message still read the value captured before the store updated.
 **Fix**: Name what was just loaded, from the new value.
 
+### A network mountpoint could not be checked at all (2026-08-13) [RESOLVED]
+**Problem**: `--check` on `caster.centipede.fr/NEAR` reported "connected but no data arriving" and FAILED, while `curl` with an `Ntrip-GGA` header streamed 15 kB in ten seconds.
+**Root cause**: `--check` set `opt.send_gga = false` and only `--check-vrs` drove the uplink, so a service that answers nothing until it knows where the rover is was never told.
+**Fix**: The mountpoint decides, from the sourcetable NMEA flag the check already parses for KPI 8. The GUI was never affected — it uplinks by default — and Android follows the same flag.
+
+### A mountpoint 816 entries into a sourcetable did not exist (2026-08-13) [RESOLVED]
+**Problem**: On Android, KPI 8 said "no sourcetable entry to compare against" for a mountpoint that plainly existed, and the run never settled.
+**Root cause**: The bridge parsed a fixed 512 entries; Centipede publishes 1217 and lists `NEAR` at 816. The CLI had always counted first and allocated to fit.
+**Fix**: Count, allocate, parse — and log what the fetch did, because the C side's stderr goes nowhere on Android and "cannot judge" with no way to ask why is not a diagnosis.
+**Lesson**: A fixed cap on data from a third party is a silent truncation waiting for a bigger third party. Count first.
+
 ### Heredocs corrupt C string literals (2026-08-12)
 **Problem**: `\n` inside a heredoc-fed script arrives as a real newline, producing C source that no longer compiles.
 **Fix**: Use file-editing tools for anything containing escapes, or write the script to a file first.

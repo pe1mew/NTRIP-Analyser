@@ -470,6 +470,8 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     /* GGA is driven below rather than by the session timer, so the
      * assertion engine knows exactly when each one went out. */
     opt.send_gga         = false;
+    /* Set from the mountpoint's own sourcetable entry, below. */
+    bool wants_gga       = false;
     /* A drop is a finding here, not a nuisance to paper over. */
     opt.auto_reconnect   = false;
 
@@ -503,6 +505,18 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
                         fprintf(stderr, "[CHECK] %s advertises %d message types\n",
                                 config->MOUNTPOINT, nt);
                     }
+                    /* Whether to uplink a GGA is a property of the
+                     * mountpoint, not of the run: the STR record's NMEA
+                     * flag says the caster expects one, and a network
+                     * service that receives none sends nothing back.
+                     * Without this, --check on a VRS mountpoint reported
+                     * a healthy service as FAILED -- "connected but no
+                     * data arriving" -- which is a measurement artefact
+                     * dressed as a station fault.  Verified against
+                     * caster.centipede.fr/NEAR, which streams within a
+                     * second of the first sentence and not at all
+                     * before it. */
+                    wants_gga = e[i].nmea;
                     break;
                 }
                 free(e);
@@ -529,6 +543,11 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
             vrs_mode ? "Network-RTK" : "Station",
             config->NTRIP_CASTER, config->NTRIP_PORT, config->MOUNTPOINT);
 
+    if (wants_gga && !vrs_mode)
+        fprintf(stderr, "[CHECK] %s asks for a GGA uplink; reporting "
+                        "%.6f, %.6f\n",
+                config->MOUNTPOINT, config->LATITUDE, config->LONGITUDE);
+
     for (;;) {
         bool alive = ns_pump(sess, 200) >= 0;
         double el = (double)(time(NULL) - t0);
@@ -538,6 +557,12 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
             if (ns_send_gga(sess, config->LATITUDE, config->LONGITUDE))
                 vrs_note_gga(&vrun, snap, el,
                              config->LATITUDE, config->LONGITUDE);
+            last_gga = el;
+        } else if (!vrs_mode && wants_gga && el - last_gga >= 10.0) {
+            /* No bookkeeping here: the network-RTK assertions above
+             * need to know when each sentence went out, a plain station
+             * check only needs the stream to flow. */
+            ns_send_gga(sess, config->LATITUDE, config->LONGITUDE);
             last_gga = el;
         }
 

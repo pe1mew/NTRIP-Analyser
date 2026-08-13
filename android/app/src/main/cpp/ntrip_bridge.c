@@ -20,6 +20,18 @@
 #include "net/ntrip_handler.h"   /* receive_mount_table */
 #include "core/version.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+/* The C side prints to stderr, which on Android goes nowhere. KPI 8
+ * depends entirely on this fetch, and when it fails the app can only
+ * say "no sourcetable entry" -- true, and no help at all in finding
+ * out why. These few lines are the difference between a diagnosis and
+ * a guess. */
+#define BLOG(...) __android_log_print(ANDROID_LOG_INFO, "ntrip_bridge", __VA_ARGS__)
+#else
+#define BLOG(...) ((void)0)
+#endif
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +40,41 @@
 #include <math.h>
 
 /** @brief How many sourcetable records to carry across the bridge. */
-#define BRIDGE_MAX_ENTRIES 512
+/*
+ * A defensive ceiling, not an expected size: the table is counted first
+ * and allocated to fit. 512 was neither -- caster.centipede.fr publishes
+ * 1217 mountpoints and lists NEAR at 816, so the entry was never found,
+ * KPI 8 could not judge, and the run sat PENDING for ever with no
+ * verdict. A cap that silently drops the mountpoint you asked for is
+ * worse than no cap at all.
+ *
+ * receive_mount_table() bounds the download at 4 MB; this bounds what
+ * that can turn into in memory (~800 bytes an entry).
+ */
+#define BRIDGE_MAX_ENTRIES 4096
+
+/**
+ * @brief Parse a sourcetable into a right-sized array.
+ *
+ * @param raw    The table as received.
+ * @param count  Out: entries parsed.
+ * @return Allocated array the caller frees, or NULL.
+ */
+static SourcetableEntry *bridge_parse_table(const char *raw, int *count)
+{
+    *count = 0;
+    if (!raw) return NULL;
+
+    int n = sourcetable_parse(raw, NULL, 0);      /* count first */
+    if (n <= 0) return NULL;
+    if (n > BRIDGE_MAX_ENTRIES) n = BRIDGE_MAX_ENTRIES;
+
+    SourcetableEntry *e = (SourcetableEntry *)calloc((size_t)n, sizeof(*e));
+    if (!e) return NULL;
+
+    *count = sourcetable_parse(raw, e, n);
+    return e;
+}
 
 static void bridge_on_event(const NsEvent *ev, void *user);
 static void bridge_eph_event(const NsEvent *ev, void *user);
@@ -266,11 +312,16 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
      * reports "cannot judge" rather than a false pass. */
     char *table = receive_mount_table(&opt.config,
                                       NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
+    if (!table) {
+        BLOG("sourcetable fetch failed for %s:%d; KPI 8 cannot judge",
+             opt.config.NTRIP_CASTER, opt.config.NTRIP_PORT);
+    }
     if (table) {
-        SourcetableEntry *e = (SourcetableEntry *)
-            calloc(BRIDGE_MAX_ENTRIES, sizeof(SourcetableEntry));
+        int n = 0;
+        SourcetableEntry *e = bridge_parse_table(table, &n);
+        BLOG("sourcetable: %zu bytes, %d entries parsed", strlen(table), n);
+        bool found = false;
         if (e) {
-            int n = sourcetable_parse(table, e, BRIDGE_MAX_ENTRIES);
             for (int i = 0; i < n; i++) {
                 if (strcmp(e[i].mountpoint, opt.config.MOUNTPOINT) != 0) continue;
                 SourcetableType t[NS_MAX_TYPES];
@@ -279,10 +330,16 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                 if (nt > 0) ns_set_advertised(b->sess, t, nt);
                 ns_set_advertised_gnss(b->sess,
                     sourcetable_navsys_mask(e[i].nav_systems));
+                found = true;
+                BLOG("%s found in the sourcetable: %d advertised types",
+                     opt.config.MOUNTPOINT, nt);
                 break;
             }
             free(e);
         }
+        if (!found)
+            BLOG("%s is not in the %d entries parsed; KPI 8 cannot judge",
+                 opt.config.MOUNTPOINT, n);
         free(table);
     }
 
@@ -534,12 +591,10 @@ int bridge_sourcetable_json(const char *caster, int port,
     char *raw = receive_mount_table(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
     if (!raw) return -1;
 
-    SourcetableEntry *e = (SourcetableEntry *)
-        calloc(BRIDGE_MAX_ENTRIES, sizeof(SourcetableEntry));
-    if (!e) { free(raw); return -1; }
-
-    int n = sourcetable_parse(raw, e, BRIDGE_MAX_ENTRIES);
+    int n = 0;
+    SourcetableEntry *e = bridge_parse_table(raw, &n);
     free(raw);
+    if (!e) return -1;
 
     int pos = 0;
     app(out, cap, &pos, "{\"entries\":[");

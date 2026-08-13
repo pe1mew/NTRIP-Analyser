@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.cos
 import kotlin.math.log10
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -368,8 +369,81 @@ fun SignalBars(
 
 // ── 3. C/N0 versus elevation ─────────────────────────────────────────
 
-/** One accumulated sample: the antenna diagnostic's raw material. */
-data class ElevationSample(val gnss: Int, val elevationDeg: Float, val cn0: Float)
+/**
+ * The elevation scatter, accumulated into the plot rather than into a
+ * list of samples.
+ *
+ * A sample is only ever drawn: once its position is known, the sample
+ * itself carries no further information, so it is counted into the cell
+ * it lands in and forgotten. That is what makes the memory bounded --
+ * one counter per (constellation, degree of elevation, half-decibel) --
+ * where the list it replaces held every sample and, past a cap, began
+ * discarding the oldest.
+ *
+ * The cap was 20 000, which sounds generous and is about eight minutes:
+ * roughly forty satellites arrive every second. A watch run of several
+ * hours therefore plotted its last eight minutes and quietly dropped
+ * the rest, and paid for it -- every new sample shifted a 20 000-element
+ * list and recomposed the plot. Neither is visible on screen, which is
+ * the worst property a measurement can have.
+ *
+ * Nothing is lost now: an eight-hour run and a two-minute one both keep
+ * every sample they took, in the same 250 kB.
+ */
+class ElevationAccumulator {
+
+    /** Cell counts, indexed [gnss][elevation degree][half-decibel]. */
+    private val cells = IntArray(GNSS_SLOTS * EL_BINS * CN0_BINS)
+
+    /** Samples counted, which is now the true total for the session. */
+    var total: Long = 0L
+        private set
+
+    private val seen = HashSet<Int>()
+
+    /** Constellations that have contributed, for the legend. */
+    val constellations: List<Int> get() = seen.sorted()
+
+    fun add(gnss: Int, elevationDeg: Float, cn0: Float) {
+        if (gnss !in 1 until GNSS_SLOTS) return
+        val el = elevationDeg.toInt().coerceIn(0, EL_BINS - 1)
+        val cn = (cn0 * 2f).toInt().coerceIn(0, CN0_BINS - 1)
+        cells[(gnss * EL_BINS + el) * CN0_BINS + cn]++
+        total++
+        seen.add(gnss)
+    }
+
+    fun clear() {
+        cells.fill(0)
+        total = 0L
+        seen.clear()
+    }
+
+    /** Visit every occupied cell: constellation, elevation, C/N0, count. */
+    inline fun forEachCell(action: (Int, Float, Float, Int) -> Unit) {
+        for (g in 1 until GNSS_SLOTS) {
+            for (el in 0 until EL_BINS) {
+                for (cn in 0 until CN0_BINS) {
+                    val n = countAt(g, el, cn)
+                    if (n > 0) action(g, el.toFloat(), cn / 2f, n)
+                }
+            }
+        }
+    }
+
+    /** For [forEachCell], which cannot see a private array from inline. */
+    fun countAt(gnss: Int, el: Int, cn: Int): Int =
+        cells[(gnss * EL_BINS + el) * CN0_BINS + cn]
+
+    companion object {
+        /** 0..7, so a constellation id indexes directly. */
+        const val GNSS_SLOTS = 8
+        /** One bin per degree, 0..90. */
+        const val EL_BINS = 91
+        /** Half a decibel per bin, 0..70 dB-Hz -- finer than the plot. */
+        const val CN0_BINS = 140
+    }
+}
 
 /**
  * C/N0 against elevation for the whole session.
@@ -379,13 +453,17 @@ data class ElevationSample(val gnss: Int, val elevationDeg: Float, val cn0: Floa
  * its siting or an obstruction — not the receiver.
  */
 @Composable
-fun ElevationView(samples: List<ElevationSample>, modifier: Modifier = Modifier) {
+fun ElevationView(
+    samples: ElevationAccumulator,
+    revision: Int,
+    modifier: Modifier = Modifier,
+) {
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
     val density = LocalDensity.current
 
     Column(modifier.fillMaxSize()) {
         Text(
-            stringResource(R.string.elev_header, samples.size),
+            stringResource(R.string.elev_header, samples.total),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
@@ -432,11 +510,23 @@ fun ElevationView(samples: List<ElevationSample>, modifier: Modifier = Modifier)
                     "$el", x, size.height + 12f * density.density, axis)
             }
 
+            // Read once so the Canvas re-runs when the accumulator has
+            // changed: the object itself is not observable, and drawing
+            // from a mutable object nothing subscribes to is how a plot
+            // silently stops updating.
+            @Suppress("UNUSED_EXPRESSION") revision
+
+            // Density rather than a heap of identical dots: a cell hit a
+            // thousand times and one hit once looked the same before,
+            // which flattered a stream that spends its life at one
+            // elevation. Opacity is logarithmic, so a busy cell reads as
+            // solid without a quiet one disappearing.
             val r = max(1.2f, 1.6f * density.density)
-            samples.forEach { s ->
+            samples.forEachCell { gnss, el, cn0, count ->
+                val weight = (ln(count.toFloat() + 1f) / ln(64f)).coerceIn(0.15f, 1f)
                 drawCircle(
-                    Gnss.colour(s.gnss).copy(alpha = 0.45f), r,
-                    Offset(xFor(s.elevationDeg), yFor(s.cn0.coerceIn(lo, hi))),
+                    Gnss.colour(gnss).copy(alpha = 0.25f + 0.55f * weight), r,
+                    Offset(xFor(el), yFor(cn0.coerceIn(lo, hi))),
                 )
             }
         }
@@ -449,7 +539,7 @@ fun ElevationView(samples: List<ElevationSample>, modifier: Modifier = Modifier)
         )
 
         ConstellationLegend(
-            samples.map { it.gnss }.distinct().sorted(),
+            samples.constellations,
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
     }

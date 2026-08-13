@@ -6,6 +6,70 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — a network mountpoint could not be checked at all
+
+Testing the new GGA uplink against a real network service found three
+separate faults, each of which turned a working station into a verdict
+the tool could not deliver. `caster.centipede.fr` is the caster they
+were all found on: open, anonymous, and the only public one we know of
+that publishes NMEA mountpoints (`bin/centipede.json`).
+
+**`--check` never sent a GGA.** Only `--check-vrs` did, so a plain
+station check on a network mountpoint sat at "connected but no data
+arriving" and reported FAILED — a measurement artefact dressed as a
+station fault. Whether to uplink is a property of the mountpoint, which
+the sourcetable's NMEA flag states and the check already reads for
+KPI 8. It now says so as it starts:
+
+    [CHECK] NEAR asks for a GGA uplink; reporting 52.230481, 5.942016
+
+and the station passes: STATION OK, eight of eight, held for 60 s.
+
+**The Android bridge parsed the first 512 sourcetable entries.**
+Centipede publishes 1217 and lists `NEAR` at 816, so the entry was never
+found, KPI 8 could only answer "no sourcetable entry to compare
+against", and — because a run settles only when nothing is pending — the
+check ran on for ever with no verdict. The table is now counted and
+allocated to fit, as the CLI has always done: 1213 entries parsed, the
+mountpoint found, 16 advertised types compared. The mountpoint browser
+was truncated at the same 512, so a pro user could not have picked
+`NEAR` either.
+
+**A KPI that cannot be judged no longer stalls the run.** After the same
+30-second allowance the rest of KPI 8 gets, an unjudgeable comparison
+settles as a **caution** rather than staying pending: one of the eight
+claims could not be checked, so the station is not certified OK, and the
+operator is told which check was missing instead of watching a run that
+never ends. Measured on a replayed capture with the mountpoint absent
+from the table: CAUTION at 90 s, seven passes and KPI 8 warning, where
+the same run previously never finished.
+
+The Android bridge now also reports what its sourcetable fetch did
+(`logcat -s ntrip_bridge`) — bytes, entries parsed, and whether the
+mountpoint was among them. The C side prints to stderr, which on Android
+goes nowhere, and "cannot judge" with no way to ask why is not a
+diagnosis.
+
+### Changed — the analysis views swipe, and the elevation plot stops forgetting
+
+**Swipe navigation.** The station screen and the three analysis views
+are one sequence: swipe left to go in, right to come back, and left or
+right to move between the views. The buttons and the tab row are
+unchanged — this is another way in, not a replacement, and nothing is
+reachable only by gesture. Swiping does nothing when there is nothing to
+analyse yet, which is the condition that already disabled the button.
+
+**The C/N0-versus-elevation plot accumulates into the plot, not into a
+list.** It kept every sample and, past 20 000, began discarding the
+oldest — about eight minutes at forty satellites a second, so a watch
+run of several hours plotted its last eight minutes and dropped the
+rest, while shifting a 20 000-element list on every new sample. Samples
+are now counted into the cell they land in and forgotten, which is all a
+scatter ever needed: an eight-hour run and a two-minute one both keep
+everything they measured, in the same 250 kB. Cells are drawn by
+density, so a cell hit a thousand times no longer looks like one hit
+once.
+
 ### Added — the Android app is ready to be released
 
 Everything a Play upload needs, and nothing that changes what the app

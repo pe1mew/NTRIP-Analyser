@@ -146,7 +146,10 @@ JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
     const char *c_pass   = str_in(env, password);
 
     /* A national caster's table runs to tens of kilobytes. */
-    const size_t cap = 262144;
+    /* A 1200-mountpoint caster serialises to roughly 150 kB, and the
+     * builder refuses rather than truncates, which the app reports as
+     * an unreachable caster. Transient, freed below. */
+    const size_t cap = 1048576;
     char *buf = (char *)malloc(cap);
     jstring outv = NULL;
 

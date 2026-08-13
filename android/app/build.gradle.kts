@@ -100,10 +100,14 @@ android {
     // cannot be unlocked by flipping a boolean.
     flavorDimensions += "edition"
     productFlavors {
+        // Neither edition suffixes its version name: both report the
+        // plain version from version.h, which is the one that identifies
+        // the source they were built from. The applicationId and the app
+        // name -- which the About box titles itself with -- already say
+        // which edition is running.
         create("free") {
             dimension = "edition"
             applicationIdSuffix = ".free"
-            versionNameSuffix = "-free"
         }
         create("pro") {
             dimension = "edition"

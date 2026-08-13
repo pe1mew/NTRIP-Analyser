@@ -216,8 +216,19 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     if (!s->advertised_known) {
         /* No sourcetable entry: the promise is unknown, so nothing can
          * be judged.  Deliberately not a pass -- "we could not check"
-         * and "we checked and it was fine" are different statements. */
-        k[7].verdict = KPI_PENDING;
+         * and "we checked and it was fine" are different statements.
+         *
+         * But it must not stay PENDING for ever either: a run settles
+         * only when nothing is pending, so a caster that publishes no
+         * usable entry for this mountpoint left the check running with
+         * no verdict and no timeout -- observed against a caster whose
+         * table was larger than the client parsed.  After the same
+         * allowance the other half of this KPI gets, it settles as a
+         * caution: one of the eight claims could not be checked, so the
+         * station is not certified OK, and the operator is told which
+         * check was missing rather than watching a run that never
+         * ends. */
+        k[7].verdict = out->elapsed_s < 30.0 ? KPI_PENDING : KPI_WARN;
         k[7].detail  = "No sourcetable entry to compare against";
     } else if (out->elapsed_s < 30.0) {
         /* The session applies a per-type grace proportional to each

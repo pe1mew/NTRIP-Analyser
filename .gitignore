@@ -12,6 +12,7 @@
 bin/*
 !bin/readme.md
 !bin/exampleConfig.json
+!bin/centipede.json
 
 # Build artifacts
 __pycache__/

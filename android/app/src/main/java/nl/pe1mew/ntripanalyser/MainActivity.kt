@@ -10,9 +10,14 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +26,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -339,7 +349,13 @@ fun MainScreen() {
     // The elevation scatter accumulates over the session. Elevation comes
     // from the phone and C/N0 from the stream, so the join -- and so the
     // accumulation -- can only happen here.
-    val elevSamples = remember { mutableStateListOf<ElevationSample>() }
+    //
+    // Counted into the plot's own cells rather than kept as samples: see
+    // ElevationAccumulator. `elevRevision` is what the view observes,
+    // because the accumulator is a plain object and Compose cannot see
+    // inside it.
+    val elevSamples = remember { ElevationAccumulator() }
+    var elevRevision by remember { mutableStateOf(0) }
 
     // Keyed on the document and gated on the run, not keyed on
     // `plotted`: keying on `plotted` re-fired every time the phone's
@@ -348,18 +364,35 @@ fun MainScreen() {
     // measuring.
     LaunchedEffect(liveDoc, runState.running) {
         if (!runState.running) return@LaunchedEffect
+        var added = false
         plotted.forEach { p ->
             if (p.cn0 > 0f) {
-                elevSamples.add(ElevationSample(p.gnss, p.elevationDeg, p.cn0))
+                elevSamples.add(p.gnss, p.elevationDeg, p.cn0)
+                added = true
             }
         }
-        // A long analysis would grow this without bound.
-        while (elevSamples.size > 20000) elevSamples.removeAt(0)
+        if (added) elevRevision++
     }
 
     // The system back key belongs to the app while a screen is open:
     // minimising from Analysis loses the user's place for no reason.
     BackHandler(enabled = screen != Screen.STATION) { screen = Screen.STATION }
+
+    /*
+     * Swiping between the screens, in both directions.
+     *
+     * The two screens are one sequence to the user -- the station, then
+     * the three views of it -- so the phone's own idiom applies: swipe
+     * left to go deeper, right to come back. The buttons and the tab row
+     * stay exactly as they were; this is another way in, not a
+     * replacement, and nothing is reachable only by gesture.
+     *
+     * The same threshold governs every edge, so the gesture feels the
+     * same wherever it is made.
+     */
+    val swipePx = with(LocalDensity.current) { 96.dp.toPx() }
+    val analysisReachable = runState.running ||
+        (liveDoc != null && liveDoc.sats.isNotEmpty())
 
     if (screen == Screen.ANALYSIS) {
         val footer = liveDoc?.stats?.let { st ->
@@ -370,6 +403,45 @@ fun MainScreen() {
                 }
             }
         }.orEmpty()
+
+        // One page per view, so a swipe moves between them with the
+        // content following the finger rather than cutting.
+        val pagerState = rememberPagerState(initialPage = tab.ordinal) {
+            AnalysisTab.entries.size
+        }
+        // Kept in step both ways: the tab row still selects a page, and
+        // a swipe still moves the selected tab.
+        LaunchedEffect(tab) {
+            if (pagerState.currentPage != tab.ordinal)
+                pagerState.animateScrollToPage(tab.ordinal)
+        }
+        LaunchedEffect(pagerState.currentPage) {
+            tab = AnalysisTab.entries[pagerState.currentPage]
+        }
+
+        // Dragging the first view further right has nowhere to go inside
+        // the pager, so what it does not consume comes back here and
+        // means "out of this screen" -- the mirror of the swipe that
+        // opened it.
+        val leaveAnalysis = remember(swipePx) {
+            object : NestedScrollConnection {
+                var carried = 0f
+                override fun onPostScroll(
+                    consumed: Offset, available: Offset, source: NestedScrollSource,
+                ): Offset {
+                    if (pagerState.currentPage == 0 && available.x > 0f) {
+                        carried += available.x
+                        if (carried > swipePx) {
+                            carried = 0f
+                            screen = Screen.STATION
+                        }
+                    } else if (available.x < 0f) {
+                        carried = 0f
+                    }
+                    return Offset.Zero
+                }
+            }
+        }
 
         Scaffold(
             topBar = {
@@ -441,8 +513,9 @@ fun MainScreen() {
                     }
                 }
 
-                Box(Modifier.weight(1f)) {
-                    when (tab) {
+                Box(Modifier.weight(1f).nestedScroll(leaveAnalysis)) {
+                  HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                    when (AnalysisTab.entries[page]) {
                         AnalysisTab.SKY -> SkyView(
                             sats = plotted,
                             missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
@@ -458,8 +531,10 @@ fun MainScreen() {
                         )
                         AnalysisTab.SIGNAL ->
                             SignalBars(signal, liveValues = live)
-                        AnalysisTab.ELEVATION -> ElevationView(elevSamples.toList())
+                        AnalysisTab.ELEVATION ->
+                            ElevationView(elevSamples, elevRevision)
                     }
+                  }
                 }
             }
         }
@@ -499,11 +574,24 @@ fun MainScreen() {
             )
         }
     ) { padding ->
+        // Horizontal only: the column scrolls vertically, and the two
+        // gestures do not compete.  Nothing happens when there is
+        // nothing to analyse yet -- the same condition that disables the
+        // button, rather than a screen that opens onto an empty plot.
+        var carried by remember { mutableStateOf(0f) }
         Column(
             Modifier
                 .padding(padding)
                 .padding(16.dp)
                 .fillMaxSize()
+                .draggable(
+                    state = rememberDraggableState { carried += it },
+                    orientation = Orientation.Horizontal,
+                    onDragStopped = {
+                        if (carried < -swipePx && analysisReachable) openSky = true
+                        carried = 0f
+                    },
+                )
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

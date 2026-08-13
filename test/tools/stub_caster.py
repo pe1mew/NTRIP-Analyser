@@ -15,6 +15,13 @@ import time
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 2101
 RUN_S = float(sys.argv[2]) if len(sys.argv) > 2 else 30.0
 
+# Optional: a captured .rtcm3 to replay in a loop, at roughly the rate a
+# base station delivers it. Without one the stub sends filler, which
+# keeps a session alive but fails every format KPI -- fine for watching
+# an uplink, useless for anything that has to reach a verdict.
+REPLAY = sys.argv[3] if len(sys.argv) > 3 else None
+REPLAY_BPS = 2000.0
+
 TABLE = (
     "STR;TEST;Stub;RTCM 3.3;1005(10),1077(1);2;GPS;STUB;NLD;"
     "52.00;6.00;1;0;stub;none;N;N;0;\r\n"
@@ -52,15 +59,34 @@ while time.time() < deadline:
     t0 = time.time()
     stop = threading.Event()
 
+    payload = None
+    if REPLAY:
+        with open(REPLAY, 'rb') as f:
+            payload = f.read()
+        print('stub: replaying %s (%d bytes) in a loop'
+              % (REPLAY, len(payload)), flush=True)
+
     def trickle(c=conn):
+        chunk = int(REPLAY_BPS / 4)
+        pos = 0
         while not stop.is_set():
             try:
-                # Not RTCM, and not meant to be: the client only needs
-                # the socket to stay alive for the uplink to keep going.
-                c.sendall(b'\x00' * 8)
+                if payload:
+                    end = pos + chunk
+                    if end <= len(payload):
+                        c.sendall(payload[pos:end])
+                    else:
+                        c.sendall(payload[pos:] + payload[:end - len(payload)])
+                    pos = end % len(payload)
+                    time.sleep(0.25)
+                else:
+                    # Not RTCM, and not meant to be: the client only
+                    # needs the socket to stay alive for the uplink to
+                    # keep going.
+                    c.sendall(b'\x00' * 8)
+                    time.sleep(1.0)
             except OSError:
                 return
-            time.sleep(1.0)
 
     threading.Thread(target=trickle, daemon=True).start()
 
