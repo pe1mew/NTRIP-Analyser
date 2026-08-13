@@ -42,9 +42,10 @@
   sourcetable's `nmea` flag; free sends a fixed position prefilled from the
   sourcetable entry; pro sends the phone's live position after a one-time
   consent. See `android/design/editions.md`.
-- **Next**: Android release plumbing (signing config, `versionName` wired to
-  `src/core/version.h`, icons, two store listings, privacy policy and Play
-  data-safety), then testing on a Samsung S23.
+- **In progress**: getting both editions onto Google Play →
+  `docs/work-items/release-to-play.md` [in progress] — eight phases, of which
+  telemetry, licences and the security assessment are decisions that gate the
+  privacy policy and the data-safety declaration.
 - **Known gaps**: no CI; one test; the GUI station check has no saved report;
   seven pro rows in the editions table are marked *planned*, not built.
 
