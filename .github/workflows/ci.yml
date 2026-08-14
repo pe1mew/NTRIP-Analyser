@@ -1,0 +1,111 @@
+# Continuous integration.
+#
+# This repository shipped for months with none, and the reason it needs
+# one now is that the checks it already has run only when somebody
+# remembers to type the command: five tests, thirty-four release checks,
+# an edition-parity task. During a fortnight of closed testing a
+# regression would sit undetected in exactly the code twelve strangers
+# are running.
+#
+# What each job is *for*:
+#
+#   core     the measurement core and its tests, on Linux. They link
+#            ntrip_core alone and touch no platform headers, so this is
+#            cheap -- and it is the code every frontend shares, where a
+#            fault reaches all four programs at once.
+#   android  both editions, built and checked for edition parity. The
+#            Android app is the product now, and its breakages are the
+#            kind a compiler catches: a missing import, an experimental
+#            API, a Gradle plugin that moved.
+#   claims   the verification commands under the project's own memory,
+#            weekly rather than per-push, because several of them reach
+#            the network and a checker that cries wolf gets ignored.
+#
+# **What this does NOT cover, deliberately**: the Win32 GUI and the UNIX
+# daemon. The GUI is Windows-only, has a second hand-written build path
+# (build-gui.bat), and building it here would need a MinGW toolchain
+# whose failures would say more about the runner than about the code.
+# It is verified by hand on the machine that ships it -- see
+# docs/RUNBOOK.md -- and that gap is stated rather than hidden.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Monday morning: the claims job, which is about decay over time
+    # rather than about any particular change.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  core:
+    name: Core and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      # The CLI and the daemon come with it on Linux; the GUI is excluded
+      # by if(WIN32) in CMakeLists.txt, so nothing here needs a guard.
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
+
+      # Reads what the project claims about itself and compares it with
+      # the thing claimed: version, in-app links, the check count, Play's
+      # limits, the generated notices, targetSdk, 16 KB alignment.
+      - name: Release checks
+        run: python tools/check_release.py
+
+  android:
+    name: Both editions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Pinned in app/build.gradle.kts; the runner ships a different one,
+      # and a mismatch fails at configuration time with a path error
+      # rather than "NDK not found".
+      - name: Install the pinned NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install "ndk;27.0.12077973"
+
+      # checkEditionParity runs as a preBuild dependency, so this also
+      # enforces that free and pro differ only by their Features object.
+      - name: Build free and pro
+        working-directory: android
+        run: ./gradlew assembleFreeDebug assembleProDebug --no-daemon
+
+  claims:
+    name: Verified claims
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      # Some verify commands run the tests; they need something to run.
+      - name: Configure and build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      # Others ask whether the site and the wiki are still live, which is
+      # why this job is weekly: it is checking the world, not the commit.
+      - name: Verify the claims in CLAUDE.md and memory/
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/verify_memory.py

@@ -313,6 +313,30 @@ that the four cannot drift apart. Free and pro differ by accent colour
 only, and the desktop GUI uses the blue mark. Rebuild the GUI afterwards
 so `windres` picks up the new `.ico`.
 
+## What CI checks, and what it does not
+
+`.github/workflows/ci.yml`, on every push to `main` and every pull
+request:
+
+- **Core and tests** — configures, builds and runs `ctest` on Linux,
+  then `tools/check_release.py`. The five tests link `ntrip_core` alone
+  and touch no platform headers, which is why they run anywhere.
+- **Both editions** — `assembleFreeDebug assembleProDebug`, which also
+  runs `checkEditionParity` as a preBuild dependency, so an edition
+  acquiring code of its own fails the build here too.
+
+Weekly, and on demand: **verified claims**, running
+`tools/verify_memory.py`. It is not on every push because several of its
+commands ask whether the site and the wiki are still live, and a check
+that fails on someone else's outage teaches people to ignore it.
+
+**The Win32 GUI is not built by CI.** It is Windows-only and has a
+second, hand-written build path (`build-gui.bat`) that lists every
+source by hand. Building it on a runner would need a MinGW toolchain
+whose failures would say more about the runner than about the code, so
+it stays a manual step — build it, and run the station check against a
+live caster, before any desktop release.
+
 ## Adding a New Frontend, Window, KPI or Config Field
 
 **Adding a GUI source file** — add it to *both* `CMakeLists.txt`

@@ -121,8 +121,14 @@
   view with nothing configured; the paid edition dials its ephemeris
   side-stream only when nothing has reached the cache for 20 s
   (`android/design/views.md`).
-- **Known gaps**: no CI; the GUI station check has no saved report;
-  <!-- verify: test ! -d .github/workflows -->
+- **CI, since 2026-08-14**: `.github/workflows/ci.yml` builds the core
+  and runs the five tests on Linux, builds both Android editions (which
+  runs `checkEditionParity` as a preBuild dependency), and weekly runs
+  the verify commands under the claims in this file. **It does not build
+  the Win32 GUI** — that is Windows-only, has a second hand-written
+  build path, and stays a manual step in `docs/RUNBOOK.md`.
+  <!-- verify: test -f .github/workflows/ci.yml -->
+- **Known gaps**: the GUI station check has no saved report;
   seven pro rows in the editions table are marked *planned*, not built.
   <!-- verify: manual — counting rows in a prose table, and "planned" is a
        judgement about the table's own honesty -->

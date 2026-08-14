@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — continuous integration
+
+The project had none, and the reason to add it now is that everything
+built to protect this launch runs only when somebody remembers the
+command: five tests, thirty-four release checks, an edition-parity task.
+For the next fortnight, twelve strangers are running this code.
+
+Three jobs. **Core and tests** builds `ntrip_core` on Linux, runs
+`ctest`, then `check_release.py` — the tests link the core alone and
+touch no platform headers, so they run anywhere. **Both editions**
+builds free and pro, which also runs `checkEditionParity`. **Verified
+claims** runs `verify_memory.py` weekly rather than per-push, because
+several of its commands ask whether the site and the wiki are live, and
+a check that fails on somebody else's outage teaches people to ignore
+it.
+
+**The Win32 GUI is deliberately not built.** It is Windows-only with a
+second hand-written build path, and a MinGW toolchain on a runner would
+report more about the runner than about the code. That gap is written
+into the workflow and the runbook rather than left to be discovered.
+
+The memory index said *"Known gaps: no CI"*, verified by
+`test ! -d .github/workflows`. Adding the workflow made that sentence
+false and `verify_memory.py` failed on it within the minute — which is
+exactly what it is for. Corrected.
+
 ### Fixed — dragging out of the sky view stopped working on modern Android
 
 Reported on the S23: from the sky view, dragging right no longer
