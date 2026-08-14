@@ -198,10 +198,11 @@ reports the station's own position to six decimals, and this station
 stands where its owner lives; it is replaced with `52,xxxxxx, 5,xxxxxx`,
 which keeps the shape of what the app reports without the value.
 
-⚠ **Still visible, and your call**: free's `1-main.png` carries *"GGA
-uplink from 52,20000, 5,97000"* — the configured uplink position, not
-the station's. It is rounded to about a kilometre, so it names a
-district rather than a house. Say the word and it gets a box too.
+**The GGA position in free's `1-main.png` stays**, decided 2026-08-14.
+*"GGA uplink from 52,20000, 5,97000"* is the configured uplink position,
+not the station's: the author reduced its resolution deliberately and
+picked a random point in their own town. It is already anonymous, and
+redacting it would hide a feature the screenshot is there to show.
 
 **The sky caption was corrected.** It read "placed from the station's own
 orbits, not guessed", which neither edition's capture actually shows:
@@ -238,15 +239,23 @@ document covers both editions and marks every difference between them.
       can open, the check count, Play's length and title-policy limits,
       and whether the generated notices match the dependencies they
       name. Everything below it needs a person.
-- [ ] Enable GitHub Pages (branch `main`, folder `/docs`) and check the
-      policy URL resolves. **The app now links it too** (About → Privacy
-      policy), so until Pages is on, that button opens a 404.
-- [ ] Publish the wiki: `bash tools/publish_wiki.sh --push`. The app
-      links into it from About → Documentation and from the orbit badge,
-      so unpublished pages leave those buttons pointing at the
-      repository front page.
+- [x] Enable GitHub Pages (branch `main`, folder `/docs`) — **done
+      2026-08-14**, `https://pe1mew.github.io/NTRIP-Analyser/privacy-policy`
+      resolves and the app links it.
+- [x] Publish the wiki — **done 2026-08-14**, twelve pages;
+      `bash tools/publish_wiki.sh --push` republishes after any
+      `docs/wiki/` change.
 - [ ] Fill the contact address on both listings; the policy points at it.
 - [ ] Confirm both editions install side by side and are distinguishable
       on the home screen.
 - [ ] Upload from a release build signed with the release keystore, not
       the debug fallback (`android/keystore.properties.example`).
+- [ ] Once the closed track exists, confirm the tester opt-in link in the
+      console and correct it in `readme.md` if it differs from
+      `https://play.google.com/apps/testing/<package>`. The readme is the
+      only place testers are recruited, and a dead link there costs
+      fourteen days rather than a click.
+
+**This list is Play's.** Samsung and F-Droid get their own, written from
+the rules studies in `design/work-items/release-to-play.md` phase 10 —
+not by assuming their requirements resemble these.

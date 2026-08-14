@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the release plan covers three stores, and the readme recruits testers
+
+**Free first, to Google Play, the Samsung Galaxy Store and F-Droid.**
+One edition in three places is a smaller job than two editions in one,
+and it puts the tool in front of the people who will find its faults.
+
+**Play is the long pole and cannot be hurried.** The developer account
+is in verification, and a new personal account must then run a closed
+test with **twelve testers opted in for fourteen continuous days**
+before it may apply for production access. So the invitation now sits at
+the top of `readme.md`, with the three free screenshots, what a tester
+is agreeing to, and the request that matters most: tell us about a
+station where the verdict looks wrong.
+
+**F-Droid is settled rather than studied.** Its inclusion policy
+requires Free, Libre and Open Source Software, judged against the DFSG,
+the FSF, GNU and the OSI — all four of which forbid restricting sale,
+and `license.md` says "you may not sell it". The official repository and
+the Commons Clause are mutually exclusive by definition, and no
+packaging work would change it. **The free edition will be published
+from a repository we host ourselves**: the same client, the same update
+mechanism, added by URL, and no licence change — self-distribution was
+never in tension with a clause that restricts others from selling.
+Relicensing the free edition was rejected because the editions share one
+core, so the Clause would have to come off the shared code too.
+
+**Samsung still gets a rules study**, but nothing known blocks the free
+edition there; it has no FLOSS requirement, and is in fact the
+arrangement the Clause was written for. Selling **pro** on Samsung, and
+whether pro belongs in a self-hosted repository at all, are deferred
+until free is out.
+
+The phase table was also brought up to date: phases 4, 5, 7 and 8 have
+been done for a while and still read "not started".
+
 ### Changed — the password field is masked, and the station's position is not published
 
 Two things a screenshot session turned up, both about what ends up on

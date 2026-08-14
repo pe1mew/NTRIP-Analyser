@@ -2,6 +2,68 @@
 
 A tool for analysing NTRIP RTCM 3.x data streams, available as both a command-line interface (CLI) and a Windows graphical user interface (GUI).
 
+---
+
+## On Android: NTRIP Analyser
+
+**Point your phone at a base station and find out whether it is fit to
+serve RTK.** Eight checks, each with its verdict and the number behind
+it, then the analysis views: the sky the station is tracking, C/N0 per
+satellite, and C/N0 against elevation — the picture that shows an
+antenna or siting problem for what it is.
+
+| | |
+|---|---|
+| **NTRIP Analyser** | free. The full eight-check verdict, the analysis views, and the sourcetable browser, for one caster at a time. |
+| **NTRIP Analyser Pro** | *under development.* Adds watch mode for hours-long measurement, live position for network mountpoints, saved connections, and an ephemeris side-stream for a complete sky. |
+
+<table>
+<tr>
+<td width="33%"><img src="docs/images/store/free/1-main.png" alt="The verdict: STATION OK, with the eight checks beneath it"></td>
+<td width="33%"><img src="docs/images/store/free/3-sky.png" alt="Sky view: 38 of 41 satellites placed from broadcast orbits"></td>
+<td width="33%"><img src="docs/images/store/free/2-elevation.png" alt="C/N0 against elevation over a session"></td>
+</tr>
+</table>
+
+### Be a tester on Google Play
+
+The Play release needs **twelve testers who stay opted in for fourteen
+days** before Google will allow it into production. That is their rule
+for a new developer account, and there is no way around it — so this is
+a genuine invitation rather than a formality.
+
+**→ [Join the closed test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)**
+*(opens once the developer account clears verification and the track is
+live — the account is in verification now)*
+
+What you are agreeing to: install the free edition, keep it installed
+for a fortnight, and use it on a station you care about. What would help
+most is telling us about a station where the verdict looks wrong —
+[open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues) with
+the caster, the mountpoint and what you expected.
+
+### Samsung Galaxy Store, and F-Droid from our own repository
+
+The free edition is planned for both, and neither is live yet.
+
+**F-Droid's official repository cannot take it**, and that is a licence
+matter rather than a technical one: F-Droid requires Free, Libre and
+Open Source Software, and this project's Commons Clause withholds the
+right to sell. So the free edition will be published from **an F-Droid
+repository we host ourselves** — the same client and the same update
+mechanism, added by URL. The link will appear here when it exists.
+
+**Samsung Galaxy Store** has no such requirement; the free edition is
+planned there once its rules have been read properly.
+
+The plan is in
+[`design/work-items/release-to-play.md`](design/work-items/release-to-play.md).
+
+**Desktop users**: the Windows GUI, the CLI and the Linux monitoring
+daemon are below, and are not affected by any of this.
+
+---
+
 ## Screenshots
 
 ![NTRIP-Analyser main window](docs/images/MainScreen.png)

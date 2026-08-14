@@ -103,10 +103,18 @@
   The keystore itself is the author's to create.
   <!-- verify: manual — whether a release build is signed with the real key
        cannot be seen from the repository; keystore.properties is git-ignored -->
-- **In progress**: getting both editions onto Google Play →
-  `design/work-items/release-to-play.md` [in progress] — eight phases, of which
-  telemetry, licences and the security assessment are decisions that gate the
-  privacy policy and the data-safety declaration.
+- **In progress**: getting the app onto **three stores, free first** —
+  Google Play, Samsung Galaxy Store and F-Droid
+  (`design/work-items/release-to-play.md`, twelve phases). Play is the
+  long pole and cannot be hurried: a new developer account must run a
+  closed test with **12 testers opted in for 14 continuous days** before
+  production access, so recruitment runs from the top of `readme.md`.
+  Samsung gets a rules study before packaging; nothing known blocks free
+  there. **F-Droid is settled** (2026-08-14): its official repository
+  requires FLOSS and our Commons Clause forbids sale, so the two are
+  mutually exclusive — free will be published from **a repository we
+  host ourselves**, which needs no licence change. Pro's place on either
+  store is deferred until free is out.
 - **Orbits now come off the observation stream** wherever a station
   broadcasts them, in every frontend. `rtcm_decode_eph()` is the single
   copy of the seven-type switch. The free Android edition draws a sky
@@ -190,6 +198,11 @@ Supplementing CLAUDE.md's list with paths found during work:
   by message type, and the same striping appeared in Android and then in
   the Windows GUI; a fix in one frontend leaves the others wrong. Bin at
   the coarsest resolution any stream delivers.
+- **F-Droid: our own repository, never the official one** — it requires
+  FLOSS, the Commons Clause forbids sale, and relicensing the free
+  edition would strip the Clause from the shared core as well. Self-
+  hosting costs nothing and keeps the Clause doing its job
+  (`design/work-items/release-to-play.md`).
 - **TLS is coming, after the free launch**, as a bundled library behind a
   transport abstraction — chosen over per-platform native APIs to keep one
   code path for four frontends. It ships in **both editions** on the same

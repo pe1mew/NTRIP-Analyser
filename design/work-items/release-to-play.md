@@ -1,4 +1,8 @@
-# Release the Android app to Google Play
+# Release the Android app to the app stores
+
+*(The file is still called `release-to-play.md`; the plan outgrew the
+name on 2026-08-14 and the path is kept so the references to it keep
+working.)*
 
 ## What & Why
 
@@ -11,6 +15,90 @@ The ordering below is not preference. Each phase produces something a
 later phase needs, and three of them are *decisions* that block the
 privacy policy and the data-safety declaration, which block submission.
 
+## Store strategy — free first, three stores
+
+**The free edition goes to Google Play, the Samsung Galaxy Store and
+F-Droid. Pro follows, where it can.** One edition in three places is a
+smaller job than two editions in one, and it puts the tool in front of
+the people who will find its faults.
+
+### Google Play — the long pole, and it cannot be hurried
+
+The developer account is **in verification**. Beyond that, a personal
+developer account registered recently must run a **closed test with at
+least 12 testers opted in for 14 continuous days** before it may apply
+for production access. That is Google's rule and there is no way to
+shortcut it: twelve real people have to install the app and leave it
+installed for a fortnight.
+
+So it takes the time it takes. **The recruitment happens in the open**,
+from the top of the repository readme, alongside the download links for
+the other two stores. Testers who arrive early shorten nothing — the
+fourteen days start when twelve are in — but they are also the first
+people to run this against stations we have never seen, which is worth
+more than the fortnight.
+
+The opt-in link for a closed track takes the form
+`https://play.google.com/apps/testing/<package>`; it only resolves once
+the track exists, so confirm the real one in the console before leaning
+on it.
+
+### Samsung Galaxy Store and F-Droid — study before work
+
+Neither is a matter of uploading the same bundle, but only one of them
+still needs studying before work can start:
+
+1. **Samsung Galaxy Store rules** — what the listing requires, what the
+   review checks, what a seller account needs, and how an APK differs
+   from the Play bundle. **Nothing known blocks the free edition**:
+   Samsung has no FLOSS requirement, so the Commons Clause is beside the
+   point there — it is in fact the arrangement the Clause was written
+   for, where the author sells and nobody else does.
+2. **F-Droid — settled**, see below. The free edition goes to a
+   repository we host; the official one is closed to us by licence.
+3. **The paid edition on Samsung, a feasibility study of its own,
+   deferred until free is out** — whether pro can be sold there at all
+   from this country as an individual, what the commission and payout
+   arrangements are, and what that means for the entitlement model,
+   which today is *the installed APK is the licence*
+   (`android/design/editions.md`).
+
+### F-Droid: settled 2026-08-14 — our own repository, not theirs
+
+**The official repository will not take this app, and no packaging work
+would change that.** Its inclusion policy requires every app to be
+"Free, Libre and Open Source Software (FLOSS)", judged against the
+Debian Free Software Guidelines, the FSF, GNU and the OSI. All four
+forbid restricting sale — DFSG §1 and OSD §1 in as many words — and
+`license.md` says plainly "**You may not sell it.**" The Commons Clause
+and the F-Droid main repository are mutually exclusive by definition,
+not by interpretation.
+
+Nothing else about the app is in the way: no Google Play Services, no
+proprietary SDK, no tracking library, every dependency Apache 2.0 or
+MIT.
+
+**Decision: publish the free edition from a repository we host
+ourselves.** The inclusion policy governs *F-Droid's* repository; anyone
+may publish their own, and users add its URL to the same client. That
+buys the client, the update mechanism and the audience with **no licence
+change at all** — and self-distribution has never been in tension with
+the Clause, which restricts others from selling, not us from giving
+away.
+
+The two rejected alternatives, so they are not revisited:
+
+- *Drop F-Droid* — loses a channel that costs little once the repository
+  exists.
+- *Relicense the free edition as plain Apache 2.0* — the editions share
+  one core, so the shared C and Kotlin would have to lose the Clause
+  too, reinstating exactly the "anyone may sell it" risk it exists to
+  prevent, on the parts that took the most work.
+
+**Pro is not part of this decision.** Whether a paid edition belongs in
+a self-hosted repository at all — where there is no store to take
+payment — is a separate question, deferred until free is out.
+
 ## Current Status
 
 Phases 2 and 3 are done. Phase 1 (telemetry) is a decision and blocks
@@ -21,11 +109,16 @@ the privacy policy; 4 onwards are sequential.
 | 1 | Telemetry decision | privacy policy, data-safety form | **done** → `design/telemetry.md`; collect nothing |
 | 2 | Licence study | store listings, wiki claims, RINEX auto-download | **done** → `docs/licences.md`, 7 actions |
 | 3 | Security assessment | any public release | **done** → `design/security-review.md`; 6 of 7 closed, TLS open |
-| 4 | Live GGA implementation | pro's launch scope | designed, not built |
-| 5 | Release plumbing | submission | not started |
-| 6 | Samsung S23 verification | submission | not started |
-| 7 | Wiki (free) → launch free | pro launch | not started |
-| 8 | Wiki (pro) → launch pro | — | not started |
+| 4 | Live GGA implementation | pro's launch scope | **done** → built and verified against a live network mountpoint |
+| 5 | Release plumbing | submission | **done** → signing, version, R8, icons, listings, notices |
+| 6 | Samsung S23 verification | submission | open — needs the keystore and the handset |
+| 7 | Wiki (free) | free launch | **done** 2026-08-14 → twelve pages published |
+| 8 | Wiki (pro) | pro launch | **done** 2026-08-14 → same wiki, Pro section |
+| 9 | Play closed testing: 12 testers × 14 days | free on Play | open — account in verification; recruiting from the readme |
+| 10 | Samsung Galaxy Store rules study | phase 11 | not started — nothing known blocks free |
+| 11 | Free on the Samsung Galaxy Store | — | blocked by 10 |
+| 12 | Free from a self-hosted F-Droid repository | — | **decided** 2026-08-14; not built |
+| 13 | Pro beyond Play: Samsung sale feasibility, and whether pro belongs in a self-hosted repo at all | pro elsewhere | deferred until free is out |
 
 ---
 
@@ -334,6 +427,75 @@ a troubleshooting page so a question is answered once, the GitHub
 tracker as the route for issues, and no implied help desk behind the
 contact address Play requires.
 
+### Phase 9 — Play closed testing
+
+Twelve testers, opted in and staying opted in for fourteen continuous
+days, before production access can be requested. Nothing here is
+engineering; the work is recruitment and patience.
+
+- The invitation lives at the top of `readme.md`, with the opt-in link
+  and what a tester is agreeing to.
+- Testers need the app to be worth keeping installed for a fortnight, so
+  the free edition's own quality is the recruitment argument.
+- **What to watch during the fortnight**: Android vitals for crashes and
+  ANRs on hardware we do not own, and any station a tester points it at
+  that the eight checks read wrongly. That second one is the whole point
+  of testing in public.
+
+### Phase 10 — the store studies
+
+Three questions, answered in writing before any packaging:
+
+| Study | Settles |
+|---|---|
+| Samsung Galaxy Store rules | listing requirements, review criteria, seller-account needs, APK versus AAB |
+| F-Droid rules | inclusion policy, licence acceptability, build-from-source and metadata |
+| Pro on Samsung, feasibility | whether the paid edition can be sold there at all, and what that does to *the APK is the licence* |
+
+Each ends in a recommendation, not a summary. The licence question above
+is the one that can stop a whole branch of this plan, so it goes first.
+
+### Phase 11 — free on the Samsung Galaxy Store
+
+Written from the study, and expected to cover: what the build must
+change (if anything), what the listing needs, how updates are published,
+and what the review will look for. Not written before the study is done
+— a plan built on assumptions about a store's rules is a plan to be
+surprised.
+
+### Phase 12 — free from a self-hosted F-Droid repository
+
+Decided; the shape is known and the work is small, but none of it is
+built. What it needs:
+
+- **An index, signed.** `fdroidserver` builds one from a directory of
+  APKs (`fdroid update`), signed with a key that is *not* the APK
+  signing key's business but must be just as carefully kept: whoever
+  holds it can push updates to everyone who added the repository.
+- **Static hosting over HTTPS.** GitHub Pages already serves `docs/`, so
+  the mechanics exist. **But the APKs would then live in git**, a couple
+  of megabytes per release, in the history for ever. A separate
+  repository — or a branch that is never merged — keeps the binaries out
+  of this one. Decide that before the first publish, because moving it
+  afterwards changes the URL every user has added.
+- **Metadata**: the description, icon and screenshots the client shows.
+  These exist already, from the store listing work.
+- **The URL, and a QR code for it**, in the readme and the wiki. Adding
+  a repository is a deliberate act by the user; make it a short one.
+- **A warning worth writing plainly**: a third-party repository is
+  trusted by the person who adds it. Say who runs it and what it
+  contains.
+
+The tooling specifics above are from `fdroidserver`'s documented
+behaviour and should be confirmed against the current version when this
+is built rather than taken on faith from this document.
+
+### Phase 13 — pro beyond Play
+
+Deferred until free is out, deliberately: pro's second-store question is
+commercial rather than technical, and answering it now would be
+answering it without the evidence free's launch produces.
+
 ## Decisions
 
 - **Two listings, not an in-app unlock** — entitlement is the installed
@@ -341,6 +503,11 @@ contact address Play requires.
 - **Pro's launch scope** — what is built, plus multiple mountpoints
   (done) and live GGA (Phase 4).
 - **Price** — decided at listing time, deliberately deferred.
+- **F-Droid: our own repository, not the official one** (2026-08-14).
+  The official repository requires FLOSS and the Commons Clause forbids
+  sale, so the two are mutually exclusive; self-hosting needs no licence
+  change and keeps the Clause doing its job. Pro's place in it is a
+  later question.
 - **TLS after the free launch**, using a bundled library rather than
   each platform's native API, because a JNI bridge for Android would put
   connection logic in Kotlin for one frontend and break the one-core
