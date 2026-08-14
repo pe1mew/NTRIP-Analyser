@@ -26,40 +26,13 @@
     #define SOCKET_ERROR   -1
 #endif
 
-#ifdef _WIN32
-#include <windows.h>
-static inline double get_time_seconds() {
-    static LARGE_INTEGER freq;
-    static int freq_initialized = 0;
-    LARGE_INTEGER now;
-    if (!freq_initialized) {
-        QueryPerformanceFrequency(&freq);
-        freq_initialized = 1;
-    }
-    QueryPerformanceCounter(&now);
-    return (double)now.QuadPart / freq.QuadPart;
-}
-#else
-#include <time.h>
-static inline double get_time_seconds() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec / 1e9;
-}
-#endif
-
 /*
-
-// Replace all time measurement code for -t option with get_time_seconds()
-// For example, if you have something like:
-double prev_time = 0, curr_time = 0;
-// ...existing code...
-curr_time = get_time_seconds();
-double dt = curr_time - prev_time;
-prev_time = curr_time;
-// ...existing code...
-
-*/
+ * The two get_time_seconds() variants that stood here, and the sketch
+ * below them of how the -t option might use one, were never called by
+ * anything. The monotonic clock this project actually uses is ns_now()
+ * in src/session/ntrip_session.c, which is the same pair of platform
+ * branches written once, where the stream loop that needs timing lives.
+ */
 
 #define BUFFER_SIZE 4096
 #define MAX_MSG_TYPES 4096

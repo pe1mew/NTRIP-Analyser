@@ -2816,7 +2816,6 @@ void decode_rtcm_msm4_generic(const unsigned char *payload, int payload_len,
 
     // Print rough range and extended info for each satellite
     rtcm_printf("  Satellite rough ranges and extended info:\n");
-    int sat_idx = 0;
     for (int i = 0; i < 64; ++i) {
         if ((sat_mask >> (63 - i)) & 1) {
             if ((bit + 8 + 4) > payload_len * 8) {
@@ -2826,7 +2825,6 @@ void decode_rtcm_msm4_generic(const unsigned char *payload, int payload_len,
             int rough_range = (int)get_bits(payload, bit, 8); bit += 8;
             int ext_info = (int)get_bits(payload, bit, 4); bit += 4;
             rtcm_printf("    PRN %2d: Rough Range = %3d, Extended Info = %2d\n", i + 1, rough_range, ext_info);
-            sat_idx++;
         }
     }
 
