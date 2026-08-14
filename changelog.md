@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the password field is masked, and the station's position is not published
+
+Two things a screenshot session turned up, both about what ends up on
+someone else's screen.
+
+**The password field showed the credential in clear text**, in both
+editions. A credential on screen is a credential in every screenshot,
+over every shoulder and in every screen recording -- one capture of it
+was taken on the way to a store listing and deleted before framing.
+It is masked by default now, with a **Show** toggle, because a password
+typed on a phone keyboard and never checked is the other way this field
+goes wrong. The toggle never persists: the dialog opens masked.
+
+**The sky view's footer carries the station's ARP to six decimals** --
+about a tenth of a metre, and this station stands where its owner lives.
+The framing tool now replaces it with `52,xxxxxx, 5,xxxxxx`, keeping the
+shape of what the app reports without the value, in both editions'
+screenshots. Redaction boxes carry their own fill and ink colours now,
+since this one sits on the page rather than on the connection tile.
+
+### Added — the free edition's store screenshots
+
+Four, shot on a release build against the author's own station: the
+STATION OK verdict with its first three checks, C/N0 against elevation
+(2984 samples from one 90 s check), the sky view placing 38 of 41
+satellites from an imported navigation file, and signal quality.
+
+Three things the shooting turned up, all now fixed rather than
+remembered:
+
+- **The redaction box is per edition.** Free's verdict banner grows two
+  lines once a check finishes, pushing the connection tile 66 px down,
+  so the single shared box would have painted over free's *mountpoint*
+  instead of its caster. `REDACTIONS` is keyed by edition, and an
+  unknown edition is now refused rather than framed unredacted.
+- **The sky caption claimed something no capture showed.** "Placed from
+  the station's own orbits" — but this station broadcasts none: pro's
+  came from the ephemeris stream, free's from a navigation file. It now
+  reads "placed from broadcast orbits, not from this phone", which is
+  true of all three sources and is the distinction that matters. Pro's
+  sky shot was re-taken to carry it, 39 of 39 from the stream.
+- **The sourcetable shot was dropped** from both sets. Its dialog is
+  titled with the caster's host, and this caster lists two mountpoints —
+  thin evidence for a caption promising every mountpoint.
+
+
 ### Changed — the release work items and the security review moved out of the published folder
 
 Enabling GitHub Pages made every file in `docs/` a web page, including

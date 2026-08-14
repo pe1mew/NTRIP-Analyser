@@ -87,6 +87,8 @@
     <string name="about_help">Documentation</string>
     <string name="about_privacy">Privacy policy</string>
     <string name="action_close">Close</string>
+    <string name="action_show">Show</string>
+    <string name="action_hide">Hide</string>
     <string name="sourcetable_title">%1$s</string>
     <string name="sourcetable_loading">Fetching the sourcetable…</string>
     <string name="sourcetable_failed">Could not reach the caster.</string>

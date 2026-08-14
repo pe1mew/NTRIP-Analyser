@@ -35,6 +35,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1281,6 +1283,9 @@ private fun SettingsDialog(
     var mountpoint by remember { mutableStateOf(initial.mountpoint) }
     var user by remember { mutableStateOf(initial.user) }
     var password by remember { mutableStateOf(initial.password) }
+    // Never remembered across openings: the dialog reverts to
+    // masked every time it is shown.
+    var showPassword by remember { mutableStateOf(false) }
     var lat by remember { mutableStateOf(initial.latitude.toString()) }
     var lon by remember { mutableStateOf(initial.longitude.toString()) }
     var gga by remember { mutableStateOf(initial.sendGga) }
@@ -1390,9 +1395,27 @@ private fun SettingsDialog(
                     label = { Text(stringResource(R.string.field_user)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+                // Masked by default, with a way to look.
+                //
+                // A credential on screen is a credential in every
+                // screenshot, over every shoulder and in every screen
+                // recording -- one was caught on the way to a store
+                // listing. Revealing it is still a tap away, because a
+                // password typed on a phone keyboard and never checked
+                // is the other way this field goes wrong.
                 OutlinedTextField(password, { password = it },
                     label = { Text(stringResource(R.string.field_password)) },
                     singleLine = true,
+                    visualTransformation =
+                        if (showPassword) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        TextButton(onClick = { showPassword = !showPassword }) {
+                            Text(stringResource(
+                                if (showPassword) R.string.action_hide
+                                else R.string.action_show))
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
                 // Said here rather than only in the documentation: the
                 // credential is stored encrypted but travels as NTRIP
