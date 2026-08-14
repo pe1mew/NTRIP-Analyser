@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import android.app.Activity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,6 +32,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -45,6 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
@@ -80,7 +83,27 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkThemeSafe()) darkColorScheme() else lightColorScheme()) {
+    val dark = isSystemInDarkThemeSafe()
+
+    // Whose bars are these? Android 16 draws the app behind the status
+    // and navigation bars and will not let an app targeting 36 opt out,
+    // so the system's icons now sit on *our* background -- and their
+    // colour is ours to set. Left alone they stayed light, which on this
+    // light theme is invisible: the clock and the signal bars vanished
+    // on the S23. Follow the theme, dark icons on the light scheme and
+    // light icons on the dark one.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        val window = (view.context as Activity).window
+        SideEffect {
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
+            }
+        }
+    }
+
+    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme()) {
         content()
     }
 }

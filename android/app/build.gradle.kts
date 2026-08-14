@@ -58,7 +58,7 @@ val haveKeystore = keystoreProperties.getProperty("storeFile") != null
 
 android {
     namespace = "nl.pe1mew.ntripanalyser"
-    compileSdk = 35
+    compileSdk = 36
 
     // Pinned rather than left to AGP's default: the default version
     // changes with the plugin, and a mismatch fails at configuration
@@ -68,7 +68,7 @@ android {
     defaultConfig {
         applicationId = "nl.pe1mew.ntripanalyser"
         minSdk = 26          // startForegroundService and notification channels
-        targetSdk = 35
+        targetSdk = 36
         versionCode = verCode
         versionName = "$verMajor.$verMinor.$verPatch"
 

@@ -114,7 +114,7 @@ the privacy policy; 4 onwards are sequential.
 | 6 | Samsung S23 verification | submission | **run** 2026-08-14 on Android 16 — everything but the signature |
 | 7 | Wiki (free) | free launch | **done** 2026-08-14 → twelve pages published |
 | 8 | Wiki (pro) | pro launch | **done** 2026-08-14 → same wiki, Pro section |
-| 9 | Play closed testing: 12 testers × 14 days | free on Play | open — account in verification; recruiting from the readme |
+| 9 | Play closed testing: 12 testers × 14 days | free on Play | open — **account verified 2026-08-14**; needs the keystore, then a track |
 | 10 | Samsung Galaxy Store rules study | phase 11 | not started — nothing known blocks free |
 | 11 | Free on the Samsung Galaxy Store | — | blocked by 10 |
 | 12 | Free from a self-hosted F-Droid repository | — | **decided** 2026-08-14; not built |
@@ -379,20 +379,27 @@ the closed test then needs twelve testers opted in for fourteen
 continuous days. So **targeting 36 is not optional and not deferrable**
 — it is the next piece of engineering.
 
-What the bump needs, none of it done:
+**Done 2026-08-14.** `compileSdk` and `targetSdk` are 36, on **AGP
+8.11.2 / Gradle 8.13** — 8.7.3 built against 36 but warned it was
+untested, which is not a thing to ship on. `platforms;android-36` and
+`build-tools;36.0.0` installed; NDK unchanged at 27.0.12077973.
 
-1. **SDK platform 36** installed; only `android-35` is present.
-2. **A newer AGP.** 8.7.3 is current here and is not tested against
-   `compileSdk 36`; expect to move AGP and Gradle with it.
-3. **Edge-to-edge, enforced.** Android 16 stops apps targeting 36 from
-   opting out, so every screen must handle system-bar insets itself.
-   This app draws a top bar, a bottom legend and full-bleed plots — it
-   is exactly the shape that breaks. Re-run the S23 pass afterwards and
-   look at the top and bottom of every screen.
-4. **Anything else API 36 changes for a targeting app** — read the
-   behaviour-change list rather than discovering it in review.
+**Edge-to-edge was the cost, and it did show.** Android 16 will not let
+an app targeting 36 opt out of drawing behind the system bars, and the
+layout itself held up — the top bar and the content sat correctly — but
+**the status bar's own icons stayed light on our light background**: on
+the S23 the clock, the signal bars and the battery were all but
+invisible. The bars are drawn over our surface now, so their appearance
+is ours to set. `AppTheme` sets `isAppearanceLightStatusBars` and
+`isAppearanceLightNavigationBars` from the theme, verified in both:
+dark icons on the light scheme, light icons on the dark one, toggled
+with `adb shell cmd uimode night yes|no`.
 
-An extension to 1 November 2026 can be requested if the work runs long.
+Re-verified afterwards on the S23 at target 36: a full check to a
+settled verdict, service released, `checkEditionParity`, five tests and
+34 release checks — two of them new, one refusing a `targetSdk` below
+Play's floor and one insisting the native build still asks for 16 KB
+alignment.
 
 ### Fixed 2026-08-14: the native library was laid out for 4 KB pages
 

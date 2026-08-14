@@ -230,6 +230,12 @@ Expect `libntrip_android.so` under **both** `base/lib/arm64-v8a/` and
 (`abiFilters` in `app/build.gradle.kts`), so a 32-bit-only ARM phone is
 offered the app by nobody — it is not a crash, it is an absence.
 
+**Toolchain, as of 2026-08-14.** AGP 8.11.2 on Gradle 8.13, compiling
+and targeting **API 36**, NDK 27.0.12077973. The SDK needs
+`platforms;android-36` and `build-tools;36.0.0` installed; AGP 8.7.3
+built against 36 but warned it was untested, which is not a thing to
+ship on. Play refuses new apps below API 36 from **31 August 2026**.
+
 **16 KB memory pages.** Devices launching with Android 15 may use 16 KB
 pages, and a shared library laid out for 4 KB ones does not load there —
 the app fails to start rather than misbehaving. Play requires support of

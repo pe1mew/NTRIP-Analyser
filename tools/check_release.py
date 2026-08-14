@@ -93,6 +93,20 @@ def check_version():
     # without one. The filter is a deliberate choice here; the check is
     # that it never loses arm64 by accident.
     check("arm64-v8a" in gradle, "the build produces a 64-bit ARM binary")
+
+    # Play refuses new apps and updates below API 36 from 31 August 2026.
+    # A targetSdk is easy to leave behind during a toolchain change, and
+    # the rejection arrives after the upload rather than before it.
+    target = re.search(r"targetSdk\s*=\s*(\d+)", gradle)
+    check(bool(target) and int(target.group(1)) >= 36,
+          "targetSdk meets Play's floor of 36",
+          target.group(1) if target else "not found")
+
+    # 16 KB pages: the flag, not the artefact -- check_release does not
+    # build. docs/RUNBOOK.md says how to verify the .so itself.
+    cml = read("android", "app", "src", "main", "cpp", "CMakeLists.txt")
+    check("max-page-size=16384" in cml,
+          "the native build asks for 16 KB page alignment")
     return ver
 
 

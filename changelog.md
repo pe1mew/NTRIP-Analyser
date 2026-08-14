@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the app targets Android 16 (API 36)
+
+Play refuses new apps and updates below API 36 from **31 August 2026**,
+and that deadline cannot be beaten: the closed test alone needs twelve
+testers opted in for fourteen continuous days. So this is required work,
+not housekeeping.
+
+`compileSdk` and `targetSdk` are 36, on **AGP 8.11.2 / Gradle 8.13**.
+AGP 8.7.3 did build against 36, but warned that it was untested — not a
+thing to ship on.
+
+**Edge-to-edge was the price, and it showed.** Android 16 will not let
+an app targeting 36 draw inside the system bars. The layout held, but
+the status bar's icons stayed light on our light background: on the S23
+the clock, signal and battery were all but invisible. Those bars are
+drawn over the app's own surface now, so their appearance is the app's
+to set — `AppTheme` now sets it from the theme, verified in both
+directions with `cmd uimode night`.
+
+Re-verified on the S23 at target 36: a full check to a settled verdict,
+the service released cleanly, parity, five tests, and two new release
+checks — one refusing a `targetSdk` below Play's floor, one insisting
+the native build still asks for 16 KB alignment.
+
 ### Verified — both editions on a Samsung S23, Android 16
 
 The app grew up on an Android 10 handset, where the rules it now has to
