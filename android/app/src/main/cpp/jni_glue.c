@@ -271,6 +271,13 @@ JNI_FN(nativeCheckRinex)(JNIEnv *env, jobject thiz, jstring path)
     return n;
 }
 
+JNIEXPORT jlong JNICALL
+JNI_FN(nativeRinexNewestUtc)(JNIEnv *env, jobject thiz)
+{
+    (void)env; (void)thiz;
+    return (jlong)bridge_rinex_newest_utc();
+}
+
 JNIEXPORT jint JNICALL
 JNI_FN(nativePlaceable)(JNIEnv *env, jobject thiz, jlong handle)
 {

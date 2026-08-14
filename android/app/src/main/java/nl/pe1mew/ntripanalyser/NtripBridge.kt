@@ -167,6 +167,17 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
          */
         fun loadNavFile(path: String): Int = nativeCheckRinex(path)
 
+        /**
+         * When the newest record of the file just read was broadcast, as
+         * UTC epoch seconds; 0 if none was.
+         *
+         * Call straight after [loadNavFile]. This is how old the file
+         * really is -- the orbit cache cannot say, because a GLONASS
+         * ephemeris carries only Moscow seconds-of-day and a day-old one
+         * wraps to look hours old.
+         */
+        fun navFileNewestUtc(): Long = nativeRinexNewestUtc()
+
         @JvmStatic
         private external fun nativeOpen(
             caster: String, port: Int, mountpoint: String,
@@ -190,6 +201,7 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         @JvmStatic private external fun nativeObsEph(h: Long): Int
         @JvmStatic private external fun nativeLoadRinex(h: Long, path: String): Int
         @JvmStatic private external fun nativeCheckRinex(path: String): Int
+        @JvmStatic private external fun nativeRinexNewestUtc(): Long
         @JvmStatic private external fun nativePlaceable(h: Long): Int
         @JvmStatic private external fun nativeCloseEph(h: Long)
         @JvmStatic private external fun nativeSetPosition(

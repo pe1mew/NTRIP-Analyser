@@ -235,6 +235,16 @@ int bridge_load_rinex(NtripBridge *b, const char *path);
 int bridge_check_rinex(const char *path);
 
 /**
+ * @brief UTC epoch seconds of the newest record in the file last read.
+ *
+ * Zero when none has been. Follows @ref bridge_check_rinex or
+ * @ref bridge_load_rinex, and lets the caller age the file against its
+ * own clock -- see @ref rinex_nav_newest_utc for why the ephemeris cache
+ * cannot answer this question.
+ */
+long long bridge_rinex_newest_utc(void);
+
+/**
  * @brief How many of the tracked satellites can currently be placed.
  *
  * The question the ephemeris policy turns on: with every tracked

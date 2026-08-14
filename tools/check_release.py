@@ -117,6 +117,17 @@ def check_urls():
           "About -> Documentation opens the wiki, not a developer readme",
           help_url)
 
+    # A wiki link is a page name, and page names get renamed. The orbit
+    # badge exists to send somebody who has a problem to the page that
+    # fixes it; landing them on a 404 would be worse than no badge.
+    for name, url in urls.items():
+        if "/wiki/" not in url:
+            continue
+        page = url.rsplit("/wiki/", 1)[1]
+        check(os.path.exists(os.path.join(ROOT, "docs", "wiki",
+                                          page + ".md")),
+              name + " points at a wiki page that exists", page)
+
     listing = read("docs", "work-items", "play-listing.md")
     check(privacy in listing or "privacy-policy" in listing,
           "the listing carries the privacy policy address")

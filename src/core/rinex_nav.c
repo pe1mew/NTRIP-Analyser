@@ -128,11 +128,10 @@ static int rnx_read_continuations(FILE *f,
  * GPS week / seconds-of-week pair (no leap-second correction; sky plot
  * doesn't need it).  We only need the seconds-of-week for our TOW-only
  * validity logic; week is returned for completeness. */
-static void rnx_to_gps_tow(int year, int month, int day,
-                           int hour, int min, double sec,
-                           int *out_week, double *out_tow)
+/* The record's own UTC datetime as Unix seconds, or (time_t)-1. */
+static time_t rnx_to_unix(int year, int month, int day,
+                          int hour, int min, double sec)
 {
-    /* Days since Unix epoch via mktime (UTC).  Then offset to GPS epoch. */
     struct tm tm_u;
     memset(&tm_u, 0, sizeof(tm_u));
     tm_u.tm_year = year - 1900;
@@ -143,10 +142,27 @@ static void rnx_to_gps_tow(int year, int month, int day,
     tm_u.tm_sec  = (int)sec;
     /* mktime treats tm as local time -- use _mkgmtime on Windows for UTC. */
 #if defined(_WIN32)
-    time_t unix_sec = _mkgmtime(&tm_u);
+    return _mkgmtime(&tm_u);
 #else
-    time_t unix_sec = timegm(&tm_u);
+    return timegm(&tm_u);
 #endif
+}
+
+/* The newest record of the file last loaded, as UTC epoch seconds.
+ * File-scope because the cache it fills is file-scope too, and because
+ * the answer belongs to the file rather than to any one record. */
+static long long g_newest_utc = 0;
+
+long long rinex_nav_newest_utc(void)
+{
+    return g_newest_utc;
+}
+
+static void rnx_to_gps_tow(int year, int month, int day,
+                           int hour, int min, double sec,
+                           int *out_week, double *out_tow)
+{
+    time_t unix_sec = rnx_to_unix(year, month, day, hour, min, sec);
     if (unix_sec < 0) {
         if (out_week) *out_week = 0;
         if (out_tow)  *out_tow  = 0.0;
@@ -294,6 +310,10 @@ int rinex_nav_load(const char *filename, int *out_counts)
     FILE *f = fopen(filename, "r");
     if (!f) return -1;
 
+    /* A failed load must not leave the previous file's date standing:
+     * the caller would age the new file by the old one's clock. */
+    g_newest_utc = 0;
+
     char line[256];
 
     /* Skip header */
@@ -325,6 +345,13 @@ int rinex_nav_load(const char *filename, int *out_counts)
         int hour  = atoi(line + 15);
         int min   = atoi(line + 18);
         double sec = atof(line + 21);
+
+        /* The newest date seen, whatever system it belongs to and
+         * whether or not the record goes on to parse: a truncated
+         * record still dates the file. */
+        time_t rec_utc = rnx_to_unix(year, month, day, hour, min, sec);
+        if (rec_utc > 0 && (long long)rec_utc > g_newest_utc)
+            g_newest_utc = (long long)rec_utc;
 
         double clock0[4];
         rnx_read_4(line, clock0);   /* fields beyond char 23: af0, af1, af2 */

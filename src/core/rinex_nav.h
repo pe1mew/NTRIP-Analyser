@@ -34,6 +34,23 @@ extern "C" {
  */
 int rinex_nav_load(const char *filename, int *out_counts);
 
+/**
+ * @brief UTC epoch seconds of the newest record in the file last loaded.
+ *
+ * Zero when no file has been loaded, or none of its records parsed.
+ *
+ * Read from the records' own calendar dates, which is the only place a
+ * *true* age can come from.  The cache cannot answer this: it stores
+ * @c toe, and toe is not on one scale across systems -- GLONASS carries
+ * Moscow seconds-of-day and nothing else, so an ephemeris a day old
+ * wraps and reads as hours old.  A file whose newest record is thirty
+ * hours old reported "4.5 h" that way, which is the opposite of what
+ * such a file should tell a user: every record in it is outside the
+ * validity window in @ref sv_eph_is_valid_at, so nothing can be placed
+ * from it at all.
+ */
+long long rinex_nav_newest_utc(void);
+
 #ifdef __cplusplus
 }
 #endif

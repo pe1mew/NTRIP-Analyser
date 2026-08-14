@@ -1,5 +1,11 @@
 # The analysis views
 
+Two of the three are drawn from satellite positions, and the badge in
+the top-right corner says where those came from — a green one means a
+real orbit source, amber means this phone's own receiver, red means an
+imported file too old to use. Tapping it opens
+[Satellite orbits](Orbits-and-the-ephemeris-stream).
+
 Swipe left from the main screen, or tap **Analysis**. Three views, and
 you can swipe between them; swipe right from the first to come back.
 

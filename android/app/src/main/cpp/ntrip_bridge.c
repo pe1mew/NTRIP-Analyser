@@ -717,6 +717,11 @@ int bridge_check_rinex(const char *path)
     return rinex_nav_load(path, NULL);
 }
 
+long long bridge_rinex_newest_utc(void)
+{
+    return rinex_nav_newest_utc();
+}
+
 int bridge_placeable(const NtripBridge *b, int *tracked)
 {
     if (tracked) *tracked = 0;

@@ -86,3 +86,10 @@ navigation file** and pick a RINEX navigation file (`.rnx`, or a
 
 The app never downloads one for you: the file comes from a data
 provider whose terms are between you and them.
+
+**It has to be today's.** Orbits more than four hours old are not used —
+by then they no longer say where the satellite is — and a stale file
+still loads and still reports thousands of records, so the only sign is
+the badge in the corner of the Analysis screen turning red.
+[Satellite orbits](Orbits-and-the-ephemeris-stream) explains the badge
+and names a place to get a current file.

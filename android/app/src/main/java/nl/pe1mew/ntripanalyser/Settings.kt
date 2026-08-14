@@ -31,6 +31,7 @@ object Settings {
     private const val KEY_GGA_CONSENT = "gga_live_consent"
 
     private const val RINEX = "brdc.rnx"
+    private const val KEY_RINEX_UTC = "rinex_newest_utc"
     private const val TAG = "ntrip_settings"
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -265,6 +266,34 @@ object Settings {
             ?.takeIf { rinexFile(context).exists() }
 
     /**
+     * How old the imported file's newest record is, in seconds; null
+     * when nothing is imported or the date could not be read.
+     *
+     * Stored at import as the record's own UTC date and aged against the
+     * clock on every read, so a file that was current when picked
+     * becomes stale on its own -- which is what happens to broadcast
+     * ephemerides, and what the badge has to show.
+     */
+    fun rinexAgeS(context: Context): Double? {
+        if (rinexName(context) == null) return null
+        val utc = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .getLong(KEY_RINEX_UTC, 0L)
+        if (utc <= 0L) return null
+        return (System.currentTimeMillis() / 1000.0) - utc
+    }
+
+    /**
+     * The window inside which orbits may be used to place a satellite.
+     *
+     * Four hours, because that is what `sv_eph_is_valid_at()` enforces
+     * in `src/core/sv_ephemeris.c` -- the app does not decide this
+     * separately, it reports the rule the placement code already
+     * applies. BeiDou is allowed six there; four is the honest headline
+     * for a mixed file.
+     */
+    const val RINEX_FRESH_S = 4 * 3600.0
+
+    /**
      * Copy a navigation file the user picked to a staging file.
      *
      * Copied into app storage because `rinex_nav_load()` takes a path and
@@ -310,15 +339,22 @@ object Settings {
     fun stagedRinexFile(context: Context): java.io.File =
         java.io.File(context.filesDir, "$RINEX.staged")
 
-    /** Promote a checked staging file to the one runs will read. */
-    fun commitRinex(context: Context, name: String) {
+    /**
+     * Promote a checked staging file to the one runs will read.
+     *
+     * @param newestUtc UTC epoch seconds of the file's newest record, as
+     *        [NtripBridge.navFileNewestUtc] reports it; 0 when unknown.
+     */
+    fun commitRinex(context: Context, name: String, newestUtc: Long = 0L) {
         val staged = stagedRinexFile(context)
         runCatching {
             rinexFile(context).delete()
             staged.renameTo(rinexFile(context))
         }
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
-            .putString("rinex_name", name).apply()
+            .putString("rinex_name", name)
+            .putLong(KEY_RINEX_UTC, newestUtc)
+            .apply()
     }
 
     /**

@@ -143,6 +143,11 @@ fun MainScreen() {
     var ggaConsent by remember { mutableStateOf(Settings.liveGgaConsent(context)) }
     var openSky by remember { mutableStateOf(false) }
     var rinexName by remember { mutableStateOf(Settings.rinexName(context)) }
+    // Aged against the clock, so a file that was fresh when imported goes
+    // stale while the app is open -- which is exactly what happens to
+    // broadcast ephemerides, and what the badge exists to show.
+    var rinexAgeS by remember { mutableStateOf(Settings.rinexAgeS(context)) }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     var menuOpen by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -199,10 +204,10 @@ fun MainScreen() {
             // work, and the result is worth waiting for: an import that
             // silently produced nothing was indistinguishable from one
             // that worked until a run came up empty an hour later.
-            val result = withContext(Dispatchers.IO) {
+            val result: Triple<String?, Int, Long> = withContext(Dispatchers.IO) {
                 val name = Settings.stageRinex(context, uri)
                 if (name == null) {
-                    null to 0
+                    Triple(null, 0, 0L)
                 } else {
                     // Checked where it was staged, and promoted only if it
                     // carries orbits: a file that turns out to be the
@@ -210,12 +215,15 @@ fun MainScreen() {
                     val n = NtripBridge.loadNavFile(
                         Settings.stagedRinexFile(context).absolutePath
                     )
-                    if (n > 0) Settings.commitRinex(context, name)
+                    // Asked while the file is the one just read: the date
+                    // belongs to that load and the next one overwrites it.
+                    val utc = if (n > 0) NtripBridge.navFileNewestUtc() else 0L
+                    if (n > 0) Settings.commitRinex(context, name, utc)
                     else Settings.discardStagedRinex(context)
-                    name to n
+                    Triple(name, n, utc)
                 }
             }
-            val (name, records) = result
+            val (name, records, newestUtc) = result
             notice = when {
                 name == null ->
                     context.getString(R.string.rinex_unreadable)
@@ -225,7 +233,20 @@ fun MainScreen() {
                     rinexName = name
                     MonitorService.rinexPath =
                         Settings.rinexFile(context).absolutePath
-                    context.getString(R.string.rinex_loaded, name, records)
+                    rinexAgeS = Settings.rinexAgeS(context)
+                    // An import that worked and an import that is useless
+                    // look identical otherwise: the file reads, the count
+                    // is large, and nothing can be placed from any of it
+                    // because every record is outside the four-hour
+                    // window. Say so at the moment it can still be fixed.
+                    val age = if (newestUtc > 0L)
+                        (System.currentTimeMillis() / 1000.0) - newestUtc
+                    else null
+                    if (age != null && age > Settings.RINEX_FRESH_S)
+                        context.getString(R.string.rinex_loaded_stale, name,
+                                          records, ageShort(age))
+                    else
+                        context.getString(R.string.rinex_loaded, name, records)
                 }
             }
         }
@@ -464,6 +485,18 @@ fun MainScreen() {
                             Text(stringResource(R.string.action_back))
                         }
                     },
+                    // Both views on this screen are drawn from satellite
+                    // positions, and neither can say where those came
+                    // from once it is drawn. The badge says it here, for
+                    // both of them at once, and leads to the page that
+                    // explains what to do about it.
+                    actions = {
+                        OrbitSourceBadge(
+                            source = skySource(usedOrbits, liveDoc, haveLocation),
+                            rinexAgeS = rinexAgeS,
+                            onClick = { uriHandler.openUri(ORBITS_URL) },
+                        )
+                    },
                 )
             }
         ) { pad ->
@@ -532,24 +565,7 @@ fun MainScreen() {
                             sats = plotted,
                             missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
                                 .coerceAtLeast(0),
-                            // One cache, several possible fillers, and no
-                            // per-satellite provenance in it -- so the
-                            // header names the source that did the work,
-                            // most specific first. The station's own
-                            // stream is claimed only when it actually
-                            // delivered ephemerides, and it outranks an
-                            // imported file because it is this run's own
-                            // measurement rather than something read off
-                            // a disk.
-                            source = when {
-                                usedOrbits > 0 && MonitorService.usedEphStream ->
-                                    PositionSource.EPHEMERIS
-                                usedOrbits > 0 && (liveDoc?.eph?.fromObs ?: 0) > 0 ->
-                                    PositionSource.OBS_STREAM
-                                usedOrbits > 0 -> PositionSource.RINEX
-                                haveLocation -> PositionSource.PHONE_GNSS
-                                else -> PositionSource.NONE
-                            },
+                            source = skySource(usedOrbits, liveDoc, haveLocation),
                             footer = footer,
                         )
                         AnalysisTab.SIGNAL ->
@@ -697,7 +713,8 @@ fun MainScreen() {
             // never left implicit.
             if (!runState.running) {
                 doc?.eph?.let {
-                    EphCard(it, rinexName, phonePlaced = plotted.size - usedOrbits)
+                    EphCard(it, rinexName, rinexAgeS,
+                            phonePlaced = plotted.size - usedOrbits)
                 }
             }
 
@@ -1458,23 +1475,40 @@ private fun SettingsDialog(
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text(
-                    stringResource(R.string.eph_explain),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    ephCaster, { ephCaster = it },
-                    label = { Text(stringResource(R.string.field_eph_caster)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                )
-                OutlinedTextField(ephPort, { ephPort = it.filter(Char::isDigit) },
-                    label = { Text(stringResource(R.string.field_eph_port)) }, singleLine = true)
-                OutlinedTextField(ephMp, { ephMp = it },
-                    label = { Text(stringResource(R.string.field_eph_mp)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+
+                // Free does not dial an ephemeris stream -- MonitorService
+                // gates it on Features.HAS_EPH_STREAM -- so free must not
+                // ask for one. Fields that are saved and then ignored are
+                // worse than absent: a user who filled them in has been
+                // told the app will do something it will not, and the sky
+                // view falling back to the phone then looks like a fault.
+                // The space says what the edition does instead.
+                if (Features.HAS_EPH_STREAM) {
+                    Text(
+                        stringResource(R.string.eph_explain),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        ephCaster, { ephCaster = it },
+                        label = { Text(stringResource(R.string.field_eph_caster)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    )
+                    OutlinedTextField(ephPort, { ephPort = it.filter(Char::isDigit) },
+                        label = { Text(stringResource(R.string.field_eph_port)) },
+                        singleLine = true)
+                    OutlinedTextField(ephMp, { ephMp = it },
+                        label = { Text(stringResource(R.string.field_eph_mp)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+                } else {
+                    Text(
+                        stringResource(R.string.eph_free),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
         confirmButton = {
@@ -1494,11 +1528,19 @@ private fun SettingsDialog(
                         longitude = lon.toDoubleOrNull() ?: 6.0,
                         sendGga = gga,
                         ggaLive = live && Features.HAS_LIVE_GGA && consent,
-                        ephCaster = ephCaster.filter {
-                            it.isLetterOrDigit() || it == '.' || it == '-'
-                        },
-                        ephPort = ephPort.toIntOrNull() ?: 2101,
-                        ephMountpoint = ephMp.trim(),
+                        // Carried through untouched where the fields
+                        // are not shown. The configuration file is shared
+                        // with pro and with the desktop tools, so saving
+                        // settings in free must not quietly strip the
+                        // ephemeris mountpoint out of somebody's config.
+                        ephCaster = if (Features.HAS_EPH_STREAM)
+                            ephCaster.filter {
+                                it.isLetterOrDigit() || it == '.' || it == '-'
+                            } else initial.ephCaster,
+                        ephPort = if (Features.HAS_EPH_STREAM)
+                            (ephPort.toIntOrNull() ?: 2101) else initial.ephPort,
+                        ephMountpoint = if (Features.HAS_EPH_STREAM)
+                            ephMp.trim() else initial.ephMountpoint,
                     )
                 )
             }) { Text(stringResource(R.string.action_save)) }
@@ -1586,6 +1628,31 @@ private fun NoticesDialog(onDismiss: () -> Unit) {
             }
         },
     )
+}
+
+/**
+ * What actually placed the satellites now on screen.
+ *
+ * One cache, several possible fillers, and no per-satellite provenance
+ * in it -- so this names the source that did the work, most specific
+ * first. The station's own stream is claimed only when it really
+ * delivered ephemerides, and it outranks an imported file because it is
+ * this run's own measurement rather than something read off a disk.
+ *
+ * A single function because two callers ask it: the sky view's header
+ * and the badge above it. Answered twice, they would eventually
+ * disagree, and the screen would contradict itself about its own data.
+ */
+private fun skySource(
+    usedOrbits: Int,
+    doc: BridgeDocument?,
+    haveLocation: Boolean,
+): PositionSource = when {
+    usedOrbits > 0 && MonitorService.usedEphStream -> PositionSource.EPHEMERIS
+    usedOrbits > 0 && (doc?.eph?.fromObs ?: 0) > 0 -> PositionSource.OBS_STREAM
+    usedOrbits > 0 -> PositionSource.RINEX
+    haveLocation -> PositionSource.PHONE_GNSS
+    else -> PositionSource.NONE
 }
 
 /** Compact duration: "45 s", "12 min", "3 h 07 m". */
@@ -1773,7 +1840,12 @@ fun hasLocationPermission(context: android.content.Context): Boolean =
  * rather than left for the user to infer from a sparse plot.
  */
 @Composable
-private fun EphCard(eph: EphState, rinexName: String?, phonePlaced: Int) {
+private fun EphCard(
+    eph: EphState,
+    rinexName: String?,
+    rinexAgeS: Double?,
+    phonePlaced: Int,
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -1844,11 +1916,22 @@ private fun EphCard(eph: EphState, rinexName: String?, phonePlaced: Int) {
             )
 
             Spacer(Modifier.height(4.dp))
+            // The file's own age, from the dates in it, not from the
+            // cache: a day-old GLONASS record wraps in the cache and
+            // reads as hours old, which is how a file that could place
+            // nothing described itself as fresh.
+            val fileStale = rinexAgeS != null &&
+                rinexAgeS > Settings.RINEX_FRESH_S
             Text(
-                rinexName?.let { stringResource(R.string.eph_file, it) }
-                    ?: stringResource(R.string.eph_no_file),
+                rinexName?.let { name ->
+                    if (rinexAgeS != null)
+                        stringResource(R.string.eph_file_age, name,
+                                       ageShort(rinexAgeS))
+                    else stringResource(R.string.eph_file, name)
+                } ?: stringResource(R.string.eph_no_file),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (fileStale) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -1972,3 +2055,17 @@ private const val HELP_URL = "https://github.com/pe1mew/NTRIP-Analyser/wiki"
  */
 private const val PRIVACY_URL =
     "https://pe1mew.github.io/NTRIP-Analyser/privacy-policy"
+
+/**
+ * Where the orbit badge leads.
+ *
+ * A badge that says the sky is drawn from the phone, or from a file too
+ * old to use, has told the reader something is wrong without telling
+ * them what to do about it. This page does: what orbits are for, why
+ * both the sky view and the C/N0-against-elevation plot need them, and
+ * where a current navigation file comes from. Checked against
+ * `docs/wiki/` by `tools/check_release.py`, so the page cannot be
+ * renamed out from under the link.
+ */
+private const val ORBITS_URL =
+    "https://github.com/pe1mew/NTRIP-Analyser/wiki/Orbits-and-the-ephemeris-stream"

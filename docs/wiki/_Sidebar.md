@@ -4,6 +4,7 @@
 - [Getting started](Getting-started)
 - [The eight checks](The-eight-checks)
 - [The analysis views](The-analysis-views)
+- [Satellite orbits](Orbits-and-the-ephemeris-stream)
 - [Troubleshooting](Troubleshooting)
 - [Privacy, and how support works](Privacy-and-support)
 
@@ -13,7 +14,6 @@
 - [Watch mode](Watch-mode)
 - [Saved connections](Saved-connections)
 - [Reporting where you are](Live-position)
-- [Orbits and the ephemeris stream](Orbits-and-the-ephemeris-stream)
 
 ---
 

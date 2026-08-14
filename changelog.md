@@ -6,6 +6,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — a badge saying where the sky view's positions came from
+
+Free was drawing the sky from the phone's own GNSS while an imported
+navigation file sat unused, and nothing on screen explained why. The file
+was a day old: orbits are only used within four hours, so every one of
+its 2131 records was outside the window. The card above it said *"41 of
+41 tracked satellites have an orbit"* and *"newest orbit 4,5 h old"*,
+both of which read as *everything is fine*.
+
+**Top-right of the Analysis screen, in both editions**: white when there
+are no orbits, green for a real source — the station's own broadcast, an
+ephemeris stream, or a file still inside the window — red for a file too
+old to place anything, amber when the phone's receiver is doing the work.
+Amber is not an error, but it is this handset's sky rather than the
+station's. Tapping any of them opens the wiki page that explains what
+orbits are for and where to fetch a current file.
+
+The badge and the sky view's own header now come from one `skySource()`.
+Asked separately they would eventually disagree, and the screen would
+contradict itself about its own data.
+
+### Fixed — a navigation file could not say how old it really was
+
+*"Newest orbit 4,5 h old"*, for a file whose newest record was thirty
+hours old. Age came from the ephemeris cache, and the cache cannot
+answer: a GLONASS record carries Moscow seconds-of-day and nothing else,
+so one from yesterday afternoon wraps and lands a few hours behind now.
+Freshest-wins, and that single wrapped record set the headline.
+
+The file's true age now comes from the records' own calendar dates, read
+while it is being parsed (`rinex_nav_newest_utc`) and stored at import.
+An import that lands outside the four-hour window says so at the moment
+it can still be fixed, and the orbit card carries the file's real age
+beside its name.
+
+### Changed — free no longer offers a setting it cannot honour
+
+The ephemeris caster, port and mountpoint fields were shown in both
+editions, unguarded, while `MonitorService` dials the stream only when
+`Features.HAS_EPH_STREAM` — false in free. A free user could type a
+caster, save it, and watch it be ignored; the sky falling back to the
+phone then looks like a fault rather than the edition working as
+designed. Free now says *"Ephemeris stream — available in the Pro
+edition"* where the fields were, and names what it uses instead.
+
+Values already stored are carried through untouched, because the
+configuration file is shared with pro and with the desktop tools and
+saving settings in free must not strip somebody's ephemeris mountpoint
+out of it.
+
+
 ### Changed — the GUI's C/N0-vs-elevation plot counts cells, like the app
 
 The Windows plot had the same two faults the Android view was fixed for,

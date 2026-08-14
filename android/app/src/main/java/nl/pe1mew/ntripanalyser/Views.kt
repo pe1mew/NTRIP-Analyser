@@ -1,11 +1,17 @@
 package nl.pe1mew.ntripanalyser
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -609,6 +615,95 @@ private fun sourceName(s: PositionSource): String = when (s) {
     PositionSource.EPHEMERIS -> "ephemeris stream"
     PositionSource.RINEX -> "navigation file"
     PositionSource.NONE -> "no source"
+}
+
+/**
+ * Where the sky view's positions are coming from, in the corner of the
+ * Analysis screen.
+ *
+ * Both editions, one implementation, differing only in what they can
+ * reach: free never has [PositionSource.EPHEMERIS], so that arm is dead
+ * code there rather than a second version of this badge.
+ *
+ * The colour answers "can I trust what I am looking at?" before the
+ * words are read:
+ *
+ * - **green** — a real orbit source: the station's own broadcast, an
+ *   ephemeris stream, or a navigation file still inside the four-hour
+ *   window that `sv_eph_is_valid_at()` enforces.
+ * - **amber** — the phone's own GNSS. It draws a sky, but it is *this
+ *   handset's* sky, not the station's; near the base they agree closely
+ *   and at distance they do not.
+ * - **red** — a navigation file too old to place anything. This is the
+ *   state that used to be invisible: the file loads, the count is large,
+ *   and every record is outside the window.
+ * - **white** — nothing imported and nothing broadcast, so there is
+ *   nothing to be confident or worried about yet.
+ *
+ * Tapping opens the wiki page that explains what orbits are for and
+ * where to get a file, because a badge that says something is wrong owes
+ * the reader the fix.
+ */
+@Composable
+fun OrbitSourceBadge(
+    source: PositionSource,
+    rinexAgeS: Double?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val fresh = rinexAgeS != null && rinexAgeS <= Settings.RINEX_FRESH_S
+    val green = Color(0xFF46AF5A)
+    val amber = Color(0xFFE6A014)
+    val red = Color(0xFFD72828)
+
+    // What is on screen outranks what is on disk: a run placing
+    // satellites from the station's own orbits is not "no file".
+    val (label, colour) = when {
+        source == PositionSource.EPHEMERIS ->
+            stringResource(R.string.badge_eph_stream) to green
+        source == PositionSource.OBS_STREAM ->
+            stringResource(R.string.badge_station) to green
+        source == PositionSource.RINEX ->
+            stringResource(R.string.badge_rinex,
+                           rinexAgeS?.let { ageShort(it) } ?: "") to
+                (if (fresh) green else red)
+        source == PositionSource.PHONE_GNSS ->
+            stringResource(R.string.badge_phone) to amber
+        rinexAgeS == null ->
+            stringResource(R.string.badge_none) to Color.White
+        else ->
+            stringResource(R.string.badge_rinex, ageShort(rinexAgeS)) to
+                (if (fresh) green else red)
+    }
+
+    val onColour = if (colour == Color.White)
+        MaterialTheme.colorScheme.onSurface else Color.White
+
+    Surface(
+        color = colour,
+        contentColor = onColour,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = modifier
+            .padding(end = 12.dp)
+            .clickable(onClick = onClick)
+            // The tap target is the badge; the label is small on purpose,
+            // so the touch area is padded rather than the text enlarged.
+            .semantics { contentDescription = label },
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/** "3 h", "45 min" -- short enough for a badge. */
+fun ageShort(seconds: Double): String = when {
+    seconds < 90.0 -> "now"
+    seconds < 5400.0 -> "${(seconds / 60).toInt()} min"
+    else -> "${(seconds / 3600).toInt()} h"
 }
 
 

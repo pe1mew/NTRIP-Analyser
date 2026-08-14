@@ -19,6 +19,13 @@
     <string name="sky_title">Sky coverage</string>
     <string name="sky_waiting">Waiting for a station position and orbits (%1$d ephemerides so far)…</string>
     <string name="sky_eph">%1$d ephemerides cached</string>
+    <string name="eph_free">Ephemeris stream — available in the Pro edition. In this edition the sky view uses the station’s own orbits where it sends them, a navigation file you import, or this phone’s GNSS.</string>
+    <string name="rinex_loaded_stale">Loaded %1$s: %2$d orbits, but the newest is %3$s old. Nothing can be placed from orbits over 4 hours old — import a current file.</string>
+    <string name="badge_none">No orbits</string>
+    <string name="badge_rinex">RINEX %1$s</string>
+    <string name="badge_eph_stream">Ephemeris stream</string>
+    <string name="badge_station">Station orbits</string>
+    <string name="badge_phone">Phone GNSS</string>
     <string name="eph_explain">Ephemeris stream — only for stations that do not broadcast orbits themselves. The sky plot uses the station\'s own where it sends them. Leave blank to skip.</string>
     <string name="field_eph_caster">Ephemeris caster</string>
     <string name="field_eph_port">Ephemeris port</string>
@@ -45,6 +52,7 @@
     <string name="eph_none">No orbits yet — the sky view cannot place anything</string>
     <string name="eph_none_phone">No broadcast orbits — the sky view shows this phone’s satellites only</string>
     <string name="eph_file">From %1$s</string>
+    <string name="eph_file_age">From %1$s — %2$s old</string>
     <string name="eph_no_file">No navigation file imported</string>
     <string name="action_import_rinex">Import RINEX navigation file…</string>
     <string name="profiles_title">Saved connections</string>
