@@ -1,7 +1,7 @@
 # Privacy policy — NTRIP Analyser for Android
 
-**Applies to:** *NTRIP Analyser - free* (`nl.pe1mew.ntripanalyser.free`)
-and *NTRIP Analyser - pro* (`nl.pe1mew.ntripanalyser.pro`).
+**Applies to:** *NTRIP Analyser* (`nl.pe1mew.ntripanalyser.free`) and
+*NTRIP Analyser Pro* (`nl.pe1mew.ntripanalyser.pro`).
 **Last updated:** 13 August 2026.
 
 NTRIP Analyser measures GNSS correction streams. It has no account, no

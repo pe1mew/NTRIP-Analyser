@@ -132,6 +132,19 @@ def check_urls():
     check(privacy in listing or "privacy-policy" in listing,
           "the listing carries the privacy policy address")
 
+    # The policy is a public document naming the products it covers, and
+    # Play shows it beside them. It named "NTRIP Analyser - free" months
+    # after the titles changed -- the very form that was dropped because
+    # promotional words in a title are grounds for rejection.
+    policy = read("docs", "privacy-policy.md")
+    titles = re.findall(r"\| (?:Free|Pro) \| `([^`]+)`", listing)
+    for title in titles:
+        check(title in policy,
+              "the privacy policy names the app as the listing does",
+              title)
+    check("Analyser - free" not in policy,
+          "the privacy policy does not use a dropped app name")
+
 
 # ── Claims about the app, made outside the app ────────────────────────
 
