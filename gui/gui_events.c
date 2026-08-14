@@ -2554,8 +2554,18 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 struct tm *lt = localtime(&now_t);
                 char ts[16] = "00000000000000";
                 if (lt) strftime(ts, sizeof(ts), "%Y%m%d%H%M%S", lt);
-                snprintf(filename, sizeof(filename), "%s_%s_stats.json",
-                         ts, state->config.MOUNTPOINT[0]
+                /* The mountpoint is the only unbounded part here, and it
+                 * is the least important: a name that lost "_stats.json"
+                 * would be proposed to the save dialog without its
+                 * extension. Clamp the mountpoint to whatever room is
+                 * left, so the timestamp and the suffix always survive.
+                 * A 256-byte mountpoint is not realistic; a filename
+                 * silently missing its extension is not acceptable. */
+                const int room = (int)sizeof(filename) -
+                                 (int)strlen(ts) - (int)sizeof("__stats.json");
+                snprintf(filename, sizeof(filename), "%s_%.*s_stats.json",
+                         ts, room > 0 ? room : 0,
+                         state->config.MOUNTPOINT[0]
                                ? state->config.MOUNTPOINT : "ntrip");
             }
 

@@ -129,6 +129,21 @@ void CheckOnStats(AppState *state, const NsStatsSnapshot *s)
         PostMessage(state->hCheckWnd, WM_APP_CHECK_UPDATE, 0, 0);
 }
 
+/**
+ * @brief A number of seconds, bounded to what a header line can show.
+ *
+ * `%.0f` will happily write three hundred digits, so a buffer sized for
+ * plausible values is a buffer sized wrong. Elapsed and sustained times
+ * come from a clock and never approach this ceiling; clamping costs
+ * nothing real and makes the width of the formatted line provable.
+ */
+static double DisplaySeconds(double s)
+{
+    if (!(s > 0.0))      return 0.0;         /* also catches NaN */
+    if (s > 999999.0)    return 999999.0;    /* eleven and a half days */
+    return s;
+}
+
 /* ── Rows ────────────────────────────────────────────────────────────── */
 
 static int SeverityOf(int verdict)
@@ -257,8 +272,17 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
     DeleteObject(big);
 
     /* The second line is the part an installer reads: how long the
-     * verdict has held, and whether it is still moving. */
-    char line[256];
+     * verdict has held, and whether it is still moving.
+     *
+     * Sized from the fields it prints, not from a round number. Caster
+     * and mountpoint are 256 bytes each in the configuration, so a fixed
+     * 256 here dropped the timing -- the part being read -- as soon as
+     * the hostname was long. The seconds are clamped below so their
+     * width is bounded too: `%.0f` of a double can run to 300 digits,
+     * and a buffer has to be right for what the format can produce, not
+     * for what a station plausibly reports. */
+    char line[sizeof(state->config.NTRIP_CASTER) +
+              sizeof(state->config.MOUNTPOINT) + 96];
     if (!state->checkHaveReport) {
         snprintf(line, sizeof(line),
                  "%s / %s",
@@ -267,7 +291,8 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
         snprintf(line, sizeof(line),
                  "%s / %s   settled after %.0f s, held %.0f s",
                  state->config.NTRIP_CASTER, state->config.MOUNTPOINT,
-                 state->checkElapsedS, state->checkReport.sustained_s);
+                 DisplaySeconds(state->checkElapsedS),
+                 DisplaySeconds(state->checkReport.sustained_s));
     } else if (state->checkAbandoned) {
         /* Whatever is on the rows was true when it ended, and is not a
          * verdict.  Saying so is the difference between an unfinished
@@ -276,12 +301,13 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
                  "%s / %s   %s after %.0f s -- no verdict",
                  state->config.NTRIP_CASTER, state->config.MOUNTPOINT,
                  state->checkEndWhy[0] ? state->checkEndWhy : "ended",
-                 state->checkElapsedS);
+                 DisplaySeconds(state->checkElapsedS));
     } else {
         snprintf(line, sizeof(line),
                  "%s / %s   %.0f s elapsed, verdict held %.0f of %.0f s",
                  state->config.NTRIP_CASTER, state->config.MOUNTPOINT,
-                 state->checkElapsedS, state->checkReport.sustained_s,
+                 DisplaySeconds(state->checkElapsedS),
+                 DisplaySeconds(state->checkReport.sustained_s),
                  KPI_SUSTAIN_S);
     }
 
