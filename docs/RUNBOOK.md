@@ -230,6 +230,22 @@ Expect `libntrip_android.so` under **both** `base/lib/arm64-v8a/` and
 (`abiFilters` in `app/build.gradle.kts`), so a 32-bit-only ARM phone is
 offered the app by nobody — it is not a crash, it is an absence.
 
+**16 KB memory pages.** Devices launching with Android 15 may use 16 KB
+pages, and a shared library laid out for 4 KB ones does not load there —
+the app fails to start rather than misbehaving. Play requires support of
+every app targeting Android 15+. `src/main/cpp/CMakeLists.txt` passes
+`-Wl,-z,max-page-size=16384`; verify it survived a toolchain change:
+
+```bash
+NDK=/c/Users/drasv/AppData/Local/Android/Sdk/ndk/27.0.12077973
+RE=$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-readelf.exe
+"$RE" -l android/app/build/intermediates/cxx/RelWithDebInfo/*/obj/arm64-v8a/libntrip_android.so | grep LOAD
+```
+
+Every LOAD segment must end in **`0x4000`**. `0x1000` is the 4 KB layout
+that will not load on a 16 KB device — it was the default here until
+2026-08-14.
+
 **Signing.** `android/keystore.properties` is git-ignored and absent
 from a fresh clone, so Gradle falls back to the debug key and says so at
 configuration time. That artefact runs but cannot be uploaded — Play

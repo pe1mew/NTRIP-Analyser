@@ -62,4 +62,18 @@ target_compile_definitions(ntrip_android PRIVATE
     _USE_MATH_DEFINES
 )
 
+# ── 16 KB memory pages ───────────────────────────────────────────────
+# Android devices launching with Android 15 may use 16 KB pages, and a
+# shared library laid out for 4 KB ones cannot be loaded on them: the
+# app does not misbehave, it fails to start. Play has required 16 KB
+# support of every app targeting Android 15+ since November 2025.
+#
+# Measured rather than assumed: the library this build produced had
+# LOAD segments at 0x1000. With these flags they are at 0x4000, which
+# `llvm-readelf -l` shows and `docs/RUNBOOK.md` says how to check.
+target_link_options(ntrip_android PRIVATE
+    "-Wl,-z,max-page-size=16384"
+    "-Wl,-z,common-page-size=16384"
+)
+
 target_link_libraries(ntrip_android log m)

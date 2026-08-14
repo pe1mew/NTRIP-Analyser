@@ -366,10 +366,47 @@ signed with the debug key, since the release keystore is the author's to
 create. R8, the bundle, the splits and every runtime rule are verified;
 only the key is not.
 
-⚠ **Target API worth re-checking before submission.** The app targets
-35; this device runs 36. Play requires new apps to target within a year
-of the current release, and that window moves — confirm in the console
-rather than assuming 35 is still accepted.
+### Checked 2026-08-14: the app must move to API 36, and cannot ship as it stands
+
+Play's own page is unambiguous:
+
+> "Starting August 31, 2026: New apps and app updates must target
+> Android 16 (API level 36) or higher to be submitted to Google Play"
+
+That is **seventeen days away**, and this app targets 35. The deadline
+cannot be beaten: the developer account is still in verification, and
+the closed test then needs twelve testers opted in for fourteen
+continuous days. So **targeting 36 is not optional and not deferrable**
+— it is the next piece of engineering.
+
+What the bump needs, none of it done:
+
+1. **SDK platform 36** installed; only `android-35` is present.
+2. **A newer AGP.** 8.7.3 is current here and is not tested against
+   `compileSdk 36`; expect to move AGP and Gradle with it.
+3. **Edge-to-edge, enforced.** Android 16 stops apps targeting 36 from
+   opting out, so every screen must handle system-bar insets itself.
+   This app draws a top bar, a bottom legend and full-bleed plots — it
+   is exactly the shape that breaks. Re-run the S23 pass afterwards and
+   look at the top and bottom of every screen.
+4. **Anything else API 36 changes for a targeting app** — read the
+   behaviour-change list rather than discovering it in review.
+
+An extension to 1 November 2026 can be requested if the work runs long.
+
+### Fixed 2026-08-14: the native library was laid out for 4 KB pages
+
+Separate from the deadline and already blocking: Play has required 16 KB
+page support of every app targeting Android 15+ since November 2025, and
+`llvm-readelf` showed this project's shipping `libntrip_android.so` with
+LOAD segments at `0x1000`. On a device with 16 KB pages the app would
+not start at all.
+
+`-Wl,-z,max-page-size=16384` in the native CMakeLists puts both ABIs at
+`0x4000`, verified in the bundle rather than in an intermediate, and the
+realigned build ran a full check on the S23. NDK 27 did not do this by
+default here, which is why it is pinned in the build and checked in
+`docs/RUNBOOK.md`.
 
 ### Phase 7 — the free wiki — **published** 2026-08-14
 
