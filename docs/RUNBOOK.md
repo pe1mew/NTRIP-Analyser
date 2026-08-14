@@ -235,6 +235,19 @@ found by machine.
 The rest of the submission checklist — the ones no script can settle —
 is in [`docs/work-items/play-listing.md`](work-items/play-listing.md).
 
+### Publishing the wiki
+
+```bash
+bash tools/publish_wiki.sh --push
+```
+
+`docs/wiki/` is the source; GitHub serves the pages from a second
+repository, so they have to be copied. The app links into them (About →
+Documentation, and the orbit badge on the Analysis screen), which makes
+this part of shipping rather than optional. `check_release.py` verifies
+that every wiki link in the app names a page that exists in `docs/wiki/`
+— it cannot tell whether that page has been pushed.
+
 ### Icons
 
 One script draws every form the icon ships in — the Windows `.ico`, the

@@ -202,6 +202,10 @@ document covers both editions and marks every difference between them.
 - [ ] Enable GitHub Pages (branch `main`, folder `/docs`) and check the
       policy URL resolves. **The app now links it too** (About → Privacy
       policy), so until Pages is on, that button opens a 404.
+- [ ] Publish the wiki: `bash tools/publish_wiki.sh --push`. The app
+      links into it from About → Documentation and from the orbit badge,
+      so unpublished pages leave those buttons pointing at the
+      repository front page.
 - [ ] Fill the contact address on both listings; the policy points at it.
 - [ ] Confirm both editions install side by side and are distinguishable
       on the home screen.

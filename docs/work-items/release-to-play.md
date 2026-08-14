@@ -251,7 +251,7 @@ device-side items are what Phase 6 still owes**: a release-signed
 install, a watch that survives Android 13/14 notification behaviour, and
 a run under Doze.
 
-### Phase 7 — the free wiki — **drafted**
+### Phase 7 — the free wiki — **published** 2026-08-14
 
 Seven pages in `docs/wiki/`, written for a free user who will never see
 pro's documentation: Home, Getting started, The eight checks, The
@@ -260,13 +260,25 @@ Privacy and support, plus a `_Sidebar`.
 
 They are kept in this repository so they are reviewed and versioned with
 the code that they describe — the wiki is a separate repository and
-nothing in it would be. Publishing is a copy:
+nothing in it would be. Publishing is a copy, and
+`tools/publish_wiki.sh` is that copy:
 
 ```bash
-git clone https://github.com/pe1mew/NTRIP-Analyser.wiki.git
-cp docs/wiki/*.md NTRIP-Analyser.wiki/
-cd NTRIP-Analyser.wiki && git add -A && git commit && git push
+bash tools/publish_wiki.sh          # show what would change
+bash tools/publish_wiki.sh --push   # publish it
 ```
+
+**The wiki repository does not exist until the first page is saved in
+the browser.** Enabling the wiki in Settings is not enough — GitHub
+creates it lazily, and until then every link into it redirects to the
+repository front page. That is exactly how the app's orbit badge was
+found to lead nowhere: the link was right, the destination did not
+exist. Twelve pages and the sidebar are live as of 2026-08-14.
+
+**Publishing is a release step, not an afterthought**: the app links
+into the wiki from About → Documentation and from the orbit badge on the
+Analysis screen, so a docs/wiki change that is not pushed leaves those
+buttons describing an older app.
 
 **They must be re-read before launch**, because they state behaviour:
 every threshold and every quoted message was taken from `src/core/kpi.c`
