@@ -13,7 +13,21 @@
      1. Review gotcha-log for recurring patterns — promote them here or to a topic file
      2. Retire entries that are fixed, refactored away, or now encoded in code
      3. Update "Current State" to reflect what shipped or changed
-     Monthly (/audit-context): prune as much as you add. -->
+     Monthly (/audit-context): prune as much as you add.
+
+     VERIFIED CLAIMS:
+     A claim about the state of things decays the moment it is written —
+     "two tests" survived here for a day after there were five. So each
+     one that can be checked carries the command that checks it:
+
+         <!-- verify: <shell command, exit 0 = still true> -->
+         <!-- verify: manual — why no command can settle it -->
+
+     `python tools/verify_memory.py` runs every one of them and reports
+     PASS / FAIL / ERROR. A FAIL means the sentence above it is now
+     false: fix the sentence, not the command. Add a command to any new
+     claim, or say plainly that it is manual — an unmarked claim is one
+     nobody will ever re-check. -->
 
 ## Topic Files
 
@@ -38,11 +52,13 @@
 <!-- 2026-08-14 -->
 
 - **v3.3.0 released** on the desktop; substantial unreleased work in `changelog.md`.
+  <!-- verify: grep -q 'NTRIP_VERSION_STRING  "3.3.0"' src/core/version.h -->
 - **Shipped recently**: KPI 8 (advertised versus actual) across all frontends;
   the station check in the Windows GUI; RINEX GLONASS fixes plus the project's
   first regression test; Android saved connection profiles with encrypted
   credentials; one shared JSON config format everywhere.
   The GGA uplink now follows the sourcetable's `nmea` flag in both editions,
+  <!-- verify: grep -q 'wants_gga = e\[i\].nmea' src/cli/cli_stream.c -->
   with pro reporting the phone's own position after a one-time consent and
   falling back to the fixed one; positions are picked from the station's
   sourcetable entry or handed off to the user's map app, and no map SDK is
@@ -52,6 +68,7 @@
   public caster advertises an `nmea` mountpoint to test against
   (`docs/RUNBOOK.md`).
 - **Every RTCM 3 observation format is now measured** — legacy
+  <!-- verify: ctest --test-dir build -R 'msm_cnr|legacy_obs' --output-on-failure -->
   1001-1004/1009-1012 and MSM1-7 for satellites, MSM4-7 and legacy for
   C/N0 — and KPIs 4 and 5 judge a station against what its sourcetable
   advertises rather than against a fixed multi-GNSS expectation
@@ -60,14 +77,17 @@
   `android/design/views.md` because it has twice looked like an app
   defect.
 - **The website and the wiki are live** (2026-08-14): GitHub Pages serves
+  <!-- verify: gh api repos/pe1mew/NTRIP-Analyser/pages --jq .status | grep -q built && git ls-remote -q https://github.com/pe1mew/NTRIP-Analyser.wiki.git HEAD | grep -q . -->
   `docs/` — the privacy-policy URL Play requires — and twelve wiki pages
   are published from `docs/wiki/` by `tools/publish_wiki.sh`. The app
   links into both, so an unpublished page is a broken button.
 - **Where a document lives decides who reads it**: `docs/` is served as a
+  <!-- verify: test ! -e docs/work-items -a ! -e docs/security-review.md -->
   website, so it holds what is written for someone who is not us;
   working documents (the release plan, the listings, the security
   assessment) live in `design/`, which Pages never sees.
 - **The sky view and the C/N0-elevation plot now say where their
+  <!-- verify: ctest --test-dir build -R eph_validity --output-on-failure -->
   positions came from** — a badge on the Analysis screen, green for a
   real orbit source, red for a navigation file too old to place
   anything, amber for the phone's own receiver. Orbits are counted and
@@ -75,11 +95,14 @@
   is what let a stale file read as a full cache
   (`docs/wiki/Orbits-and-the-ephemeris-stream.md`).
 - **Release plumbing is in place**: version parsed from
+  <!-- verify: grep -q 'version.h' android/app/build.gradle.kts && grep -q 'isMinifyEnabled = true' android/app/build.gradle.kts && test -f tools/make_icons.py -->
   `src/core/version.h` by Gradle (`versionCode` = MMmmpp), signing from a
   git-ignored `keystore.properties` with a debug-key fallback that says
   so, R8 on and verified against a live caster, one generated icon in
   every form (`tools/make_icons.py`), privacy policy and listings drafted.
   The keystore itself is the author's to create.
+  <!-- verify: manual — whether a release build is signed with the real key
+       cannot be seen from the repository; keystore.properties is git-ignored -->
 - **In progress**: getting both editions onto Google Play →
   `design/work-items/release-to-play.md` [in progress] — eight phases, of which
   telemetry, licences and the security assessment are decisions that gate the
@@ -91,7 +114,10 @@
   side-stream only when nothing has reached the cache for 20 s
   (`android/design/views.md`).
 - **Known gaps**: no CI; the GUI station check has no saved report;
+  <!-- verify: test ! -d .github/workflows -->
   seven pro rows in the editions table are marked *planned*, not built.
+  <!-- verify: manual — counting rows in a prose table, and "planned" is a
+       judgement about the table's own honesty -->
 
 ## Recently Promoted
 
@@ -130,6 +156,8 @@ Supplementing CLAUDE.md's list with paths found during work:
   in the browser.
 - `tools/make_notices.py` — the open-source notices, from the versions the
   build resolves rather than from a table anyone maintains.
+- `tools/verify_memory.py` — runs the `<!-- verify: -->` command under every
+  claim in this file and `CLAUDE.md`. A FAIL means the sentence is stale.
 - `android/app/proguard-rules.pro` — what R8 must not rename: the JNI
   entry points and the serializers. Both failures are release-only.
 - `design/work-items/play-listing.md` — listing text and the data-safety

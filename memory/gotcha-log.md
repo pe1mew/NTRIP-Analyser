@@ -139,6 +139,12 @@
 **Root cause**: Fetched responses are cached for fifteen minutes per URL. The build was fine; the reader was stale.
 **Fix**: Add a distinct query string when re-checking a page you have just fetched. Also: `pages/builds/latest` lags behind the deployment — the site is the evidence, not the API.
 
+### The constraint against scripted rewrites, broken an hour after writing it (2026-08-14) [x3]
+**Problem**: A heredoc-fed script wrote `"
+"` into `tools/verify_memory.py` as a literal newline, splitting a statement across two lines. Two other edits in the same script matched nothing and said nothing.
+**Root cause**: The same escape-mangling promoted to a hard constraint that morning — and `.replace()` without an assertion, which cannot fail out loud.
+**Fix**: Edit tools for anything with escapes; every scripted substitution asserts its target was found. A constraint is not learned until the next mistake is a different one.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -149,5 +155,5 @@
 |------|--------|-------------|-------------|
 | 2026-08-13 | A remembered value must not satisfy the KPI that asks for it | 1 | project file, hard constraint |
 | 2026-08-13 | Judge constellations by NavSys, never the 1005/1006 bits | **3** — 2026-08-12 three times in one session | project file, domain facts; `memory/MEMORY.md` active decisions |
-| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **2** — heredoc 2026-08-12, doubled CRs 2026-08-14 | project file, hard constraint |
+| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **3** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14 | project file, hard constraint |
 | 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |

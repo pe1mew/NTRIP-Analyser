@@ -41,7 +41,7 @@ because people will point it at real stations and believe what it says.
 | Reading or writing configuration files | `docs/jsonConfigs.md` — one format everywhere, passwords in the clear |
 | Stuck, or something behaves impossibly | `memory/gotcha-log.md` — problem→root cause→fix archive |
 | Writing or moving documentation comments | `memory/doxygen-in-headers-only.md` |
-| Ending a session | Run `/curate` — review the gotcha log, promote patterns, update the memory index |
+| Ending a session | Run `/curate` — review the gotcha log, promote patterns, update the memory index. It runs `python tools/verify_memory.py`, which re-checks every claim in this file and the index against the repository |
 | Monthly, or after major restructuring | Run `/audit-context` — duplication, wrong-layer placement, broken references |
 
 <!-- "Active work" section deliberately absent: this tool has auto-memory,
@@ -105,6 +105,7 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/java/.../MainActivity.kt` | The whole Android UI |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
 | `test/` | Five tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity |
+<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | grep -c 'Test #')" = 5 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
 
 ## Domain facts that look like bugs if you don't know them
