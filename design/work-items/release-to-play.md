@@ -215,7 +215,7 @@ uplink follows the handset.
   **open questions 3 and 4**: one document, both listings, every
   edition difference marked inside it.
 - **Listings and data safety** — drafted in
-  `docs/work-items/play-listing.md`, with the reasoning behind each
+  `design/work-items/play-listing.md`, with the reasoning behind each
   answer rather than the answers alone.
 
 Left to the author, and listed at the end of that document: enabling
@@ -287,7 +287,7 @@ describes the tool inaccurately is worse than no wiki.
 
 ### The data-safety declaration — **written**
 
-`docs/work-items/play-data-safety.md`: every question in the console's
+`design/work-items/play-data-safety.md`: every question in the console's
 form, answered per edition, with what each answer rests on and a
 pre-submission checklist of the ways an answer could quietly stop being
 true.

@@ -113,4 +113,4 @@ configures with credentials, and that is disclosed where the user can
 act on it.
 
 See `docs/security-review.md` F3 for the finding, and
-`docs/work-items/release-to-play.md` for where this sits in the plan.
+`design/work-items/release-to-play.md` for where this sits in the plan.

@@ -4,10 +4,12 @@
 # privacy-policy URL, and the policy belongs with the code that it
 # describes rather than in a wiki page nobody reviews.
 #
-# Everything else already in docs/ is published as a side effect. That
-# is harmless -- the repository is public, so these files were readable
-# already -- but it does mean a document written here is a document
-# published, and should read like one.
+# Everything else in docs/ is published with it. That is not harmful --
+# the repository is public, so these files were readable already -- but
+# a document served as a web page is indexed and linked in a way a file
+# in a repository is not. **So docs/ holds documents written to be read
+# by someone who is not us**, and internal ones live in design/, which
+# Pages never sees. The release work items moved there for that reason.
 title: NTRIP-Analyser
 description: >-
   Analyses NTRIP RTCM 3.x streams from GNSS base stations, and answers

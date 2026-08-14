@@ -233,7 +233,7 @@ Add a check whenever drift is found by hand, so that the next time it is
 found by machine.
 
 The rest of the submission checklist — the ones no script can settle —
-is in [`docs/work-items/play-listing.md`](work-items/play-listing.md).
+is in [`design/work-items/play-listing.md`](../design/work-items/play-listing.md).
 
 ### Publishing the wiki
 

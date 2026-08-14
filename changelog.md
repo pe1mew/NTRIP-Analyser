@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the release work items moved out of the published folder
+
+Enabling GitHub Pages made every file in `docs/` a web page, including
+three that were never written for a reader: the store listing drafts,
+the data-safety answers and the launch plan. They were already public —
+the repository is — but a page is indexed and linked in a way a file in
+a repository is not.
+
+They now live in `design/work-items/`, beside the other internal
+documents, which Pages never sees. `docs/` is for documents written to
+be read by someone who is not us; `design/` is for the rest, and
+`docs/_config.yml` says so where the decision is enacted.
+
+
 ### Fixed — a day-old GLONASS orbit could place a satellite
 
 Found while testing the badge, on the handset. The orbit card read
@@ -290,7 +304,7 @@ have been staged.
 
 ### Added — the Play data-safety declaration, per edition
 
-`docs/work-items/play-data-safety.md` answers every question in the
+`design/work-items/play-data-safety.md` answers every question in the
 console's form for both listings, records what each answer rests on, and
 lists the ways an answer could quietly stop being true — a new
 dependency, TLS landing, anything new leaving the device.
@@ -808,7 +822,7 @@ text, and the word bought nothing: the price is already on the listing.
 **The privacy policy is written** (`docs/privacy-policy.md`, published
 from `/docs`), and the store listings and data-safety answers are
 drafted with the reasoning behind each one
-(`docs/work-items/play-listing.md`). One answer is worth stating here:
+(`design/work-items/play-listing.md`). One answer is worth stating here:
 *is all user data encrypted in transit?* — **no**, because NTRIP sends
 the position and the credentials over a plain connection. That is the
 protocol rather than a shortcut, the app says so where the password is

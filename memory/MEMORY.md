@@ -65,7 +65,7 @@
   every form (`tools/make_icons.py`), privacy policy and listings drafted.
   The keystore itself is the author's to create.
 - **In progress**: getting both editions onto Google Play →
-  `docs/work-items/release-to-play.md` [in progress] — eight phases, of which
+  `design/work-items/release-to-play.md` [in progress] — eight phases, of which
   telemetry, licences and the security assessment are decisions that gate the
   privacy policy and the data-safety declaration.
 - **Orbits now come off the observation stream** wherever a station
@@ -101,7 +101,7 @@ Supplementing CLAUDE.md's list with paths found during work:
   launcher bitmaps, the adaptive vectors and the store assets are output.
 - `android/app/proguard-rules.pro` — what R8 must not rename: the JNI
   entry points and the serializers. Both failures are release-only.
-- `docs/work-items/play-listing.md` — listing text and the data-safety
+- `design/work-items/play-listing.md` — listing text and the data-safety
   answers, with the reasoning behind each.
 
 ## Active Decisions

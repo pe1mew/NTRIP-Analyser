@@ -128,7 +128,7 @@ def check_urls():
                                           page + ".md")),
               name + " points at a wiki page that exists", page)
 
-    listing = read("docs", "work-items", "play-listing.md")
+    listing = read("design", "work-items", "play-listing.md")
     check(privacy in listing or "privacy-policy" in listing,
           "the listing carries the privacy policy address")
 
@@ -165,7 +165,7 @@ def check_claims():
         ("android/app/src/main/AndroidManifest.xml", "the manifest"),
         ("android/app/src/free/java/nl/pe1mew/ntripanalyser/Features.kt",
          "the free edition's feature flags"),
-        ("docs/work-items/play-listing.md", "the store listing"),
+        ("design/work-items/play-listing.md", "the store listing"),
         ("docs/wiki/The-eight-checks.md", "the wiki"),
         ("docs/wiki/Home.md", "the wiki's home page"),
     ]
@@ -184,7 +184,7 @@ def check_claims():
 
 def check_listing():
     print("store listing")
-    listing = read("docs", "work-items", "play-listing.md")
+    listing = read("design", "work-items", "play-listing.md")
 
     for title in re.findall(r"\| (?:Free|Pro) \| `([^`]+)`", listing):
         check(len(title) <= 30, "title within 30 characters: " + title,
