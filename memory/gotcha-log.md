@@ -77,11 +77,12 @@
 **Fix**: Count, allocate, parse — and log what the fetch did, because the C side's stderr goes nowhere on Android and "cannot judge" with no way to ask why is not a diagnosis.
 **Lesson**: A fixed cap on data from a third party is a silent truncation waiting for a bigger third party. Count first.
 
-### A property of the station looked like a defect in the app (2026-08-13)
+### A property of the station looked like a defect in the app (2026-08-13) [x2]
 **Problem**: The C/N0-versus-elevation plot showed horizontal white lines in the free edition and none in pro, which read as the two editions diverging.
 **Root cause**: The stations differed, not the editions. MSM4 carries C/N0 in whole dB-Hz, so half-decibel plot cells could fill only every second row; the pro station was MSM7 at a sixteenth of a decibel and filled them all.
 **Fix**: Bin at the coarsest resolution any stream delivers (1 dB), and document the per-format resolution in `android/design/views.md`.
 **Lesson**: Before suspecting the app, point both editions at the *same* mountpoint. `checkEditionParity` now fails the build if an edition acquires code of its own, so a real divergence cannot hide behind this.
+**Recurrence 2026-08-14**: the same striping in the Windows GUI, same cause, same 1 dB cure. A data property shows up in every renderer, so fixing one frontend leaves the others wrong.
 
 ### An IME invented characters in a mountpoint (2026-08-13) [RESOLVED]
 **Problem**: Typing `APEL0` on the handset saved `APEL0. `; the caster then reported no such mountpoint.
@@ -105,6 +106,39 @@
 **Problem**: Gradle: "JAVA_HOME is set to an invalid directory".
 **Fix**: `C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot`, as a Windows path — Gradle rejects the POSIX form. Also on this machine: the only host C compiler is CodeBlocks' MinGW.
 
+### A backup taken after the damage restored the damage (2026-08-14)
+**Problem**: Deliberately breaking a source file to prove a test catches it left the break in place; the "restore" wrote it back.
+**Root cause**: The first attempt crashed *after* writing the broken file and before restoring. The next script read that file as its baseline and saved it as `.bak` — the backup captured the break.
+**Fix**: Take the baseline from `git`, not from the working file, and assert the restored text differs from the broken one. A restore that cannot fail is not a restore.
+
+### A file rewritten with newline='
+' doubled every carriage return (2026-08-14)
+**Problem**: 2014 lines of `MainActivity.kt` ended `
+`; subsequent edits stopped matching anything.
+**Root cause**: The script converted LF to CRLF *and* opened the file with `newline='
+'`, which converts again on write.
+**Fix**: Open with `newline=''` on both sides and do the conversion once, explicitly. Better: use the file-editing tools, which get this right.
+
+### Keystrokes went to whichever window had focus (2026-08-14)
+**Problem**: Automating the Windows GUI with SendKeys typed a file path into something else; the target instance never received it.
+**Root cause**: SendKeys is delivered to the focused window, and `AppActivate` does not reliably win focus on a busy desktop.
+**Fix**: Drive a Win32 app by messages to its own handles — `WM_SETTEXT` to the control id, `WM_COMMAND` with the menu id. It reaches that window and nothing else, and needs no focus.
+
+### A link can be correct while its destination does not exist (2026-08-14)
+**Problem**: The app's new orbit badge opened the repository front page instead of the wiki page it names.
+**Root cause**: GitHub creates the wiki *repository* when the first page is saved in the browser; enabling the wiki in Settings does not. Every link into an unborn wiki redirects.
+**Fix**: `tools/publish_wiki.sh`, and a check that every in-app wiki link names a page that exists in `docs/wiki/`. The check cannot prove it was pushed — only the fetch can.
+
+### GLONASS has no week, so a day-old orbit passed as an hour old (2026-08-14)
+**Problem**: A ten-hour-old navigation file reported "newest orbit 58 min old", and a satellite could have been placed from a day-stale orbit.
+**Root cause**: GLONASS `toe` is Moscow **seconds of day**. Every age and every validity test wraps at 86400 s, so yesterday's record lands a few hours behind now.
+**Fix**: `SvEphemeris.toe_utc`, an absolute date, filled wherever one is known — any file carries a calendar datetime. Live streams keep the wrap; their records are seconds old. `test/test_eph_validity.c` pins both halves.
+
+### A fetch cache made a fixed page look unfixed (2026-08-14)
+**Problem**: The published privacy policy still showed the old app names minutes after the fix was deployed and the build reported success.
+**Root cause**: Fetched responses are cached for fifteen minutes per URL. The build was fine; the reader was stale.
+**Fix**: Add a distinct query string when re-checking a page you have just fetched. Also: `pages/builds/latest` lags behind the deployment — the site is the evidence, not the API.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -115,3 +149,5 @@
 |------|--------|-------------|-------------|
 | 2026-08-13 | A remembered value must not satisfy the KPI that asks for it | 1 | project file, hard constraint |
 | 2026-08-13 | Judge constellations by NavSys, never the 1005/1006 bits | **3** — 2026-08-12 three times in one session | project file, domain facts; `memory/MEMORY.md` active decisions |
+| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **2** — heredoc 2026-08-12, doubled CRs 2026-08-14 | project file, hard constraint |
+| 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |

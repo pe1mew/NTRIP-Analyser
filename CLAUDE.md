@@ -65,7 +65,12 @@ because people will point it at real stations and believe what it says.
 - **Never document a function in both header and `.c`.** Doxygen merges
   them and reports nonsense.
 - **Verify against a live caster before claiming something works.** A
-  clean build proves nothing here.
+  clean build proves nothing here. The same rule for anything published:
+  fetch the page, do not trust the deploy status.
+- **Never rewrite a file with a script that re-encodes it.** Escapes and
+  line endings are both mangled that way — twice so far. Use the
+  file-editing tools; if a script is unavoidable, read and write with
+  `newline=''` and convert once.
 
 ## Architecture
 
@@ -99,7 +104,7 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
 | `android/app/src/main/java/.../MainActivity.kt` | The whole Android UI |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
-| `test/` | Two tests: the RINEX loader, and hostile RTCM frames |
+| `test/` | Five tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity |
 | `changelog.md` | Entries carry the measurement behind each claim |
 
 ## Domain facts that look like bugs if you don't know them

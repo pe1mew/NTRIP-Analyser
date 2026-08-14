@@ -31,10 +31,11 @@
 | `design/security-review.md` | Touching a parser, the socket layer, or anything a caster feeds | What a hostile caster can do; six findings closed, TLS scheduled |
 | `design/tls.md` | Implementing TLS, or asked why it is not there yet | The decision, the measured surface, and what actually costs |
 | `design/legacy-observations.md` | Touching KPI 4, KPI 5, or anything that decides which messages count | Delivery is judged against the sourcetable, so an old GPS+GLONASS station passes. Built 2026-08-13 |
+| `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Twelve published pages; the app links into them, so a claim here is a claim in the product |
 
 ## Current State
 
-<!-- 2026-08-13 -->
+<!-- 2026-08-14 -->
 
 - **v3.3.0 released** on the desktop; substantial unreleased work in `changelog.md`.
 - **Shipped recently**: KPI 8 (advertised versus actual) across all frontends;
@@ -58,6 +59,21 @@
   sets the resolution of the C/N0 views, which is documented in
   `android/design/views.md` because it has twice looked like an app
   defect.
+- **The website and the wiki are live** (2026-08-14): GitHub Pages serves
+  `docs/` — the privacy-policy URL Play requires — and twelve wiki pages
+  are published from `docs/wiki/` by `tools/publish_wiki.sh`. The app
+  links into both, so an unpublished page is a broken button.
+- **Where a document lives decides who reads it**: `docs/` is served as a
+  website, so it holds what is written for someone who is not us;
+  working documents (the release plan, the listings, the security
+  assessment) live in `design/`, which Pages never sees.
+- **The sky view and the C/N0-elevation plot now say where their
+  positions came from** — a badge on the Analysis screen, green for a
+  real orbit source, red for a navigation file too old to place
+  anything, amber for the phone's own receiver. Orbits are counted and
+  aged by whether they can be *used*, not by whether they exist, which
+  is what let a stale file read as a full cache
+  (`docs/wiki/Orbits-and-the-ephemeris-stream.md`).
 - **Release plumbing is in place**: version parsed from
   `src/core/version.h` by Gradle (`versionCode` = MMmmpp), signing from a
   git-ignored `keystore.properties` with a debug-key fallback that says
@@ -74,7 +90,7 @@
   view with nothing configured; the paid edition dials its ephemeris
   side-stream only when nothing has reached the cache for 20 s
   (`android/design/views.md`).
-- **Known gaps**: no CI; two tests; the GUI station check has no saved report;
+- **Known gaps**: no CI; the GUI station check has no saved report;
   seven pro rows in the editions table are marked *planned*, not built.
 
 ## Recently Promoted
@@ -82,7 +98,14 @@
 <!-- Format: "if [situation], then [what to do] — promoted from gotcha-log YYYY-MM-DD"
      Retire an entry as soon as it appears in its destination. -->
 
-*(nothing yet — the loop starts at the next session)*
+- If a **script must rewrite a file**, read and write with `newline=''` and
+  convert line endings once — never let the script re-encode what it wrote
+  (escapes 2026-08-12, doubled carriage returns 2026-08-14) —
+  promoted from gotcha-log 2026-08-14 to `CLAUDE.md` hard constraints.
+- If a **rendering fault comes from the data's own resolution**, fix every
+  frontend, not the one it was reported in (Android 2026-08-13, GUI
+  2026-08-14) — promoted from gotcha-log 2026-08-14 to Active Decisions
+  above.
 
 ## Key File Paths
 
@@ -99,6 +122,14 @@ Supplementing CLAUDE.md's list with paths found during work:
   config format, daemon side and desktop side.
 - `tools/make_icons.py` — the only place the icon exists; the `.ico`, the
   launcher bitmaps, the adaptive vectors and the store assets are output.
+- `tools/check_release.py` — compares the claims the project makes about
+  itself against the things they claim about (version, in-app links, the
+  check count, Play's limits, generated notices). Run before submitting.
+- `tools/publish_wiki.sh` — copies `docs/wiki/` to the GitHub wiki, which
+  is a second repository and does not exist until its first page is saved
+  in the browser.
+- `tools/make_notices.py` — the open-source notices, from the versions the
+  build resolves rather than from a table anyone maintains.
 - `android/app/proguard-rules.pro` — what R8 must not rename: the JNI
   entry points and the serializers. Both failures are release-only.
 - `design/work-items/play-listing.md` — listing text and the data-safety
@@ -127,6 +158,10 @@ Supplementing CLAUDE.md's list with paths found during work:
   is for the user to hand to their caster operator, not a line to the
   author. Support is deliberately minimal: the product and the wiki answer
   the questions, issues go to GitHub (`design/telemetry.md`).
+- **A data property shows up in every renderer.** C/N0 arrives quantised
+  by message type, and the same striping appeared in Android and then in
+  the Windows GUI; a fix in one frontend leaves the others wrong. Bin at
+  the coarsest resolution any stream delivers.
 - **TLS is coming, after the free launch**, as a bundled library behind a
   transport abstraction — chosen over per-platform native APIs to keep one
   code path for four frontends. It ships in **both editions** on the same
