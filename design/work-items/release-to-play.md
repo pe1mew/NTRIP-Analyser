@@ -20,7 +20,7 @@ the privacy policy; 4 onwards are sequential.
 |---|---|---|---|
 | 1 | Telemetry decision | privacy policy, data-safety form | **done** → `design/telemetry.md`; collect nothing |
 | 2 | Licence study | store listings, wiki claims, RINEX auto-download | **done** → `docs/licences.md`, 7 actions |
-| 3 | Security assessment | any public release | **done** → `docs/security-review.md`; 6 of 7 closed, TLS open |
+| 3 | Security assessment | any public release | **done** → `design/security-review.md`; 6 of 7 closed, TLS open |
 | 4 | Live GGA implementation | pro's launch scope | designed, not built |
 | 5 | Release plumbing | submission | not started |
 | 6 | Samsung S23 verification | submission | not started |
@@ -118,7 +118,7 @@ Original scope:
 
 ### Phase 3 — Security assessment — **DONE 2026-08-13**
 
-Report in `docs/security-review.md`. Two defects found and fixed: RTCM
+Report in `design/security-review.md`. Two defects found and fixed: RTCM
 1033 read past its payload and printed what it found there, and the
 sourcetable accumulated without limit from an untrusted caster. Both are
 covered by `test/test_rtcm_hostile.c`, which fails against the pre-fix

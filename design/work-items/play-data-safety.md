@@ -116,7 +116,7 @@ management, Developer communications, Fraud prevention.
 | Data is encrypted in transit | **No** (pro; not asked for free) |
 | You can request that data be deleted | **No** |
 | Committed to follow the Play Families Policy | **No** — a professional measurement tool, not directed at children |
-| Independent security review | **No** — there has been a review (`docs/security-review.md`), but it is the author's own, and claiming otherwise would be a lie about its independence |
+| Independent security review | **No** — there has been a review (`design/security-review.md`), but it is the author's own, and claiming otherwise would be a lie about its independence |
 
 ---
 

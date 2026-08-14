@@ -21,4 +21,4 @@ By Remko Welling (PE1MEW). Source, releases and issues:
 - [Configuration files](jsonConfigs.md) — one format for every program
 - [Building](compile.md)
 - [Third-party licences](licences.md)
-- [Security review](security-review.md)
+- [Security review](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/security-review.md)

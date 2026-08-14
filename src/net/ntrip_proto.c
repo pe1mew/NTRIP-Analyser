@@ -92,7 +92,7 @@ int ns_proto_build_request(char *out, size_t cap,
      * encryption: on a plain TCP connection these credentials are
      * readable by anything on the path.  This client speaks no TLS, so
      * the honest thing is to say so once per session rather than let a
-     * user assume otherwise -- see docs/security-review.md F3.
+     * user assume otherwise -- see design/security-review.md F3.
      *
      * Only when credentials are actually sent: an anonymous stream has
      * nothing to expose, and warning about it would train the user to

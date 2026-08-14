@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-### Changed — the release work items moved out of the published folder
+### Changed — the release work items and the security review moved out of the published folder
 
 Enabling GitHub Pages made every file in `docs/` a web page, including
 three that were never written for a reader: the store listing drafts,
@@ -15,7 +15,15 @@ the repository is — but a page is indexed and linked in a way a file in
 a repository is not.
 
 They now live in `design/work-items/`, beside the other internal
-documents, which Pages never sees. `docs/` is for documents written to
+documents, which Pages never sees. `security-review.md` went with them:
+it is an assessment written for the author, and while it discloses
+nothing an attacker lacks — the two parser defects in it are fixed, and
+the open item is a property of NTRIP that the app already states under
+the password field — a page is read differently from a file.
+
+It stays findable rather than hidden: `docs/index.md` and the docs
+readme both link it in the repository, because a security document
+nobody can locate is a problem of its own. `docs/` is for documents written to
 be read by someone who is not us; `design/` is for the rest, and
 `docs/_config.yml` says so where the decision is enacted.
 

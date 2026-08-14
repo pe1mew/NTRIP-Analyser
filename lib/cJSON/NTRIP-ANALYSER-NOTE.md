@@ -21,4 +21,4 @@ artefacts never carried.
 If JSON Pointer support is ever needed, take it from an upstream release
 that carries the fix rather than restoring these files.
 
-Reviewed 2026-08-13; see `docs/security-review.md` F6.
+Reviewed 2026-08-13; see `design/security-review.md` F6.
