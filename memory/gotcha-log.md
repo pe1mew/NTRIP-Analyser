@@ -145,6 +145,12 @@
 **Root cause**: The same escape-mangling promoted to a hard constraint that morning — and `.replace()` without an assertion, which cannot fail out loud.
 **Fix**: Edit tools for anything with escapes; every scripted substitution asserts its target was found. A constraint is not learned until the next mistake is a different one.
 
+### A navigation gesture eaten by an overscroll animation (2026-08-14)
+**Problem**: On the S23, dragging right from the sky view no longer left the Analysis screen. The same build did it on the Android 10 handset.
+**Root cause**: The screen reads what the pager *cannot* consume as "leave". From Android 12 the stretch overscroll consumes that leftover to animate with it, so `onPostScroll` saw nothing. The older glow effect only draws, which is why the gesture had always worked where it was tested.
+**Fix**: `LocalOverscrollConfiguration provides null` around the pager — the stretch is worth less than the gesture. A nested-scroll parent only sees what every child declines to take.
+**Lesson**: A gesture built on leftover deltas is a gesture built on what nobody else wanted, and that changes by platform version. Test navigation gestures on the newest Android available, not the oldest.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

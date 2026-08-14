@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — dragging out of the sky view stopped working on modern Android
+
+Reported on the S23: from the sky view, dragging right no longer
+returned to the station screen. The Back button and the system's own
+back gesture still did, and every other swipe worked, so it read as one
+gesture quietly dying.
+
+The screen treats what the pager **cannot** consume as "leave this
+screen". From Android 12 the stretch overscroll consumes exactly that
+leftover in order to animate with it, so the nested-scroll parent saw
+nothing at all; the older glow effect only draws, which is why the
+gesture had always worked on the Android 10 handset it was built on.
+
+The pager now runs with overscroll disabled — a stretch animation is a
+fair price for a gesture that navigates. Verified on the S23 before and
+after, and reported working by the author.
+
 ### Changed — the app targets Android 16 (API 36)
 
 Play refuses new apps and updates below API 36 from **31 August 2026**,

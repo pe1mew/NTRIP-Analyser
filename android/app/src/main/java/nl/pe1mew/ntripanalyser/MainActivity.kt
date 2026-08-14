@@ -24,6 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -142,7 +144,7 @@ enum class Screen { STATION, ANALYSIS }
 /** Which analysis view is showing. */
 enum class AnalysisTab { SKY, SIGNAL, ELEVATION }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -600,8 +602,19 @@ fun MainScreen() {
                 }
 
                 Box(Modifier.weight(1f).nestedScroll(leaveAnalysis)) {
-                  HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                    when (AnalysisTab.entries[page]) {
+                  // No overscroll on this pager, or the gesture above
+                  // never happens. From Android 12 the stretch effect
+                  // *consumes* the drag that runs past the first page --
+                  // the very leftover this screen reads as "leave" -- so
+                  // the swipe worked on the Android 10 handset, where the
+                  // older glow only draws, and did nothing on the S23.
+                  // A stretch animation is a fair price for the gesture
+                  // that navigates.
+                  CompositionLocalProvider(
+                      LocalOverscrollConfiguration provides null
+                  ) {
+                    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                      when (AnalysisTab.entries[page]) {
                         AnalysisTab.SKY -> SkyView(
                             sats = plotted,
                             missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
@@ -613,6 +626,7 @@ fun MainScreen() {
                             SignalBars(signal, liveValues = live)
                         AnalysisTab.ELEVATION ->
                             ElevationView(elevSamples, elevRevision)
+                      }
                     }
                   }
                 }
