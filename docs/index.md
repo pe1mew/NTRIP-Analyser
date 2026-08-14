@@ -19,6 +19,8 @@ By Remko Welling (PE1MEW). Source, releases and issues:
 - [Windows GUI](gui.md)
 - [Monitoring daemon](service.md)
 - [Configuration files](jsonConfigs.md) — one format for every program
+- [Declaring a base station](base-declaration.md) — from a live stream to
+  the RINEX and coordinates Centipede-RTK asks for
 - [Building](compile.md)
 - [Third-party licences](licences.md)
 - [Security review](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/security-review.md)

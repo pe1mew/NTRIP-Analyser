@@ -4,6 +4,10 @@
 name on 2026-08-14 and the path is kept so the references to it keep
 working.)*
 
+*This is the **Android** track. Two others run in parallel and are not
+blocked by it: [cli-track.md](cli-track.md) and
+[gui-track.md](gui-track.md).*
+
 ## What & Why
 
 Two Play listings — free and pro — built from the flavors that exist.

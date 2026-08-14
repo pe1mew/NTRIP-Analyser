@@ -150,11 +150,15 @@ traced across metrics, with labels once at the bottom. Tick spacing adapts to se
 (seconds → m:ss → h:mm:ss), and ticks are positioned by sample index rather than interpolated time,
 so gridlines stay aligned with the traces even if sampling stutters.
 
-### 2.2 Raw stream capture and offline replay — **Shipped**
+### 2.2 Raw stream capture and offline replay — **Shipped in the GUI**
 
-Capture writes raw frames to disk from the File menu (`gui/gui_thread.c:547`); the replay worker
-reads a `.rtcm3` capture and feeds it through the normal decode path
+Capture writes CRC-validated frames to disk from the File menu (`gui/gui_thread.c:242`); the replay
+worker reads a `.rtcm3` capture and feeds it through the normal decode path
 (`gui/gui_thread.c:1031`, menu item `IDM_FILE_RTCM_REPLAY` in `gui/resource.h:24`).
+
+**The CLI has the replay half only** (`--rtcm-stdin`), so it can read a format it cannot write, and
+every `.rtcm3` in existence was made by the Windows GUI. The capture half is specified as Phase 1
+of [work-items/cli-track.md](work-items/cli-track.md).
 
 ### 1.3 CRC-24Q error rate as a first-class metric — **Shipped**
 
