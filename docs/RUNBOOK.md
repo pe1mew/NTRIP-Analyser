@@ -102,6 +102,20 @@ two editions cannot quietly acquire separate implementations of the same
 screen. It runs as part of every build; run it alone with
 `.\gradlew.bat checkEditionParity`.
 
+**Before believing a bug report about one edition, check what is
+installed.** The editions share `src/main`, so a fix reaches both the
+moment it is written — but only the edition you rebuilt reaches the
+phone. Two defects fixed in shared code were reported as live in pro,
+whose APK was an hour older than the fix:
+
+```bash
+adb -s <serial> shell dumpsys package nl.pe1mew.ntripanalyser.pro | grep lastUpdateTime
+```
+
+Installing a release-signed build over a debug-signed one needs an
+uninstall, and that takes the app's saved connections and imported
+navigation file with it. Know what is on the device before doing it.
+
 Inspecting a debug build's stored settings:
 
 ```bash

@@ -49,7 +49,7 @@
 
 ## Current State
 
-<!-- 2026-08-14 -->
+<!-- 2026-08-14, second session -->
 
 - **v3.3.0 released** on the desktop; substantial unreleased work in `changelog.md`.
   <!-- verify: grep -q 'NTRIP_VERSION_STRING  "3.3.0"' src/core/version.h -->
@@ -76,6 +76,22 @@
   sets the resolution of the C/N0 views, which is documented in
   `android/design/views.md` because it has twice looked like an app
   defect.
+- **Free is submitted to Google Play** (2026-08-14), closed testing track,
+  awaiting review. The signed bundle is `app-free-release.aab`, 3.3.0 /
+  30300, **1.35 MB to install** because Play sends one ABI split and one
+  language split. Pro's bundle is built and signed but not submitted:
+  its data-safety answers differ and two reviews at once is two chances
+  to be asked the same question.
+  <!-- verify: grep -q "targetSdk = 36" android/app/build.gradle.kts -->
+- **The release keystore exists**, outside the tree, and both editions
+  are signed with it — one key, two listings.
+  <!-- verify: manual — keystore.properties and the .jks are git-ignored
+       by design, so the repository cannot see them -->
+- **What the launch required, and now has**: target **API 36** (Play's
+  floor from 31 August 2026) on AGP 8.11.2 / Gradle 8.13; the native
+  library laid out for **16 KB pages**; store assets including a
+  generated feature graphic; a foreground-service declaration with a
+  demonstration video. See `design/work-items/release-to-play.md`.
 - **The website and the wiki are live** (2026-08-14): GitHub Pages serves
   <!-- verify: gh api repos/pe1mew/NTRIP-Analyser/pages --jq .status | grep -q built && git ls-remote -q https://github.com/pe1mew/NTRIP-Analyser.wiki.git HEAD | grep -q . -->
   `docs/` — the privacy-policy URL Play requires — and twelve wiki pages
@@ -172,6 +188,9 @@ Supplementing CLAUDE.md's list with paths found during work:
   build resolves rather than from a table anyone maintains.
 - `tools/verify_memory.py` — runs the `<!-- verify: -->` command under every
   claim in this file and `CLAUDE.md`. A FAIL means the sentence is stale.
+- `tools/make_feature_graphic.py` — the Play feature graphic for both
+  editions, drawn from `make_icons.py`'s mark and palette so the listing
+  and the launcher icon cannot drift apart.
 - `android/app/proguard-rules.pro` — what R8 must not rename: the JNI
   entry points and the serializers. Both failures are release-only.
 - `design/work-items/play-listing.md` — listing text and the data-safety
@@ -204,6 +223,11 @@ Supplementing CLAUDE.md's list with paths found during work:
   by message type, and the same striping appeared in Android and then in
   the Windows GUI; a fix in one frontend leaves the others wrong. Bin at
   the coarsest resolution any stream delivers.
+- **The phone is not the build.** One codebase and two editions means the
+  *installs* diverge even when the code cannot: two defects fixed in
+  shared code were reported as live in pro, whose APK was an hour older
+  than the fix. Compare `lastUpdateTime` before reading code
+  (`docs/RUNBOOK.md`).
 - **F-Droid: our own repository, never the official one** — it requires
   FLOSS, the Commons Clause forbids sale, and relicensing the free
   edition would strip the Clause from the shared core as well. Self-

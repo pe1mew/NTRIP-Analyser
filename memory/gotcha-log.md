@@ -151,6 +151,34 @@
 **Fix**: `LocalOverscrollConfiguration provides null` around the pager — the stretch is worth less than the gesture. A nested-scroll parent only sees what every child declines to take.
 **Lesson**: A gesture built on leftover deltas is a gesture built on what nobody else wanted, and that changes by platform version. Test navigation gestures on the newest Android available, not the oldest.
 
+### An edition looked broken because its install was an hour old (2026-08-14)
+**Problem**: Two defects fixed in free were reported as still present in pro — the same two, on the same handset.
+**Root cause**: Both fixes live in shared `src/main`; pro had them in source the moment they were written. The APK on the phone was built at 16:26 and the fix at 17:45.
+**Fix**: Compare install timestamps before reading code — `adb shell dumpsys package <id> | grep lastUpdateTime`.
+**Lesson**: One codebase and two editions means the *installs* diverge even when the code cannot. `checkEditionParity` guarantees shared code; nothing guarantees the phone has the newer build.
+
+### The Gradle wrapper could not be executed anywhere but Windows (2026-08-14)
+**Problem**: CI failed with `./gradlew: Permission denied`.
+**Root cause**: The wrapper was committed from Windows, where git does not track the executable bit, so its mode was 100644.
+**Fix**: `git update-index --chmod=+x android/gradlew`, not a `chmod` step in the workflow, which would have hidden it from every other clone.
+**Lesson**: CI's first value is being a machine that is not yours. Every Linux and macOS clone had this defect for months and nothing said so.
+
+### NDK 27 did not align the library to 16 KB pages (2026-08-14)
+**Problem**: Play has required 16 KB page support since November 2025 for anything targeting Android 15+. `llvm-readelf` showed the shipping `.so` with LOAD segments at `0x1000`.
+**Root cause**: The alignment was assumed to come free with a recent NDK. It did not, in this configuration.
+**Fix**: `-Wl,-z,max-page-size=16384` in the native CMakeLists, verified in the bundle rather than in an intermediate.
+**Lesson**: A toolchain's reputation is not evidence. Read the artefact.
+
+### Play's crawler inferred a login from a password field (2026-08-14)
+**Problem**: The submission was blocked by "missing credentials": Play had screenshotted the caster settings dialog and taken *Username* and *Password* for an account.
+**Root cause**: Those fields configure access to a third party's NTRIP caster. The app has no accounts at all.
+**Fix**: App access declared as "no restricted parts", with the reasoning and a public anonymous caster in the release notes, where a human reviewer reads.
+**Lesson**: Expect automation to read the screen literally, and answer the human behind it.
+
+### Device tooling is not standard equipment (2026-08-14)
+**Problem**: `screenrecord` is absent on the EMUI handset, and every `adb shell` path was rewritten — `/sdcard/f.mp4` reached the phone as `C:/Program Files/Git/sdcard/f.mp4`.
+**Fix**: Check `ls /system/bin/<tool>` before building a plan around it, and prefix `adb shell` commands carrying Unix paths with `MSYS_NO_PATHCONV=1`.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -163,3 +191,4 @@
 | 2026-08-13 | Judge constellations by NavSys, never the 1005/1006 bits | **3** — 2026-08-12 three times in one session | project file, domain facts; `memory/MEMORY.md` active decisions |
 | 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **3** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14 | project file, hard constraint |
 | 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |
+| 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **3** — 16 KB alignment, bundle ABIs, signing key, all 2026-08-14 | project file, hard constraint |

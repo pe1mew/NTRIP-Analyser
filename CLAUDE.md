@@ -67,6 +67,11 @@ because people will point it at real stations and believe what it says.
 - **Verify against a live caster before claiming something works.** A
   clean build proves nothing here. The same rule for anything published:
   fetch the page, do not trust the deploy status.
+- **Read the artefact, not the toolchain's promise.** What ships is the
+  `.aab`, the `.so`, the page — open them. NDK 27 was assumed to align
+  the library to 16 KB pages and had not; the bundle was assumed to
+  carry both ABIs and the signature was assumed to be the release key.
+  All three were one command away from being known.
 - **Never rewrite a file with a script that re-encodes it.** Escapes and
   line endings are both mangled that way — twice so far. Use the
   file-editing tools; if a script is unavoidable, read and write with
@@ -107,6 +112,7 @@ NDK, so nothing testable on a desktop belongs there.
 | `test/` | Five tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity |
 <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | grep -c 'Test #')" = 5 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
+| `.github/workflows/ci.yml` | Core, tests, release checks and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
 
 ## Domain facts that look like bugs if you don't know them
 
