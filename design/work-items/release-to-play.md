@@ -111,7 +111,7 @@ the privacy policy; 4 onwards are sequential.
 | 3 | Security assessment | any public release | **done** → `design/security-review.md`; 6 of 7 closed, TLS open |
 | 4 | Live GGA implementation | pro's launch scope | **done** → built and verified against a live network mountpoint |
 | 5 | Release plumbing | submission | **done** → signing, version, R8, icons, listings, notices |
-| 6 | Samsung S23 verification | submission | open — needs the keystore and the handset |
+| 6 | Samsung S23 verification | submission | **run** 2026-08-14 on Android 16 — everything but the signature |
 | 7 | Wiki (free) | free launch | **done** 2026-08-14 → twelve pages published |
 | 8 | Wiki (pro) | pro launch | **done** 2026-08-14 → same wiki, Pro section |
 | 9 | Play closed testing: 12 testers × 14 days | free on Play | open — account in verification; recruiting from the readme |
@@ -338,11 +338,38 @@ The Android 13 rules it neighbours were already handled: the
 `POST_NOTIFICATIONS` runtime request is guarded on `TIRAMISU`, and
 location is asked for only when a view needs it.
 
-Checked statically, since the timeout cannot be provoked on Android 10.
-What the handset does confirm is the path it delegates to. **The
-device-side items are what Phase 6 still owes**: a release-signed
-install, a watch that survives Android 13/14 notification behaviour, and
-a run under Doze.
+### Run on the S23, 2026-08-14 — **SM-S911B, Android 16, SDK 36**
+
+Three major versions above the Android 10 handset this app grew up on,
+and one above what the plan assumed. Everything below was run from the
+**app bundle**, installed through `bundletool` as the exact split set
+Play would deliver to that device: `base`, `split_config.arm64_v8a`,
+`split_config.nl`.
+
+| What | Result |
+|---|---|
+| Split install from the bundle | three APKs, no `UnsatisfiedLinkError`, no stuck-at-READY |
+| `POST_NOTIFICATIONS` (Android 13+) | prompted on first launch, granted, `USER_SET` |
+| Foreground service type | `types=0x00000001` — `dataSync`, accepted by Android 16 |
+| Free: station check | settled in 90 s, 47 SV, 2589 B/s |
+| Pro: station check | settled in 90 s, 49 SV, sourcetable of **1212** mountpoints parsed |
+| Pro: watch mode | 6 minutes, 11 380 C/N0 samples, 1418 ephemerides off the observation stream |
+| **Doze** | forced deep idle for 3 minutes mid-watch: service stayed foreground, satellites went 49 → 52, the sky kept updating |
+| Stop | service released; `isForeground` count back to 0 |
+
+The orbit badge also showed its third green state for the first time on
+hardware — **Station orbits** — because Centipede NEAR broadcasts its own
+ephemerides, so nothing was fetched and nothing was guessed.
+
+**What is still owed**: the signature. Everything above ran on a build
+signed with the debug key, since the release keystore is the author's to
+create. R8, the bundle, the splits and every runtime rule are verified;
+only the key is not.
+
+⚠ **Target API worth re-checking before submission.** The app targets
+35; this device runs 36. Play requires new apps to target within a year
+of the current release, and that window moves — confirm in the console
+rather than assuming 35 is still accepted.
 
 ### Phase 7 — the free wiki — **published** 2026-08-14
 

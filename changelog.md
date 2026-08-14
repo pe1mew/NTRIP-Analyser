@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Verified — both editions on a Samsung S23, Android 16
+
+The app grew up on an Android 10 handset, where the rules it now has to
+obey do not exist. Run on **SM-S911B, Android 16, SDK 36**, installed
+from the **app bundle** through `bundletool` as the exact split set Play
+would deliver: `base`, `arm64_v8a`, `nl`.
+
+- **No release-only failure**: no `UnsatisfiedLinkError`, no screen
+  stuck at READY. R8, the bundle and the splits work together.
+- **`POST_NOTIFICATIONS`** prompted on first launch and was granted —
+  the Android 13+ path, which the old handset can never exercise.
+- **The foreground service runs as `dataSync`** (`types=0x00000001`),
+  accepted by Android 16.
+- **Doze**: forced deep idle for three minutes in the middle of a watch.
+  The service stayed foreground, tracked satellites went 49 → 52, and
+  the sky kept updating. Six minutes of watch produced 11 380 C/N0
+  samples and 1418 ephemerides off the station's own stream.
+- The orbit badge showed **Station orbits** for the first time on
+  hardware, Centipede NEAR broadcasting its own orbits.
+- Pro parsed a **1212-mountpoint** sourcetable, which is the count-then-
+  allocate fix holding on a fourth Android version.
+
+**Only the signature is unverified**: these builds carry the debug key,
+because the release keystore is the author's to create.
+
+
 ### Changed — the release plan covers three stores, and the readme recruits testers
 
 **Free first, to Google Play, the Samsung Galaxy Store and F-Droid.**
