@@ -153,9 +153,14 @@ add_executable(test_legacy_obs test/test_legacy_obs.c)
 target_link_libraries(test_legacy_obs PRIVATE ntrip_core)
 add_test(NAME legacy_obs COMMAND test_legacy_obs)
 
+add_executable(test_eph_validity test/test_eph_validity.c)
+target_link_libraries(test_eph_validity PRIVATE ntrip_core)
+add_test(NAME eph_validity COMMAND test_eph_validity)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs)
+    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
+            test_eph_validity)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

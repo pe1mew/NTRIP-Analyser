@@ -656,24 +656,34 @@ fun OrbitSourceBadge(
     val amber = Color(0xFFE6A014)
     val red = Color(0xFFD72828)
 
-    // What is on screen outranks what is on disk: a run placing
-    // satellites from the station's own orbits is not "no file".
+    // Order matters, and it took a handset to get it right.
+    //
+    // A working source outranks the disk: pro with a live ephemeris
+    // stream is green even though a month-old file sits in its storage,
+    // because the file has nothing to do with what is on screen.
+    //
+    // Below that, a *stale file* outranks the phone. Both are true at
+    // once -- a file too old to place anything is exactly why the phone
+    // ended up doing the work -- and of the two, the file is the one the
+    // user can fix. Ordered the other way this state read amber "Phone
+    // GNSS" and the red was unreachable: the only way to place nothing
+    // from a file is to fall back to the phone.
+    val staleFile = rinexAgeS != null && !fresh
     val (label, colour) = when {
         source == PositionSource.EPHEMERIS ->
             stringResource(R.string.badge_eph_stream) to green
         source == PositionSource.OBS_STREAM ->
             stringResource(R.string.badge_station) to green
-        source == PositionSource.RINEX ->
-            stringResource(R.string.badge_rinex,
-                           rinexAgeS?.let { ageShort(it) } ?: "") to
-                (if (fresh) green else red)
+        source == PositionSource.RINEX && fresh ->
+            stringResource(R.string.badge_rinex, ageShort(rinexAgeS!!)) to green
+        staleFile ->
+            stringResource(R.string.badge_rinex, ageShort(rinexAgeS!!)) to red
         source == PositionSource.PHONE_GNSS ->
             stringResource(R.string.badge_phone) to amber
-        rinexAgeS == null ->
-            stringResource(R.string.badge_none) to Color.White
+        rinexAgeS != null ->
+            stringResource(R.string.badge_rinex, ageShort(rinexAgeS)) to green
         else ->
-            stringResource(R.string.badge_rinex, ageShort(rinexAgeS)) to
-                (if (fresh) green else red)
+            stringResource(R.string.badge_none) to Color.White
     }
 
     val onColour = if (colour == Color.White)

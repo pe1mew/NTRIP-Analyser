@@ -40,6 +40,7 @@
 
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
 #define EPH_ATOMIC_LOAD(p)        __atomic_load_n((p), __ATOMIC_ACQUIRE)
 #define EPH_ATOMIC_STORE(p, v)    __atomic_store_n((p), (v), __ATOMIC_RELEASE)
@@ -136,6 +137,14 @@ bool sv_eph_is_valid_at(const SvEphemeris *eph, int week, double tow_s)
     if (dt >  half_wrap) dt -= wrap;
     if (dt < -half_wrap) dt += wrap;
     double abs_dt = fabs(dt);
+
+    /* Where the absolute epoch is known, it decides.  The wrapped
+     * difference above cannot tell a record from this hour from one a
+     * whole day older, and a file is exactly where that happens. */
+    if (eph->toe_utc > 0.0) {
+        double now_utc = (double)time(NULL);
+        abs_dt = fabs(now_utc - eph->toe_utc);
+    }
 
     /* Grace periods are deliberately generous: for sky-plot purposes
      * the orbit-extrapolation error after a few hours is still

@@ -731,9 +731,27 @@ int bridge_placeable(const NtripBridge *b, int *tracked)
     int n = ns_sat_list(b->sess, sats, 128);
     if (tracked) *tracked = n;
 
+    /* Usable, not merely present.  Counting the existence of an
+     * ephemeris said "41 of 41 tracked satellites have an orbit" over a
+     * sky view placing none of them: every record in the imported file
+     * was outside the window sky_azel_for_sat() applies, so the plot
+     * fell back to the phone while the card reported full coverage.
+     *
+     * The same number decides whether pro dials its ephemeris stream and
+     * when it hangs up, so a stale file used to make the cache look
+     * finished. */
+    int gps_week;
+    double gps_tow;
+    sky_get_gps_time_now(&gps_week, &gps_tow);
+    double glo_tod = sky_get_glo_tod_now();
+
     int have = 0;
-    for (int i = 0; i < n; i++)
-        if (sv_eph_get(sats[i].gnss_id, sats[i].prn)) have++;
+    for (int i = 0; i < n; i++) {
+        const SvEphemeris *e = sv_eph_get(sats[i].gnss_id, sats[i].prn);
+        if (!e) continue;
+        double t = (sats[i].gnss_id == 2) ? glo_tod : gps_tow;
+        if (sv_eph_is_valid_at(e, gps_week, t)) have++;
+    }
     return have;
 }
 
@@ -775,11 +793,26 @@ double bridge_eph_age_s(const NtripBridge *b)
     /* GLONASS reference epochs are Moscow seconds of day: UTC + 3 h. */
     double glo_now  = fmod((double)(now % 86400) + 10800.0, 86400.0);
 
+    int week_now;
+    double tow_check;
+    sky_get_gps_time_now(&week_now, &tow_check);
+
     double best = -1.0;
     for (int g = 0; g < SV_EPH_MAX_GNSS; g++) {
         for (int p = 1; p <= SV_EPH_MAX_SATS_PER_GNSS; p++) {
             const SvEphemeris *e = sv_eph_get(g, p);
             if (!e) continue;
+
+            /* Only orbits that could place their satellite.  Age is
+             * measured against a wrap -- one week, or one *day* for
+             * GLONASS, which carries no week at all -- so a day-old
+             * GLONASS record lands a few hours behind now and reported
+             * itself fresh.  A cache holding nothing usable then read
+             * "newest orbit 0 min old" beside a plot drawn entirely
+             * from the phone.  Skipping the unusable makes the wrap
+             * unreachable: nothing valid is ever a day old. */
+            double t_valid = (e->gnss_id == 2) ? glo_now : tow_check;
+            if (!sv_eph_is_valid_at(e, week_now, t_valid)) continue;
 
             bool glo   = (e->gnss_id == 2);
             double wrap = glo ? 86400.0 : 604800.0;

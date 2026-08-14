@@ -255,6 +255,22 @@ fun MainScreen() {
     LaunchedEffect(Unit) {
         if (Settings.rinexFile(context).exists()) {
             MonitorService.rinexPath = Settings.rinexFile(context).absolutePath
+
+            // A file imported before this app knew to record its date has
+            // no date, and an unknown age would leave the badge unable to
+            // say anything about a file plainly sitting there. The date
+            // is in the file, so read it: one parse, once, off the main
+            // thread, and never again for that import.
+            if (Settings.rinexAgeS(context) == null) {
+                withContext(Dispatchers.IO) {
+                    val path = Settings.rinexFile(context).absolutePath
+                    if (NtripBridge.loadNavFile(path) > 0) {
+                        Settings.setRinexNewestUtc(
+                            context, NtripBridge.navFileNewestUtc())
+                    }
+                }
+                rinexAgeS = Settings.rinexAgeS(context)
+            }
         }
     }
 

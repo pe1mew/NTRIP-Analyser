@@ -23,7 +23,7 @@
 #endif
 
 /* ── Time helpers (mirror gui_thread.c sky_get_gps_time / sky_get_glo_tod) */
-static void sky_get_gps_time_now(int *week, double *tow_s)
+void sky_get_gps_time_now(int *week, double *tow_s)
 {
     const time_t GPS_EPOCH_UNIX = 315964800;   /* 1980-01-06 UTC */
     time_t now = time(NULL);
@@ -33,7 +33,7 @@ static void sky_get_gps_time_now(int *week, double *tow_s)
     if (tow_s) *tow_s = delta - (double)w * 604800.0;
 }
 
-static double sky_get_glo_tod_now(void)
+double sky_get_glo_tod_now(void)
 {
     time_t now = time(NULL);
     double utc_sod = (double)(now % 86400);

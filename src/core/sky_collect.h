@@ -67,6 +67,24 @@ void sky_collect_reset(SkyRenderSector *sectors);
  *                 horizon), which the caller is left to judge.
  * @return true when an orbit was available and valid for now.
  */
+/**
+ * @brief GPS week and seconds-of-week for the host clock, now.
+ *
+ * Exposed because judging an ephemeris means comparing it against the
+ * same clock the placement code uses. A caller computing its own drifts
+ * from this one -- and a validity test that disagrees with the placement
+ * test is worse than none.
+ */
+void sky_get_gps_time_now(int *week, double *tow_s);
+
+/**
+ * @brief Moscow seconds-of-day for the host clock, now.
+ *
+ * GLONASS ephemerides carry no week and reference Moscow time-of-day, so
+ * this is the scale their @c toe lives on.
+ */
+double sky_get_glo_tod_now(void);
+
 bool sky_azel_for_sat(int gnss_id, int prn,
                       double sx, double sy, double sz,
                       double *az_deg, double *el_deg);

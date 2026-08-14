@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — a day-old GLONASS orbit could place a satellite
+
+Found while testing the badge, on the handset. The orbit card read
+*"newest orbit 58 min old"* over a plot drawing nothing from those
+orbits, with a ten-hour-old file loaded.
+
+GLONASS broadcasts **no week number**: its reference epoch is Moscow
+seconds of day. Age can therefore only be computed modulo one day, so a
+record from yesterday morning lands a few hours behind this morning and
+passes every test — including the four-hour validity check that decides
+whether a satellite may be *placed*. That is not a display fault: the
+sky view would draw such a satellite from a twenty-four-hour-old orbit,
+as confidently as from a fresh one.
+
+`SvEphemeris` now carries `toe_utc`, an absolute date, filled wherever
+one is known — which is any file, since RINEX records carry a full
+calendar datetime. Where it is set it decides; where it is not, the wrap
+still governs, which is correct for a live stream whose ephemerides are
+seconds old by construction. `test/test_eph_validity.c` pins both halves,
+and was checked to fail when the absolute-date branch is removed.
+
+### Fixed — the orbit card counted orbits it could not use
+
+*"41 of 41 tracked satellites have an orbit"* beside a sky view placing
+none of them: `bridge_placeable` tested whether an ephemeris existed,
+while placement additionally tests whether it is valid now. The same
+number decides when pro opens its ephemeris stream and when it hangs up,
+so a stale file made the cache look finished. It now counts what can
+actually be used, and the age beside it is measured over usable orbits
+only — a cache holding nothing current says so instead of naming an age.
+
+Verified on the handset: with a ten-hour-old file the card reads *"0 of
+38 tracked satellites have an orbit"* and *"no broadcast orbits — the
+sky view shows this phone's satellites only"*, while pro on the same
+station and the same stale file reads *37 of 37* and *0 min*, because
+its ephemeris stream delivered current ones.
+
+
 ### Added — a badge saying where the sky view's positions came from
 
 Free was drawing the sky from the phone's own GNSS while an imported

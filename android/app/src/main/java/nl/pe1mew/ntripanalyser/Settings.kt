@@ -358,6 +358,18 @@ object Settings {
     }
 
     /**
+     * Record the date of the file already imported.
+     *
+     * For an import made before the app read dates at all: the file is
+     * there, its records carry their own dates, and one parse recovers
+     * what was never stored.
+     */
+    fun setRinexNewestUtc(context: Context, newestUtc: Long) {
+        context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putLong(KEY_RINEX_UTC, newestUtc).apply()
+    }
+
+    /**
      * Discard a staged file, leaving any previous import untouched.
      *
      * Used when a file copies cleanly but holds no orbits: whatever was

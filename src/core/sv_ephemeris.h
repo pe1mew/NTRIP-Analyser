@@ -56,6 +56,27 @@ typedef struct {
     int      health;         /**< 0 = healthy */
     bool     valid;          /**< true once populated */
 
+    /**
+     * Reference epoch as Unix UTC seconds; 0 when not known.
+     *
+     * Every other time field here is relative and wraps: seconds of the
+     * GPS week, or -- for GLONASS, which broadcasts no week at all --
+     * Moscow **seconds of day**.  Judging age by those means judging it
+     * modulo a week or modulo a *day*, and a day-old GLONASS record
+     * therefore lands a few hours behind now and passes as current.
+     * Measured: a navigation file whose newest record was ten hours old
+     * reported "newest orbit 58 min old", and a satellite could have
+     * been drawn from an orbit a full day stale.
+     *
+     * Set where the absolute date is known, which is any file: RINEX
+     * records carry a full calendar datetime.  Left 0 for ephemerides
+     * decoded from a live stream, where the wrap cannot be reached --
+     * they are seconds old by construction, repeating every half
+     * minute -- and where inventing a receipt time would age an orbit
+     * by when it was heard rather than when it was for.
+     */
+    double   toe_utc;
+
     /* ── GLONASS-only state-vector form (gnss_id == 2) ──────────────── */
     /* GLONASS broadcasts position + velocity in PZ-90 (~WGS-84) at the
      * reference epoch tb, plus luni-solar perturbation acceleration.

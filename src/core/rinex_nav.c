@@ -148,6 +148,11 @@ static time_t rnx_to_unix(int year, int month, int day,
 #endif
 }
 
+/* The record currently being parsed, as UTC seconds; 0 when unknown.
+ * File-scope to avoid threading it through five parser signatures for a
+ * value every one of them wants and none of them chooses. */
+static double g_record_utc = 0.0;
+
 /* The newest record of the file last loaded, as UTC epoch seconds.
  * File-scope because the cache it fills is file-scope too, and because
  * the answer belongs to the file rather than to any one record. */
@@ -209,6 +214,7 @@ static int parse_keplerian_record(int gnss_id, int prn,
 
     SvEphemeris eph;
     memset(&eph, 0, sizeof(eph));
+    eph.toe_utc = g_record_utc;   /* the record's own date, absolute */
     eph.gnss_id     = gnss_id;
     eph.prn         = prn;
     eph.iode_iodnav = (int)v1[0];
@@ -267,6 +273,7 @@ static int parse_glonass_record(int prn,
 
     SvEphemeris eph;
     memset(&eph, 0, sizeof(eph));
+    eph.toe_utc = g_record_utc;   /* the record's own date, absolute */
     eph.gnss_id      = 2;             /* GLONASS */
     eph.prn          = prn;
     eph.iode_iodnav  = 0;
@@ -352,6 +359,9 @@ int rinex_nav_load(const char *filename, int *out_counts)
         time_t rec_utc = rnx_to_unix(year, month, day, hour, min, sec);
         if (rec_utc > 0 && (long long)rec_utc > g_newest_utc)
             g_newest_utc = (long long)rec_utc;
+        /* Carried into every record parsed below, so validity is judged
+         * on the absolute date rather than on a wrapped one. */
+        g_record_utc = (rec_utc > 0) ? (double)rec_utc : 0.0;
 
         double clock0[4];
         rnx_read_4(line, clock0);   /* fields beyond char 23: af0, af1, af2 */
