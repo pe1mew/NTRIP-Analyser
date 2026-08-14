@@ -1,5 +1,7 @@
 # NTRIP-Analyser
 
+[![CI](https://github.com/pe1mew/NTRIP-Analyser/actions/workflows/ci.yml/badge.svg)](https://github.com/pe1mew/NTRIP-Analyser/actions/workflows/ci.yml)
+
 A tool for analysing NTRIP RTCM 3.x data streams, available as both a command-line interface (CLI) and a Windows graphical user interface (GUI).
 
 ---
