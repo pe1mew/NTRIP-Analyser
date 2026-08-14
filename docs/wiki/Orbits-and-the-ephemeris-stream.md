@@ -1,5 +1,3 @@
-# Satellite orbits: why they are needed, and where to get them
-
 An observation stream says *which* satellites a station is tracking and
 how strongly it hears each one. It does not say **where** any of them
 are. Two of the three analysis views need that:

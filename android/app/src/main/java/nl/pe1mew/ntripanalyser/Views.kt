@@ -1,6 +1,5 @@
 package nl.pe1mew.ntripanalyser
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -686,25 +685,35 @@ fun OrbitSourceBadge(
             stringResource(R.string.badge_none) to Color.White
     }
 
-    val onColour = if (colour == Color.White)
-        MaterialTheme.colorScheme.onSurface else Color.White
+    // Same chip as every verdict in this app: 6 dp corners, bold
+    // monospace, white on the colour, and no outline. A border made it a
+    // different kind of object from the PASS/WARN chips it sits above,
+    // and drew the eye to its edge rather than to what it says.
+    //
+    // The one state that cannot take white text is the white chip, which
+    // is by design the quiet one: nothing is imported and nothing is
+    // wrong yet.
+    val ink = if (colour == Color.White)
+        MaterialTheme.colorScheme.onSurfaceVariant else Color.White
 
     Surface(
         color = colour,
-        contentColor = onColour,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        shape = RoundedCornerShape(6.dp),
         modifier = modifier
             .padding(end = 12.dp)
             .clickable(onClick = onClick)
-            // The tap target is the badge; the label is small on purpose,
-            // so the touch area is padded rather than the text enlarged.
+            // The tap target is the chip, not the glyphs: the label stays
+            // at the size the rest of the app uses and the padding does
+            // the reaching.
             .semantics { contentDescription = label },
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            color = ink,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
     }
 }
