@@ -248,8 +248,15 @@ document covers both editions and marks every difference between them.
 - [ ] Fill the contact address on both listings; the policy points at it.
 - [ ] Confirm both editions install side by side and are distinguishable
       on the home screen.
+- [ ] Upload the **app bundle**, not an APK: `gradlew bundleFreeRelease`
+      → `app/build/outputs/bundle/freeRelease/*.aab`. Play refuses an APK
+      for a new app; the APK remains the artefact for Samsung and for a
+      self-hosted F-Droid repository.
 - [ ] Upload from a release build signed with the release keystore, not
       the debug fallback (`android/keystore.properties.example`).
+- [ ] Note in the listing that the app is **64-bit only**
+      (`abiFilters`): a 32-bit-only ARM phone will find it listed as
+      incompatible rather than failing to run.
 - [ ] Once the closed track exists, confirm the tester opt-in link in the
       console and correct it in `readme.md` if it differs from
       `https://play.google.com/apps/testing/<package>`. The readme is the

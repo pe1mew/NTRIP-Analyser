@@ -202,6 +202,34 @@ on Start (a renamed JNI entry point) and a screen that stays at READY
 while a run works (a stripped serializer, so no document decodes).
 `app/proguard-rules.pro` says which rule guards what.
 
+**Play takes a bundle, not an APK.** `assembleFreeRelease` produces an
+APK, which is right for the handset, for the Samsung Galaxy Store and
+for a self-hosted F-Droid repository — and which Play refuses for a new
+app. The artefact to upload is:
+
+```powershell
+cd android
+.\gradlew.bat bundleFreeRelease     # app/build/outputs/bundle/freeRelease/*.aab
+```
+
+Play then generates per-device APKs from it, which is why the bundle is
+worth *looking inside* before uploading: this app carries a JNI library,
+and a bundle missing an ABI installs on nothing without ever failing a
+build.
+
+```bash
+python - <<'EOF'
+import zipfile
+z = zipfile.ZipFile('android/app/build/outputs/bundle/freeRelease/app-free-release.aab')
+print([n for n in z.namelist() if n.endswith('.so')])
+EOF
+```
+
+Expect `libntrip_android.so` under **both** `base/lib/arm64-v8a/` and
+`base/lib/x86_64/`. The build is 64-bit only by choice
+(`abiFilters` in `app/build.gradle.kts`), so a 32-bit-only ARM phone is
+offered the app by nobody — it is not a crash, it is an absence.
+
 **Signing.** `android/keystore.properties` is git-ignored and absent
 from a fresh clone, so Gradle falls back to the debug key and says so at
 configuration time. That artefact runs but cannot be uploaded — Play

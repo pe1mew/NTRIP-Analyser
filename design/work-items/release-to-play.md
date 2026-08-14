@@ -427,6 +427,29 @@ a troubleshooting page so a question is answered once, the GitHub
 tracker as the route for issues, and no implied help desk behind the
 contact address Play requires.
 
+### Phase 8b — the upload artefact — **built** 2026-08-14
+
+`bundleFreeRelease` produces `app-free-release.aab`, 3.7 MB, and it had
+never been built here: every release path in this project produced an
+APK, which Play refuses for a new app.
+
+Its contents were checked rather than assumed, because a JNI app is
+where bundles go wrong quietly — Play generates per-device APKs, and a
+bundle missing an ABI installs on nothing without failing a build.
+`libntrip_android.so` is present under `base/lib/arm64-v8a/` and
+`base/lib/x86_64/`, `res/raw/notices.txt` is in the base module, one
+dex, `BundleConfig` present.
+
+**The build is 64-bit only by choice.** A 32-bit-only ARM phone will see
+the app as incompatible rather than crash on it. Coherent with
+`minSdk 26`, and worth saying on the listing rather than leaving a user
+to wonder why it will not install.
+
+⚠ **Not yet verified: the split APKs Play actually delivers.** That
+needs `bundletool`, which is not installed here — it would generate the
+exact per-device set and install it. Until then the bundle's *contents*
+are verified and its *delivery* is not.
+
 ### Phase 9 — Play closed testing
 
 Twelve testers, opted in and staying opted in for fourteen continuous

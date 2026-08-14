@@ -88,6 +88,11 @@ def check_version():
     gradle = read("android", "app", "build.gradle.kts")
     check("versionPart(\"MAJOR\")" in gradle and "version.h" in gradle,
           "Gradle reads the version from version.h")
+
+    # Play has required a 64-bit binary since 2019 and rejects an upload
+    # without one. The filter is a deliberate choice here; the check is
+    # that it never loses arm64 by accident.
+    check("arm64-v8a" in gradle, "the build produces a 64-bit ARM binary")
     return ver
 
 
