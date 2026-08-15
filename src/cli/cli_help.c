@@ -70,6 +70,14 @@ void print_help(const char *progname) {
     printf("                           Exit 0 = STATION OK, 6 = caution, 1 = failed.\n");
     printf("      --check-vrs          As --check plus the network-RTK assertions:\n");
     printf("                           GGA cadence, ARP-near-rover, and the gate test.\n");
+    printf("\nCapture:\n");
+    printf("      --capture <path>     Write every CRC-valid RTCM frame to <path>, for\n");
+    printf("                           later conversion (RTKLIB convbin) or replay.  Give\n");
+    printf("                           a directory to get YYYYMMDDHHmmss_<mount>.rtcm3\n");
+    printf("                           inside it.  Will not overwrite an existing file.\n");
+    printf("                           Works with -d, -t, -s, -S, --check, --check-vrs.\n");
+    printf("      --capture-max <MB>   Close the capture at this size and keep streaming.\n");
+    printf("                           Default: no limit.\n");
     printf("\nOther:\n");
     printf("      --reconnect          Reconnect with backoff if the stream drops\n");
     printf("  -g, --generate           Generate default config.json\n");
@@ -87,6 +95,9 @@ void print_help(const char *progname) {
     printf("  %s -S --duration 300 -o sky.png -q\n", progname);
     printf("                                   5-min unattended capture; script-friendly.\n");
     printf("                                   Stdout will contain only 'sky.png'.\n");
+    printf("  %s -t 86400 --reconnect --capture /var/spool/gnss/ -q\n", progname);
+    printf("                                   A day of stream to a file, unattended:\n");
+    printf("                                   drops are ridden out, the file spans them.\n");
     printf("  %s --check-config                Dry-run config validation (DNS, fields).\n", progname);
     printf("  %s --caster a.b.c -m -q          List mountpoints from a one-off caster.\n", progname);
     printf("  NTRIP_PASSWORD=$SECRET %s -m     Credentials via env, no config file edit.\n", progname);
@@ -100,6 +111,8 @@ void print_help(const char *progname) {
     printf("  3   Could not open or parse config file\n");
     printf("  4   --sky: the run ended with no orbits to draw\n");
     printf("  5   Aborted by user (Ctrl-A)\n");
+    printf("  6   --check: caution\n");
+    printf("  7   The capture failed; the file this run existed for is not there\n");
     printf("\n");
 }
 

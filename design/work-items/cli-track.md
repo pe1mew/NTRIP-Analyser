@@ -26,15 +26,18 @@ and what "done" will mean.
 
 | Phase | What | State |
 |---|---|---|
-| 1 | Capture the stream to a file, with reconnect | **specified and planned; decisions taken 2026-08-15** |
+| 1 | Capture the stream to a file, with reconnect | **built 2026-08-15**; V5 (a 6 h run to a PPP solution) outstanding |
 | 2 | `--rtcm-stdin` beyond `--sky` | open |
 | 3 | Capture the ephemeris stream | not scheduled |
 
 ---
 
-## Phase 1 — Capture the stream to a file, with reconnect — **ready to build**
+## Phase 1 — Capture the stream to a file, with reconnect — **built**
 
-*Specified 2026-08-14; planned and decided 2026-08-15. Not started.*
+*Specified 2026-08-14; planned and decided 2026-08-15; built the same
+day. Steps 1–3 are in; step 4 is half done and step 5 belongs to the
+GUI track. What was measured is under "Outcome" at the foot of this
+file.*
 
 ### Why
 
@@ -139,6 +142,13 @@ ntrip-analyser -t 86400 --reconnect --capture /var/spool/gnss/ -q
    expiry, EOF, Ctrl-C, and Ctrl-A. Ctrl-A abandons the sky PNG by
    design; it must not abandon the capture, because the bytes already
    written are valid RTCM and may be hours of them.
+
+   *Found while building this: SIGINT was handled in `--sky` and nowhere
+   else, so Ctrl-C in `-t` or `-d` killed the process outright — no
+   `ns_close`, no `fclose`. A handler is now installed **while capturing
+   only**, so the stream modes keep the behaviour they have always had
+   when they are not. Whether all of them should stop gracefully is an
+   open question below, not this change's to decide.*
 8. **Progress is visible.** The periodic status line gains the captured
    byte and frame count, so an unattended run can be audited by looking
    at it. Under `--json` the tick object gains `capture_bytes` and
@@ -371,7 +381,13 @@ Phase 4, not after.
 
 ## Open questions
 
-None blocking. Two to revisit after it ships:
+None blocking. Three to revisit after it ships:
+
+- Should **all** stream modes stop gracefully on Ctrl-C, not only while
+  capturing? `-t 300` interrupted at 290 s currently prints no table at
+  all, which is a worse ending than the one capture now gets. It is a
+  behaviour change for people who have scripts around the current one.
+
 
 - Whether the daemon should host a permanent rolling capture, with the
   retention policy that implies.
@@ -381,6 +397,47 @@ None blocking. Two to revisit after it ships:
 
 ## Outcome
 
-Not built yet. This section gets the measured result — file sizes,
-reconnect counts across a real overnight run, and whether V5's PPP
-solution came back clean.
+Phase 1 built 2026-08-15. What the plan said would happen, and what did:
+
+| # | Test | Result |
+|---|---|---|
+| V1 | capture-of-replay is the identity | **pass** — and on real data: the GUI's own 206-frame capture, replayed through the CLI with `--capture`, comes out byte-identical (56,898 bytes) |
+| V2 | junk and bad CRCs are filtered | **pass** — NMEA between frames and a deliberately corrupted frame are both absent from the output |
+| V3 | a capture that cannot be written is fatal | **pass** — refusing to overwrite and an unopenable path both end `NS_END_WRITE_ERROR`; the CLI returns 7 |
+| V4 | binary mode is what makes V1 work | not run as a build variant; the `"wb"` is in one place and commented |
+| V5 | 6 h live → `convbin` → CSRS-PPP | **outstanding.** Needs a day, not a command |
+| V6 | GUI and CLI agree | **half done.** Offline: identical on the GUI's file. Live, side by side on one stream: outstanding, and it gates the GUI track's Phase 4 |
+
+Live behaviour, 30 s against the Kadaster caster: 159 frames, 62,503
+bytes, and the frame count matches the message census type for type
+(2×1006, 2×1008, 1×1013, 2×1033, 30×1077, 30×1087, 30×1097, 60×1127,
+2×1230 = 159). That capture then replays and re-captures identically.
+
+Two things the plan did not foresee, both now in the code:
+
+- **An open failure had to count as a capture failure.** The plan had
+  `ns_capture_failed()` meaning "a write failed", so a run that could not
+  create the file at all would have exited 0. It now covers both, while a
+  failed `ns_capture_start()` call still does not — that is a menu item
+  reporting a bad path, not a run losing its purpose.
+- **The three mode functions had to start returning `int`.** They were
+  `void`, and `main()` returned 0 for them regardless, so there was no
+  path for exit 7 to travel. That is API churn the plan should have
+  named.
+- **Ctrl-C was handled in `--sky` alone**, so the mode documented as the
+  unattended one would have been killed mid-buffer. Handled now while
+  capturing; see behaviour 7.
+
+The flush design was tested the hard way, by accident: a capture whose
+process was **terminated outright**, with no clean close, left 374,705
+bytes that replay to 936 frames and re-capture to exactly the same size.
+A killed run loses at most the last second and leaves a file every
+consumer can read. What is *not* verified is the graceful path itself —
+a real console Ctrl-C cannot be delivered to a native Windows process
+from this shell, so that wiring is by inspection until somebody presses
+the key.
+
+Cost: the shared layer grew ~120 lines, the CLI ~60, the test 260. The
+GUI's duplicate — about 40 lines — is still there by design until V6
+completes, so the tree is temporarily one implementation heavier, exactly
+as [What this is not](#what-this-is-not) said it would be.

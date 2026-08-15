@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the CLI can write the stream to a file
+
+`--capture <path>` writes every CRC-valid frame to a `.rtcm3`, and
+`--capture-max <MB>` closes it at a size without ending the run. With
+`--reconnect`, one file spans a dropped link: the summary reports the
+reconnect count, which is how many gaps to expect in it. A **directory**
+argument produces `YYYYMMDDHHmmss_<mountpoint>.rtcm3`, the name the GUI
+already proposes.
+
+Until now only the Windows GUI could write a capture, so the CLI could
+replay a format it could not produce — and the people who need a
+multi-hour capture, anyone declaring a base station, are on a Pi or a
+VPS. The new part is **where it went**: not a copy of the GUI's code but
+the session layer, which [architecture.md §3.3](design/architecture.md)
+had listed capture-to-file under since the layer was designed. Both
+programs now write the same file from one implementation, the daemon
+gains the capability for free, and the GUI's private version becomes a
+duplicate to retire.
+
+Verified on the GUI's own 206-frame capture: replayed through the CLI
+with `--capture`, the output is byte-identical to the input. Thirty
+seconds from a live caster gave 159 frames and 62,503 bytes, matching the
+message census frame for frame, and that capture replays and re-captures
+identically. A sixth test, `test_capture`, pins the identity, the
+filtering of junk and bad CRCs, the frame-boundary stop at the size
+limit, and the refusal to overwrite.
+
+**A write failure is fatal, with exit 7**, outranking every other verdict
+including `--check`'s caution: if the file the run existed to produce is
+not there, the station's grade is not the news. For the same reason a
+capture refuses to overwrite an existing file — deliberately unlike `-o`,
+which overwrites the sky PNG, because a PNG costs a minute to redraw and
+a capture can be a day of streaming.
+
 ### Added — continuous integration
 
 The project had none, and the reason to add it now is that everything

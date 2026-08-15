@@ -32,6 +32,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <errno.h>       /* why a capture write failed */
 
 #ifdef _WIN32
   #include <winsock2.h>
@@ -78,6 +79,14 @@ static double ns_now(void)
 }
 
 /* ── Session state ───────────────────────────────────────────────── */
+
+/** Longest capture path kept; longer ones are refused rather than cut. */
+#define NS_CAP_PATH_MAX 512
+
+/** How often a capture is flushed to the OS, in seconds.  A power cut
+ *  or a kill then costs at most this much stream, and it is cheap: a
+ *  frame arrives many times a second, a flush once. */
+#define NS_CAP_FLUSH_S  1.0
 
 /** Framing state machine positions. */
 typedef enum {
@@ -126,6 +135,19 @@ struct NtripSession {
     NsStatsSnapshot stats;
     double     last_rate_t;
     uint64_t   last_rate_bytes;
+
+    /* Capture-to-file.  Frames only: no handshake, nothing that failed
+     * its CRC, none of the bytes between frames.  Kept here rather than
+     * in NsStatsSnapshot because that structure is serialised to the
+     * daemon's Munin output and the GUI's CSV export, and describes the
+     * stream -- while this describes what we did with it. */
+    FILE      *cap;
+    char       cap_path[NS_CAP_PATH_MAX];
+    uint64_t   cap_bytes;
+    uint64_t   cap_frames;
+    bool       cap_started;    /**< a capture was opened at some point */
+    bool       cap_failed;     /**< a write failed; the session ended  */
+    double     last_cap_flush_t;
 
     /* Which satellites the stream is currently carrying.  Lives here
      * rather than in a frontend so that every consumer -- the daemon's
@@ -185,6 +207,71 @@ static void emit_end(NtripSession *s, int reason)
     ev.type = NS_EV_DISCONNECTED;
     ev.u.end.reason = reason;
     emit(s, &ev);
+}
+
+/* ── Capture ─────────────────────────────────────────────────────── */
+
+/** @brief Close the capture file if one is open.  Emits nothing. */
+static void cap_close(NtripSession *s)
+{
+    if (!s->cap) return;
+    fclose(s->cap);
+    s->cap = NULL;
+}
+
+/**
+ * @brief Write one CRC-valid frame to the capture.
+ *
+ * @return true to carry on; false when the write failed, in which case
+ *         the session has already been ended with NS_END_WRITE_ERROR.
+ */
+static bool cap_frame(NtripSession *s, const unsigned char *frame, int len)
+{
+    if (!s->cap) return true;
+
+    /* A limit the caller set, so reaching it is the feature working:
+     * close on a frame boundary -- never mid-frame, which would leave a
+     * file no converter can read to its end -- and stream on. */
+    if (s->opt.capture_max_bytes &&
+        s->cap_bytes + (uint64_t)len > s->opt.capture_max_bytes) {
+        cap_close(s);
+        emit_log(s, NS_LOG_INFO,
+                 "Capture reached its limit of %llu bytes: %s (%llu frames)",
+                 (unsigned long long)s->opt.capture_max_bytes, s->cap_path,
+                 (unsigned long long)s->cap_frames);
+        return true;
+    }
+
+    size_t w = fwrite(frame, 1, (size_t)len, s->cap);
+    if (w != (size_t)len) {
+        /* The disk filled, or the volume went away.  Twenty hours of
+         * capture that silently stopped at hour three is the outcome
+         * this feature exists to make impossible, so a short write is
+         * fatal to the session rather than a warning in a log nobody
+         * reads until afterwards. */
+        s->cap_bytes += (uint64_t)w;
+        cap_close(s);
+        s->cap_failed = true;
+        emit_log(s, NS_LOG_ERROR,
+                 "Capture write failed after %llu bytes: %s: %s",
+                 (unsigned long long)s->cap_bytes, s->cap_path,
+                 strerror(errno));
+        emit_end(s, NS_END_WRITE_ERROR);
+        return false;
+    }
+
+    s->cap_bytes  += (uint64_t)len;
+    s->cap_frames += 1;
+    return true;
+}
+
+/** @brief Flush the capture, at most once every NS_CAP_FLUSH_S. */
+static void cap_maybe_flush(NtripSession *s, double now)
+{
+    if (!s->cap) return;
+    if (now - s->last_cap_flush_t < NS_CAP_FLUSH_S) return;
+    s->last_cap_flush_t = now;
+    fflush(s->cap);
 }
 
 /* ── Socket helpers ──────────────────────────────────────────────── */
@@ -507,6 +594,16 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                         emit(s, &ev);
                     }
 
+                    /* Capture before the event, so what a consumer is
+                     * told about and what reaches the disk are the same
+                     * frame -- and so a capture written by any frontend
+                     * is byte-identical to one written by another. */
+                    if (!cap_frame(s, s->frame, s->frame_len)) {
+                        s->fr_state  = FR_SYNC;
+                        s->frame_pos = 0;
+                        return;              /* the session has ended */
+                    }
+
                     NsEvent ev;
                     memset(&ev, 0, sizeof(ev));
                     ev.type = NS_EV_FRAME;
@@ -703,11 +800,33 @@ static NtripSession *alloc_session(const NsOptions *opt, NsEventFn cb, void *use
     return s;
 }
 
+/**
+ * @brief Apply @ref NsOptions::capture_path, when one was given.
+ *
+ * A failure here ends the session before a byte is read.  An unattended
+ * run whose whole purpose is the file must discover a bad path in its
+ * first second rather than its twentieth hour.
+ */
+static void capture_from_options(NtripSession *s)
+{
+    if (!s->opt.capture_path || !s->opt.capture_path[0]) return;
+    if (ns_capture_start(s, s->opt.capture_path) != 0) {
+        /* The capture the caller asked for did not happen, which is the
+         * same news to them as a write that failed later: the artefact
+         * will not exist.  ns_capture_start() on its own does not set
+         * this -- a GUI that offers a menu item can report a bad path
+         * and carry on streaming. */
+        s->cap_failed = true;
+        emit_end(s, NS_END_WRITE_ERROR);
+    }
+}
+
 NtripSession *ns_open(const NsOptions *opt, NsEventFn cb, void *user)
 {
     NtripSession *s = alloc_session(opt, cb, user);
     if (!s) return NULL;
     s->is_file = false;
+    capture_from_options(s);
     return s;
 }
 
@@ -726,6 +845,7 @@ NtripSession *ns_open_stream(FILE *f, bool own, const NsOptions *opt,
     s->header_done = true;
     s->connected   = true;
     s->stats.connected = true;
+    capture_from_options(s);
     return s;
 }
 
@@ -752,6 +872,11 @@ int ns_pump(NtripSession *s, int timeout_ms)
 {
     if (!s || s->ended) return -1;
     double now = ns_now();
+
+    /* Once a pump rather than once a frame: a kill -9 or a power cut
+     * then costs at most a second of stream, and the flush is invisible
+     * beside the socket read it sits next to. */
+    cap_maybe_flush(s, now);
 
     if (s->stopped) { emit_end(s, NS_END_STOPPED); return -1; }
 
@@ -835,6 +960,9 @@ void ns_stop(NtripSession *s)      { if (s) s->stopped = true; }
 void ns_close(NtripSession *s)
 {
     if (!s) return;
+    /* Before the socket: the capture is the artefact the run existed to
+     * produce, and fclose() is what commits its tail to the disk. */
+    cap_close(s);
     if (s->sock != NS_INVALID_SOCK) closesocket(s->sock);
     /* Only close what this session opened.  Closing a caller's handle --
      * stdin, above all -- would break the program around us. */
@@ -845,6 +973,80 @@ void ns_close(NtripSession *s)
 const NsStatsSnapshot *ns_stats(const NtripSession *s)
 {
     return s ? &s->stats : NULL;
+}
+
+/* ── Capture, public ─────────────────────────────────────────────── */
+
+int ns_capture_start(NtripSession *s, const char *path)
+{
+    if (!s || !path || !path[0]) return -1;
+
+    if (s->cap) {
+        emit_log(s, NS_LOG_WARN, "A capture is already running: %s",
+                 s->cap_path);
+        return -1;
+    }
+    if (strlen(path) >= sizeof(s->cap_path)) {
+        emit_log(s, NS_LOG_ERROR, "Capture path is longer than %d characters",
+                 (int)sizeof(s->cap_path) - 1);
+        return -1;
+    }
+
+    /* Refuse to overwrite.  Deliberately unlike the sky PNG, which
+     * overwrites by design: a PNG costs a minute to redraw, and a
+     * capture can be a day of streaming that cannot be had again. */
+    FILE *probe = fopen(path, "rb");
+    if (probe) {
+        fclose(probe);
+        emit_log(s, NS_LOG_ERROR,
+                 "Capture will not overwrite an existing file: %s", path);
+        return -1;
+    }
+
+    /* Binary, and not negotiable.  On Windows a text-mode handle
+     * translates CRLF pairs occurring inside RTCM payloads, and the
+     * capture reads back as one frame instead of hundreds. */
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        emit_log(s, NS_LOG_ERROR, "Cannot open capture for writing: %s: %s",
+                 path, strerror(errno));
+        return -1;
+    }
+
+    s->cap = f;
+    strncpy(s->cap_path, path, sizeof(s->cap_path) - 1);
+    s->cap_path[sizeof(s->cap_path) - 1] = '\0';
+    s->cap_bytes        = 0;
+    s->cap_frames       = 0;
+    s->cap_started      = true;
+    s->cap_failed       = false;
+    s->last_cap_flush_t = ns_now();
+    emit_log(s, NS_LOG_INFO, "Capturing frames to %s", path);
+    return 0;
+}
+
+void ns_capture_stop(NtripSession *s)
+{
+    if (!s || !s->cap) return;
+    cap_close(s);
+    emit_log(s, NS_LOG_INFO,
+             "Capture stopped: %llu bytes, %llu frames -> %s",
+             (unsigned long long)s->cap_bytes,
+             (unsigned long long)s->cap_frames, s->cap_path);
+}
+
+const char *ns_capture_status(const NtripSession *s,
+                              uint64_t *bytes, uint64_t *frames)
+{
+    if (!s) return NULL;
+    if (bytes)  *bytes  = s->cap_bytes;
+    if (frames) *frames = s->cap_frames;
+    return s->cap_started ? s->cap_path : NULL;
+}
+
+bool ns_capture_failed(const NtripSession *s)
+{
+    return s && s->cap_failed;
 }
 
 const NsHandshake *ns_handshake(const NtripSession *s)

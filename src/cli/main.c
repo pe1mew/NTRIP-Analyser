@@ -7,6 +7,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <time.h>
+#include <sys/stat.h>   /* --capture accepts a directory */
 #include <stdbool.h>
 #ifdef _WIN32
 #include <winsock2.h>
@@ -59,6 +60,10 @@ bool quiet   = false;        /* -q / --quiet: suppress info chatter */
 bool no_progress = false;    /* --no-progress: never emit the per-second status line */
 bool json_output = false;    /* --json: machine-readable status lines */
 bool rtcm_stdin  = false;    /* --rtcm-stdin: read obs RTCM from stdin */
+const char *capture_arg = NULL;  /* --capture: a file, or a directory  */
+/* Set when --sky's capture did not happen.  --sky's own return value is
+ * about the PNG, so the capture verdict travels beside it. */
+static bool g_capture_failed = false;
 int filter_list[MAX_MSG_TYPES] = {0};
 int filter_count = 0;
 
@@ -69,6 +74,9 @@ int filter_count = 0;
 #define EXIT_CONFIG_ERROR    3   /* load_config() failed */
 #define EXIT_NO_EPH          4   /* --sky: the run ended with an empty orbit cache */
 #define EXIT_ABORTED         5   /* user pressed Ctrl-A */
+/* 6 is --check's caution verdict, returned by cli_check().
+ * 7 is EXIT_CAPTURE_FAILED, defined in cli_stream.h beside the modes
+ *   that return it. */
 
 /* INFO / ERR macros.  Both write to stderr so that stdout stays reserved
  * for "data" output (mountpoint sourcetable, decoded RTCM dumps, the
@@ -501,6 +509,10 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
     NsOptions opt;
     ns_options_default(&opt);
     opt.config = *config;
+    /* Capturing a replay is not a contradiction: it rewrites the input
+     * keeping only frames with a valid CRC, which is how a capture that
+     * picked up junk is cleaned before a converter reads it. */
+    cli_capture_apply(&opt);
 
     NtripSession *sess = ns_open_stream(stdin, false, &opt, sky_on_event, &ctx);
     if (!sess) {
@@ -583,6 +595,8 @@ static int run_sky_stdin_stream(const NTRIP_Config *config,
          ctx.frame_total, ctx.msm_total, ctx.obs_total, ctx.eph_total,
          ctx.bytes_total / 1024);
 
+    if (cli_capture_finish(sess)) g_capture_failed = true;
+
     /* Closes the session, not stdin: ns_open_stream() was told we do not
      * own the handle. */
     ns_close(sess);
@@ -624,6 +638,7 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
     opt.user_agent     = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
     opt.send_gga       = (config->LATITUDE != 0.0 || config->LONGITUDE != 0.0);
     opt.gga_interval_s = 5.0;     /* matches the previous keep-alive period */
+    cli_capture_apply(&opt);
 
     NtripSession *sess = ns_open(&opt, sky_on_event, &ctx);
     if (!sess) {
@@ -779,6 +794,7 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
     /* A caster that never accepted us is a failure, as it was when this
      * function did its own connect(): the caller skips the PNG. */
     bool never_accepted = !ctx.accepted;
+    if (cli_capture_finish(sess)) g_capture_failed = true;
     ns_close(sess);
     return never_accepted ? 1 : 0;
 }
@@ -999,6 +1015,67 @@ static int run_sky_mode(NTRIP_Config *config,
     return EXIT_OK;
 }
 
+/**
+ * @brief Turn `--capture`'s argument into the path the session opens.
+ *
+ * Two jobs.  It refuses the flag in a mode that opens no observation
+ * stream, rather than accepting an option it would silently ignore.  And
+ * it accepts a **directory**, in which case the file is named
+ * `YYYYMMDDHHmmss_<mountpoint>.rtcm3` -- the same name the GUI proposes,
+ * so a folder of captures from either program sorts by capture time and
+ * a cron job needs no unique name invented for it.
+ *
+ * Runs after the config is loaded, because the mountpoint is part of the
+ * name and CLI overrides may have changed it.
+ *
+ * @return EXIT_OK when `cli_capture_path` is set (or no capture was
+ *         asked for), EXIT_BAD_ARGS otherwise.
+ */
+static int capture_resolve(const NTRIP_Config *config, Operation operation)
+{
+    static char built[512];
+
+    if (!capture_arg) return EXIT_OK;
+
+    switch (operation) {
+        case OP_DECODE_STREAM:
+        case OP_ANALYZE_TYPES:
+        case OP_ANALYZE_SATS:
+        case OP_SKY_HEATMAP:
+        case OP_CHECK:
+        case OP_CHECK_VRS:
+            break;
+        default:
+            ERR("[ERROR] --capture needs a mode that opens a stream:\n"
+                "        -d, -t, -s, -S/--sky, --check or --check-vrs.\n");
+            return EXIT_BAD_ARGS;
+    }
+
+    struct stat st;
+    bool is_dir = (stat(capture_arg, &st) == 0) && ((st.st_mode & S_IFMT) == S_IFDIR);
+
+    if (is_dir) {
+        time_t now_t = time(NULL);
+        struct tm *lt = localtime(&now_t);
+        char ts[16] = "00000000000000";
+        if (lt) strftime(ts, sizeof(ts), "%Y%m%d%H%M%S", lt);
+
+        const char *mp = config->MOUNTPOINT[0] ? config->MOUNTPOINT : "capture";
+        size_t n = strlen(capture_arg);
+        const char *sep = (n && (capture_arg[n - 1] == '/' ||
+                                 capture_arg[n - 1] == '\\')) ? "" : "/";
+        if ((size_t)snprintf(built, sizeof(built), "%s%s%s_%s.rtcm3",
+                             capture_arg, sep, ts, mp) >= sizeof(built)) {
+            ERR("[ERROR] --capture directory makes too long a path\n");
+            return EXIT_BAD_ARGS;
+        }
+        cli_capture_path = built;
+    } else {
+        cli_capture_path = capture_arg;
+    }
+    return EXIT_OK;
+}
+
 int main(int argc, char *argv[]) {
     NTRIP_Config config;
     const char *config_filename = "config.json";
@@ -1045,6 +1122,8 @@ int main(int argc, char *argv[]) {
         {"reconnect",      no_argument,       0, 21 },
         {"check",          no_argument,       0, 22 },
         {"check-vrs",      no_argument,       0, 23 },
+        {"capture",        required_argument, 0, 24 },
+        {"capture-max",    required_argument, 0, 25 },
         {"check-config",   no_argument,       0, 18 },
         {"json",           no_argument,       0, 19 },
         {"rtcm-stdin",     no_argument,       0, 20 },
@@ -1166,6 +1245,16 @@ int main(int argc, char *argv[]) {
             case 21: cli_auto_reconnect = true;  break;   /* --reconnect */
             case 22: claim_action(&operation, OP_CHECK,     "--check");     break;
             case 23: claim_action(&operation, OP_CHECK_VRS, "--check-vrs"); break;
+            case 24: capture_arg = optarg; break;   /* --capture     */
+            case 25: {                             /* --capture-max */
+                double mb = atof(optarg);
+                if (mb <= 0.0) {
+                    ERR("[ERROR] --capture-max needs a positive size in MB\n");
+                    return EXIT_BAD_ARGS;
+                }
+                cli_capture_max_bytes = (uint64_t)(mb * 1024.0 * 1024.0);
+                break;
+            }
             case 'g':
                 initialize_config("config.json");
                 return EXIT_OK;
@@ -1210,6 +1299,13 @@ int main(int argc, char *argv[]) {
     overrides_apply_env(&ov);
     overrides_apply_to_config(&config, &ov);
 
+    /* After the overrides: the capture's default name carries the
+     * mountpoint, and --mountpoint may have just changed it. */
+    {
+        int rc = capture_resolve(&config, operation);
+        if (rc != EXIT_OK) return rc;
+    }
+
 #ifdef _WIN32   // === Windows-specific: Initialize Winsock ===
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
@@ -1246,11 +1342,11 @@ int main(int argc, char *argv[]) {
     }
 
     if (operation == OP_ANALYZE_TYPES) {
-        cli_analyze_types(&config, analysis_time);
+        int rc = cli_analyze_types(&config, analysis_time);
 #ifdef _WIN32
         WSACleanup();
 #endif
-        return 0;
+        return rc;
     }
 
     // === 1. Request and display mountpoint list ===
@@ -1294,24 +1390,27 @@ int main(int argc, char *argv[]) {
         } else {
             INFO("[DEBUG] No filter: all message types will be shown.\n");
         }
-        cli_stream_decode(&config, filter_list, filter_count, verbose);
+        int rc = cli_stream_decode(&config, filter_list, filter_count, verbose);
 #ifdef _WIN32
         WSACleanup();
 #endif
-        return 0;
+        return rc;
     }
 
     if (operation == OP_ANALYZE_SATS) {
-        cli_analyze_sats(&config, analysis_time);
+        int rc = cli_analyze_sats(&config, analysis_time);
 #ifdef _WIN32
         WSACleanup();
 #endif
-        return 0;
+        return rc;
     }
 
     if (operation == OP_SKY_HEATMAP) {
         int rc = run_sky_mode(&config, rinex_path,
                               output_path, duration_s, verbose);
+        /* The PNG may well have been saved; the capture was not, and
+         * that is what an unattended run was asked for. */
+        if (g_capture_failed) rc = EXIT_CAPTURE_FAILED;
 #ifdef _WIN32
         WSACleanup();
 #endif

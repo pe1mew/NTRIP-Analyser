@@ -77,6 +77,13 @@ typedef enum {
     NS_END_EOF,           /**< the peer closed, or a capture ended     */
     NS_END_REJECTED,      /**< the caster refused the request          */
     NS_END_NET_ERROR,     /**< socket or DNS failure                   */
+    /** A capture write failed -- the disk is full, or the volume went
+     *  away.  The only end reason that has nothing to do with the
+     *  network: a session that is capturing can fail at the file even
+     *  while the stream is perfectly healthy.  Ending is deliberate.
+     *  An unattended run whose purpose is the file must not continue
+     *  for another twenty hours writing nothing. */
+    NS_END_WRITE_ERROR,
 } NsEndReason;
 
 /** @brief Severity of an @ref NS_EV_LOG event. */
@@ -130,6 +137,30 @@ typedef struct {
     bool   auto_reconnect;        /**< reconnect with backoff after a drop   */
     int    reconnect_backoff_max_s;
     const char *user_agent;       /**< NULL selects a default                */
+
+    /**
+     * @brief Write every CRC-valid frame to this path; NULL = no capture.
+     *
+     * The convenience form of @ref ns_capture_start, applied at open.
+     * What lands on disk is frames only: no handshake, nothing that
+     * failed its CRC, and none of the bytes between frames.  A capture
+     * is therefore clean input to a converter by construction, and one
+     * made by any frontend is byte-identical to one made by another.
+     *
+     * The session refuses to overwrite an existing file.  A capture can
+     * represent a day of streaming, which is not something to lose to a
+     * repeated command.
+     */
+    const char *capture_path;
+
+    /**
+     * @brief Stop capturing once the file reaches this size; 0 = no limit.
+     *
+     * Reaching it is not an error: the file is closed at a frame
+     * boundary and the session continues.  It exists because the machine
+     * that captures for a day is often a Pi with a small card.
+     */
+    uint64_t    capture_max_bytes;
 } NsOptions;
 
 /** @brief Fill @p opt with defaults. */
@@ -210,6 +241,57 @@ void ns_close(NtripSession *s);
  * @ref NsStatsSnapshot is a plain value type.
  */
 const NsStatsSnapshot *ns_stats(const NtripSession *s);
+
+/**
+ * @brief Begin writing CRC-valid frames to @p path.
+ *
+ * The mid-session form of @ref NsOptions::capture_path, and the reason
+ * both exist: a GUI starts and stops a capture from a menu while the
+ * stream runs, which an option fixed at open cannot express.
+ *
+ * Refuses to overwrite an existing file, and refuses a second capture
+ * over a running one.  Failures are reported as an @ref NS_EV_LOG at
+ * @ref NS_LOG_ERROR, so a caller's error handling is the same here as
+ * for a dead socket.
+ *
+ * @return 0 when capturing, non-zero when not.
+ */
+int ns_capture_start(NtripSession *s, const char *path);
+
+/**
+ * @brief Close the capture, flushing what is buffered.  Safe when idle.
+ */
+void ns_capture_stop(NtripSession *s);
+
+/**
+ * @brief What the capture has written.
+ *
+ * Deliberately not part of @ref NsStatsSnapshot: that structure is
+ * serialised to the daemon's Munin output and the GUI's CSV export, and
+ * a capture is not a property of the stream -- it is what we did with
+ * it.
+ *
+ * @param bytes  Filled with the byte count when non-NULL.
+ * @param frames Filled with the frame count when non-NULL.
+ * @return The capture's path once one has been started (even after it
+ *         closed), NULL when this session has never captured.
+ */
+const char *ns_capture_status(const NtripSession *s,
+                              uint64_t *bytes, uint64_t *frames);
+
+/**
+ * @brief True when the capture the session was opened for did not happen.
+ *
+ * Covers both a @ref NsOptions::capture_path that could not be opened
+ * and a write that failed later; either way the file the run existed to
+ * produce is not there.  Deliberately **not** set by a failed
+ * @ref ns_capture_start call, which is a menu item reporting a bad path
+ * rather than a run losing its purpose.
+ *
+ * Distinguishes those from a capture that stopped because it reached
+ * @ref NsOptions::capture_max_bytes, which is the feature working.
+ */
+bool ns_capture_failed(const NtripSession *s);
 
 /**
  * @brief List the satellites the stream is currently carrying.

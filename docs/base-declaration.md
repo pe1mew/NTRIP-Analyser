@@ -41,18 +41,18 @@ shape of the whole procedure:
 | Judge whether the stream is fit | CLI `--check` | eight KPIs, ~90 s |
 | Census of message types | CLI `-t 120` | decides two later flags — see below |
 | Decode station and antenna records | CLI `-d 1005,1006,1008,1033` | ARP, antenna height, descriptors |
-| **Write the stream to a file** | **GUI only** | *File → Start RTCM Capture* |
-| Survive drops during a long run | GUI *Tools → Auto-reconnect*; CLI `--reconnect` | see the caveats |
+| **Write the stream to a file** | CLI `--capture`; GUI *File → Start RTCM Capture* | frames only, identical from either |
+| Survive drops during a long run | CLI `--reconnect`; GUI *Tools → Auto-reconnect* | one file spans the outage |
 | Analyse a capture offline | CLI `--sky --rtcm-stdin`, GUI replay | same code path as live |
 | Write a RINEX **observation** file | **nothing here** | `convbin` does it |
 
 The CLI reads RINEX navigation files and writes none; there is no RINEX
 writer anywhere in this repository, and the decoded observables are not
 retained — the session layer keeps C/N0 and PRNs, because that is all the
-eight checks ever needed. So the observation file comes from `convbin`,
-and the bytes it converts come from the GUI's capture (or from RTKLIB's
-own `str2str`, if you would rather stay on a command line or are not on
-Windows).
+eight checks ever needed. So the observation file comes from `convbin`.
+The bytes it converts come from this project, from either program: the
+capture lives in the shared session layer, so the CLI and the GUI write
+the same file from the same stream.
 
 ## 1. Pre-flight, before you commit to a long session
 
@@ -127,18 +127,31 @@ dual-frequency session, and quality rises with length: treat **6 hours**
 as a floor, **24 hours** as the target. A day of multi-GNSS MSM7 is on
 the order of 100 MB — not a constraint on any modern disk.
 
-In the GUI:
+On any machine that stays up — a Pi, a VPS, a laptop that does not
+sleep — the CLI is the tool for this:
+
+```bash
+ntrip-analyser -t 86400 --reconnect --capture /var/spool/gnss/ -q
+```
+
+A day of stream into a directory, drops ridden out, with the message
+census printed at the end as a record of what the file contains. The
+capture is named `YYYYMMDDHHmmss_<mountpoint>.rtcm3`. Exit 7 means the
+capture failed — the one status a cron job must not ignore.
+
+In the GUI, on Windows:
 
 1. Open the stream as usual.
 2. **Tools → Auto-reconnect** — switch it *on before* starting the
    capture.
 3. **File → Start RTCM Capture**, and accept the default
-   `<mountpoint>_<timestamp>.rtcm3` name.
+   `YYYYMMDDHHmmss_<mountpoint>.rtcm3` name.
 4. Leave it. Stop it with **File → Stop RTCM Capture** when the session
    is long enough; closing the stream stops the capture and closes the
    file cleanly too.
 
-Two properties of that capture are worth knowing, because they decide
+Two properties of the capture are worth knowing — they hold for both
+programs, which write it through the same code — because they decide
 what `convbin` sees:
 
 - It writes **CRC-validated frames only**. Anything that fails its
@@ -151,17 +164,11 @@ what `convbin` sees:
   a truncated file, and that is what auto-reconnect prevents. The Health
   tab's *Reconnects* row tells you afterwards how many gaps to expect.
 
-If you would rather capture from a command line, or you are not on
-Windows, RTKLIB's `str2str` writes the same kind of file — it ships in
-the same package as `convbin`, and it reconnects on its own:
-
-```bash
-str2str -in ntrip://user:pass@caster.example.org:2101/MOUNT -out file://capture.rtcm3
-```
-
-Note that this makes a *second* client connection. Some casters allow one
-session per account, and the second connection will evict the first —
-so capture with one tool, not two at once.
+RTKLIB's `str2str` will also write such a file, and ships in the same
+package as `convbin`. There is no longer a reason to reach for it here,
+and one reason not to: running it *beside* the analyser makes a second
+client connection, and some casters allow one session per account, where
+the second evicts the first. Capture and analyse in one process.
 
 ## 4. Check the capture before you convert it
 
@@ -264,7 +271,7 @@ ntrip-analyser -m / -t 300 / --check     is this stream worth a day?
         ↓
 measure marker → ARP, note the antenna model
         ↓
-GUI: auto-reconnect on → Start RTCM Capture   6–24 h → capture.rtcm3
+ntrip-analyser -t 86400 --reconnect --capture DIR/    6–24 h → .rtcm3
         ↓
 ntrip-analyser --sky --rtcm-stdin < capture.rtcm3   do the bytes decode?
         ↓

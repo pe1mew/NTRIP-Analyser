@@ -20,6 +20,9 @@
 #include <time.h>
 
 bool cli_auto_reconnect = false;   /* set by --reconnect in main.c */
+
+const char *cli_capture_path      = NULL;  /* set by --capture     */
+uint64_t    cli_capture_max_bytes = 0;     /* set by --capture-max */
 #include "session/ntrip_session.h"
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"
@@ -28,6 +31,7 @@ bool cli_auto_reconnect = false;   /* set by --reconnect in main.c */
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>   /* Ctrl-C must close a capture, not kill it */
 
 /* The old implementations printed "GGA " into the type stream on every
  * uplink, once per second.  Kept: it is a useful heartbeat and scripts
@@ -130,6 +134,68 @@ static void cli_on_event(const NsEvent *ev, void *user)
     }
 }
 
+/* ── Capture, shared by every mode that opens a stream ──────────────── */
+
+/* Ctrl-C is handled in --sky and nowhere else, so in the stream modes it
+ * kills the process outright: no ns_close(), no fclose().  With a
+ * capture running that is the wrong ending -- the file is the artefact
+ * the run existed for, and an operator stopping a day-long -t early
+ * should get a complete file, and its census with it.
+ *
+ * Installed only while capturing.  Without it the modes keep the
+ * behaviour they have always had, which is not this change's to alter;
+ * whether they should all stop gracefully is a question on the track. */
+static volatile sig_atomic_t cli_stop_requested = 0;
+
+static void cli_on_sigint(int sig) { (void)sig; cli_stop_requested = 1; }
+
+static void cli_capture_catch_sigint(void)
+{
+    if (!cli_capture_path) return;
+    cli_stop_requested = 0;
+    signal(SIGINT, cli_on_sigint);
+#ifdef SIGTERM
+    signal(SIGTERM, cli_on_sigint);
+#endif
+}
+
+void cli_capture_apply(NsOptions *opt)
+{
+    if (!opt) return;
+    opt->capture_path      = cli_capture_path;
+    opt->capture_max_bytes = cli_capture_max_bytes;
+    cli_capture_catch_sigint();
+}
+
+bool cli_capture_finish(const NtripSession *s)
+{
+    if (!s || !cli_capture_path) return false;
+
+    uint64_t bytes = 0, frames = 0;
+    const char *path = ns_capture_status(s, &bytes, &frames);
+
+    if (ns_capture_failed(s)) {
+        /* The session already said why on its log event.  This line is
+         * the summary a script's operator reads in the morning. */
+        fprintf(stderr, "[ERROR] Capture failed after %llu bytes\n",
+                (unsigned long long)bytes);
+        return true;
+    }
+    if (!path) return false;
+
+    /* Reconnects are gaps in the capture, and RTCM carries no wall
+     * clock -- so the count is the only way to know how many to expect
+     * before a converter is pointed at the file. */
+    const NsStatsSnapshot *st = ns_stats(s);
+    fprintf(stderr, "[INFO] Capture: %llu frames, %llu bytes -> %s",
+            (unsigned long long)frames, (unsigned long long)bytes, path);
+    if (st && st->reconnects > 0)
+        fprintf(stderr, " (%d reconnect%s, so expect that many gaps)",
+                st->reconnects, st->reconnects == 1 ? "" : "s");
+    fprintf(stderr, "\n");
+    return false;
+}
+
 /**
  * @brief Open a session for a CLI mode and pump it.
  *
@@ -148,6 +214,7 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
     opt.send_gga         = false;   /* driven below, with the "GGA " echo */
     opt.auto_reconnect   = cli_auto_reconnect;
     opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
+    cli_capture_apply(&opt);
 
     NtripSession *sess = ns_open(&opt, cli_on_event, c);
     if (!sess) {
@@ -160,6 +227,7 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
 
     for (;;) {
         time_t now = time(NULL);
+        if (cli_stop_requested) break;   /* only set while capturing */
         if (seconds > 0 && (now - t_start) >= seconds) break;
 
         if ((now - last_gga) >= CLI_GGA_INTERVAL_S) {
@@ -178,9 +246,9 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
 
 /* ── Modes ──────────────────────────────────────────────────────────── */
 
-void cli_stream_decode(const NTRIP_Config *config,
-                       const int *filter_list, int filter_count,
-                       bool debug)
+int cli_stream_decode(const NTRIP_Config *config,
+                      const int *filter_list, int filter_count,
+                      bool debug)
 {
     CliCtx c;
     memset(&c, 0, sizeof(c));
@@ -191,10 +259,12 @@ void cli_stream_decode(const NTRIP_Config *config,
     c.debug   = debug;
 
     NtripSession *sess = cli_run(&c, 0);
+    int rc = cli_capture_finish(sess) ? EXIT_CAPTURE_FAILED : 0;
     ns_close(sess);
+    return rc;
 }
 
-void cli_analyze_types(const NTRIP_Config *config, int seconds)
+int cli_analyze_types(const NTRIP_Config *config, int seconds)
 {
     printf("[INFO] Analyzing message types for %d seconds...\n", seconds);
 
@@ -204,7 +274,7 @@ void cli_analyze_types(const NTRIP_Config *config, int seconds)
     c.mode   = CLI_MODE_TYPES;
 
     NtripSession *sess = cli_run(&c, seconds);
-    if (!sess) return;
+    if (!sess) return 0;
 
     /* The legacy table, fed from the session's statistics.  Two changes
      * of substance, both corrections: intervals are per epoch, so an MSM
@@ -238,10 +308,12 @@ void cli_analyze_types(const NTRIP_Config *config, int seconds)
         printf("(more than %d distinct types; the rest were not tracked)\n",
                NS_MAX_TYPES);
 
+    int rc = cli_capture_finish(sess) ? EXIT_CAPTURE_FAILED : 0;
     ns_close(sess);
+    return rc;
 }
 
-void cli_analyze_sats(const NTRIP_Config *config, int seconds)
+int cli_analyze_sats(const NTRIP_Config *config, int seconds)
 {
     printf("Opening NTRIP stream and analyzing satellites for %d seconds...\n",
            seconds);
@@ -252,7 +324,8 @@ void cli_analyze_sats(const NTRIP_Config *config, int seconds)
     c.mode   = CLI_MODE_SATS;
 
     NtripSession *sess = cli_run(&c, seconds);
-    if (!sess) return;
+    if (!sess) return 0;
+    int rc = cli_capture_finish(sess) ? EXIT_CAPTURE_FAILED : 0;
     ns_close(sess);
 
     /* The legacy table, verbatim. */
@@ -321,6 +394,7 @@ void cli_analyze_sats(const NTRIP_Config *config, int seconds)
     printf("| Total     | %10d | %-*s|\n", total_unique, SAT_COL_WIDTH, "");
     printf("%s\n", border);
     #undef SAT_COL_WIDTH
+    return rc;
 }
 
 /* ── Ephemeris side-stream (used by --sky) ──────────────────────────── */
@@ -467,6 +541,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     bool wants_gga       = false;
     /* A drop is a finding here, not a nuisance to paper over. */
     opt.auto_reconnect   = false;
+    cli_capture_apply(&opt);
 
     NtripSession *sess = ns_open(&opt, check_on_event, NULL);
     if (!sess) {
@@ -542,6 +617,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
                 config->MOUNTPOINT, config->LATITUDE, config->LONGITUDE);
 
     for (;;) {
+        if (cli_stop_requested) break;   /* only set while capturing */
         bool alive = ns_pump(sess, 200) >= 0;
         double el = (double)(time(NULL) - t0);
         const NsStatsSnapshot *snap = ns_stats(sess);
@@ -598,6 +674,11 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     if (kr.overall == KPI_RUN_FAILED || (vrs_mode && vr.failed)) rc = 1;
     else if (kr.overall == KPI_RUN_OK)                           rc = 0;
     else                                                         rc = 6;
+
+    /* A failed capture outranks the verdict, including the caution
+     * code: if the file this run existed to produce is not there, the
+     * station's grade is not the news the operator needs first. */
+    if (cli_capture_finish(sess)) rc = EXIT_CAPTURE_FAILED;
 
     printf("\n== %s ==", kpi_run_verdict_name(kr.overall));
     if (vrs_mode) printf("  [service: %s]", vrs_gate_name(vr.gate));

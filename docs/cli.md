@@ -99,6 +99,61 @@ ntrip-analyser [options]
 |       | --lon        | value            | Same as `--longitude`                                                       |
 | -h    | --help       |                  | Help information                                                            |
 | -i    | --info       |                  | Information about the program, repository, an author                        |
+| &nbsp; | --capture    | path             | Write every CRC-valid frame to a `.rtcm3` file (see below)                  |
+| &nbsp; | --capture-max | MB              | Close the capture at this size and keep streaming; default no limit         |
+| &nbsp; | --reconnect  | &nbsp;           | Reconnect with backoff if the stream drops                                  |
+
+---
+
+### 2a. Capturing the stream to a file
+
+`--capture` writes the stream to disk so that a converter can read it
+hours later, or so the analyser can replay it offline. It works with any
+mode that opens an observation stream — `-d`, `-t`, `-s`, `-S/--sky`,
+`--check`, `--check-vrs` — and is refused, rather than ignored, by the
+modes that do not.
+
+```sh
+ntrip-analyser -t 86400 --reconnect --capture /var/spool/gnss/ -q
+```
+
+That is the unattended form: a day of stream, drops ridden out, into a
+directory. A **directory** argument gets the name the GUI proposes,
+`YYYYMMDDHHmmss_<mountpoint>.rtcm3`, so a folder of captures sorts by
+capture time and cron needs no unique name invented for it. A file path
+is used as given.
+
+What lands on disk is **frames only**: no handshake, nothing that failed
+its CRC, none of the bytes between frames. So a capture is clean input to
+[RTKLIB](https://www.rtklib.com/)'s `convbin` by construction, and one
+written by the CLI is byte-for-byte the same as one written by the GUI.
+
+Four behaviours worth knowing before leaving one running overnight:
+
+- **It will not overwrite an existing file.** Deliberately unlike `-o`,
+  which overwrites the sky PNG: a PNG costs a minute to redraw, and a
+  capture can be a day of streaming that cannot be had again.
+- **With `--reconnect`, one file spans the outage.** A drop leaves a gap
+  in the epochs, not a truncated file. RTCM carries no wall clock, so the
+  gaps are invisible in the bytes — the summary line reports the
+  reconnect count, which is how many to expect.
+- **A write failure stops the run**, with **exit 7**. Twenty hours of
+  capture that silently stopped at hour three is the outcome this is
+  built to make impossible. Exit 7 outranks every other verdict,
+  including `--check`'s caution.
+- **`--capture-max` is not an error.** The file closes on a frame
+  boundary and the analysis continues to its normal end.
+
+The summary prints even under `-q`, because the file is the result of the
+run rather than chatter about it:
+
+```
+[INFO] Capture: 159 frames, 62503 bytes -> /var/spool/gnss/20260815131024_RFSEE01.rtcm3
+```
+
+To turn one into a RINEX observation file — for a base-station
+declaration, say — see
+[Declaring a base station](base-declaration.md).
 
 ---
 

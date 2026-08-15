@@ -22,7 +22,9 @@
 #define CLI_STREAM_H
 
 #include <stdbool.h>
-#include "net/ntrip_handler.h"   /* NTRIP_Config */
+#include <stdint.h>
+#include "net/ntrip_handler.h"       /* NTRIP_Config */
+#include "session/ntrip_session.h"   /* NsOptions, NtripSession */
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,19 +42,19 @@ extern "C" {
  * @param filter_count Number of entries in @p filter_list.
  * @param debug        Print the caster's response header after login.
  */
-void cli_stream_decode(const NTRIP_Config *config,
-                       const int *filter_list, int filter_count,
-                       bool debug);
+int cli_stream_decode(const NTRIP_Config *config,
+                      const int *filter_list, int filter_count,
+                      bool debug);
 
 /**
  * @brief `-t`: collect per-type statistics for @p seconds, print a table.
  */
-void cli_analyze_types(const NTRIP_Config *config, int seconds);
+int cli_analyze_types(const NTRIP_Config *config, int seconds);
 
 /**
  * @brief `-s`: count unique satellites per GNSS for @p seconds.
  */
-void cli_analyze_sats(const NTRIP_Config *config, int seconds);
+int cli_analyze_sats(const NTRIP_Config *config, int seconds);
 
 /**
  * @brief Ephemeris side-stream for `--sky` (moved from ntrip_handler.c).
@@ -78,6 +80,43 @@ int run_eph_stream(const NTRIP_Config *config,
  * the user.
  */
 extern bool cli_auto_reconnect;
+
+/**
+ * @brief Exit status when the capture the run existed for did not happen.
+ *
+ * Defined here rather than beside main.c's other codes because the modes
+ * in this file are what return it.  A cron job must be able to tell "the
+ * disk filled" from "the caster refused", and when the artefact does not
+ * exist, a station verdict is not the news -- so this overrides even
+ * `--check`'s caution code.
+ */
+#define EXIT_CAPTURE_FAILED 7
+
+/**
+ * @brief `--capture <path>`: write CRC-valid frames there; NULL = off.
+ */
+extern const char *cli_capture_path;
+
+/**
+ * @brief `--capture-max <MB>`, in bytes; 0 = no limit.
+ */
+extern uint64_t cli_capture_max_bytes;
+
+/**
+ * @brief Copy the capture settings into @p opt.
+ *
+ * One place, so every mode that opens a stream captures on the same
+ * terms, and a mode added later cannot quietly forget to.
+ */
+void cli_capture_apply(NsOptions *opt);
+
+/**
+ * @brief Report what the capture wrote; true when it failed.
+ *
+ * Prints to stderr even under `-q`: the file is the result of the run,
+ * not chatter about it.  Call before @ref ns_close.
+ */
+bool cli_capture_finish(const NtripSession *s);
 
 /**
  * @brief `--check` / `--check-vrs`: the station acceptance test.

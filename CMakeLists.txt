@@ -119,9 +119,10 @@ endif()
 
 # ── Tests ─────────────────────────────────────────────────────────────
 #
-# Tests link ntrip_core only.  Everything worth pinning down is in there
-# -- parsers, orbits, the KPI engine -- and keeping the sockets out means
-# a test run needs no network and no caster.
+# Tests link ntrip_core only -- with one exception, test_capture, which
+# links ntrip_session because the thing it pins lives there.  The reason
+# for the rule holds for it too: it replays a file it builds itself, so a
+# test run still needs no network and no caster.
 #
 #   cmake --build build --target test_all
 #
@@ -157,10 +158,18 @@ add_executable(test_eph_validity test/test_eph_validity.c)
 target_link_libraries(test_eph_validity PRIVATE ntrip_core)
 add_test(NAME eph_validity COMMAND test_eph_validity)
 
+# The capture's whole value is that what comes out is what went in, and
+# for an input of nothing but valid frames that is the identity function
+# -- cheap to assert, and the only thing standing between a converter and
+# a file it cannot read.
+add_executable(test_capture test/test_capture.c)
+target_link_libraries(test_capture PRIVATE ntrip_session)
+add_test(NAME capture COMMAND test_capture)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
-            test_eph_validity)
+            test_eph_validity test_capture)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)
