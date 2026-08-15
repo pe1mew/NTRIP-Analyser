@@ -21,12 +21,18 @@
 #            weekly rather than per-push, because several of them reach
 #            the network and a checker that cries wolf gets ignored.
 #
-# **What this does NOT cover, deliberately**: the Win32 GUI and the UNIX
-# daemon. The GUI is Windows-only, has a second hand-written build path
-# (build-gui.bat), and building it here would need a MinGW toolchain
-# whose failures would say more about the runner than about the code.
-# It is verified by hand on the machine that ships it -- see
-# docs/RUNBOOK.md -- and that gap is stated rather than hidden.
+# **What this does NOT cover, deliberately**: the Win32 GUI. It is
+# Windows-only, has a second hand-written build path (build-gui.bat), and
+# building it here would need a MinGW toolchain whose failures would say
+# more about the runner than about the code. It is verified by hand on
+# the machine that ships it -- see docs/RUNBOOK.md -- and that gap is
+# stated rather than hidden.
+#
+# The UNIX daemon *is* covered, twice: CMake builds it in the core job,
+# and `make -C service` exercises the hand-written path that a packager
+# or a VPS deployment actually uses. This comment used to list the daemon
+# beside the GUI as uncovered, which the core job's own log contradicted
+# from the first run.
 name: CI
 
 on:
@@ -46,8 +52,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # CMakeLists.txt sets no warning flags, so every build of this
+      # project -- here and on a developer's machine -- runs on the
+      # compiler's defaults and says almost nothing. Measured before
+      # switching these on: the whole C tree produces exactly one warning
+      # under -Wall -Wextra, so this is a signal rather than a wall of
+      # noise nobody reads.
+      #
+      # Deliberately not -Werror. A newer compiler inventing a warning
+      # would then stop a release that is otherwise sound; the point is to
+      # be told, not to be blocked.
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-Wall -Wextra"
 
       # The CLI and the daemon come with it on Linux; the GUI is excluded
       # by if(WIN32) in CMakeLists.txt, so nothing here needs a guard.
@@ -56,6 +72,19 @@ jobs:
 
       - name: Tests
         run: ctest --test-dir build --output-on-failure
+
+      # The daemon has a second build path: service/Makefile, with its own
+      # flags (-Wall -Wextra -std=c99, plus the POSIX feature macros that
+      # strict c99 would otherwise hide) and its own hand-written list of
+      # sources. CMake builds the daemon from its own list, so it cannot
+      # notice when that one falls behind: a file added under src/core/
+      # builds here and breaks `make -C service` silently -- and that is
+      # the path a packager, or anyone deploying to a VPS, actually uses.
+      #
+      # Same class of gap as the GUI's build-gui.bat; unlike that one, it
+      # costs seconds to close.
+      - name: The daemon's own build path
+        run: make -C service
 
       # Reads what the project claims about itself and compares it with
       # the thing claimed: version, in-app links, the check count, Play's
