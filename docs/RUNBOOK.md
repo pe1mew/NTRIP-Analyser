@@ -397,6 +397,20 @@ matter.
 per-platform `SHA256SUMS` (Windows and Linux assets are built on
 different machines, so one shared file would be overwritten).
 
+**Windows assets are built here; Linux assets are built by CI.** Pushing
+a `v*` tag runs `.github/workflows/release-linux.yml`, which builds,
+tests, packages and attaches the Linux assets to that tag's release —
+creating it as a *draft* if it does not exist yet. It runs on
+`ubuntu-22.04` deliberately: a binary cannot start against a glibc older
+than the one it was built on, and `ubuntu-latest` would exclude Debian 12
+and Ubuntu 22.04, which is most of the VPS estate.
+
+So the release sequence is: bump `src/core/version.h`, build and stage
+the Windows assets here, create the release and upload them, then push
+the tag and let the Linux assets arrive by themselves. Tag and header
+must agree — `cmake/CheckReleaseTag.cmake` fails the packaging otherwise,
+which is the whole reason it exists.
+
 Version comes from `src/core/version.h` and nothing else — the build
 system parses it. Android's `versionName` is still maintained by hand
 against that header.
@@ -405,8 +419,10 @@ against that header.
 
 ### Post-deploy verification
 
-There is no server and no CI here, so "deployed" means an artefact
-someone downloads. Verify the artefact itself, not the build tree:
+There is no server here, so "deployed" means an artefact someone
+downloads. CI builds and tests what goes into the Linux assets, but a
+green run is not a substitute for running the thing: verify the artefact
+itself, not the build tree.
 
 - [ ] Run the built binary from `bin/`, not from the build directory —
       the working directory decides which `config.json` it finds.

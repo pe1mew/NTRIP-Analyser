@@ -1,0 +1,91 @@
+# Linux release assets, built from the tag instead of from a laptop.
+#
+# The repository already publishes Linux assets -- v3.3.0 carries
+# `ntrip-analyser-3.3.0-linux-x64` and a monitord tarball -- but they
+# were built by hand on somebody's machine, which makes them
+# unreproducible and easy to forget. Nothing about the packaging is
+# reinvented here: `cmake --build build --target release` already stages
+# the right names into `build/dist` and writes the per-platform
+# checksums, and `cmake/CheckReleaseTag.cmake` already refuses to package
+# when the tag and `src/core/version.h` disagree. This workflow only
+# arranges for that to happen on a machine anyone can inspect.
+#
+# **Why ubuntu-22.04 rather than -latest.** A dynamically linked binary
+# will not start against a glibc older than the one it was built on.
+# `ubuntu-latest` is 24.04 (glibc 2.39), which rules out Debian 12 and
+# Ubuntu 22.04 -- between them, most VPS images in use. Built here, the
+# asset needs only glibc 2.35 and runs on both. Static linking would
+# remove the question entirely, but not for this program: a statically
+# linked glibc cannot do NSS lookups reliably, and resolving a caster's
+# hostname is the first thing it does. The `-static` in CMakeLists.txt is
+# `if(WIN32)` for exactly that reason.
+#
+# If this runner label is ever retired, moving to a newer one is a
+# decision to drop the older distributions, not a formality.
+name: Release assets (Linux)
+
+on:
+  push:
+    tags: ["v*"]
+  # Lets the packaging be exercised without tagging anything. Nothing is
+  # uploaded on this path -- see the `if:` on the last step.
+  workflow_dispatch:
+
+permissions:
+  contents: write        # required to attach assets to a release
+
+jobs:
+  linux:
+    name: Build and attach
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The release target asks git whether HEAD carries a tag, and
+          # compares it with version.h. Without the tags present that
+          # check silently degrades to "development build".
+          fetch-depth: 0
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-Wall -Wextra"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # An untested binary is not a release asset. The same six tests the
+      # CI workflow runs, on the same code that is about to be published.
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
+
+      # And the same comparison of what the project claims about itself
+      # against the thing claimed -- version strings above all, which is
+      # precisely what an asset's filename asserts.
+      - name: Release checks
+        run: python3 tools/check_release.py
+
+      # Stages build/dist: the CLI, the daemon tarball (binary, unit file,
+      # sysusers fragment, Munin plugin, example config, service.md),
+      # exampleConfig.json, the third-party notices, and
+      # SHA256SUMS-<version>-linux-x64.txt.
+      - name: Package
+        run: cmake --build build --target release
+
+      - name: What was staged
+        run: ls -l build/dist
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          # Usually the release already exists, made by hand with the
+          # Windows assets. When it does not, create a **draft**:
+          # publishing is a decision, and not one a tag push should take
+          # on the maintainer's behalf.
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --draft \
+              --title "NTRIP-Analyser ${tag#v}" \
+              --notes "Linux assets built by CI from $tag. Windows assets are added separately."
+          fi
+          gh release upload "$tag" build/dist/* --clobber
