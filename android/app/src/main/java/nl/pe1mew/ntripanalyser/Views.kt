@@ -287,8 +287,14 @@ private fun ConstellationLegend(ids: List<Int>, modifier: Modifier = Modifier) {
 /**
  * A bar per satellite, coloured by constellation.
  *
- * @param liveValues true when the bars show this epoch (pro), false when
- *                   they show the session mean over the capture (free).
+ * @param liveValues true while a run is in progress, when the bars show
+ *                   this epoch; false once it has stopped, when they show
+ *                   the session mean.
+ *
+ *                   **Not an edition difference.** This read "(pro)" and
+ *                   "(free)" for months, but the call site passes
+ *                   `runState.running` and has never consulted
+ *                   `Features`. Both editions draw these bars.
  */
 @Composable
 fun SignalBars(

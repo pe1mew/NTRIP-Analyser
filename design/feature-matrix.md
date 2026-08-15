@@ -1,0 +1,122 @@
+# What each product does
+
+Five programs are built from this repository, and the question "does X
+exist, and where?" has until now been answered by reading four different
+places. This is that answer in one table.
+
+**It is a record of what is built, not of what is intended.** The
+intent lives elsewhere: [`android/design/editions.md`](../android/design/editions.md)
+argues the free/paid split, [`design/todo.md`](todo.md) tracks ideas and
+their status, and the work-item tracks say what is being built next. When
+this file and one of those disagree, this one is wrong until checked
+against the code — and `tools/check_release.py` enforces the one part of
+it that can be checked mechanically (see the foot of the file).
+
+Compiled from the defining sources on 2026-08-15: `src/cli/cli_help.c`,
+`gui/resource.h` and the GUI's command dispatch, both editions'
+`Features.kt` and the Android composables, and `service/ntrip-monitord.c`.
+
+**Legend** — ● built · ◐ partial · ○ absent · ⋯ planned, not built
+
+## Connection and configuration
+
+| Feature | What it is, and why | CLI | GUI | Free | Pro | Daemon |
+|---|---|---|---|---|---|---|
+| NTRIP v1/v2 client, Basic auth | Connects, authenticates, reports which protocol the caster answered. The handshake is itself a diagnostic: a v1 ICY answer from a caster claiming v2 is a finding. | ● | ● | ● | ● | ● |
+| Sourcetable retrieval | Lists what the caster advertises — the only statement of intent to judge delivery against, which is what KPI 8 does. | ● | ● | ● | ● | ○ |
+| Sourcetable as a picker | Tap a row to use it, taking its position and `nmea` flag along. The information is free; the workflow is the paid proposition. | ○ | ◐ | ○ | ● | ○ |
+| Saved connections | The CLI reads `mountpoints[]` and uses the first, saying how many it ignored. Free keeps one, pro sixteen, the daemon holds all of them at once. | ◐ | ◐ | ◐ | ● | ● |
+| Encrypted credential store | Android encrypts profile credentials at rest. Desktop configs hold passwords in the clear, by design and documented — `docs/jsonConfigs.md`. | ○ | ○ | ● | ● | ○ |
+| Config file load / save | One JSON format across all five programs, so a configuration moves between desktop, daemon and phone unchanged. | ● | ● | ○ | ● | ● |
+| Field overrides (CLI / env) | `--caster`, `NTRIP_PASSWORD=…`: credentials and targets without editing a file, for CI and one-off runs. | ● | ○ | ○ | ○ | ○ |
+| Config dry-run | `--check-config` applies overrides, resolves DNS, prints the result and exits. Fail-fast before a long run. | ● | ○ | ○ | ○ | ○ |
+| Position from map / clipboard | Hands off to a map application and takes the answer back, so no map SDK is embedded and no map licence follows the product. | ○ | ● | ● | ● | ○ |
+| GGA uplink, fixed position | Emulates a rover at a set position. A VRS mountpoint sends nothing until it receives one. | ● | ● | ● | ● | ● |
+| GGA uplink, live phone position | Answers for where the user actually stands — the field question. Behind a one-time consent, and falls back to the configured position without a fix, because a GGA of 0,0 puts the rover in the Atlantic and a VRS will answer it. | ○ | ○ | ○ | ● | ○ |
+
+## Measurement — the shared core
+
+Everything here is computed in `src/core`. No frontend holds a threshold
+or forms a verdict; that rule is what makes the next row true.
+
+| Feature | What it is, and why | CLI | GUI | Free | Pro | Daemon |
+|---|---|---|---|---|---|---|
+| Eight-KPI acceptance test | A bounded ~90 s verdict: connected, RTCM 3, ARP, observations, satellites, C/N0, CRC, advertised-versus-actual. Every KPI must hold for 60 continuous seconds, so a lucky second cannot pass a station. **Identical in every product** — a free STATION OK means exactly what a paid one means. | ● | ● | ● | ● | ● |
+| VRS / network-RTK assertions | Five further checks and the gate test: stop the GGA and classify the service by how the stream reacts. Single-base checks actively mislead on a VRS, where a moving 1005 is correct operation. | ● | ● | ⋯ | ⋯ | ○ |
+| Message-type census | Counts and per-epoch intervals per type. Epoch-based, so an MSM message split across frames is not reported at a multiple of its true rate. | ● | ● | ○ | ◐ | ● |
+| Satellites per constellation | Unique SVs, from MSM1–7 and the legacy 1001–1012 families both. | ● | ● | ● | ● | ● |
+| C/N0 per satellite and band | Resolution follows the message family — 6-bit whole dB in MSM4/5, 1/16 dB in MSM6/7, ¼ dB in the legacy messages. That property has twice been reported as an application defect. | ○ | ● | ● | ● | ● |
+| Frame integrity accounting | CRC-24Q failures, malformed frames and framing re-syncs, as a rate. A stream can look healthy while losing two frames in a hundred. | ◐ | ● | ◐ | ◐ | ● |
+| ARP decode | 1005/1006 reference position. Pro adds station ID, ITRF year, reference-versus-receiver, oscillator and raw ECEF. | ● | ● | ◐ | ● | ● |
+| Ephemeris decode from the observation stream | 1019/1020/1042/1044/1045/1046 through a single seven-type switch. Lets a station place its own satellites with nothing configured. | ● | ● | ● | ● | ● |
+| Ionospheric ROTI | Geometry-free dual-frequency combination from MSM6/7, per satellite and as a polar heatmap. No other free NTRIP tool does this. | ○ | ● | ⋯ | ⋯ | ● |
+| Session history time-series | Six metrics across the session. Min/max/average hide dropouts — a 45 s gap and a steady stream can average alike. | ○ | ● | ○ | ⋯ | ◐ |
+| Rover-to-ARP distance and hand-over | Live distance and direction, with accumulated ARP dots that reveal a network switching stations under you. | ◐ | ● | ○ | ⋯ | ○ |
+
+## Visualisation
+
+| Feature | What it is, and why | CLI | GUI | Free | Pro | Daemon |
+|---|---|---|---|---|---|---|
+| Sky plot / coverage heatmap | Where the station actually delivers signal, by azimuth and elevation — the obstruction survey a photograph cannot give. The CLI writes a PNG; the others draw it live. | ● | ● | ● | ● | ○ |
+| C/N0 against elevation | The antenna-and-LNA fingerprint: a healthy chain rises smoothly with elevation, and a sick one does not. | ○ | ● | ● | ● | ○ |
+| Orbit-source badge | States where the placement came from: green for a real orbit source, red for a navigation file too old to place anything, amber for the phone's own receiver. A stale file used to read as a full cache. | ○ | ○ | ● | ● | ○ |
+| Live decoded stream log | The message stream as text, for reading a station rather than judging it. | ● | ● | ○ | ○ | ○ |
+
+## Data in and out
+
+| Feature | What it is, and why | CLI | GUI | Free | Pro | Daemon |
+|---|---|---|---|---|---|---|
+| RTCM capture to file | CRC-valid frames only, so a capture is clean converter input by construction and byte-identical whichever program wrote it. Lives in the session layer since 3.4.0, which is why the daemon has it without a flag to reach it. | ● | ● | ○ | ○ | ◐ |
+| Offline replay of a capture | The same code path as a live stream, so a capture is analysed exactly as the stream was. Reproducible bug reports, and regression tests that need no caster. | ● | ● | ○ | ○ | ○ |
+| RINEX 3 NAV import | User-supplied orbits. The product never downloads a navigation file, so the licence relationship stays the user's. | ● | ● | ● | ● | ○ |
+| Sky plot export (PNG) | Timestamped and scriptable, so a cron job can produce a nightly coverage plot. | ● | ● | ○ | ○ | ○ |
+| Statistics export | The GUI writes CSV and JSON; the CLI emits one JSON object per tick on stderr. | ◐ | ● | ⋯ | ⋯ | ● |
+| Snapshot publishing | Atomic per-mountpoint JSON — written to a temporary file and renamed, so a reader never sees half a snapshot. Munin reads it; so can anything else. | ○ | ○ | ○ | ○ | ● |
+
+## Operation
+
+| Feature | What it is, and why | CLI | GUI | Free | Pro | Daemon |
+|---|---|---|---|---|---|---|
+| Auto-reconnect with backoff | A dropped link leaves a gap rather than a truncated run. Off by default on finite analyses, which should fail loudly instead of quietly extending their window. | ● | ● | ○ | ○ | ● |
+| Unattended long runs | `-t 86400 --reconnect --capture`, closing cleanly on SIGTERM so `systemctl stop` does not abandon the file. | ● | ◐ | ○ | ○ | ● |
+| Watch mode | Continuous monitoring until stopped. Spot-checking is unlimited and free; "does it *keep* passing?" takes hours of measurement and is the paid proposition. | ● | ● | ○ | ● | ● |
+| Foreground service and notification | Survives backgrounding, with Android 15's six-hour service timeout handled explicitly. | ○ | ○ | ◐ | ● | — |
+| Tray minimise, layout reset | Desktop ergonomics for a program left running for days. | ○ | ● | ○ | ○ | ○ |
+| Scripting surface | `-q`, `--json`, and documented exit codes 0–7 — including 7, capture failed, which outranks every other verdict because a missing artefact is the news. | ● | ○ | ○ | ○ | ○ |
+| Telemetry | None, anywhere: no SDK, no endpoint, no consent flow. Install figures come from Play Console. | ○ | ○ | ○ | ○ | ○ |
+| TLS to the caster | Not built in any product. Scheduled after the free launch, as a bundled library behind a transport abstraction, and it ships in **both editions on the same day** — the paid edition withholds convenience, never protection. | ⋯ | ⋯ | ⋯ | ⋯ | ⋯ |
+
+## The shape of the split
+
+**Free against pro.** Free is a *spot checker* with no limit on what it
+will judge; pro is a *monitor* that answers over time and in the field.
+Every paid capability is more of something, never a different verdict.
+The entitlement is the installed APK rather than an in-app unlock,
+because that works in a field with no signal.
+
+**CLI against GUI.** They diverge by role rather than by rank. The GUI is
+the analysis instrument — ionosphere, history, VRS monitor and signal
+quality are GUI-only — and the CLI is the automation surface, with exit
+codes, JSON output and unattended capture. That is why the CLI has no
+ionosphere view and the GUI has no exit codes, and neither is a gap.
+
+**The daemon** has the whole core and no interactive surface at all. It
+exists because munin-node expects an answer in seconds, while rates need
+a persistent session and dropouts are invisible to a probe that connects
+briefly per poll.
+
+## Edition gates
+
+Every flag in the two `Features.kt` objects, and the row above it
+governs. `tools/check_release.py` asserts that each of these names
+appears in this file, so a new gate cannot be added without the matrix
+gaining a row for it.
+
+| Flag | Free | Pro | Gates |
+|---|---|---|---|
+| `IS_PRO` | false | true | Extended ARP detail, the received-types list, config load/save |
+| `HAS_WATCH` | false | true | Watch mode and the unbounded foreground service |
+| `HAS_EPH_STREAM` | false | true | The on-demand ephemeris side-stream |
+| `MAX_MOUNTPOINTS` | 1 | 16 | Saved connection profiles and the switcher |
+| `SOURCETABLE_SELECTABLE` | false | true | Tap-to-use in the sourcetable browser |
+| `HAS_LIVE_GGA` | false | true | The phone's live position in the GGA uplink |

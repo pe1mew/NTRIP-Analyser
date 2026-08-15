@@ -261,12 +261,38 @@ def check_generated():
           crypto)
 
 
+# ── The feature matrix ────────────────────────────────────────────────
+# A matrix of what each product does is true the day it is written and
+# quietly wrong a month later. Only one part of it can be checked by
+# machine -- but it is the part that moves. An edition gate added to
+# Features.kt with no row in the matrix means the free/paid split has
+# changed and the document describing it has not.
+
+def check_feature_matrix():
+    print("feature matrix")
+    matrix = read("design", "feature-matrix.md")
+
+    flags = set()
+    for edition in ("free", "pro"):
+        kt = read("android", "app", "src", edition, "java", "nl", "pe1mew",
+                  "ntripanalyser", "Features.kt")
+        flags |= set(re.findall(r"const val (\w+)", kt))
+
+    check(bool(flags), "Features.kt declares edition gates",
+          "none found -- has the file moved?")
+    for flag in sorted(flags):
+        check(flag in matrix,
+              "the matrix documents the " + flag + " gate",
+              "add a row to design/feature-matrix.md")
+
+
 def main():
     ver = check_version()
     check_urls()
     check_claims()
     check_listing()
     check_generated()
+    check_feature_matrix()
 
     print("")
     if PROBLEMS:

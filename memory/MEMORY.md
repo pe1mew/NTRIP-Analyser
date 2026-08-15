@@ -37,6 +37,7 @@
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
+| `design/feature-matrix.md` | Asking "which product has X?" | Every feature against CLI, GUI, free, pro and the daemon, with the rationale for each split |
 | `design/work-items/{release-to-play,cli-track,gui-track}.md` | Picking up work | Three parallel tracks — Android, CLI, GUI — so nothing waits behind a store review |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13 is the station check as built |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |

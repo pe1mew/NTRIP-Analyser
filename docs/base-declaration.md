@@ -103,22 +103,71 @@ values in step 5 and in the declaration email:
 ntrip-analyser -d 1005,1006,1008,1033
 ```
 
-## 2. Measure the antenna — the step no software can undo
+## 2. The antenna — the step no software can undo
 
 The RTCM stream tells you what the receiver has been *configured* to
 broadcast, which on a young base is often a rough survey-in. PPP will
-replace that position, but nothing in the data recovers:
-
-- the **vertical distance from your marker to the antenna reference
-  point** — measure it, write it down, photograph the tape if you like;
-- the **exact antenna model**, in its IGS form (for example
-  `TRM115000.00 NONE`, including the radome field).
-
-Both go into the RINEX header in step 5, and an error in either shifts
-the final coordinate by exactly the amount you are trying to measure.
+replace that position, but nothing in the data recovers the antenna's
+identity or its height. Both go into the RINEX header in step 5, and an
+error in either shifts the final coordinate by exactly the amount you are
+trying to measure.
 
 Do not touch the antenna, the mount or the receiver configuration until
 the capture is finished.
+
+### Find the calibration, and know which table it is in
+
+PPP corrects for the antenna by matching the name in your RINEX header
+against a calibration table. The name must be the **exact** one from that
+table, radome field included — a near miss is a miss. Do not trust a
+vendor's word for it; grep the tables themselves. They are the two that
+matter, and the answer takes seconds:
+
+```bash
+curl -sL https://files.igs.org/pub/station/general/igs20.atx | grep -B2 -A2 -i "<model>"
+```
+
+```bash
+curl -sL "https://geodesy.noaa.gov/ANTCAL/LoadFile?file=ngs20.atx" | grep -B2 -A2 -i "<model>"
+```
+
+A hit prints a `TYPE / SERIAL NO` line; the first 20 characters are the
+string you need — 15 for the model, a space, then 4 for the radome
+(usually `NONE`). Three outcomes:
+
+| Found in | What it means |
+|---|---|
+| `igs20.atx` | Best case. CSRS-PPP uses IGS products and will apply it, so the solution refers to your ARP directly. |
+| only `ngs20.atx` | NGS calibrated it, IGS has not adopted it — commonly because it is a relative calibration converted to absolute. CSRS-PPP may report the antenna as unknown and apply nothing. |
+| neither | No correction at all. The solution refers to the phase centre, which on a survey antenna sits several centimetres above the ARP. |
+
+Read the entry, not just the name. `METH / BY / # / DATE` says how it was
+calibrated, and a `COMMENT` reading `CONVERTED FROM RELATIVE NGS ANTENNA
+CALIBRATIONS` means it is not a native absolute calibration whatever
+`METH` says. `# OF FREQUENCIES` matters too: an entry with only `G01` and
+`G02` covers GPS L1/L2 and nothing else — which is usually fine, because
+that is what PPP solves with.
+
+### Where the ARP is, and what to measure
+
+The **antenna reference point** is the flat underside of the housing, the
+face that seats on the mount. Not the dome, not the tip of the thread.
+Anything below it — adapter, levelling mount, spacer — is part of the
+distance you measure, not part of the antenna.
+
+The **marker** is the point the published coordinate will refer to. On a
+survey pillar that is a scribed cross or a bolt. On a rooftop or a mast
+there is often no such thing, and inventing one helps nobody:
+
+- **No marker**: declare the ARP itself, and use `0.000` for the antenna
+  delta. The PPP solution *is* the ARP coordinate, and "the coordinate is
+  the antenna reference point of a &lt;model&gt;" is a complete, checkable
+  statement. Photograph the antenna and its mount so a reviewer can see
+  what the point refers to.
+- **A real marker**: measure the **vertical** distance from it up to the
+  ARP — tape held plumb, not laid along a slanted mast — and read it to
+  the millimetre. A centimetre of error is a centimetre of error in the
+  published height, permanently, and nothing downstream can detect it.
 
 ## 3. Capture, unattended, for hours
 
@@ -240,11 +289,41 @@ mandatory, and if they were, it is cheap insurance anyway.
 The flag names above are RTKLIB 2.4.3's. Run `convbin` with no arguments
 to see what your build actually supports.
 
-Open the resulting `.obs` in a text editor before uploading it. The
-header is human-readable, and thirty seconds spent on it catches every
-mistake this procedure can make: wrong antenna name, zero antenna delta,
-a marker name of `-`, an approximate position in the wrong hemisphere, a
-first epoch in 2006.
+Open the resulting `.obs` in a text editor before uploading it — `head
+-20` is enough. The header is human-readable, and thirty seconds spent on
+it catches every mistake this procedure can make:
+
+| Header line | What it must say |
+|---|---|
+| `MARKER NAME` | your four-character name, not `-` |
+| `ANT # / TYPE` | the calibration string **exactly**, radome at columns 17–20 |
+| `REC # / TYPE / VERS` | the receiver; nothing keys off it, but a reviewer reads it |
+| `ANTENNA: DELTA H/E/N` | your measured height — or a deliberate `0.0000` if the ARP is the declared point |
+| `APPROX POSITION XYZ` | picked up from the broadcast 1005; sanity-check the hemisphere |
+| `TIME OF FIRST OBS` | the day you captured, proving `-tr` worked |
+| `SYS / # / OBS TYPES` | for `G`, both an L1 and an L2 code — this is the dual-frequency requirement, visible |
+
+A worked example, from a real conversion of a six-hour capture (Harxon
+CSX627A on a Unicore UM980, no ground marker so the ARP is the declared
+point, and a stream carrying no ephemerides so `-tr` is mandatory):
+
+```bash
+convbin -r rtcm3 -f 3 -v 3.04 -ti 30 \
+        -tr 2026/08/15 18:13:28 \
+        -hm RFSE \
+        -ha "0/HXCSX627A       NONE" \
+        -hr "0/UNICORE UM980/" \
+        -hd "0.000/0/0" \
+        -o RFSE227S.26o 20260815201328_RFSEE01.rtcm3
+```
+
+Note the seven spaces inside the antenna string, and that the filename's
+`227` is the day of year — the conversion does not care, but a reviewer
+reading it in six months does.
+
+Converting the capture **while it is still being written** is a useful
+rehearsal: it proves the flags and the header before the session ends,
+while there is still time to fix them.
 
 ## 6. Compute the coordinates
 
@@ -253,6 +332,29 @@ Upload the `.obs` to
 as a **static** session. Keep everything it returns: the `full_output.zip`
 and the values behind the *summary* link are themselves part of the
 declaration outside Europe.
+
+**Read the report for what it says about your antenna.** It names the
+model it used and whether corrections were applied. If it did not
+recognise the name — the likely outcome when the calibration is in
+`ngs20.atx` but not `igs20.atx` — the height it returns refers to the
+**phase centre**, not the ARP, and you must correct it yourself.
+
+The offset to subtract is the one PPP actually solves for: the
+ionosphere-free combination of the two vertical offsets in the ANTEX
+entry.
+
+> UP(IF) = 2.5457 × UP(L1) − 1.5457 × UP(L2)
+
+For the worked example above — `UP` of 49.84 mm at L1 and 44.65 mm at L2
+— that is **57.9 mm**, so the phase centre sits about 58 mm above the
+ARP and the reported height is that much too high. Horizontal offsets on
+a survey antenna are a few millimetres and can usually be ignored;
+the vertical one cannot.
+
+Whatever you conclude, say it in the declaration: the antenna name, which
+table its calibration came from, and whether PPP applied it. That tells a
+reviewer exactly how far to trust the vertical, which is the entire point
+of declaring the equipment at all.
 
 In geographic Europe, run the resulting ITRF coordinates through EUREF's
 ITRF→ETRF2000 transformation and keep the `.txt` it produces — that file,

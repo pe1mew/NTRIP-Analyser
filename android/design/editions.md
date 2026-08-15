@@ -35,12 +35,14 @@ edition withholds is convenience, never protection.
 | Ephemeris source | the station's own stream, an imported RINEX file, phone GNSS | the same three, plus an on-demand ephemeris stream when the station carries none |
 | GGA position sent to the caster | **fixed, from the mountpoint's sourcetable entry** | the phone's live position |
 | TLS to the caster *(planned)* | yes, the same day pro has it | yes — scheduled here, withheld from no one |
+| Per-satellite C/N0 bars, and C/N0 against elevation | yes | yes |
+| Reference position (ARP) | **position only** | the whole record: station ID, ITRF year, reference-versus-receiver, oscillator, ECEF |
+| Message types received | — | the list of types, from the tile |
 | Configuration files (load / save) | — | yes |
 | Session history | — | *planned* |
-| Per-SV / per-band C/N0 | — | *planned* |
 | Ionosphere (ROTI) | — | *planned* |
 | Network-RTK / VRS test | — | *planned* |
-| Message-type statistics | — | *planned* |
+| Message-type *statistics* — counts, rates, intervals | — | *planned* |
 | Export CSV/JSON, shareable report | — | *planned* |
 | RTCM capture and offline replay | — | *planned* |
 
