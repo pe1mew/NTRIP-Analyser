@@ -75,6 +75,21 @@ invoking `build-gui.bat`, with no test and no artefact: enough to catch
 a missing include or a changed core signature, which is the class of
 breakage that actually happens.
 
+## Phase 4 — Retire the GUI's private capture — blocked on the CLI track
+
+Once [cli-track.md](cli-track.md) Phase 1 puts capture-to-file in the
+session layer — where [architecture.md §3.3](../architecture.md) has
+always said it belongs — the GUI's own version becomes a duplicate: the
+`fwrite` in `gui/gui_thread.c`, the `FILE*` and its critical section in
+`gui/gui_state.h`. The menu items and the Save dialog stay; only the
+plumbing beneath them changes, to `ns_capture_start()` / `ns_capture_stop()`.
+
+**Do not start this before V6 of that phase passes** — a GUI capture and
+a CLI capture of the same stream, in the same minute, agreeing frame for
+frame. The GUI is the reference implementation here, and deleting the
+reference before the replacement is proved against it would leave nothing
+to compare with.
+
 ## Open questions
 
 - Is this order right? Phase 2 is nearly finished and Phase 1 is

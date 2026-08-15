@@ -26,13 +26,15 @@ and what "done" will mean.
 
 | Phase | What | State |
 |---|---|---|
-| 1 | Capture the stream to a file, with reconnect | **specified 2026-08-14** |
+| 1 | Capture the stream to a file, with reconnect | **specified and planned; decisions taken 2026-08-15** |
 | 2 | `--rtcm-stdin` beyond `--sky` | open |
 | 3 | Capture the ephemeris stream | not scheduled |
 
 ---
 
-## Phase 1 — Capture the stream to a file, with reconnect — **specified 2026-08-14**
+## Phase 1 — Capture the stream to a file, with reconnect — **ready to build**
+
+*Specified 2026-08-14; planned and decided 2026-08-15. Not started.*
 
 ### Why
 
@@ -179,31 +181,110 @@ Each of these is a real feature and none of them is this one:
 
 | # | Test | Kind |
 |---|---|---|
-| V1 | Replay `bin/20260528135838_RFSEE01.rtcm3` through `--sky --rtcm-stdin --capture out.rtcm3`; assert `out` is **byte-identical** to the input and the frame count matches | ctest, both platforms |
-| V2 | Same, with random junk injected between frames; assert the output is the clean file — capture is a filter | ctest |
-| V3 | Capture to an unwritable path, and to a path that fills mid-run; assert exit 7 and that the message names the path | ctest |
-| V4 | Windows: confirm V1 passes on a build where the output handle is `"wb"`, and fails on `"w"` — the guard is the point | manual, once |
+| V1 | Replay `bin/20260528135838_RFSEE01.rtcm3` through a session with capture on; assert the output is **byte-identical** to the input and the frame count matches | ctest, both platforms |
+| V2 | Same, with junk injected between frames; assert the output is the clean file — capture is a filter | ctest |
+| V3 | Capture to an unwritable path, and to a stream that fails mid-write; assert the session ends `NS_END_WRITE_ERROR` and the message names the path | ctest |
+| V4 | Windows: confirm V1 passes with the output handle opened `"wb"` and **fails** with `"w"` — the guard is the point, so prove it guards | manual, once |
 | V5 | A live 6 h run with `--reconnect`, then `convbin`, then a CSRS-PPP submission that returns a solution | manual, acceptance |
+| V6 | A GUI capture and a CLI capture of the same stream, same minute, compared frame-count and type-histogram | manual, once |
 
 V1 is the strongest test available and it is nearly free: for an input
 that is already all-valid frames, capture-of-replay is the identity
-function. V5 is the one that proves the feature was worth building —
-it is the whole chain in
-[docs/base-declaration.md](../../docs/base-declaration.md), end to end.
+function. It needs no network, no config file and no child process —
+the test links the session layer and drives `ns_open_file` directly.
+V5 is the one that proves the feature was worth building: the whole
+chain in [docs/base-declaration.md](../../docs/base-declaration.md),
+end to end.
 
-### Files this touches
+### Where the code goes — and why not in the CLI
 
-| File | Change |
+[architecture.md §3.3](../architecture.md) already answers this. Among
+the things it lists as moving out of `gui/gui_thread.c` and into the
+session layer: format detection, epoch-aware statistics, CRC and
+malformed-frame counting, framing re-sync counting, GGA uplink, and
+**capture-to-file**. This phase is that line item, arriving late.
+
+The code confirms the shape. The CLI has three frame handlers —
+`cli_on_event` for `-d`/`-t`/`-s` ([cli_stream.c:59](../../src/cli/cli_stream.c:59)),
+`check_on_event` ([:435](../../src/cli/cli_stream.c:435)) and
+`sky_on_event` ([main.c:357](../../src/cli/main.c:357)) — so a CLI-level
+capture means the same write in three places, and a fourth if the daemon
+ever wants it. In the session there is exactly one site: where the frame
+has just passed CRC and is about to be emitted
+([ntrip_session.c:452](../../src/session/ntrip_session.c:452)).
+
+Putting it there also means the ephemeris session (Phase 3) and the
+daemon get the capability without new code, and the GUI's hand-written
+copy becomes a duplicate that can be retired on its own track.
+
+### Implementation plan
+
+Five steps, each one independently verifiable. Nothing in step *n*
+depends on step *n+1* having been designed differently.
+
+**Step 1 — the session layer owns the capture.** In
+`src/session/ntrip_session.{h,c}`:
+
+| Addition | Shape |
 |---|---|
-| `src/cli/main.c` | two `getopt_long` entries, validation against the chosen mode, open before connect, close on every exit path |
-| `src/cli/cli_stream.c` | the frame-event write, the counters, the status line and the JSON fields |
-| `src/cli/cli_stream.h` | the capture state shared with `main.c`, documented as `cli_auto_reconnect` is |
-| `src/cli/cli_help.c` | the two options, the new exit code, one example |
-| `test/test_capture.c` | V1–V3 (new; sixth test) |
-| `docs/cli.md` | the options, and the unattended recipe |
-| `docs/base-declaration.md` | step 3 becomes CLI-first, GUI as the alternative |
-| `design/todo.md` §2.2 | correct "Shipped" to name the GUI, and point here |
-| `changelog.md` | one line |
+| `NsOptions.capture_path` | `const char *`, NULL = off |
+| `NsOptions.capture_max_bytes` | `uint64_t`, 0 = unlimited |
+| `ns_capture_start(NtripSession *, const char *path)` | start mid-session; returns 0 or an errno |
+| `ns_capture_stop(NtripSession *)` | close and flush; safe when not capturing |
+| `ns_capture_status(const NtripSession *, uint64_t *bytes, uint64_t *frames)` | returns the path, or NULL when not capturing |
+| `NS_END_WRITE_ERROR` | new `NsEndReason` |
+
+The counters go on the **session**, not into `NsStatsSnapshot`, and that
+is not a style preference. That struct is serialised by
+`ns_stats_to_json()` and `ns_stats_to_csv_row()`
+([ns_stats.c:188](../../src/core/ns_stats.c:188),
+[:404](../../src/core/ns_stats.c:404)) — the daemon's Munin output and
+the GUI's CSV export. A field added there appears in both, silently
+changing formats that other people's tooling already reads, to describe
+something that is not a property of the stream at all. `NsStatsSnapshot`
+measures what arrived; a capture is what we did with it.
+
+The option is the convenience form — `ns_open()` calls
+`ns_capture_start()` for you. The functions exist because the GUI starts
+and stops a capture from a menu *during* a session, and an option fixed
+at open cannot express that; designing only the option would make the
+GUI migration impossible without a second redesign.
+
+Write at the post-CRC emit site, before the event goes out. Flush on the
+existing stats tick, not per frame. On a short write: close the file,
+emit `NS_LOG_ERROR` naming path and byte count, end the session
+`NS_END_WRITE_ERROR`. On reaching the cap: close, log at `NS_LOG_INFO`,
+and **let the session continue** — a self-imposed limit is not a fault.
+
+Tests V1–V3 land here, in `test/test_capture.c`.
+
+**Step 2 — the CLI passes a path.** `--capture` and `--capture-max` in
+`src/cli/main.c`; validation that the mode opens an observation stream;
+the directory-argument case that builds `YYYYMMDDHHmmss_<mountpoint>.rtcm3`;
+`NS_END_WRITE_ERROR` mapped to exit 7 in each mode's return, overriding
+`--check`'s verdict. `src/cli/cli_stream.c` gains the capture counters in
+the status line and the `--json` tick and stop objects. `cli_help.c` gains
+two options, the exit code and one unattended example.
+
+No `fclose` bookkeeping in `main.c`: `ns_close()` already runs on every
+exit path, including the Ctrl-C and Ctrl-A paths, and closing the capture
+is now its job.
+
+**Step 3 — the documents that make claims about this.** `docs/cli.md`
+(the options, the unattended recipe), `docs/base-declaration.md` (step 3
+becomes CLI-first with the GUI as the alternative, and the two-connection
+warning goes away), `design/todo.md` §2.2 (Phase 1 is no longer open),
+`changelog.md`.
+
+**Step 4 — acceptance.** V5, and V6 against a GUI capture of the same
+stream: the two programs must produce the same frames from the same
+minute, or "byte-identical" was a claim rather than a fact.
+
+**Step 5 — retire the duplicate.** Once V6 passes, the GUI's private
+capture in `gui/gui_thread.c` and the `FILE*` and critical section in
+`gui/gui_state.h` are dead weight over the session's version. That is a
+[gui-track.md](gui-track.md) item, not this one, and it must not be
+started until this phase has shipped and been used.
 
 ## Phase 2 — `--rtcm-stdin` beyond `--sky` — open
 
@@ -224,23 +305,79 @@ into one file would produce something neither program can replay.
 
 ## Decisions
 
-| Decision | Why |
-|---|---|
-| **Frames, not raw bytes** | Byte-identity with the GUI; clean `convbin` input; a capture that replays through the same code path that made it |
-| **`--capture` is allowed with `--rtcm-stdin`** | It makes V1 possible — the strongest test here — and doubles as a filter that strips junk from a dirty capture before conversion |
-| **Fail at open, not at first write** | An unattended run whose purpose is the file must not discover a bad path after twenty hours |
-| **A size cap, but no rotation** | The cap prevents a full root filesystem on a Pi, which is the failure this audience actually hits; rotation raises questions nobody has asked |
-| **A distinct exit code (7)** | A cron job must be able to tell "the disk filled" from "the caster refused" |
-| **`--capture` does not imply `--reconnect`** | Flags that quietly turn on other flags are how a tool stops being predictable. The documentation pairs them; the code does not |
+All taken 2026-08-15. Nothing below is left for the implementer to
+decide; where a choice was close, the losing option is named.
+
+| Decision | Why | Rejected |
+|---|---|---|
+| **It lives in the session layer** | [architecture.md §3.3](../architecture.md) already assigned capture-to-file there; the CLI would need the same write in three handlers, the daemon a fourth | A `src/cli/cli_capture.{h,c}` unit — smaller diff, but it would have to be undone to migrate the GUI |
+| **An option *and* `ns_capture_start/stop`** | The GUI starts a capture mid-session from a menu; an option fixed at open cannot express that, and designing only the option would force a second redesign | Option only |
+| **Frames, not raw bytes** | Byte-identity with the GUI; clean `convbin` input; a capture that replays through the code path that made it | Raw bytes — captures the handshake and junk, and would make the two programs' files differ |
+| **Allowed with `--rtcm-stdin`** | Makes V1 possible, and doubles as a filter that strips junk from a dirty capture before conversion | Rejecting the combination as pointless, which was my first instinct and was wrong |
+| **A write failure ends the session** (`NS_END_WRITE_ERROR` → exit 7) | Twenty hours that silently stopped at hour three is the worst outcome this feature can produce | Logging and continuing, as the GUI does — right for an interactive program, wrong for an unattended one |
+| **Fail at open, not at first write** | An unattended run whose purpose is the file must not discover a bad path after twenty hours | GUI parity (G8) |
+| **Refuse to overwrite an existing file** | A twenty-hour capture is not cheap to regenerate. This is deliberately *unlike* `-o`, which overwrites the sky PNG — a PNG costs a minute to redraw | Overwriting for consistency with `-o`; consistency is not worth the file |
+| **Flush on the one-second stats tick** | A power cut or a `kill -9` then costs at most a second of stream, at no measurable throughput cost | Per-frame flush (needless syscalls); relying on `fclose` (loses the tail exactly when you most want it) |
+| **A size cap in megabytes, no rotation** | A full SD card on a Pi is the failure this audience hits. Megabytes because `--duration` already means the run, and two time limits would confuse | Duration; rotation |
+| **The cap is not an error** | Reaching a limit you set yourself is the feature working | Non-zero exit |
+| **A distinct exit code (7), overriding `--check`'s verdict** | A cron job must tell "the disk filled" from "the caster refused"; and if the artefact does not exist, the KPI verdict is not the news | Reusing 1 |
+| **`--capture` does not imply `--reconnect`** | Flags that quietly turn on other flags are how a tool stops being predictable. The documentation pairs them; the code does not | Implying it |
+| **The daemon gets the capability but no flag** | It comes free once the session owns it; a permanent rolling capture is a different feature (retention, rotation) and needs its own thinking | Wiring it now |
+| **The GUI keeps its own capture until V6 passes** | Byte-identity must be demonstrated against the thing it claims parity with, not assumed, before the reference implementation is deleted | Migrating in the same change |
+| **Counters on the session, not in `NsStatsSnapshot`** | That struct is serialised to the daemon's Munin JSON and the GUI's CSV export; a field added there changes formats other tooling reads, to report something that is not a property of the stream | Adding two fields where the other counters live, which is where they look like they belong |
+
+### What this is not
+
+It is not a refactor, and it does not remove duplication: only the GUI
+has capture today, so there is none to remove. This is a new feature
+placed where it will not *create* duplication, plus one small
+consolidation at the end. Net lines across the tree go **up**.
+
+Nor do all five artefacts gain. The CLI gets the feature; the daemon gets
+optionality; the GUI gets a smaller codebase after Phase 5 and migration
+risk before it; **Android gets a kilobyte of code that never runs**. One
+winner, one maintenance win, one option, two neutral — still the right
+trade against a CLI-local copy, which would buy the same benefit and then
+charge for it again at the GUI migration and once more at the daemon, but
+not the five-way win it can look like from the dependency graph.
+
+And it adds one genuine complexity rather than removing it: the session
+layer acquires an I/O side effect, so a session can now end for a reason
+that has nothing to do with the network. Every frontend inherits that
+possibility whether or not it captures. What simplifies is conceptual —
+one definition of what a `.rtcm3` contains, one behaviour across a
+reconnect, one place to fix a bug in either.
+
+### Blast radius, measured
+
+The shared layer is compiled by five artefacts, so "additive" had to be
+checked rather than assumed:
+
+| Change | Who it reaches | Effect |
+|---|---|---|
+| `NsOptions` +2 fields | 10 construction sites — daemon 1, CLI 5, Android 3, GUI 2 | **None.** Every one calls `ns_options_default()` first, so all ten get `NULL`/`0` and behave exactly as now |
+| `NsEndReason` +1 value | `NS_END_` appears in **4 files**: the session's own `.h`/`.c`, `src/cli/main.c`, and this plan | One frontend file. The GUI, the Android bridge and the daemon never inspect the end reason — they react to `NS_EV_DISCONNECTED` generically |
+| New enumerator vs. warnings | no `-Werror` in this project's builds (only vendored cJSON has it, for itself) | At worst a `-Wswitch` note in the one switch that exists, in the file being edited anyway |
+| New code in the session | Android free, Android pro, GUI, daemon, CLI | Compiles everywhere; inert everywhere the path is `NULL`. No Kotlin change, so edition parity is untouched |
+
+The residual risk sits in one place, and it is the ironic one: a
+session-layer change is compiled in CI by the CLI, the daemon, the tests
+and both Android editions — but **not the GUI**, per
+[ci.yml](../../.github/workflows/ci.yml). The single artefact that today
+owns a capture implementation is the one CI will not check while its
+replacement is built. That argues for doing
+[gui-track.md](gui-track.md) Phase 3's compile-only job **before**
+Phase 4, not after.
 
 ## Open questions
 
-- Should the monitoring daemon capture too? It is the natural host for a
-  permanent rolling capture, and that is a different feature (rotation,
-  retention) from this one.
-- Is `--capture-max` in megabytes right, or should it be a duration? A
-  duration is what an operator thinks in, but `--duration` already exists
-  for the run itself and two time limits would confuse.
+None blocking. Two to revisit after it ships:
+
+- Whether the daemon should host a permanent rolling capture, with the
+  retention policy that implies.
+- Whether a sidecar with the start time is worth breaking format
+  compatibility for, given `convbin -tr` needs exactly that value and
+  currently gets it from the operator's memory.
 
 ## Outcome
 
