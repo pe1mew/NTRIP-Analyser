@@ -411,9 +411,11 @@ the tag and let the Linux assets arrive by themselves. Tag and header
 must agree — `cmake/CheckReleaseTag.cmake` fails the packaging otherwise,
 which is the whole reason it exists.
 
-Version comes from `src/core/version.h` and nothing else — the build
-system parses it. Android's `versionName` is still maintained by hand
-against that header.
+Version comes from `src/core/version.h` and nothing else — every build
+system parses it, Gradle included: `versionName` and `versionCode` are
+both derived there (`android/app/build.gradle.kts`), so the header is the
+only file a bump touches. (This line used to say Android's `versionName`
+was kept by hand; it has not been for some time.)
 
 **The agent never publishes.** Prepare the assets, then hand off.
 

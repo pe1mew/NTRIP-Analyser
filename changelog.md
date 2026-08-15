@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-08-15
+
 ### Added — the CLI can write the stream to a file
 
 `--capture <path>` writes every CRC-valid frame to a `.rtcm3`, and
