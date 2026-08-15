@@ -18,6 +18,20 @@
 cmake_minimum_required(VERSION 3.13)
 
 # ── Version, read from the single source of truth ─────────────────────
+#
+# file(READ) happens at configure time, and CMake does not know that this
+# build depends on the file unless it is told -- so after a version bump,
+# an existing build directory goes on packaging the *previous* version.
+# That is how 3.4.0 was first packaged as "3.3.0 for windows-x64": the
+# tree said 3.4.0, the cache still said 3.3.0, and only the tag check
+# noticed.  Without a tag on HEAD it would have produced 3.3.0-named
+# assets from a 3.4.0 tree without a word.
+#
+# CI never hits this, because CI always configures from scratch. The
+# release machine is exactly where it bites.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+             "${CMAKE_CURRENT_SOURCE_DIR}/src/core/version.h")
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/core/version.h" _version_h)
 string(REGEX MATCH "NTRIP_VERSION_MAJOR[ \t]+([0-9]+)" _ "${_version_h}")
 set(NTRIP_VER_MAJOR ${CMAKE_MATCH_1})
