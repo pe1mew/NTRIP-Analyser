@@ -72,6 +72,11 @@ because people will point it at real stations and believe what it says.
   the library to 16 KB pages and had not; the bundle was assumed to
   carry both ABIs and the signature was assumed to be the release key.
   All three were one command away from being known.
+- **Measure the way the build measures, or report no number.**
+  `-fsyntax-only` cannot see the truncation warnings (they need `-O2`),
+  and `-std=c99` hides `M_PI` where the build uses `gnu99` — both gave a
+  confident, wrong count in one session. Same flags, same optimisation,
+  same standard as the thing you are describing.
 - **Never rewrite a file with a script that re-encodes it.** Escapes and
   line endings are both mangled that way — twice so far. Use the
   file-editing tools; if a script is unavoidable, read and write with
@@ -109,10 +114,11 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
 | `android/app/src/main/java/.../MainActivity.kt` | The whole Android UI |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
-| `test/` | Five tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity |
-<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | grep -c 'Test #')" = 5 -->
+| `test/` | Six tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity, stream capture |
+<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | grep -c 'Test #')" = 6 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
-| `.github/workflows/ci.yml` | Core, tests, release checks and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
+| `.github/workflows/ci.yml` | Core, tests, release checks, the daemon's own Makefile and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
+| `.github/workflows/release-linux.yml` | On a `v*` tag: build, test, package, attach the Linux assets. `ubuntu-22.04` deliberately — its glibc 2.35 is the floor the binaries then require |
 
 ## Domain facts that look like bugs if you don't know them
 

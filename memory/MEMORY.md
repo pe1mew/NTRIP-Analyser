@@ -37,6 +37,7 @@
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
+| `design/work-items/{release-to-play,cli-track,gui-track}.md` | Picking up work | Three parallel tracks — Android, CLI, GUI — so nothing waits behind a store review |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13 is the station check as built |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
@@ -51,8 +52,21 @@
 
 <!-- 2026-08-14, second session -->
 
-- **v3.3.0 released** on the desktop; substantial unreleased work in `changelog.md`.
-  <!-- verify: grep -q 'NTRIP_VERSION_STRING  "3.3.0"' src/core/version.h -->
+- **v3.4.0 released** (2026-08-15), the first release whose Linux assets were
+  <!-- verify: grep -q 'NTRIP_VERSION_STRING  "3.4.0"' src/core/version.h -->
+  built and attached by CI from the tag rather than by hand. Verified from
+  the packaged binary, not the build tree: `--version`, a live capture, and
+  `--check` returning STATION OK against `ntrip.kadaster.nl/APEL00NLD0`.
+- **The stream can be captured to a file from every frontend.** `--capture`
+  <!-- verify: ctest --test-dir build -R capture --output-on-failure -->
+  and `--capture-max` on the CLI, the File menu in the GUI, and the
+  capability sits in the session layer where `design/architecture.md` §3.3
+  had always assigned it — so the daemon has it for free and the GUI's
+  private copy is now a duplicate awaiting retirement. Frames only, so a
+  capture is clean input to RTKLIB's `convbin` and byte-identical whichever
+  program wrote it (proved against a GUI-written capture). A failed write
+  ends the run with **exit 7**, outranking even `--check`'s verdict.
+  `docs/base-declaration.md` is the chain from a capture to a PPP solution.
 - **Shipped recently**: KPI 8 (advertised versus actual) across all frontends;
   the station check in the Windows GUI; RINEX GLONASS fixes plus the project's
   first regression test; Android saved connection profiles with encrypted
@@ -138,12 +152,16 @@
   side-stream only when nothing has reached the cache for 20 s
   (`android/design/views.md`).
 - **CI, since 2026-08-14**: `.github/workflows/ci.yml` builds the core
-  and runs the five tests on Linux, builds both Android editions (which
-  runs `checkEditionParity` as a preBuild dependency), and weekly runs
-  the verify commands under the claims in this file. **It does not build
-  the Win32 GUI** — that is Windows-only, has a second hand-written
-  build path, and stays a manual step in `docs/RUNBOOK.md`.
-  <!-- verify: test -f .github/workflows/ci.yml -->
+  and runs the six tests on Linux, builds the daemon **through both of its
+  <!-- verify: test -f .github/workflows/ci.yml && test -f .github/workflows/release-linux.yml -->
+  build paths** (CMake and `service/Makefile`), builds both Android
+  editions (which runs `checkEditionParity` as a preBuild dependency), and
+  weekly runs the verify commands under the claims in this file. It
+  compiles with `-Wall -Wextra`; the tree is warning-free, so a new warning
+  means something. **It does not build the Win32 GUI** — Windows-only,
+  second hand-written build path, still a manual step in `docs/RUNBOOK.md`.
+  A `v*` tag additionally runs `release-linux.yml`, which packages and
+  attaches the Linux assets.
 - **Known gaps**: the GUI station check has no saved report;
   seven pro rows in the editions table are marked *planned*, not built.
   <!-- verify: manual — counting rows in a prose table, and "planned" is a
@@ -162,6 +180,11 @@
   frontend, not the one it was reported in (Android 2026-08-13, GUI
   2026-08-14) — promoted from gotcha-log 2026-08-14 to Active Decisions
   above.
+- If you are about to **report a count from a build** — warnings, tests,
+  symbols — produce it the way the build produces it: same standard, same
+  optimisation (`-fsyntax-only` is blind to the truncation warnings;
+  `-std=c99` hides `M_PI`, 2026-08-15) — promoted from gotcha-log
+  2026-08-15 to `CLAUDE.md` hard constraints.
 
 ## Key File Paths
 
@@ -188,6 +211,12 @@ Supplementing CLAUDE.md's list with paths found during work:
   build resolves rather than from a table anyone maintains.
 - `tools/verify_memory.py` — runs the `<!-- verify: -->` command under every
   claim in this file and `CLAUDE.md`. A FAIL means the sentence is stale.
+- `cmake/CheckReleaseTag.cmake` — refuses to package when the git tag and
+  `version.h` disagree. It has now caught both faults it can: a tag ahead of
+  the header, and a header ahead of an uncommitted bump.
+- `test/test_capture.c` — the capture's identity property, on frames it
+  builds itself: no network, no caster, no recorded station's coordinates
+  in a public repository.
 - `tools/make_feature_graphic.py` — the Play feature graphic for both
   editions, drawn from `make_icons.py`'s mark and palette so the listing
   and the launcher icon cannot drift apart.
@@ -233,6 +262,12 @@ Supplementing CLAUDE.md's list with paths found during work:
   edition would strip the Clause from the shared core as well. Self-
   hosting costs nothing and keeps the Clause doing its job
   (`design/work-items/release-to-play.md`).
+- **Where two build systems describe one source set, CI must run both.**
+  `service/Makefile` lists its sources by hand and had silently stopped
+  linking, because CMake keeps its own list and never noticed. The Win32
+  GUI still carries the same exposure through `build-gui.bat`, which no
+  runner builds — that gap is stated in `.github/workflows/ci.yml` rather
+  than hidden, and closing it is Phase 3 of `design/work-items/gui-track.md`.
 - **TLS is coming, after the free launch**, as a bundled library behind a
   transport abstraction — chosen over per-platform native APIs to keep one
   code path for four frontends. It ships in **both editions** on the same

@@ -332,9 +332,16 @@ so `windres` picks up the new `.ico`.
 `.github/workflows/ci.yml`, on every push to `main` and every pull
 request:
 
-- **Core and tests** — configures, builds and runs `ctest` on Linux,
-  then `tools/check_release.py`. The five tests link `ntrip_core` alone
-  and touch no platform headers, which is why they run anywhere.
+- **Core and tests** — configures with `-Wall -Wextra`, builds and runs
+  `ctest` on Linux, then `tools/check_release.py`. Five of the six tests
+  link `ntrip_core` alone and touch no platform headers, which is why
+  they run anywhere; `test_capture` links `ntrip_session` because the
+  thing it pins lives there, and still needs no network — it replays a
+  file it builds itself.
+- **The daemon's own build path** — `make -C service`, which uses its own
+  flags and its own source list. CMake keeps a separate list, so without
+  this step the two drift apart silently; they had, and `make -C service`
+  had stopped linking.
 - **Both editions** — `assembleFreeDebug assembleProDebug`, which also
   runs `checkEditionParity` as a preBuild dependency, so an edition
   acquiring code of its own fails the build here too.

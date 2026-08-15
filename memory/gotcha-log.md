@@ -113,7 +113,7 @@
 
 ### A file rewritten with newline='
 ' doubled every carriage return (2026-08-14)
-**Problem**: 2014 lines of `MainActivity.kt` ended `
+**Problem**: 2014 lines of `MainActivity.kt` ended `
 `; subsequent edits stopped matching anything.
 **Root cause**: The script converted LF to CRLF *and* opened the file with `newline='
 '`, which converts again on write.
@@ -179,6 +179,36 @@
 **Problem**: `screenrecord` is absent on the EMUI handset, and every `adb shell` path was rewritten — `/sdcard/f.mp4` reached the phone as `C:/Program Files/Git/sdcard/f.mp4`.
 **Fix**: Check `ls /system/bin/<tool>` before building a plan around it, and prefix `adb shell` commands carrying Unix paths with `MSYS_NO_PATHCONV=1`.
 
+### A measurement that could not see what it was measuring (2026-08-15) [RESOLVED]
+**Problem**: Before turning `-Wall -Wextra` on in CI, the tree was measured at **one** warning. The first CI run found **six**.
+**Root cause**: `gcc -fsyntax-only` was used for speed. The truncation diagnostics (`-Wstringop-truncation`, `-Wformat-truncation`) come from the optimiser's value-range propagation and appear only from `-O2`, so that mode can never report them. A first attempt also passed `-std=c99` where the build uses `gnu99`, which hid `M_PI` and aborted a file early.
+**Fix**: Compile the way the build compiles — same standard, same optimisation — or publish no number. Promoted to the project file.
+
+### snprintf silenced nothing; it renamed the warning (2026-08-15) [RESOLVED]
+**Problem**: `strncpy` truncation warnings were "fixed" with `snprintf(dst, sizeof dst, "%s", src)`. The next run reported the same lines under `-Wformat-truncation`.
+**Root cause**: Both forms leave the bound for the optimiser to infer, so gcc still sees a possible truncation — only the diagnostic's name changed.
+**Fix**: State the bound in the call: `snprintf(dst, sizeof dst, "%.*s", (int)sizeof(dst) - 1, src)`. Silent, and always NUL-terminated unlike `strncpy`.
+
+### A stale CMake cache packaged the previous version (2026-08-15) [RESOLVED]
+**Problem**: After bumping `version.h` to 3.4.0, `cmake --build build --target release` printed *"Packaging 3.3.0 for windows-x64"*.
+**Root cause**: The version is read with `file(READ)` at configure time, and CMake was never told the build depends on that file — so an existing build directory kept the old cache. Only the release tag check noticed; **untagged, it would have produced 3.3.0-named assets from a 3.4.0 tree in silence.** CI never sees this because CI always configures from scratch.
+**Fix**: `CMAKE_CONFIGURE_DEPENDS` on `src/core/version.h`. Where two build systems can disagree, the one that is *incremental* is the one that lies.
+
+### A hand-written source list drifted until a second build system was run (2026-08-15) [RESOLVED]
+**Problem**: `make -C service` failed to link — undefined reference to `get_gnss_id_from_rtcm` — on its first CI run. It had been broken for some time.
+**Root cause**: `service/Makefile` lists its sources by hand and never gained `src/net/ntrip_handler.c`. CMake keeps its own list and built the daemon happily, so the failure was invisible to everyone except a packager or a VPS deployment.
+**Fix**: Wildcard the shared directories (`src/core`, `src/net`, `src/session` are shared *by definition*; anything platform-specific lives elsewhere). **If two build systems describe the same sources, CI must run both** — the same gap the GUI's `build-gui.bat` still has.
+
+### A tag on a tree whose bump was never committed (2026-08-15) [RESOLVED]
+**Problem**: `v3.4.0` was tagged and pushed; the release workflow failed at packaging with "tag v3.4.0, version.h 3.3.0".
+**Root cause**: The version bump was *staged*, not committed, so the tag landed on the previous commit. Staged changes look identical to committed ones in an editor and in `git status --short`'s left column.
+**Fix**: `git show <tag>:src/core/version.h` before trusting a tag. The guard worked exactly as designed and cost one failed run instead of a mislabelled release — this is what `cmake/CheckReleaseTag.cmake` is for.
+
+### `gh run watch | tail` reports success for a failed run (2026-08-15)
+**Problem**: A failed CI run was nearly reported as passing: `gh run watch --exit-status ... | tail` printed `watch-exit=0`.
+**Root cause**: `$?` after a pipeline is the **last** command's status — `tail`'s — not `gh`'s. `--exit-status` was set and correct; the pipe discarded it.
+**Fix**: Redirect instead of piping (`gh run watch ... > /dev/null; echo $?`), or read the verdict from `gh run view` rather than an exit code that has passed through a pipe.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -192,3 +222,5 @@
 | 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **3** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14 | project file, hard constraint |
 | 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |
 | 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **3** — 16 KB alignment, bundle ABIs, signing key, all 2026-08-14 | project file, hard constraint |
+| 2026-08-15 | Measure the way the build measures, or report no number | **2** — `-fsyntax-only` blind to truncation warnings, `-std=c99` hiding `M_PI`, both 2026-08-15 | project file, hard constraint |
+| 2026-08-15 | Two build systems over one source set: CI must run both | **2** — `build-gui.bat` (open), `service/Makefile` (found broken 2026-08-15) | `memory/MEMORY.md` active decisions |
