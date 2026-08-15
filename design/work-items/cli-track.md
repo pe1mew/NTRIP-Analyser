@@ -176,7 +176,7 @@ not the news.
 Each of these is a real feature and none of them is this one:
 
 - **File rotation and time-tagged filenames.** A day of multi-GNSS MSM7
-  is ~100 MB; rotation invites questions about naming, gaps and
+  is ~180 MB (measured, 2 kB/s); rotation invites questions about naming, gaps and
   reassembly that no user has asked yet. `--capture-max` covers the
   failure mode that actually bites — a full SD card on a Pi — and is the
   single addition beyond GUI parity for that reason.

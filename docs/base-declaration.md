@@ -124,8 +124,11 @@ the capture is finished.
 
 **Duration.** Centipede sets no minimum, but CSRS-PPP wants a static
 dual-frequency session, and quality rises with length: treat **6 hours**
-as a floor, **24 hours** as the target. A day of multi-GNSS MSM7 is on
-the order of 100 MB — not a constraint on any modern disk.
+as a floor, **24 hours** as the target. Measured on a four-constellation
+MSM7 station (`1077/1087/1097/1127` at 1 Hz): about **2 kB/s, so ~180 MB
+a day**. Not a constraint on a normal disk, but worth checking against a
+small VPS volume before starting — and `--capture-max` is there for
+exactly that.
 
 On any machine that stays up — a Pi, a VPS, a laptop that does not
 sleep — the CLI is the tool for this:
