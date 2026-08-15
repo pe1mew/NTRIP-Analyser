@@ -142,6 +142,11 @@ census printed at the end as a record of what the file contains. The
 capture is named `YYYYMMDDHHmmss_<mountpoint>.rtcm3`. Exit 7 means the
 capture failed — the one status a cron job must not ignore.
 
+Started over SSH, that run has to outlive the connection. See
+[Running it unattended](cli.md#running-it-unattended-over-ssh) in the CLI
+manual: `systemd-run` is the shape to use, because stopping the unit
+closes the capture cleanly instead of abandoning it.
+
 In the GUI, on Windows:
 
 1. Open the stream as usual.

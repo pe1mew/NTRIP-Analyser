@@ -144,6 +144,34 @@ Four behaviours worth knowing before leaving one running overnight:
 - **`--capture-max` is not an error.** The file closes on a frame
   boundary and the analysis continues to its normal end.
 
+#### Running it unattended, over SSH
+
+A day-long capture outlives the SSH session that starts it. `screen` or
+`tmux` will do, but systemd is better here for one reason: **stopping a
+unit sends SIGTERM, and the capture catches SIGTERM while capturing**, so
+the file is closed and flushed rather than abandoned. One command, no
+unit file:
+
+```sh
+sudo systemd-run --unit=ntrip-capture --property=StandardOutput=null \
+  ntrip-analyser -c /etc/ntrip/config.json \
+  -t 86400 --reconnect --capture /var/spool/gnss/ -q
+```
+
+Then `journalctl -u ntrip-capture -f` to look in on it, and
+`sudo systemctl stop ntrip-capture` to end it early with the file intact.
+`-t 86400` stops by itself after a day in any case.
+
+`StandardOutput=null` is not decoration. In `-t` mode the message-type
+stream goes to **stdout** and is not silenced by `-q` — some five tokens
+a second, which over a day fills the journal with `1077 1087 1097 1127`
+to no purpose. The capture summary and every error are on stderr, so
+nothing is lost.
+
+Two figures for planning a long run: roughly **180 MB a day** from a
+four-constellation MSM7 station at 1 Hz, and one reconnect per drop, each
+of which is a gap in the file rather than a truncation.
+
 The summary prints even under `-q`, because the file is the result of the
 run rather than chatter about it:
 
