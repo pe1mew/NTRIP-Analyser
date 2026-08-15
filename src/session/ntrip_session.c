@@ -712,8 +712,12 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
 
     s->stats.ntrip_version = s->handshake.version;
     s->stats.http_status   = s->handshake.status;
-    strncpy(s->stats.caster_software, s->handshake.server,
-            sizeof(s->stats.caster_software) - 1);
+    /* snprintf rather than strncpy: the truncation is intended -- a
+     * caster may announce a longer name than the field holds -- and
+     * glibc's -Wstringop-truncation says so loudly for strncpy while
+     * this form is both silent and always NUL-terminated. */
+    snprintf(s->stats.caster_software, sizeof(s->stats.caster_software),
+             "%s", s->handshake.server);
 
     NsEvent ev;
     memset(&ev, 0, sizeof(ev));
@@ -793,10 +797,12 @@ static NtripSession *alloc_session(const NsOptions *opt, NsEventFn cb, void *use
     ns_stats_init(&s->stats);
     sv_track_reset(&s->sv);
     s->stats.t_start_unix = s->t_start_unix;
-    strncpy(s->stats.mountpoint, s->opt.config.MOUNTPOINT,
-            sizeof(s->stats.mountpoint) - 1);
-    strncpy(s->stats.caster, s->opt.config.NTRIP_CASTER,
-            sizeof(s->stats.caster) - 1);
+    /* As above: intended truncation, stated in a form the compiler
+     * does not have to guess about. */
+    snprintf(s->stats.mountpoint, sizeof(s->stats.mountpoint), "%s",
+             s->opt.config.MOUNTPOINT);
+    snprintf(s->stats.caster, sizeof(s->stats.caster), "%s",
+             s->opt.config.NTRIP_CASTER);
     return s;
 }
 

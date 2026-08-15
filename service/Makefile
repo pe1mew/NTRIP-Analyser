@@ -14,20 +14,24 @@ CFLAGS  ?= -g -O2 -Wall -Wextra -std=c99 -D_USE_MATH_DEFINES
 # to resolve.  MinGW does not need them but tolerates them.
 CPPFLAGS = -I../src -I../lib/cJSON -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
 
+# Every shared source, by wildcard rather than by hand.
+#
+# This list used to be written out file by file, and it fell behind: it
+# never gained src/net/ntrip_handler.c, so `make -C service` stopped
+# linking (undefined reference to get_gnss_id_from_rtcm) while CMake --
+# which keeps its own list -- carried on building the daemon happily.
+# Nobody noticed until CI started running this path, because the people
+# who use it are packagers and VPS deployments rather than developers.
+#
+# src/core, src/net and src/session are the shared layers by definition:
+# anything platform- or frontend-specific lives in src/cli, gui/ or
+# android/, none of which is picked up here.  So a wildcard cannot pull
+# in something the daemon should not have, and it cannot fall behind
+# again.
 SRC = ntrip-monitord.c \
-      ../src/session/ntrip_session.c \
-      ../src/net/ntrip_proto.c \
-      ../src/core/ns_stats.c \
-      ../src/core/rtcm3x_parser.c \
-      ../src/core/nmea_parser.c \
-      ../src/core/sv_ephemeris.c \
-      ../src/core/sv_orbit.c \
-      ../src/core/sv_track.c \
-      ../src/core/kpi.c \
-      ../src/core/sourcetable.c \
-      ../src/core/vrs_check.c \
-      ../src/core/iono.c \
-      ../src/core/rinex_nav.c \
+      $(wildcard ../src/session/*.c) \
+      $(wildcard ../src/net/*.c) \
+      $(wildcard ../src/core/*.c) \
       ../lib/cJSON/cJSON.c
 
 BIN = ntrip-monitord
