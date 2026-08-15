@@ -463,15 +463,18 @@ int run_eph_stream(const NTRIP_Config *config,
     NsOptions opt;
     ns_options_default(&opt);
     opt.config = *config;
-    strncpy(opt.config.NTRIP_CASTER, config->EPH_CASTER,
-            sizeof(opt.config.NTRIP_CASTER) - 1);
+    /* "%.*s" rather than strncpy for the same reason as in the session
+     * layer: the truncation is intended, and stating the bound in the
+     * call is the spelling gcc does not warn about. */
+    snprintf(opt.config.NTRIP_CASTER, sizeof(opt.config.NTRIP_CASTER), "%.*s",
+             (int)sizeof(opt.config.NTRIP_CASTER) - 1, config->EPH_CASTER);
     opt.config.NTRIP_PORT = config->EPH_PORT;
-    strncpy(opt.config.MOUNTPOINT, config->EPH_MOUNTPOINT,
-            sizeof(opt.config.MOUNTPOINT) - 1);
-    strncpy(opt.config.USERNAME, config->EPH_USERNAME,
-            sizeof(opt.config.USERNAME) - 1);
-    strncpy(opt.config.PASSWORD, config->EPH_PASSWORD,
-            sizeof(opt.config.PASSWORD) - 1);
+    snprintf(opt.config.MOUNTPOINT, sizeof(opt.config.MOUNTPOINT), "%.*s",
+             (int)sizeof(opt.config.MOUNTPOINT) - 1, config->EPH_MOUNTPOINT);
+    snprintf(opt.config.USERNAME, sizeof(opt.config.USERNAME), "%.*s",
+             (int)sizeof(opt.config.USERNAME) - 1, config->EPH_USERNAME);
+    snprintf(opt.config.PASSWORD, sizeof(opt.config.PASSWORD), "%.*s",
+             (int)sizeof(opt.config.PASSWORD) - 1, config->EPH_PASSWORD);
     opt.stats_interval_s = 0.0;
     opt.send_gga         = false;
     opt.auto_reconnect   = cli_auto_reconnect;

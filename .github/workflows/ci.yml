@@ -54,10 +54,14 @@ jobs:
 
       # CMakeLists.txt sets no warning flags, so every build of this
       # project -- here and on a developer's machine -- runs on the
-      # compiler's defaults and says almost nothing. Measured before
-      # switching these on: the whole C tree produces exactly one warning
-      # under -Wall -Wextra, so this is a signal rather than a wall of
-      # noise nobody reads.
+      # compiler's defaults and says almost nothing.
+      #
+      # The tree is warning-free under -Wall -Wextra, and getting there
+      # took two goes. The first measurement used `gcc -fsyntax-only` and
+      # reported one warning; that method *cannot* see the truncation
+      # diagnostics, which need the optimiser's value-range propagation
+      # and so appear only from -O2. This job found the other six on its
+      # first real run. Measure with -O2, or do not claim a number.
       #
       # Deliberately not -Werror. A newer compiler inventing a warning
       # would then stop a release that is otherwise sound; the point is to

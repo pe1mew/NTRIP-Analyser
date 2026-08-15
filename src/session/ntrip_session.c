@@ -712,12 +712,15 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
 
     s->stats.ntrip_version = s->handshake.version;
     s->stats.http_status   = s->handshake.status;
-    /* snprintf rather than strncpy: the truncation is intended -- a
-     * caster may announce a longer name than the field holds -- and
-     * glibc's -Wstringop-truncation says so loudly for strncpy while
-     * this form is both silent and always NUL-terminated. */
+    /* "%.*s" with an explicit precision, not strncpy and not a bare
+     * "%s": the truncation is intended -- a caster may announce a longer
+     * name than the field holds -- and this is the only spelling gcc
+     * does not warn about, because the precision makes the bound part of
+     * the call rather than something the optimiser has to infer.  Always
+     * NUL-terminated, unlike strncpy. */
     snprintf(s->stats.caster_software, sizeof(s->stats.caster_software),
-             "%s", s->handshake.server);
+             "%.*s", (int)sizeof(s->stats.caster_software) - 1,
+             s->handshake.server);
 
     NsEvent ev;
     memset(&ev, 0, sizeof(ev));
@@ -797,12 +800,12 @@ static NtripSession *alloc_session(const NsOptions *opt, NsEventFn cb, void *use
     ns_stats_init(&s->stats);
     sv_track_reset(&s->sv);
     s->stats.t_start_unix = s->t_start_unix;
-    /* As above: intended truncation, stated in a form the compiler
-     * does not have to guess about. */
-    snprintf(s->stats.mountpoint, sizeof(s->stats.mountpoint), "%s",
-             s->opt.config.MOUNTPOINT);
-    snprintf(s->stats.caster, sizeof(s->stats.caster), "%s",
-             s->opt.config.NTRIP_CASTER);
+    /* As above: intended truncation, with the bound stated in the call
+     * rather than left for the compiler to guess at. */
+    snprintf(s->stats.mountpoint, sizeof(s->stats.mountpoint), "%.*s",
+             (int)sizeof(s->stats.mountpoint) - 1, s->opt.config.MOUNTPOINT);
+    snprintf(s->stats.caster, sizeof(s->stats.caster), "%.*s",
+             (int)sizeof(s->stats.caster) - 1, s->opt.config.NTRIP_CASTER);
     return s;
 }
 
