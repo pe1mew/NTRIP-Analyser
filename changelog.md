@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the documentation, and the site that serves it
+
+**One privacy policy for the whole suite** instead of one for Android and
+silence about the rest. The desktop programs differ in ways a user should
+be told: credentials are stored in the clear, unlike the app's
+Keystore-backed store, and captures, exports and snapshots describe a
+real installation — a `.rtcm3` publishes where an antenna is. A second
+document would have restated the same truth in different words and
+drifted, which is what had already happened to two other pairs of files.
+
+**`docs/licences.md` is a statement of position, not a task list.** Its
+"actions this study produced" table is gone: two of its four warnings
+described work finished on 13 August, and the history belongs in git.
+The one genuinely unsettled item — the IGS terms — is now a condition on
+a feature that does not exist rather than an open task.
+
+**The published site was quietly broken in two ways.** Nineteen links
+across eight files used `../`, which works when browsing the repository
+and 404s for every visitor, because Pages serves `docs/` as the site
+root. And the theme gives content a 500 px column, so ninety-column
+architecture diagrams were clipped mid-line. Both fixed, the first with a
+release check so it cannot return, the second by widening the column to
+1080 px while leaving the theme's mobile layout alone.
+
+Also: the two documentation indexes merged into one, the service added to
+the readme as the third desktop program with its Munin graphs, a favicon
+and a repository social preview generated from the same mark as the
+application icons, and the readme's licence section corrected — it
+claimed the project was CC BY-NC, which is the documentation licence, not
+the code's.
+
 ### Fixed — a bumped version could still package the old one
 
 `cmake --build build --target release` printed *"Packaging 3.3.0"* on a

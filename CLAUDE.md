@@ -78,9 +78,13 @@ because people will point it at real stations and believe what it says.
   confident, wrong count in one session. Same flags, same optimisation,
   same standard as the thing you are describing.
 - **Never rewrite a file with a script that re-encodes it.** Escapes and
-  line endings are both mangled that way — twice so far. Use the
-  file-editing tools; if a script is unavoidable, read and write with
-  `newline=''` and convert once.
+  line endings are both mangled that way. Use the file-editing tools; if
+  a script is unavoidable, read and write with `newline=''` and convert
+  once.
+  **`sed -i` has no legitimate use in this repository** — Grep to search,
+  Edit to change. Four incidents: mangled escapes, doubled carriage
+  returns, a literal newline, and a `sed -i` written to *test a match*
+  that deleted a table row in the very file recording the other three.
 
 ## Architecture
 

@@ -243,6 +243,26 @@
 **Root cause**: `install` stats its source and will not copy a terminal or a pipe.
 **Fix**: `sudo tee <path> > /dev/null <<'EOF'` to write a root-owned file from a heredoc, then `chmod`. Create the directory in the same command, or the move that follows fails on a path that was never made.
 
+### A green verdict is not a correct registration (2026-08-16) [x2]
+**Problem**: `RFSEE01` advertised a position 3.3 km from its antenna — a longitude with two digits rotated. Correcting it put HANESE's coordinates into RFSEE01's entry, moving it 25 km. **Both states returned STATION OK on all eight KPIs.**
+**Root cause**: No KPI compares the sourcetable's declared position against the broadcast 1005/1006 ARP. `sourcetable_offset_m` exists in the snapshot for exactly this and nothing computes it; the GUI does the comparison in its own code, so the CLI and Android never see it.
+**Fix**: Read the sourcetable directly — `-m | cut -d';' -f2,10,11` — after any registration change; a passing check says nothing about it. Specified as phase 0 of `design/work-items/measurement-tiers.md`, and it is the strongest tier-1 candidate precisely because it earned its place twice in one afternoon.
+
+### A link that works in the repository and 404s on the website (2026-08-16) [RESOLVED]
+**Problem**: `docs/licences.md` linked `../LICENSE`. Fine when browsing GitHub, a 404 for every visitor to the published site — verified: `https://pe1mew.github.io/LICENSE` does not exist.
+**Root cause**: GitHub Pages serves `docs/` **as the site root**, so a relative link out of that folder points above the root. Nineteen such links had accumulated across eight files, most of them long before this session.
+**Fix**: Absolute `https://github.com/pe1mew/NTRIP-Analyser/blob/main/…` for anything outside `docs/`; relative for anything inside it, where `jekyll-relative-links` rewrites `x.md` to `x.html` and both views work. `tools/check_release.py` now fails on `](../` in any `docs/*.md`.
+
+### One session per account made a healthy station read as broken (2026-08-16) [RESOLVED]
+**Problem**: Two consecutive `--check` runs on HANESE reported FAILED after 15 s and then 10 frames. A minute later the same station gave 45 of 45 epochs and a clean 90 s pass.
+**Root cause**: The caster allows one session per account, and `--check` opens *two* connections — a sourcetable fetch, then the stream. Runs in quick succession evict one another.
+**Fix**: Leave a gap between checks on a single-session caster. The report also misattributes this: KPI 1 said "connected but no data arriving" while KPI 2 counted 102 decoded frames — logged as phase 4 of `design/work-items/cli-track.md`.
+
+### A theme built for a landing page clipped the documentation (2026-08-16) [RESOLVED]
+**Problem**: Architecture diagrams on the published site were cut off mid-line.
+**Root cause**: `jekyll-theme-minimal` gives content a **500 px** column — right for a project page with three paragraphs, far too narrow for ninety-column diagrams and wide tables.
+**Fix**: `docs/assets/css/style.scss` widens the column to 1080 px above 960 px viewport and leaves the theme's mobile behaviour alone. Verified by measuring `scrollWidth` against `clientWidth` per element rather than by eye: seven `<pre>` blocks, none clipped.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -259,4 +279,5 @@
 | 2026-08-15 | Measure the way the build measures, or report no number | **2** — `-fsyntax-only` blind to truncation warnings, `-std=c99` hiding `M_PI`, both 2026-08-15 | project file, hard constraint |
 | 2026-08-15 | Two build systems over one source set: CI must run both | **2** — `build-gui.bat` (open), `service/Makefile` (found broken 2026-08-15) | `memory/MEMORY.md` active decisions |
 | 2026-08-16 | A snapshot field nothing fills is worse than a missing one | **3** — ARP fields (until a live run tripped over them), `latency_s` and `sourcetable_offset_m` (both found 2026-08-16) | `memory/MEMORY.md` active decisions |
+| 2026-08-16 | A green verdict is not a correct registration — read the sourcetable | **2** — 3.3 km transposition and a 25 km paste, both STATION OK, 2026-08-16 | `memory/MEMORY.md` active decisions; specified as measurement-tiers phase 0 |
 | 2026-08-16 | What is installed is not what was built — on any platform | **2** — pro's APK 2026-08-14, the VPS binary 2026-08-16 | `memory/MEMORY.md` active decisions (generalised from Android) |

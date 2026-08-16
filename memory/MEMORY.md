@@ -38,7 +38,8 @@
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
 | `design/feature-matrix.md` | Asking "which product has X?" | Every feature against CLI, GUI, free, pro and the daemon, with the rationale for each split |
-| `design/work-items/{release-to-play,cli-track,gui-track}.md` | Picking up work | Three parallel tracks — Android, CLI, GUI — so nothing waits behind a store review |
+| `design/work-items/{release-to-play,cli-track,gui-track,measurement-tiers}.md` | Picking up work | Four parallel tracks — Android, CLI, GUI, and one that follows a capability rather than an artefact |
+| `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13 is the station check as built |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
@@ -59,6 +60,24 @@
   built and attached by CI from the tag rather than by hand. Verified from
   the packaged binary, not the build tree: `--version`, a live capture, and
   `--check` returning STATION OK against `ntrip.kadaster.nl/APEL00NLD0`.
+- **The documentation site is published, checked and its own thing**
+  <!-- verify: test -f docs/favicon.ico -a -f docs/assets/css/style.scss -a ! -e docs/readme.md -->
+  (2026-08-16): one privacy policy covering all four programs rather than
+  four; `docs/licences.md` rewritten as a statement of position instead
+  of a task list; the two documentation indexes merged into `index.md`;
+  a favicon and a repository social preview generated from the same mark
+  as the app; and the theme's 500 px column widened, because a landing-
+  page theme clipped ninety-column diagrams. Nineteen links that worked
+  in the repository and 404'd on the site are fixed, and
+  `tools/check_release.py` fails on `](../` in `docs/` so they cannot
+  return.
+- **The capture paid for itself on its first real use** (2026-08-16):
+  six-hour captures of the author's two stations, converted with
+  `convbin` and submitted to CSRS-PPP, showed both broadcasting positions
+  **metres** from truth — 1.9 m high at RFSEE01, 2.8 m out at HANESE.
+  Both stations pass all eight KPIs and always did: they are healthy and
+  in the wrong place, which is precisely what a bounded check cannot see
+  and what tier 2 exists for.
 - **The stream can be captured to a file from every frontend.** `--capture`
   <!-- verify: ctest --test-dir build -R capture --output-on-failure -->
   and `--capture-max` on the CLI, the File menu in the GUI, and the
@@ -280,6 +299,12 @@ Supplementing CLAUDE.md's list with paths found during work:
   edition would strip the Clause from the shared core as well. Self-
   hosting costs nothing and keeps the Clause doing its job
   (`design/work-items/release-to-play.md`).
+- **A passing verdict says nothing about a station's registration.** No
+  KPI compares the sourcetable's declared position against the broadcast
+  ARP, so a base advertising coordinates 3.3 km — and then 25 km — from
+  its antenna returned STATION OK both times (2026-08-16). Read the
+  sourcetable directly after any registration change. The check itself is
+  phase 0 of `design/work-items/measurement-tiers.md`.
 - **Measurement runs in two tiers** (2026-08-16). Tier 1 is the
   ninety-second acceptance check — *is this station fit now* — in every
   product, unchanged. Tier 2 is a stability report over hours — *has it
