@@ -108,7 +108,61 @@ both, which argues for doing them together rather than a KPI 9 now and a
 KPI 10 later, and for doing them after free clears closed testing for the
 same reason latency waits.
 
-## Phase 1 — Latency, and KPI 9 — blocked
+## The unfilled fields — found by machine, 2026-08-16
+
+After `latency_s` and `sourcetable_offset_m` were each found by accident,
+`tools/check_release.py` gained a check that reads every field of
+`NsStatsSnapshot` and asserts it is written somewhere outside
+`ns_stats.c` — whose job is to declare, initialise and serialise, never
+to measure. It found **seven**, not two.
+
+| Field | What it promises | Where it stands |
+|---|---|---|
+| `latency_s` | corrections' age | phase 1 |
+| `sourcetable_offset_m`, `sourcetable_pos_valid` | declared position against the broadcast ARP | phase 0 |
+| `station_type` | physical base, VRS, or computed | the GUI classifies stations in its own code; the shared field is empty |
+| `arp_drift_m`, `arp_moves` | a fixed base that moves mid-session | same: implemented in the GUI, never published |
+| `frames_malformed` | frames rejected as malformed | **see below — this one is not merely unfilled** |
+
+The first six share one shape: the measurement exists, in the GUI, in
+GUI-private code, so the CLI, the daemon and Android publish `null` for
+something the project already knows how to compute. Moving each into the
+session layer is the same work as phase 0, and phase 0 should establish
+the pattern for the rest.
+
+### `frames_malformed` is worse than unfilled
+
+`NS_BAD_MALFORMED` is **declared in `ntrip_session.h` and never emitted**.
+Nothing raises it, so:
+
+- `gui/gui_thread.c:527` has `case NS_BAD_MALFORMED:` that can never run,
+  incrementing a counter that is always zero;
+- `frames_malformed` in the snapshot is never written;
+- the Munin plugin graphs *malformed frames* as a `DERIVE` series that
+  can only ever be flat;
+- `docs/service.md` documents it as one of the seven graph families a
+  reader can watch.
+
+**A monitoring signal that has never been able to move is worse than an
+absent one**, because a flat zero reads as good news. And it is not an
+oversight in the framer so much as a category that lost its meaning: the
+framing state machine deliberately routes a bad preamble to "keep
+hunting" (bytes between frames are legitimate) and a runt or implausible
+length to `NS_BAD_LENGTH`, counted as a framing re-sync. There is nothing
+left for "malformed" to mean.
+
+So the choice is not *fill it* but **decide whether the concept exists**:
+
+1. **Retire it** — remove the enum value, the GUI case, the snapshot
+   field, the Munin graph and the manual's row. Six graph families, all
+   of which can move. This looks right: the two categories that survive,
+   CRC failures and framing re-syncs, already cover what a stream does
+   wrong.
+2. **Give it a producer** — decide what malformed means as distinct from
+   a re-sync, and emit it. Only worth doing if a real distinction exists.
+
+Either way the schema changes, so it wants doing before more consumers
+render a field that means nothing.
 
 `NsStatsSnapshot.latency_s` exists, is documented, is serialised to JSON
 and CSV and is displayed on the Android tile. **Nothing computes it**;

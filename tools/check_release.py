@@ -310,6 +310,85 @@ def check_doc_links():
           "; ".join(bad[:4]) + (" …" if len(bad) > 4 else ""))
 
 
+# ── Snapshot fields nothing fills ─────────────────────────────────────
+# A field declared in NsStatsSnapshot is a promise: the daemon serialises
+# it to JSON, the CSV export carries a column for it, and a frontend
+# renders it. A field nothing writes keeps none of that promise while
+# looking exactly like one that does -- worse than a missing field,
+# because "0" and "null" read as answers.
+#
+# Three of these were found by accident in a single day (the ARP fields
+# years earlier, then latency_s and sourcetable_offset_m), which is twice
+# too often for a pattern that a search can find in a second.
+#
+# The rule: every field must be written somewhere outside ns_stats.c,
+# whose job is to declare, initialise and serialise -- never to measure.
+
+# Constants set in ns_stats_init(), which is the right place for them.
+SNAPSHOT_INIT_ONLY = {"schema_version"}
+
+# Known gaps, each with a home. This list must shrink, never grow: a new
+# unfilled field fails the check, while these are debts already recorded.
+SNAPSHOT_KNOWN_GAPS = {
+    "latency_s":              "measurement-tiers.md phase 1",
+    "sourcetable_offset_m":   "measurement-tiers.md phase 0",
+    "sourcetable_pos_valid":  "measurement-tiers.md phase 0",
+    "station_type":           "measurement-tiers.md, unfilled fields",
+    "arp_drift_m":            "measurement-tiers.md, unfilled fields",
+    "arp_moves":              "measurement-tiers.md, unfilled fields",
+    "frames_malformed":       "measurement-tiers.md, unfilled fields",
+}
+
+
+def check_snapshot_fields():
+    print("snapshot fields")
+    h = read("src", "core", "ns_stats.h")
+    end = h.index("} NsStatsSnapshot;")
+    body = re.sub(r"/\*.*?\*/", "", h[h.rindex("typedef struct {", 0, end):end],
+                  flags=re.S)
+
+    fields = []
+    for line in body.splitlines():
+        line = re.sub(r"//.*", "", line).strip()
+        if line.endswith(";"):
+            fields += re.findall(r"(\w+)\s*(?:\[[^\]]*\])?\s*(?=[,;])", line)
+
+    check(len(fields) > 20, "the snapshot's fields were parsed",
+          "%d found -- has the struct moved?" % len(fields))
+
+    sources = []
+    for sub, pat in (("src", "*.c"), ("src", "*.h"), ("gui", "*.c"),
+                     ("gui", "*.h"), ("service", "*.c"),
+                     (os.path.join("android", "app", "src", "main", "cpp"), "*.c")):
+        for root, _, names in os.walk(os.path.join(ROOT, sub)):
+            for name in names:
+                if name.endswith(pat[1:]) and not name.startswith("ns_stats."):
+                    sources.append(os.path.join(root, name))
+
+    blob = ""
+    for path in set(sources):
+        with io.open(path, encoding="utf-8", errors="ignore") as f:
+            blob += f.read()
+
+    unfilled = [f for f in fields
+                if f not in SNAPSHOT_INIT_ONLY
+                and not re.search(r"\b" + re.escape(f) + r"\b", blob)]
+
+    new = [f for f in unfilled if f not in SNAPSHOT_KNOWN_GAPS]
+    check(not new, "no new snapshot field is left unfilled",
+          ", ".join(new) + " -- fill it in the change that declares it, "
+          "or do not declare it")
+
+    stale = [f for f in SNAPSHOT_KNOWN_GAPS if f not in unfilled]
+    check(not stale, "the known-gap list has no entries that are now filled",
+          ", ".join(stale) + " -- remove from SNAPSHOT_KNOWN_GAPS")
+
+    if unfilled:
+        print("  note %d field(s) still unfilled, each tracked:" % len(unfilled))
+        for f in sorted(unfilled):
+            print("       %-22s %s" % (f, SNAPSHOT_KNOWN_GAPS.get(f, "?")))
+
+
 def main():
     ver = check_version()
     check_urls()
@@ -318,6 +397,7 @@ def main():
     check_generated()
     check_feature_matrix()
     check_doc_links()
+    check_snapshot_fields()
 
     print("")
     if PROBLEMS:
