@@ -4,9 +4,11 @@
 name on 2026-08-14 and the path is kept so the references to it keep
 working.)*
 
-*This is the **Android** track. Two others run in parallel and are not
-blocked by it: [cli-track.md](cli-track.md) and
-[gui-track.md](gui-track.md).*
+*This is the **Android** track. Three others run in parallel and are not
+blocked by it: [cli-track.md](cli-track.md),
+[gui-track.md](gui-track.md), and
+[measurement-tiers.md](measurement-tiers.md) — the last of which does
+wait on this one, since KPI 9 renames a claim in the live listing.*
 
 ## What & Why
 

@@ -16,6 +16,11 @@ So the work items now run as **parallel tracks**, one file each:
 | Android to the stores | [release-to-play.md](release-to-play.md) | the app, free and pro |
 | The command-line tool | **this file** | `ntrip-analyser` |
 | The Windows GUI | [gui-track.md](gui-track.md) | `ntrip-analyser-gui` |
+| Measurement tiers | [measurement-tiers.md](measurement-tiers.md) | *all of them* — KPI 9 and the stability report |
+
+The fourth follows a capability rather than an artefact, because a
+measurement that means different things in different products is worth
+less than one that means the same everywhere.
 
 [design/todo.md](../todo.md) keeps its job: the cross-cutting idea list,
 where a thought is recorded before anyone has decided to build it. A

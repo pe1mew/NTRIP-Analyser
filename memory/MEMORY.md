@@ -39,6 +39,7 @@
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
 | `design/feature-matrix.md` | Asking "which product has X?" | Every feature against CLI, GUI, free, pro and the daemon, with the rationale for each split |
 | `design/work-items/{release-to-play,cli-track,gui-track}.md` | Picking up work | Three parallel tracks — Android, CLI, GUI — so nothing waits behind a store review |
+| `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13 is the station check as built |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |

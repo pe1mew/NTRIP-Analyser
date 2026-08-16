@@ -5,7 +5,10 @@
 The third parallel track, alongside [release-to-play.md](release-to-play.md)
 (Android) and [cli-track.md](cli-track.md). The reasoning is the same:
 the GUI has its own users and its own defects, and none of them should
-wait behind a store review.
+wait behind a store review. A fourth,
+[measurement-tiers.md](measurement-tiers.md), crosses all three — the
+GUI's part in it is commissioning: an hour on a new station to judge
+whether it is worth a week of the daemon's attention.
 
 This file starts as a queue rather than a plan. Its phases are seeded
 from [design/todo.md](../todo.md) — the items there that are **not**
