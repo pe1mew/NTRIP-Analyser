@@ -167,6 +167,14 @@ void cli_report_print(const SrState *sr)
     printf("\n== %s ==  window %.0f s, %d samples\n",
            r.headline, r.window_s, r.samples);
 
+    /* Nothing was measured at all, which has two causes and no way here
+     * to tell them apart -- so say both rather than let a blank report
+     * read as a stream that behaved. */
+    if (r.samples == 0)
+        printf("(no samples: the run was shorter than the %.0f s warm-up, "
+               "or the stream carries no observation epochs and so has no "
+               "clock to measure a window with)\n", SR_WARMUP_S);
+
     /* Deliberately no exit code: see cli_report in the header. */
 }
 
@@ -262,19 +270,23 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
     time_t last_gga  = 0;   /* forces an immediate first GGA */
     time_t last_srs  = 0;   /* last tier-2 sample */
 
-    /* On a live run the stream clock and the wall clock agree, so
-     * seconds-since-start is a legitimate stream time. A *replay* would
-     * need the newest MSM epoch instead, which the session does not yet
-     * expose -- see measurement-tiers.md phase 2b. */
+    /* The window comes from the stream's own clock, never from this
+     * host: the wall clock says how long the run took, and the epochs
+     * say how much stream it covered. Live the two agree except when
+     * NTP steps one of them; over a replay they do not agree at all. */
     sr_reset(&c->sr, false);
 
     for (;;) {
         time_t now = time(NULL);
         if (cli_stop_requested) break;   /* only set while capturing */
 
+        /* Sampled once a second by the wall clock -- that is a cadence,
+         * not a measurement -- and stamped with the stream's. */
         if (cli_report && now != last_srs) {
             last_srs = now;
-            sr_feed(&c->sr, ns_stats(sess), (double)(now - t_start));
+            const NsStatsSnapshot *snap = ns_stats(sess);
+            if (snap && snap->stream_time_s >= 0.0)
+                sr_feed(&c->sr, snap, snap->stream_time_s);
         }
 
         if (seconds > 0 && (now - t_start) >= seconds) break;
@@ -681,7 +693,14 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
         double el = (double)(time(NULL) - t0);
         const NsStatsSnapshot *snap = ns_stats(sess);
 
-        if (cli_report && el != last_srs) { last_srs = el; sr_feed(&sr, snap, el); }
+        /* Once a second, stamped with the stream's clock rather than el:
+         * the two agree here, and using the one that also works over a
+         * replay keeps a single rule in the codebase. */
+        if (cli_report && el != last_srs) {
+            last_srs = el;
+            if (snap && snap->stream_time_s >= 0.0)
+                sr_feed(&sr, snap, snap->stream_time_s);
+        }
 
         if (vrs_mode && !gate_started && el - last_gga >= 10.0) {
             if (ns_send_gga(sess, config->LATITUDE, config->LONGITUDE))

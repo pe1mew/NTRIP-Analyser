@@ -159,6 +159,20 @@ something changed. **Frame integrity** reports the *worst* CRC rate
 observed, not the average, because an average hides a bad ten minutes
 inside a good six hours.
 
+**The window is measured in stream time, not by this computer's clock.**
+The report counts seconds from the observation epochs in the stream
+itself, which has three consequences worth knowing:
+
+- A dropout counts. Ten minutes of silence is ten minutes of window,
+  because the epochs on either side of it say so.
+- A clock correction on this machine cannot distort a running report.
+- A replayed capture is judged over the window the *capture* holds, so a
+  six-hour recording read from disk in twenty seconds covers six hours.
+
+A stream carrying no observations at all — station and antenna messages
+only — has no clock to measure with, and the report says so rather than
+guessing.
+
 ### 2b. Capturing the stream to a file
 
 `--capture` writes the stream to disk so that a converter can read it

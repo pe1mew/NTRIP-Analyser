@@ -134,6 +134,7 @@ void ns_stats_init(NsStatsSnapshot *s)
     s->arp_drift_m           = NS_UNSET;
     s->sourcetable_offset_m  = NS_UNSET;
     s->latency_s             = NS_UNSET;
+    s->stream_time_s         = NS_UNSET;
 }
 
 NsTypeStats *ns_stats_type(NsStatsSnapshot *s, int msg_type)
@@ -239,6 +240,7 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_key(&o, "advertised_count"); out_fmt(&o, "%d", s->advertised_count);
     out_str(&o, ",");
     out_key(&o, "advertised_gnss"); out_fmt(&o, "%u", s->advertised_gnss);
+    out_str(&o, ",");
     out_key(&o, "types_missing"); out_fmt(&o, "%d", s->types_missing);
     out_str(&o, ",");
     out_key(&o, "types_offrate"); out_fmt(&o, "%d", s->types_offrate);
@@ -326,6 +328,8 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     /* Timeliness */
     out_str(&o, ",");
     out_key(&o, "latency_s"); out_json_num(&o, s->latency_s, 3);
+    out_str(&o, ",");
+    out_key(&o, "stream_time_s"); out_json_num(&o, s->stream_time_s, 3);
 
     /* Ionosphere.  -1 means "not measurable yet"; serialised as null so
      * a consumer cannot mistake it for a real (and impossible) rate. */
@@ -361,7 +365,9 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     "crc_error_rate,advertised_count,types_missing,types_offrate," \
     "types_extra,sats_total,cnr_mean_all,station_type,arp_valid," \
     "arp_lat,arp_lon,arp_alt,arp_drift_m,arp_moves," \
-    "sourcetable_offset_m,latency_s,"     "iono_verdict,iono_roti_median,iono_roti_max,iono_sats_dualfreq,"     "iono_slips"
+    "sourcetable_offset_m,latency_s," \
+    "iono_verdict,iono_roti_median,iono_roti_max,iono_sats_dualfreq," \
+    "iono_slips,stream_time_s"
 
 int ns_stats_csv_header(char *out, size_t cap)
 {
@@ -444,7 +450,8 @@ int ns_stats_to_csv_row(const NsStatsSnapshot *s, char *out, size_t cap)
                                              : NS_UNSET, 3);
     out_ch(&o, ',');
     out_fmt(&o, "%d", s->iono_sats_dualfreq);     out_ch(&o, ',');
-    out_fmt(&o, "%d", s->iono_slips);
+    out_fmt(&o, "%d", s->iono_slips);             out_ch(&o, ',');
+    out_csv_num(&o, s->stream_time_s, 3);
 
     return (int)o.len;
 }

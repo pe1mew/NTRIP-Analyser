@@ -216,6 +216,32 @@ typedef struct {
     float    iono_roti_max;       /**< worst satellite; -1 until known   */
     int      iono_sats_dualfreq;  /**< satellites with a usable pair     */
     int      iono_slips;          /**< arcs broken this session          */
+
+    /* ── Stream clock ─────────────────────────────────────────────────
+     * How much stream has been observed, as the *data* measures it:
+     * seconds accumulated from the observation epochs themselves, not
+     * from the host.
+     *
+     * A replay is the reason it exists.  A six-hour capture read in
+     * twenty seconds has an uptime of twenty seconds, so any window
+     * measured against @ref uptime_s reports twenty seconds of evidence
+     * and refuses to judge -- while this reports the six hours the file
+     * actually holds, which is what makes an archived `.rtcm3` a record
+     * rather than a souvenir.
+     *
+     * It is the better clock live, too: a host NTP correction steps
+     * @ref uptime_s sideways mid-session, and epoch counting cannot be
+     * stepped.
+     *
+     * A dropout advances it, because the epochs on either side say so --
+     * gaps are stream time, and counting them is what makes a live run
+     * and its replay agree.
+     *
+     * @ref NS_UNSET until an observation epoch has been seen, and for
+     * the whole session on a stream that carries none (1005/1008/1033
+     * and nothing else).  Not measurable is not zero.
+     */
+    double   stream_time_s;
 } NsStatsSnapshot;
 
 /**

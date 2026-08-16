@@ -46,10 +46,39 @@ the worst CRC rate seen rather than the average, because an average hides
 a bad ten minutes inside a good six hours.
 
 Windows are counted in **stream time**, so the same session produces the
-same report at any replay speed. The offline path is not wired up yet:
-the session does not publish a stream clock, and passing the host's would
-make a six-hour capture replayed in twenty seconds report a twenty-second
-window.
+same report at any replay speed.
+
+### Added — a stream clock, taken from the data
+
+`stream_time_s` on the snapshot reports how much stream has been
+observed as the *observations themselves* measure it, rather than how
+long the host was watching. It is what makes the tier's replay-equality
+property demonstrable instead of only unit-tested: a six-hour capture
+read in twenty seconds covers six hours, not twenty seconds.
+
+An epoch field is not a timestamp, and three things had to be handled
+for this to be worth trusting. The constellations do not share a clock —
+GLONASS counts a day where GPS counts a week, and BeiDou's week is
+offset fourteen seconds — so the clock locks onto one and ignores the
+rest. The field wraps, at a week and at a GLONASS day, and a six-hour
+capture started on a Saturday evening crosses the first. And a frame
+that arrives late is a step backwards that is *not* a wrap. A dropout,
+by contrast, is not smoothed at all: ten minutes of silence advances the
+clock ten minutes, because the epochs on either side say so.
+
+A stream that carries no observation epochs reports no clock rather than
+zero, and the report then says it has no window.
+
+It is also the better clock for a live run, where the two used to agree:
+a host NTP correction steps the wall clock sideways mid-session, and
+epoch counting cannot be stepped.
+
+### Fixed — the snapshot JSON was not valid JSON
+
+A missing separator between `advertised_gnss` and `types_missing`
+produced `"advertised_gnss":5"types_missing":2`, which a strict parser
+rejects — affecting the daemon's status output, the GUI's JSON export
+and the Android bridge alike. Found while adding a key beside it.
 
 ### Removed — a monitoring signal that had never been able to move
 

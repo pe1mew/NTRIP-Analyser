@@ -249,23 +249,67 @@ Two decisions worth keeping:
 Next consumers, in order: the daemon, which runs for months and is the
 natural home; then the GUI, for commissioning.
 
-## Phase 2b — A stream clock, so a replay can be reported — next
+## Phase 2b — A stream clock, so a replay can be reported — **built**
 
-The report takes its window from the caller, and the CLI passes
-seconds-since-start. On a live run the stream clock and the wall clock
-agree, so that is legitimate. **On a replay it is not**, and the offline
-path is therefore not wired up: a six-hour capture replayed in twenty
-seconds would report a twenty-second window and refuse to judge.
+`NsStatsSnapshot::stream_time_s` publishes elapsed time as the *data*
+measures it, accumulated in `ntrip_session.c` at the point epochs are
+already decoded, and the CLI now stamps every tier-2 sample with it
+instead of seconds-since-start. Sampling stays on the wall clock, which
+is a cadence and not a measurement; the timestamp is the stream's.
 
-What is missing is small: the session knows the newest MSM epoch, and
-nothing publishes it. A `stream_time_s` on the snapshot — filled at the
-point epochs are already decoded — would let a replay report exactly what
-the live run reported, which is the property `test_station_report.c`
-already pins and no user can yet demonstrate.
+The raw material needed no new decoding — `msm_get_epoch()` has run on
+every valid frame since epochs were counted, and works for the legacy
+1001–1012 families too. What it needed was care, because an epoch field
+is not a timestamp:
+
+- **The constellations do not share a clock.** GPS, Galileo, QZSS, SBAS
+  and NavIC count milliseconds of week; BeiDou counts the same week
+  offset by fourteen seconds; GLONASS counts milliseconds of *day*, in
+  Moscow time, packed as a 3-bit day above a 27-bit millisecond in the
+  same 30-bit field. So the clock locks onto one constellation and
+  ignores the rest. Accumulating across two would have added fourteen
+  invented seconds at every GPS↔BeiDou alternation.
+- **The field wraps** — a week at 604 800 000 ms, a GLONASS day at
+  86 400 000 — and a six-hour capture started on a Saturday evening
+  crosses the first. A negative delta larger than half the modulus is a
+  rollover; a smaller one is a frame that arrived late, and adding a
+  week to *that* would be a spectacular way to lie. This is the class of
+  fault that once made a day-old GLONASS orbit read as an hour old.
+- **A day-scale lock trades up** to a week-scale one when a week-based
+  constellation appears, because fewer wraps is fewer chances to be
+  wrong. It costs one inter-frame delta and happens at most once.
+
+A **dropout is deliberately not** smoothed: a ten-minute gap advances
+the clock ten minutes because the epochs on either side say so, and
+counting it is exactly what makes a live run and its replay agree.
+
+A stream carrying no observation epochs at all — 1005/1008/1033 and
+nothing else — leaves the field `NS_UNSET`, and the report says it has
+no window rather than falling back to the host. Silent fallback is how
+replay equality would die without anyone noticing.
+
+`test/test_stream_clock.c` builds frames with chosen epochs and replays
+them, so a week boundary is constructed rather than waited for: ten
+cases covering the rollovers, the mixed-constellation sum, the late
+frame, an epoch split across frames, the dropout, and the stream with no
+clock at all.
+
+**It is the better clock live, too.** A host NTP correction steps
+`uptime_s` sideways mid-session; epoch counting cannot be stepped.
 
 That also makes the offline path the interesting one: a `.rtcm3` on disk
 becomes a station's history, re-judgeable years later against thresholds
-that did not exist when it was recorded.
+that did not exist when it was recorded. Reporting over a replayed
+capture is now a wiring question for the CLI's offline mode, not a
+missing measurement.
+
+**What it does not give is a date.** An epoch is a time *within* a week
+or a day with no week number, so it measures spans, never instants.
+Dating a capture absolutely needs the week from an ephemeris message or
+the modified Julian day from 1013 — which is why `convbin -tr` remains
+mandatory for a station that broadcasts neither, and why a station that
+broadcasts either could have its capture stamped automatically. That is
+a separate item on the CLI track.
 
 Build the tier before funding new metrics for it. A first report needs
 none of the four candidates: reconnects, CRC rate, C/N0 trend, ROTI,

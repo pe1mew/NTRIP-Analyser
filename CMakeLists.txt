@@ -189,10 +189,20 @@ add_executable(test_station_report test/test_station_report.c)
 target_link_libraries(test_station_report PRIVATE ntrip_core)
 add_test(NAME station_report COMMAND test_station_report)
 
+# The stream clock is the only clock here taken from the data, and every
+# way it can be wrong -- a mixed constellation, a week rollover, a frame
+# arriving late -- is a way an archived capture is misjudged long after
+# the station is gone.  Replayed from built frames, so a week boundary is
+# constructed rather than waited for.
+add_executable(test_stream_clock test/test_stream_clock.c)
+target_link_libraries(test_stream_clock PRIVATE ntrip_session)
+add_test(NAME stream_clock COMMAND test_stream_clock)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
-            test_eph_validity test_capture)
+            test_eph_validity test_capture test_station_report
+            test_stream_clock)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

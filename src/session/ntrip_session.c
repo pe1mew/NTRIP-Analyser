@@ -168,6 +168,13 @@ struct NtripSession {
     bool       type_has_epoch[NS_MAX_TYPES];
     double     type_last_time[NS_MAX_TYPES];
     double     type_sum_dt[NS_MAX_TYPES];
+
+    /* Stream clock (NsStatsSnapshot::stream_time_s).  Locked to one
+     * constellation, because the constellations do not share a clock. */
+    int        clk_family;      /**< 0 until an epoch has been seen     */
+    bool       clk_day_scale;   /**< the locked family counts a day     */
+    double     clk_last_ms;     /**< previous epoch, milliseconds       */
+    double     clk_elapsed_s;   /**< accumulated stream time            */
 };
 
 /* ── Event helpers ───────────────────────────────────────────────── */
@@ -338,6 +345,126 @@ static int sock_recv(ns_sock_t sk, unsigned char *buf, int cap, int timeout_ms)
     if (n == 0) return -1;      /* peer closed */
     if (n < 0)  return -1;
     return n;
+}
+
+/* ── Stream clock ─────────────────────────────────────────────────────
+ *
+ * Elapsed time as the data measures it, so that a report over a replayed
+ * capture covers the window the capture holds rather than the seconds
+ * the replay took.  See NsStatsSnapshot::stream_time_s.
+ *
+ * The whole difficulty is that an epoch field is not a timestamp:
+ *
+ *   - **The constellations do not share a clock.**  GPS, Galileo, QZSS,
+ *     SBAS and NavIC count milliseconds of week; BeiDou counts the same
+ *     week but offset fourteen seconds; GLONASS counts milliseconds of
+ *     *day*, in Moscow time, packed as a 3-bit day and a 27-bit
+ *     millisecond in the same 30-bit field.  Accumulating deltas across
+ *     two of them would step the clock by hours or by fourteen seconds
+ *     at every alternation, so the clock locks onto one family and
+ *     ignores every other frame.
+ *
+ *   - **The field wraps.**  A week ends at 604 800 000 ms and a GLONASS
+ *     day at 86 400 000, and a six-hour capture started on a Saturday
+ *     evening crosses the first of those.  Untreated, the wrap reads as
+ *     a jump backwards of nearly a week.
+ *
+ *   - **Frames arrive twice, and occasionally late.**  A duplicate epoch
+ *     is a zero delta and harmless; a genuine step backwards is not a
+ *     wrap and must not be added as one.
+ *
+ * A gap, by contrast, is *not* a fault to be smoothed: a ten-minute
+ * dropout advances this clock by ten minutes because the epochs on
+ * either side say so, and counting it is exactly what makes a live run
+ * and its replay agree.
+ */
+
+#define NS_CLK_WEEK_MS  604800000.0
+#define NS_CLK_DAY_MS    86400000.0
+
+/** GLONASS packs a 3-bit day above the millisecond-of-day. */
+#define NS_CLK_GLO_MS_MASK 0x07FFFFFFu
+
+/**
+ * @brief Which constellation an observation message belongs to.
+ *
+ * @param day_scale [out] true when that family counts milliseconds of
+ *                  day rather than of week.
+ * @return A family identifier, or 0 for a message with no usable epoch.
+ */
+static int clk_family_of(int msg_type, bool *day_scale)
+{
+    *day_scale = false;
+
+    /* The legacy observation messages carry their epoch at the same
+     * offset, which is why msm_get_epoch() reads them: a station still
+     * sending 1004 has a stream clock like any other. */
+    if (msg_type >= 1001 && msg_type <= 1004) return 101;          /* GPS */
+    if (msg_type >= 1009 && msg_type <= 1012) {
+        *day_scale = true;
+        return 102;                                                /* GLONASS */
+    }
+
+    if (msg_type < 1071 || msg_type > 1137) return 0;
+
+    /* MSM runs in decades: 1071-1077 GPS, 1081-1087 GLONASS, then
+     * Galileo, SBAS, QZSS, BeiDou and NavIC.  The three numbers above
+     * each decade's MSM7 are not MSM at all, and msm_get_epoch() does
+     * not check -- so this does. */
+    int decade = (msg_type - 1071) / 10;
+    int within = (msg_type - 1071) % 10;
+    if (within > 6) return 0;
+
+    *day_scale = (decade == 1);
+    return decade + 1;
+}
+
+/** @brief The epoch field as milliseconds on its family's scale. */
+static double clk_epoch_ms(uint32_t raw, bool day_scale)
+{
+    return day_scale ? (double)(raw & NS_CLK_GLO_MS_MASK) : (double)raw;
+}
+
+/** @brief Advance the stream clock by one frame's worth of evidence. */
+static void clock_feed(NtripSession *s, int msg_type,
+                       uint32_t epoch, bool has_epoch)
+{
+    if (!has_epoch) return;
+
+    bool day = false;
+    int fam = clk_family_of(msg_type, &day);
+    if (!fam) return;
+
+    /* Lock onto the first family seen, but trade a day-scale lock for a
+     * week-scale one if the chance comes: a GLONASS lock wraps every
+     * twenty-four hours where a GPS lock wraps once a week, and fewer
+     * wraps is fewer opportunities to be wrong.  Re-locking costs one
+     * inter-frame delta -- about a second -- and happens at most once. */
+    if (s->clk_family == 0 || (s->clk_day_scale && !day)) {
+        s->clk_family    = fam;
+        s->clk_day_scale = day;
+        s->clk_last_ms   = clk_epoch_ms(epoch, day);
+        s->stats.stream_time_s = s->clk_elapsed_s;   /* 0 at the first */
+        return;
+    }
+    if (fam != s->clk_family) return;
+
+    const double modulus = day ? NS_CLK_DAY_MS : NS_CLK_WEEK_MS;
+    double ms = clk_epoch_ms(epoch, day);
+    double d  = ms - s->clk_last_ms;
+
+    if (d < 0.0) {
+        /* Half the modulus separates the two readings of a negative
+         * delta.  Nearly a whole week backwards is the week ending; a
+         * few milliseconds backwards is a frame arriving out of order,
+         * and adding a week to it would be a spectacular way to lie. */
+        if (-d > modulus / 2.0) d += modulus;
+        else return;
+    }
+
+    s->clk_last_ms    = ms;
+    s->clk_elapsed_s += d / 1000.0;
+    s->stats.stream_time_s = s->clk_elapsed_s;
 }
 
 /* ── Statistics ──────────────────────────────────────────────────── */
@@ -558,6 +685,7 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                                                    msg_type, &epoch) != 0;
                     bool new_epoch = stats_frame(s, msg_type, epoch,
                                                  has_epoch, now);
+                    clock_feed(s, msg_type, epoch, has_epoch);
 
                     /* sv_track also reads the legacy observation
                      * messages; iono ignores everything but MSM6/7.

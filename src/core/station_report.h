@@ -16,10 +16,12 @@
  * check alone.
  *
  * **Windows are stream time, never wall clock.** The caller supplies the
- * clock, and for a replay it must come from the data — the newest MSM
- * epoch — not from the host.  That is what makes a captured session
- * reproduce its report exactly, at any replay speed, which in turn is
- * what makes an archived `.rtcm3` a record rather than a souvenir.
+ * clock, and it must be @ref NsStatsSnapshot::stream_time_s — elapsed
+ * time as the observation epochs measure it — not the host's.  That is
+ * what makes a captured session reproduce its report exactly, at any
+ * replay speed, which in turn is what makes an archived `.rtcm3` a
+ * record rather than a souvenir.  It is the better clock live too: an
+ * NTP correction steps the host's sideways and cannot step this one.
  *
  * Fed from @ref NsStatsSnapshot, which every frontend already has and the
  * daemon already writes once an interval.  Nothing new is measured here:
@@ -155,9 +157,10 @@ void sr_reset(SrState *s, bool from_capture);
 /**
  * @brief Add one snapshot.
  *
- * @param t_stream Seconds on the **stream's** clock, not the host's.  For
- *        a live session the two agree; for a replay this must come from
- *        the data, or the report will not reproduce.
+ * @param t_stream Seconds on the **stream's** clock, not the host's:
+ *        @ref NsStatsSnapshot::stream_time_s.  Negative means the stream
+ *        carries no epochs to measure with, and such a sample is not
+ *        evidence -- the warm-up guard below discards it.
  */
 void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream);
 
