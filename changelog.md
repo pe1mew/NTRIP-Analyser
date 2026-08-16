@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — a bumped version could still package the old one
+
+`cmake --build build --target release` printed *"Packaging 3.3.0"* on a
+tree that said 3.4.0. The version is read with `file(READ)` at configure
+time, and CMake was never told the build depends on that file, so an
+existing build directory kept the stale cache. Only the release tag check
+noticed; **untagged, it would have produced 3.3.0-named assets from a
+3.4.0 tree in silence.** CI never sees this because CI always configures
+from scratch — the release machine is exactly where it bites.
+`CMAKE_CONFIGURE_DEPENDS` on `src/core/version.h` now re-runs configure
+whenever the version moves.
+
 ## [3.4.0] - 2026-08-15
 
 ### Added — the CLI can write the stream to a file

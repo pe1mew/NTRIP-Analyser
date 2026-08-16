@@ -151,7 +151,9 @@
 **Fix**: `LocalOverscrollConfiguration provides null` around the pager — the stretch is worth less than the gesture. A nested-scroll parent only sees what every child declines to take.
 **Lesson**: A gesture built on leftover deltas is a gesture built on what nobody else wanted, and that changes by platform version. Test navigation gestures on the newest Android available, not the oldest.
 
-### An edition looked broken because its install was an hour old (2026-08-14)
+### An edition looked broken because its install was an hour old (2026-08-14) [x2]
+*Recurred 2026-08-16 on the VPS: the tree was rebuilt to 3.4.0 and the binary in `/usr/local/bin` was still 3.3.0, because the build and the install were two commands and only the first was run. Not an Android property — any deployed artefact.*
+
 **Problem**: Two defects fixed in free were reported as still present in pro — the same two, on the same handset.
 **Root cause**: Both fixes live in shared `src/main`; pro had them in source the moment they were written. The APK on the phone was built at 16:26 and the fix at 17:45.
 **Fix**: Compare install timestamps before reading code — `adb shell dumpsys package <id> | grep lastUpdateTime`.
@@ -214,6 +216,26 @@
 **Root cause**: The `systemd-run` recipe set `StandardOutput=null` to keep the message-type stream out of the journal. `StandardError=` defaults to **`inherit`**, which means *whatever StandardOutput is* — so stderr, where the summary and every error go, was discarded with it.
 **Fix**: `--property=StandardError=journal` alongside it; the two belong together. Silencing one stream in systemd silences the other unless you say otherwise.
 
+### A doc comment invented an edition difference (2026-08-16) [RESOLVED]
+**Problem**: `android/design/editions.md` listed per-satellite C/N0 as absent in free and *planned* for pro. Both editions have drawn those bars all along.
+**Root cause**: `SignalBars`' own documentation said `liveValues` was "true when the bars show this epoch (pro), false ... (free)". The call site passes `runState.running` and has never consulted `Features`. The comment described a split that never existed, and the design table was written from the comment rather than the code.
+**Fix**: Corrected at the source, with the correction stated so it is not re-derived. **A claim in a comment is a claim**: check it against the call site before promoting it into a design document — three of four "drifts" found in one review traced back to documents copying each other.
+
+### A schema field nobody fills (2026-08-16) [x2]
+**Problem**: `NsStatsSnapshot.latency_s` is declared, documented, serialised into the daemon's JSON and the CSV export, and displayed on the Android station tile. Nothing computes it. Every consumer has published "not measured" since the schema was written.
+**Root cause**: The field was added with the schema, in anticipation of code that never arrived. The ARP fields did exactly the same thing earlier — the daemon published `arp_valid:false` for every station until the KPI engine's first live run tripped over it.
+**Fix**: Not yet; tracked as phase 1 of `design/work-items/measurement-tiers.md`. The lesson is the pattern, not the field: **a declared-but-unfilled field is worse than a missing one, because it looks like an answer.**
+
+### systemd-run reports a launch, not a life (2026-08-16) [RESOLVED]
+**Problem**: A six-hour capture was started on the VPS, printed `Running as unit: ntrip-capture.service`, and had already exited — after 7 ms.
+**Root cause**: `systemd-run` reports that it handed the job to systemd, which says nothing about whether the process survived. The installed binary was an older build that rejected `--capture` outright.
+**Fix**: `systemctl status <unit>` immediately after starting; `Active: active (running)` is the only confirmation that counts. The artefact, not the launcher's promise. (Noted and unexplained: the unit recorded `status=7`, which no exit code in that older build accounts for.)
+
+### `install /dev/stdin` writes nothing (2026-08-16) [RESOLVED]
+**Problem**: `sudo install -m 600 /dev/stdin /etc/ntrip/rfsee.json` with a pasted heredoc produced no file, quietly enough that the next command's failure was the first sign.
+**Root cause**: `install` stats its source and will not copy a terminal or a pipe.
+**Fix**: `sudo tee <path> > /dev/null <<'EOF'` to write a root-owned file from a heredoc, then `chmod`. Create the directory in the same command, or the move that follows fails on a path that was never made.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -229,3 +251,5 @@
 | 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **3** — 16 KB alignment, bundle ABIs, signing key, all 2026-08-14 | project file, hard constraint |
 | 2026-08-15 | Measure the way the build measures, or report no number | **2** — `-fsyntax-only` blind to truncation warnings, `-std=c99` hiding `M_PI`, both 2026-08-15 | project file, hard constraint |
 | 2026-08-15 | Two build systems over one source set: CI must run both | **2** — `build-gui.bat` (open), `service/Makefile` (found broken 2026-08-15) | `memory/MEMORY.md` active decisions |
+| 2026-08-16 | A snapshot field nothing fills is worse than a missing one | **2** — ARP fields (until the KPI engine's first live run), `latency_s` (found 2026-08-16) | `memory/MEMORY.md` active decisions |
+| 2026-08-16 | What is installed is not what was built — on any platform | **2** — pro's APK 2026-08-14, the VPS binary 2026-08-16 | `memory/MEMORY.md` active decisions (generalised from Android) |

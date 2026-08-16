@@ -106,23 +106,27 @@ The primary goal of this project is to deepen my understanding of NTRIP streams,
 
 A secondary goal is to practice and experiment with programming, leveraging AI tools such as GitHub Copilot and Claude Code. Please note that, while AI assistance has accelerated development, I cannot guarantee the originality or accuracy of all code segments, as the sources used by large language models are not always transparent or verifiable. The results and information presented here have not been exhaustively validated. As such, I advise caution: **do not rely on this code or its output for critical applications without independent verification.** The included disclaimer applies in full.
 
-## Two versions of the tool
+## Three programs on the desktop and the server
 
-NTRIP-Analyser ships as **two separate programs** built from the same core
-library, so both decode RTCM identically. They differ in how you drive them
-and in what they can show.
+NTRIP-Analyser ships as **three separate programs** built from the same
+core library, so all three decode RTCM identically and judge a station by
+the same eight checks. They differ in how you drive them and in what they
+can show. (The [Android app](#on-android-ntrip-analyser) above is the
+fourth, built from the same core again.)
 
-| | **GUI** | **CLI** |
-|---|---|---|
-| Executable | `bin/ntrip-analyser-gui.exe` | `bin/ntrip-analyser.exe` (Windows)<br>`bin/ntrip-analyser` (Linux) |
-| Platform | Windows only (native Win32) | Windows and Linux |
-| Driven by | Point and click | Command-line arguments |
-| Configuration | On-screen fields, saved to JSON | `config.json` — start from [`bin/exampleConfig.json`](bin/exampleConfig.json) |
-| Best for | Investigating a stream interactively | Automation, scripting, cron, headless servers |
-| Live visualisation | Sky plot, signal quality, session history, VRS monitor | Sky-coverage heatmap (PNG, via `--sky`) |
-| Stream health checks | Yes — handshake, CRC, advertised-vs-observed, position | No |
-| Station acceptance test | Yes — View > Station Check | Yes — `--check` / `--check-vrs`, with exit codes for scripting |
-| Output | On-screen, plus PNG snapshots | Console text, plus PNG for `--sky` |
+| | **GUI** | **CLI** | **Service** |
+|---|---|---|---|
+| Executable | `bin/ntrip-analyser-gui.exe` | `bin/ntrip-analyser.exe` (Windows)<br>`bin/ntrip-analyser` (Linux) | `ntrip-monitord` |
+| Platform | Windows only (native Win32) | Windows and Linux | Linux / UNIX |
+| Driven by | Point and click | Command-line arguments | A config file and systemd |
+| Configuration | On-screen fields, saved to JSON | A JSON file — start from [`bin/exampleConfig.json`](bin/exampleConfig.json) | `/etc/ntrip-monitord/monitord.json` |
+| Best for | Investigating a stream interactively | Automation, scripting, cron, captures | Watching stations for months |
+| Mountpoints at once | One | One | All of them |
+| Live visualisation | Sky plot, signal quality, session history, VRS monitor | Sky-coverage heatmap (PNG, via `--sky`) | Munin graphs |
+| Stream health checks | Yes — handshake, CRC, advertised-vs-observed, position | Yes — via `--check` and `-t` | Published continuously |
+| Station acceptance test | Yes — View > Station Check | Yes — `--check` / `--check-vrs`, with exit codes for scripting | No — it reports measurements and leaves the verdict to you |
+| Capture to file | Yes — File > Start RTCM Capture | Yes — `--capture` | Not exposed |
+| Output | On-screen, plus PNG snapshots | Console text, PNG, `.rtcm3` captures, `--json` | One JSON snapshot per mountpoint, per interval |
 
 > **Trying it out:** a ready-to-edit configuration ships as
 > [`bin/exampleConfig.json`](bin/exampleConfig.json) (and as an asset on
@@ -146,12 +150,17 @@ and in what they can show.
   "is this stream healthy" directly, and the chart windows show things a
   console cannot.
 - **Unattended or repeated runs** — use the CLI. It takes `--duration`,
-  emits machine-readable status with `--json`, and can replay a capture
-  from stdin, so it fits cron jobs and scripts.
-- **Not on Windows** — the CLI is your only option; the GUI is Win32-native.
+  emits machine-readable status with `--json`, captures the stream to a
+  file and can replay one, so it fits cron jobs and scripts.
+- **Watching a station for months** — run the service. A spot check tells
+  you a station is fit today; only a permanent observer tells you it has
+  *stayed* fit, and dropouts are invisible to anything that connects
+  briefly per poll.
+- **Not on Windows** — the CLI and the service; the GUI is Win32-native.
 
-Both are documented in full: **[GUI User Guide](docs/gui.md)** and
-**[CLI Manual](docs/cli.md)**.
+All three are documented in full: **[GUI User Guide](docs/gui.md)**,
+**[CLI Manual](docs/cli.md)** and
+**[Service Manual](docs/service.md)**.
 
 ### Command-Line Interface (CLI)
 
@@ -177,6 +186,38 @@ RINEX 3 NAV file via `-R`. It can also replay a capture offline:
 ntrip-analyser --sky --rtcm-stdin -R nav.rnx < capture.rtcm3
 ```
 
+The station acceptance test is the CLI at its most useful — eight checks,
+about ninety seconds, and an exit code a script can act on:
+
+```
+#   KPI                        verd         value  detail
+1   Connected and producing    PASS       1722.84  Authenticated, connected, data flowing
+2   RTCM 3.x format            PASS        537.00  CRC-valid RTCM 3.x frames decoded
+3   Reference position (ARP)   PASS          1.00  1005/1006 received with non-zero coordinates
+4   Observations flowing       PASS          6.00  Every constellation streaming at 0.5 Hz or faster
+5   Satellites in view         PASS         39.00  At or above what this station advertises
+6   Median C/N0                PASS         45.28  Antenna and LNA chain healthy
+7   Frame integrity (CRC)      PASS          0.00  Fewer than 1 error per 1000 frames
+8   Advertised versus actual   WARN          1.00  Streaming a constellation the sourcetable omits
+
+== CAUTION ==  exit=6
+```
+
+That run is a real one, and KPI 8 caught a real fault: the station was
+streaming NavIC while its sourcetable entry did not declare it — a
+registration error nobody had noticed.
+
+`--sky` writes the coverage heatmap, which is what a console cannot show
+you. Left, the satellite tracks; right, observed against expected per
+sector — the obstruction survey a photograph does not give:
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks, written by the CLI"></td>
+<td width="50%"><img src="docs/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap, written by the CLI"></td>
+</tr>
+</table>
+
 See the [CLI manual](docs/cli.md) for the full option list.
 
 ### Windows GUI Application
@@ -186,6 +227,41 @@ message statistics, satellite tracking and detailed message decoding.
 
 Built with the native Win32 API in C99, with no dependencies beyond the
 Windows SDK and GDI+. See the [GUI documentation](docs/gui.md).
+
+### Monitoring service (`ntrip-monitord`)
+
+The unattended member of the suite: it holds one session per configured
+mountpoint, indefinitely, and writes each one's statistics as a JSON
+snapshot for Munin — or for anything else that reads JSON.
+
+It exists because a probe that connects briefly per poll cannot see the
+thing a stream monitor most needs to catch. Rates need a persistent
+session, and a dropout between two polls leaves no trace at all.
+
+```sh
+sudo systemctl enable --now ntrip-monitord
+sudo ln -s /usr/local/share/munin/plugins/ntrip_monitor /etc/munin/plugins/
+```
+
+Seven graph families per mountpoint. A day of a six-constellation MSM7
+station:
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/ntrip_throughput_RFSEE01-day.png" alt="Throughput over a day"></td>
+<td width="50%"><img src="docs/images/ntrip_satellites_RFSEE01-day.png" alt="Satellites tracked over a day"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/ntrip_cnr_RFSEE01-day.png" alt="Mean C/N0 over a day"></td>
+<td width="50%"><img src="docs/images/ntrip_iono_RFSEE01-day.png" alt="Ionospheric ROTI over a day"></td>
+</tr>
+</table>
+
+Throughput, satellites tracked, mean C/N0 and the ionosphere — plus frame
+integrity, availability and the per-type message rate, which are flat
+lines until something goes wrong. Ships as a tarball with a hardened
+systemd unit, a `sysusers` fragment and the Munin plugin. See the
+[Service Manual](docs/service.md).
 
 ## Core Functionalities
 
@@ -300,7 +376,22 @@ See [compilation guide](docs/compile.md) for complete build instructions.
 Please note the license at the end of this document. 
 
 # License
-This project is free: You can redistribute it and/or modify it under the terms of a Creative Commons Attribution-NonCommercial 4.0 International License (http://creativecommons.org/licenses/by-nc/4.0/) by Remko Welling (https://ese.han.nl/~rwelling) E-mail: remko.welling@han.nl
+
+**Two licences, and which one applies depends on what you are using.**
+
+| What | Licence |
+|---|---|
+| The code | [Apache License 2.0 with the Commons Clause](LICENSE) |
+| The documentation and other non-code content | [CC BY-NC 4.0](license.md) |
+
+The Commons Clause forbids **selling** the software — including paid
+hosting or support where the value comes substantially from it. It does
+not stop anyone using it internally on their own base stations, which is
+ordinary commercial use. [`docs/licences.md`](docs/licences.md) sets out
+the full position, what the project depends on, and what it connects to.
+
+Documentation is Creative Commons Attribution-NonCommercial 4.0
+International (http://creativecommons.org/licenses/by-nc/4.0/) by Remko Welling (https://ese.han.nl/~rwelling) E-mail: remko.welling@han.nl
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution-NonCommercial 4.0 International License</a>.
 

@@ -20,7 +20,15 @@ served anonymously — it runs as shipped. `--generate` writes a template
 too. For a caster that does need credentials, they are yours to obtain;
 the analyser supplies none of its own.
 
-Before using the program, you must create a configuration file named `config.json` in the working directory. This file contains all necessary connection and authentication details as well as teh coordinates of the rover emulated. *The program will not work without it.* 
+Before using the program, you need a configuration file: it holds the connection and authentication details, and the coordinates of the emulated rover. *The program will not work without one.*
+
+> **`config.json` is a default, not a requirement.** It is simply the
+> name the program looks for when `-c` is not given. `-c` takes any
+> path, so name files after the stations they describe —
+> `ntrip-analyser -c rfsee.json --check` — and keep a directory of them.
+> Nothing requires the word "config", and a file outside the working
+> directory is often the better choice: credentials are stored in the
+> clear, so `/etc/ntrip/` with `chmod 600` beats a file beside the binary.
 
 Generating a default `config.json` with dummy values is done by using the `-g` argument when running the program:
 
@@ -352,4 +360,8 @@ station cannot pass here and fail elsewhere.
 
 ## License
 
-See the LICENSE file for details.
+The code is under the [Apache License 2.0 with the Commons
+Clause](../LICENSE); this documentation is under
+[CC BY-NC 4.0](../license.md). [`docs/licences.md`](licences.md) sets out
+the full position, including what the project depends on and what it
+connects to.

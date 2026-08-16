@@ -187,6 +187,13 @@
   optimisation (`-fsyntax-only` is blind to the truncation warnings;
   `-std=c99` hides `M_PI`, 2026-08-15) — promoted from gotcha-log
   2026-08-15 to `CLAUDE.md` hard constraints.
+- If you **add a field to the snapshot schema**, fill it in the same
+  change or do not add it (ARP fields, then `latency_s` 2026-08-16) —
+  promoted from gotcha-log 2026-08-16 to Active Decisions above.
+- If a defect is **reported against a deployed artefact**, ask that
+  artefact its version before reading any code (pro's APK 2026-08-14,
+  the VPS binary 2026-08-16) — promoted from gotcha-log 2026-08-16,
+  generalising the Android-only wording in Active Decisions above.
 
 ## Key File Paths
 
@@ -254,16 +261,36 @@ Supplementing CLAUDE.md's list with paths found during work:
   by message type, and the same striping appeared in Android and then in
   the Windows GUI; a fix in one frontend leaves the others wrong. Bin at
   the coarsest resolution any stream delivers.
-- **The phone is not the build.** One codebase and two editions means the
-  *installs* diverge even when the code cannot: two defects fixed in
+- **What is installed is not what was built.** Two defects fixed in
   shared code were reported as live in pro, whose APK was an hour older
-  than the fix. Compare `lastUpdateTime` before reading code
+  than the fix; a VPS then ran 3.3.0 for an hour after its tree was
+  rebuilt to 3.4.0, because build and install were two commands and only
+  one was run. **Ask the artefact its version before reading any code**
+  — `lastUpdateTime` on Android, `--version` everywhere else
   (`docs/RUNBOOK.md`).
+- **A field in the snapshot schema that nothing fills is worse than a
+  missing one**, because it looks like an answer. The ARP fields
+  published `arp_valid:false` for every station until a live run tripped
+  over it, and `latency_s` has been serialised, exported and displayed as
+  "not measured" since the schema was written. Fill a field in the change
+  that declares it, or do not declare it
+  (`design/work-items/measurement-tiers.md`).
 - **F-Droid: our own repository, never the official one** — it requires
   FLOSS, the Commons Clause forbids sale, and relicensing the free
   edition would strip the Clause from the shared core as well. Self-
   hosting costs nothing and keeps the Clause doing its job
   (`design/work-items/release-to-play.md`).
+- **Measurement runs in two tiers** (2026-08-16). Tier 1 is the
+  ninety-second acceptance check — *is this station fit now* — in every
+  product, unchanged. Tier 2 is a stability report over hours — *has it
+  been fit, and is it staying that way* — which no ninety-second window
+  can answer at any price. Tier 2 lives in the CLI, the GUI and the
+  daemon, and on Android only as far as a six-hour foreground service
+  allows: a ceiling the platform imposes, not capability withheld.
+  Windows are counted in **stream time**, so a capture replays to the
+  identical report; tier 2 says STABLE / DEGRADED / UNSTABLE and never
+  borrows tier 1's words (`design/work-items/measurement-tiers.md`,
+  `design/kpi-candidates.md`).
 - **Where two build systems describe one source set, CI must run both.**
   `service/Makefile` lists its sources by hand and had silently stopped
   linking, because CMake keeps its own list and never noticed. The Win32

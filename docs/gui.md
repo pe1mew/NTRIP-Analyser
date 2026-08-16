@@ -45,7 +45,7 @@ It shares the same core library with the CLI application:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                              GUI Layer                                │
+│                             GUI Layer                                │
 │  gui/gui_main.c          — WinMain, message loop, window creation    │
 │  gui/gui_layout.c        — Control creation, sizing, DPI-awareness   │
 │  gui/gui_events.c        — Handlers, health checks, classification   │
@@ -63,7 +63,7 @@ It shares the same core library with the CLI application:
 └────────────────────────┬─────────────────────────────────────────────┘
                          │  calls ↓         ↑ posts WM_APP+n
 ┌────────────────────────┴─────────────────────────────────────────────┐
-│                       Shared Core Library                             │
+│                      Shared Core Library                             │
 │  src/session/ntrip_session — the stream loop, shared by all four     │
 │  src/net/ntrip_proto       — NTRIP request/response text             │
 │  src/net/ntrip_handler     — sourcetable fetch, socket helpers       │

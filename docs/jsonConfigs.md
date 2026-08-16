@@ -5,6 +5,13 @@ the CLI, the Windows GUI, the monitoring daemon and the Android app —
 reads and writes the same file, so a configuration written anywhere is
 usable everywhere.
 
+> **The filename is yours to choose.** `config.json` is only what the
+> CLI looks for when you do not tell it otherwise: `-c` takes any path,
+> the GUI opens whatever you point it at, and the daemon takes
+> `--config`. Name files after the stations they describe —
+> `rfsee.json`, `kadaster-apel.json` — and a directory of them stays
+> readable. Nothing in any program requires the word "config".
+
 ```json
 {
   "output_dir": "/var/lib/ntrip-monitor",

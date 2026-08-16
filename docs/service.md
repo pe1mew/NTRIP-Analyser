@@ -142,7 +142,7 @@ sudo systemctl restart munin-node
 ```
 
 Graphs appear under the **ntrip** category after two master poll cycles
-(about ten minutes). Six graph families per mountpoint:
+(about ten minutes). Seven graph families per mountpoint:
 
 | Graph | Shows | Alert defaults |
 |---|---|---|
@@ -150,8 +150,54 @@ Graphs appear under the **ntrip** category after two master poll cycles
 | integrity | CRC errors, malformed frames, re-syncs (rates) | warning on any CRC error |
 | satellites | satellites tracked | — |
 | cnr | mean C/N0 | warning below 35 dB-Hz |
+| iono | median and worst-satellite ROTI | — |
 | availability | connected (0/1), reconnects | critical when not connected |
 | msgrate | frames/s per RTCM type | — |
+
+### What they look like
+
+A day of `RFSEE01`, a six-constellation MSM7 station on a domestic
+connection. These are the graphs as Munin draws them — the point of the
+daemon is that these exist at all for a stream, which no NTRIP tool
+otherwise gives you.
+
+<table>
+<tr>
+<td width="50%"><img src="images/ntrip_throughput_RFSEE01-day.png" alt="Throughput in bytes per second over a day"></td>
+<td width="50%"><img src="images/ntrip_satellites_RFSEE01-day.png" alt="Satellites tracked over a day"></td>
+</tr>
+<tr>
+<td><em><strong>Throughput.</strong> Flat is healthy. The first thing to
+move when a station degrades, and the easiest to attribute.</em></td>
+<td><em><strong>Satellites tracked.</strong> Currently in view, not seen
+this session — so the daily rise and fall is the constellation, while a
+slow decline over weeks is the horizon changing.</em></td>
+</tr>
+<tr>
+<td width="50%"><img src="images/ntrip_cnr_RFSEE01-day.png" alt="Mean carrier-to-noise density over a day"></td>
+<td width="50%"><img src="images/ntrip_iono_RFSEE01-day.png" alt="Median and worst-satellite ROTI over a day"></td>
+</tr>
+<tr>
+<td><em><strong>Mean C/N0.</strong> The antenna and LNA chain, which
+ages. A step down overnight is rain in a connector far more often than
+it is the receiver.</em></td>
+<td><em><strong>Ionosphere (ROTI).</strong> Median and worst satellite.
+The one cause of poor RTK that is nobody's fault and needs
+proving.</em></td>
+</tr>
+<tr>
+<td colspan="2"><img src="images/ntrip_msgrate_RFSEE01-day.png" alt="Frames per second per RTCM message type over a day"></td>
+</tr>
+<tr>
+<td colspan="2"><em><strong>Message rate per type.</strong> A station
+that silently stops sending 1005, or halves its MSM rate, shows up here
+and nowhere else.</em></td>
+</tr>
+</table>
+
+The remaining two families — integrity and availability — are flat lines
+on a healthy station and are worth looking at only when something is
+wrong, which is exactly when their alert defaults fire.
 
 Plugin configuration, if the defaults need changing
 (`/etc/munin/plugin-conf.d/ntrip`):

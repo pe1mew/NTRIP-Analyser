@@ -1,14 +1,18 @@
 # Licences and usage conditions
 
 What this project is licensed under, what it depends on, and what it
-connects to. Written for the Play release: every obligation below has to
-be discharged before a listing goes live.
+connects to.
 
-**Not legal advice.** This records what the sources say and what follows
-from it in practice; anything marked ⚠ needs the author's decision, and
-two items need a lawyer's eye if the paid listing grows.
+**This is a statement of position, not a work list.** It says what is
+true now; where something remains undecided it says so as a condition on
+the feature that would need it, not as a task. The history — which
+obligation was discharged on which date — belongs in `changelog.md` and
+in git.
 
-Last reviewed: 2026-08-13.
+**Not legal advice.** It records what the sources say and what follows
+from them in practice.
+
+Last reviewed: 2026-08-16.
 
 ---
 
@@ -16,32 +20,28 @@ Last reviewed: 2026-08-13.
 
 | Artefact | Licence |
 |---|---|
-| Code | Apache License 2.0 **with the Commons Clause** |
-| Documentation and other non-code content | CC BY-NC 4.0 (per `license.md`) |
+| Code | [Apache License 2.0 **with the Commons Clause**](../LICENSE) |
+| Documentation and other non-code content | [CC BY-NC 4.0](../license.md) |
 
 **The Commons Clause forbids *selling*, not all commercial use.** It
 removes the right to provide the software to third parties for a fee
 where the value comes substantially from it — including paid hosting or
 support. It does not stop a company using the analyser internally on its
 own base stations, which is ordinary commercial use.
+[`license.md`](../license.md) states the same scope; the two documents
+agree.
 
-⚠ **`license.md` overstates this.** It says "Non-Commercial Use Only …
-including any use that generates revenue", which is broader than the
-clause in `LICENSE` actually is. Two documents in one repository giving
-different answers is the kind of thing that gets quoted back at you.
-Recommend aligning `license.md` to the clause's real scope.
+**The author is not bound by his own licence**, so a paid Play listing is
+consistent with the source being public. Others may not sell it.
 
-**The author is not bound by his own licence**, so a paid Play listing
-is consistent with the source being public. Others may not sell it.
-
-⚠ **What the licence does *not* prevent**: someone building the app from
+**What the licence does not prevent**: someone building the app from
 source and publishing it on Play **for free**. Giving it away is not
-"selling". If that matters, the deterrents are trademark on the name and
-the store listing itself, not the licence.
+selling. The deterrents against that are the trademark on the name and
+the store listing itself, not the licence — a deliberate position, not an
+oversight.
 
-**Consequence for the wiki**: documentation is CC BY-NC, so third
-parties may not reuse it commercially. That is the intent; just note the
-wiki inherits it, and say so on the wiki's front page.
+**The documentation is CC BY-NC**, so third parties may not reuse it
+commercially. The wiki inherits that and says so on its front page.
 
 ---
 
@@ -55,26 +55,29 @@ wiki inherits it, and say so on the wiki's front page.
 | AndroidX activity-compose | 1.9.3 | Apache 2.0 | Attribution / NOTICE |
 | Compose BOM (ui, material3) | 2024.12.01 | Apache 2.0 | Attribution / NOTICE |
 | kotlinx-serialization-json | 1.7.3 | Apache 2.0 | Attribution / NOTICE |
-| androidx.security-crypto | 1.0.0 | Apache 2.0 | Attribution / NOTICE — the alpha this table used to name was replaced during the security assessment |
+| androidx.security-crypto | 1.0.0 | Apache 2.0 | Attribution / NOTICE |
 | Kotlin stdlib, Gradle, NDK toolchain | — | Apache 2.0 / build-time | No shipping obligation for build tools |
 
-**Done 2026-08-13**: **About → Open-source notices** carries the cJSON
-MIT notice and the Apache 2.0 attribution, in both editions, from
-`res/raw/notices.txt`. The Google OSS-licenses Gradle plugin would have
-generated one and added a Google dependency to an app that has none;
-`tools/make_notices.py` writes the text instead.
+Every obligation above is discharged, and by generation rather than by
+memory:
 
-**The versions in that notice are read from
-`android/gradle/libs.versions.toml`**, the file the build resolves, so a
-bumped dependency cannot leave the notice quoting a version nobody
-ships. This table had drifted exactly that way — it named
-`security-crypto 1.1.0-alpha06` weeks after the build moved to 1.0.0 —
-which is why the notice is generated and this table is not its source.
+- **On Android**, *About → Open-source notices* carries the cJSON MIT
+  notice and the Apache 2.0 attribution in both editions, from
+  `res/raw/notices.txt`. The Google OSS-licenses Gradle plugin would have
+  generated one and added a Google dependency to an app that has none;
+  `tools/make_notices.py` writes the text instead.
+- **On the desktop and the server**, `THIRD-PARTY-NOTICES.txt` is
+  packaged beside the binaries by the `release` target and attached to
+  each GitHub release.
 
-The desktop builds ship cJSON too, and **`THIRD-PARTY-NOTICES.txt` is
-now packaged beside the binaries** by the `release` target. Verified:
-`cmake --build build --target release` produces it alongside the two
-executables, the example configuration and the checksums.
+**The versions in those notices are read from
+`android/gradle/libs.versions.toml`**, the file the build resolves — so a
+bumped dependency cannot leave a notice quoting a version nobody ships.
+The table above is documentation; the notice is generated, and
+`tools/check_release.py` fails the build if the two disagree. That
+arrangement exists because this table once named
+`security-crypto 1.1.0-alpha06` for weeks after the build had moved to
+1.0.0.
 
 ---
 
@@ -91,20 +94,38 @@ The message formats this project decodes are defined in **RTCM 10403.x**
   years.
 - **Reproducing the specification's text or tables would be.** Our
   documentation describes message semantics in its own words and cites
-  message numbers; keep it that way. Do not paste field tables from the
-  standard into `docs/` or the wiki.
-- The store listing may say the app decodes RTCM 3.x. It should not
-  imply RTCM endorsement or certification.
+  message numbers, and it stays that way. Field tables from the standard
+  do not get pasted into `docs/` or the wiki.
+- The store listing may say the app decodes RTCM 3.x. It does not imply
+  RTCM endorsement or certification.
 
 ---
 
-## 4. Data and services the app connects to
+## 4. Data and services the products connect to
 
-The app is a **client**: it connects where the user tells it to, with
-the user's own credentials. That keeps the relationship — and the terms
-— between the user and the caster. This is the same reasoning that made
-the user supply the RINEX file rather than the app downloading it
-(`android/design/views.md`).
+Every program in the suite is a **client**: it connects where the user
+tells it to, with the user's own credentials. That keeps the relationship
+— and the terms — between the user and the caster. It is the same
+reasoning that makes the user supply the RINEX navigation file rather
+than the app downloading it (`android/design/views.md`).
+
+### Kadaster / NSGI (`ntrip.kadaster.nl`)
+
+Used in the shipped example configuration and throughout testing. Two
+services, and the distinction matters:
+
+- **Free**: real-time streams from AGRS.NL stations, North Sea and BES
+  islands, **available anonymously** — no registration, port 2101 plain
+  or 443 with TLS. An e-mail address as username is optional.
+- **Paid**: NETPOS network-RTK, registration via eHerkenning, roughly
+  €475 per station per year at the low end.
+
+The shipped example therefore carries **no credentials at all** and runs
+unedited. That was verified rather than assumed: `bin/exampleConfig.json`
+with empty username and password fetches the Kadaster sourcetable — 61
+mountpoints — and returns STATION OK on all eight KPIs against
+`APEL00NLD0`.
+[NSGI real-time streams](https://www.nsgi.nl/referentiepunten-en-gnss-data/gnss-data/real-time-streams)
 
 ### BKG GNSS Data Centre (`igs.bkg.bund.de`)
 
@@ -122,11 +143,12 @@ Product Disclaimer and Terms of Use** (5 August 2020), linked from
 [IGS Data Access](https://igs.org/data-access/). IGS operates an open
 access policy and publishes citation guidance.
 
-⚠ **Open item**: the full terms are a PDF whose text could not be
-extracted mechanically here. Before the app fetches anything from IGS
-mirrors automatically — the paused auto-download — read that PDF and
-record whether attribution or citation is required of a *client
-application*, as distinct from a publication.
+**Condition on a feature that does not exist.** No product fetches
+anything from IGS or its mirrors; the user supplies navigation files. If
+automatic download is ever reconsidered, the full IGS terms — a PDF whose
+text could not be extracted mechanically here — must be read first, and
+whether attribution or citation is required of a *client application*, as
+distinct from a publication, recorded before any code is written.
 
 ### NASA CDDIS
 
@@ -137,75 +159,39 @@ is why CDDIS is a poor fit for an in-app download and why BKG was used
 instead.
 [Data use guidance](https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-guidance)
 
-### Kadaster / NSGI (`ntrip.kadaster.nl`)
-
-Used in the shipped example configuration and throughout testing. Two
-services, and the distinction matters:
-
-- **Free**: real-time streams from AGRS.NL stations, North Sea and BES
-  islands, **available anonymously** — no registration, port 2101 plain
-  or 443 with TLS. An e-mail address as username is optional.
-- **Paid**: NETPOS network-RTK, registration via eHerkenning, roughly
-  €475 per station per year at the low end.
-
-⚠ **Correction needed**: `readme.md` and `docs/` tell the user to
-"substitute your own free Kadaster registration" for the placeholder
-credentials in `bin/exampleConfig.json`. Per NSGI, the free streams need
-no registration at all. Simplify the instruction and drop the
-placeholder credentials from the example.
-[NSGI real-time streams](https://www.nsgi.nl/referentiepunten-en-gnss-data/gnss-data/real-time-streams)
-
 ### Casters in general
 
-The app connects to third-party infrastructure on the user's behalf,
-and **says so where a user meets it**: the wiki's *Getting started*
-carries a *Whose caster is it?* section beside the fields where a caster
-is typed in, *Privacy and support* repeats it in a line, and the
-listing's privacy paragraph states it for anyone reading before they
-install. Holding valid access is the user's; the app neither supplies
-nor brokers credentials.
+The products connect to third-party infrastructure on the user's behalf,
+and **say so where a user meets it**: the wiki's *Getting started* carries
+a *Whose caster is it?* section beside the fields where a caster is typed
+in, *Privacy and support* repeats it, [`readme.md`](../readme.md),
+[`docs/cli.md`](cli.md) and [`docs/jsonConfigs.md`](jsonConfigs.md) state
+it for the desktop tools, and the listing's privacy paragraph states it
+for anyone reading before they install. Holding valid access is the
+user's business; no product supplies or brokers credentials.
 
 ---
 
 ## 5. Store listing
 
-- **Screenshots** — decided 2026-08-13, and enforced by the tool that
-  builds them rather than by remembering. Two rules:
-  1. **Capture against the author's own station** where a station is
-     prominent, which removes the question of showing somebody else's
-     identifiers. The 3.3.0 pro set is `RFSEE01`.
-  2. **Redact the caster address anyway**, to a domain reserved for
-     documentation (RFC 2606 `example.com`), so a listing seen by
-     thousands does not advertise a host that belongs to a person and
-     invite traffic to it. The mountpoint name and the measurements
-     stay — they are what the screenshot is *for*, and a public
-     anonymous stream's name discloses nothing private.
+**Screenshots** follow two rules, enforced by the tool that builds them
+rather than by anyone remembering:
 
-  The redaction is a table of measured boxes in
-  `tools/make_store_shots.py`, so a re-capture cannot quietly lose it.
-  Where a third-party stream is unavoidable, prefer a public anonymous
-  one and apply the same redaction.
-- The listing must not imply endorsement by RTCM, IGS, BKG, Kadaster or
-  NSGI.
-- Naming a caster as an example is factual description, not a claim of
-  partnership; keep the wording that way.
+1. **Capture against the author's own station** where a station is
+   prominent, which removes the question of showing somebody else's
+   identifiers. The 3.3.0 pro set is `RFSEE01`.
+2. **Redact the caster address anyway**, to a domain reserved for
+   documentation (RFC 2606 `example.com`), so a listing seen by thousands
+   does not advertise a host that belongs to a person and invite traffic
+   to it. The mountpoint name and the measurements stay — they are what
+   the screenshot is *for*, and a public anonymous stream's name discloses
+   nothing private.
 
----
+The redaction is a table of measured boxes in
+`tools/make_store_shots.py`, so a re-capture cannot quietly lose it.
+Where a third-party stream is unavoidable, a public anonymous one is
+preferred and the same redaction applies.
 
-## 6. Actions this study produced
-
-| # | Action | Blocks | State |
-|---|---|---|---|
-| 1 | Align `license.md` with the Commons Clause's real scope | — | **done** 2026-08-13 |
-| 2 | Add an OSS notices screen (cJSON MIT + Apache 2.0 attribution) | free launch | **done** 2026-08-13 |
-| 3 | Ship the cJSON notice in the desktop release archive too | next release | **done** 2026-08-13 |
-| 4 | Fix the "free Kadaster registration" instruction; drop placeholder credentials from the example config | free launch | **done** 2026-08-13 |
-| 5 | Read the IGS terms PDF before any automatic download is reconsidered | RINEX auto-download only | open |
-| 6 | Decide on screenshots showing third-party mountpoints | listing | **done** 2026-08-13 — author's own station, address redacted regardless, enforced in `tools/make_store_shots.py` |
-| 7 | State caster responsibility to the user | free launch | **done** 2026-08-13 — `readme.md`, `docs/cli.md`, `docs/jsonConfigs.md`, the wiki's *Getting started* and *Privacy and support*, and the listing's privacy paragraph |
-
-**Action 4 was verified, not assumed.** `bin/exampleConfig.json` with
-empty credentials fetches the Kadaster sourcetable (61 mountpoints) and
-returns **STATION OK on all eight KPIs** against `APEL00NLD0` — so the
-free AGRS streams are genuinely anonymous and the shipped example runs
-unedited.
+The listing does not imply endorsement by RTCM, IGS, BKG, Kadaster or
+NSGI. Naming a caster as an example is factual description, not a claim
+of partnership, and the wording stays that way.
