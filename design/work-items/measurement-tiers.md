@@ -28,6 +28,7 @@ does not exist yet.
 
 | Phase | What | State |
 |---|---|---|
+| 0 | Declared position versus broadcast ARP — a second tier-1 candidate | specified 2026-08-16, evidence-backed |
 | 1 | Latency, and KPI 9 | specified; **blocked** until free clears closed testing |
 | 2 | The report skeleton, from metrics that already exist | next |
 | 3 | Sky visibility as a number | after phase 2 |
@@ -35,6 +36,77 @@ does not exist yet.
 | 5 | Observable retention → multipath RMS **and** a RINEX writer | deferred by decision |
 
 ---
+
+## Phase 0 — Declared position versus broadcast ARP
+
+Not part of the original study, and a stronger candidate than any of the
+four it examined: **it earned its place twice in one afternoon.**
+
+### The evidence
+
+Two coordinate faults in one day on the same caster, both of which
+**passed all eight KPIs with STATION OK**:
+
+1. `RFSEE01`'s sourcetable longitude read `5.937061` where the station
+   broadcasts `5.9855` — the same digits rotated, a typing slip that put
+   the declared position **3.3 km** from the antenna. It had been there
+   long enough that nobody knew.
+2. Correcting it, HANESE's coordinates were pasted into RFSEE01's entry,
+   moving its declared position **25 km** to another town. That also
+   passed eight of eight.
+
+Both were caught by reading the sourcetable by hand. Neither would have
+been caught by the tool, and the tool's whole purpose is to catch exactly
+this class of thing before a rover does.
+
+### Why it belongs in tier 1
+
+Unlike the four candidates in [kpi-candidates.md](../kpi-candidates.md),
+this settles **instantly**. `--check` already fetches the sourcetable to
+judge KPI 8, and the ARP arrives inside KPI 3's thirty-second allowance;
+the moment both exist the comparison is a subtraction. No window, no
+accumulation, no waiting.
+
+### Feasibility: the field exists and nothing fills it
+
+`NsStatsSnapshot.sourcetable_offset_m` is declared, documented as
+"declared vs broadcast", and serialised into both the JSON and the CSV.
+The only assignment in the tree is `ns_stats_init()` setting `NS_UNSET`.
+
+**That is the third instance of this pattern in one day** — the ARP
+fields, `latency_s`, and now this. The GUI does perform the comparison,
+in its own code, leaving the shared field empty: the arithmetic exists,
+it simply is not in the place every frontend reads. Filling it is most of
+the work, and it is small.
+
+### What the check must be careful about
+
+- **A network mountpoint legitimately disagrees.** A VRS advertises a
+  network centroid and computes a virtual station near the rover; the two
+  can be tens of kilometres apart and both be correct. The project
+  already classifies VRS mountpoints, and this check must not run on
+  them — the same reasoning that made KPI 8 judge only the direction that
+  misleads.
+- **Neither number is authoritative.** The ARP is what a rover computes
+  *with*; the sourcetable is what it chooses *by*. A disagreement says
+  one of them is wrong without saying which, and the wording must say
+  exactly that rather than accusing the station of being in the wrong
+  place. Today the sourcetable was wrong; tomorrow it will be the
+  receiver, which is the case still open on both these stations.
+- **The threshold is a decision, not a constant to guess at.** A base's
+  declared position is used to pick the nearest station, so tens of
+  metres are harmless and a kilometre is not. It belongs in `src/core`
+  with the other thresholds, and wants a warn level and a fail level
+  rather than one line in the sand.
+
+### What it costs
+
+Two tier-1 candidates now exist — latency and this — so the published
+claim moves from **eight checks to ten**, across the six surfaces
+`tools/check_release.py` verifies. That is one documentation pass for
+both, which argues for doing them together rather than a KPI 9 now and a
+KPI 10 later, and for doing them after free clears closed testing for the
+same reason latency waits.
 
 ## Phase 1 — Latency, and KPI 9 — blocked
 

@@ -211,6 +211,11 @@
 **Root cause**: `$?` after a pipeline is the **last** command's status — `tail`'s — not `gh`'s. `--exit-status` was set and correct; the pipe discarded it.
 **Fix**: Redirect instead of piping (`gh run watch ... > /dev/null; echo $?`), or read the verdict from `gh run view` rather than an exit code that has passed through a pipe.
 
+### The constraint against scripted edits, broken a fourth time (2026-08-16) [RESOLVED] [x4]
+**Problem**: A `sed -i` meant to *find* a table row in `memory/gotcha-log.md` replaced it with the letter `X`, deleting a promoted pattern.
+**Root cause**: The command was written as a substitution to test a match, with a throwaway replacement, and `-i` wrote it. Reaching for `sed` at all was the error: `CLAUDE.md` forbids it, this file's own Promoted table records three previous instances, and both were read earlier the same day.
+**Fix**: Repaired with the editing tools. The lesson is not "be careful with sed" — it is that a constraint carried only in a document is obeyed until the moment convenience argues otherwise. **Use Grep to search and Edit to change; `sed -i` has no legitimate use in this repository.**
+
 ### systemd discarded stderr because stdout was silenced (2026-08-16) [RESOLVED]
 **Problem**: A six-hour unattended capture ran perfectly and reported nothing — no frame count, no byte count, no reconnect count in the journal.
 **Root cause**: The `systemd-run` recipe set `StandardOutput=null` to keep the message-type stream out of the journal. `StandardError=` defaults to **`inherit`**, which means *whatever StandardOutput is* — so stderr, where the summary and every error go, was discarded with it.
@@ -221,10 +226,12 @@
 **Root cause**: `SignalBars`' own documentation said `liveValues` was "true when the bars show this epoch (pro), false ... (free)". The call site passes `runState.running` and has never consulted `Features`. The comment described a split that never existed, and the design table was written from the comment rather than the code.
 **Fix**: Corrected at the source, with the correction stated so it is not re-derived. **A claim in a comment is a claim**: check it against the call site before promoting it into a design document — three of four "drifts" found in one review traced back to documents copying each other.
 
-### A schema field nobody fills (2026-08-16) [x2]
+### A schema field nobody fills (2026-08-16) [x3]
 **Problem**: `NsStatsSnapshot.latency_s` is declared, documented, serialised into the daemon's JSON and the CSV export, and displayed on the Android station tile. Nothing computes it. Every consumer has published "not measured" since the schema was written.
 **Root cause**: The field was added with the schema, in anticipation of code that never arrived. The ARP fields did exactly the same thing earlier — the daemon published `arp_valid:false` for every station until the KPI engine's first live run tripped over it.
-**Fix**: Not yet; tracked as phase 1 of `design/work-items/measurement-tiers.md`. The lesson is the pattern, not the field: **a declared-but-unfilled field is worse than a missing one, because it looks like an answer.**
+**Fix**: Not yet; tracked as phases 0 and 1 of `design/work-items/measurement-tiers.md`. The lesson is the pattern, not the field: **a declared-but-unfilled field is worse than a missing one, because it looks like an answer.**
+
+*Third occurrence found the same day: `sourcetable_offset_m`, declared and serialised to JSON and CSV, never computed — while the GUI performs that very comparison in its own code, leaving the shared field empty. Two coordinate faults (3.3 km, then 25 km) passed all eight KPIs because of it. A promoted pattern that keeps recurring means the promotion has not taken: the next occurrence should be prevented mechanically, not remembered — a check that every `NsStatsSnapshot` field is written somewhere outside `ns_stats_init` would have found all three.*
 
 ### systemd-run reports a launch, not a life (2026-08-16) [RESOLVED]
 **Problem**: A six-hour capture was started on the VPS, printed `Running as unit: ntrip-capture.service`, and had already exited — after 7 ms.
@@ -246,10 +253,10 @@
 |------|--------|-------------|-------------|
 | 2026-08-13 | A remembered value must not satisfy the KPI that asks for it | 1 | project file, hard constraint |
 | 2026-08-13 | Judge constellations by NavSys, never the 1005/1006 bits | **3** — 2026-08-12 three times in one session | project file, domain facts; `memory/MEMORY.md` active decisions |
-| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **3** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14 | project file, hard constraint |
+| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **4** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14, `sed -i` deleting a table row 2026-08-16 | project file, hard constraint |
 | 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |
 | 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **3** — 16 KB alignment, bundle ABIs, signing key, all 2026-08-14 | project file, hard constraint |
 | 2026-08-15 | Measure the way the build measures, or report no number | **2** — `-fsyntax-only` blind to truncation warnings, `-std=c99` hiding `M_PI`, both 2026-08-15 | project file, hard constraint |
 | 2026-08-15 | Two build systems over one source set: CI must run both | **2** — `build-gui.bat` (open), `service/Makefile` (found broken 2026-08-15) | `memory/MEMORY.md` active decisions |
-| 2026-08-16 | A snapshot field nothing fills is worse than a missing one | **2** — ARP fields (until the KPI engine's first live run), `latency_s` (found 2026-08-16) | `memory/MEMORY.md` active decisions |
+| 2026-08-16 | A snapshot field nothing fills is worse than a missing one | **3** — ARP fields (until a live run tripped over them), `latency_s` and `sourcetable_offset_m` (both found 2026-08-16) | `memory/MEMORY.md` active decisions |
 | 2026-08-16 | What is installed is not what was built — on any platform | **2** — pro's APK 2026-08-14, the VPS binary 2026-08-16 | `memory/MEMORY.md` active decisions (generalised from Android) |
