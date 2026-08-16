@@ -34,6 +34,7 @@ and what "done" will mean.
 | 1 | Capture the stream to a file, with reconnect | **built 2026-08-15; V5 passed 2026-08-16.** Only V6's live half remains |
 | 2 | `--rtcm-stdin` beyond `--sky` | open |
 | 3 | Capture the ephemeris stream | not scheduled |
+| 4 | KPI 1 blames the station when the stream stops | open, observed 2026-08-16 |
 
 ---
 
@@ -311,6 +312,55 @@ what the arguments say is the worst class of defect this tool has.
 
 Phase 1 makes this sharper rather than softer: once the CLI can create
 captures, more people will feed them back in.
+
+## Phase 4 — KPI 1 blames the station when the stream stops — open
+
+Observed against `HANESE` on 2026-08-16, and the two lines are from one
+report:
+
+```
+1  Connected and producing  FAIL  0.00    Connected but no data arriving
+2  RTCM 3.x format          PASS  102.00  CRC-valid RTCM 3.x frames decoded
+```
+
+**They contradict each other.** A hundred and two frames had arrived, and
+were decoded and counted; the stream then stopped fifteen seconds in, so
+the throughput KPI 1 measures fell to zero. Its `detail` string describes
+the instantaneous state as though it were the session's history, and the
+run reads as a station that never delivered.
+
+The verdict itself is right and should not change. `--check` disables
+auto-reconnect on purpose — "a drop is a finding here, not a nuisance to
+paper over" — so a session that dies *is* a failure. What is wrong is the
+explanation, and the explanation is what a user acts on.
+
+**Why it matters more than a wording nit.** This tool exists to say
+whether a *station* is fit. A station that streams perfectly and a caster
+that drops the session produce the same six words, and the user takes the
+first answer to the station's owner. In this case the truth was neither:
+the caster allows one session per account, and three checks run in quick
+succession — each of which opens a second connection to fetch the
+sourcetable — evicted one another. The station was healthy throughout,
+and gave 45 of 45 epochs a minute later.
+
+**What it should say.** Distinguish three states that currently share one
+message:
+
+| State | Evidence available | Message |
+|---|---|---|
+| Nothing ever arrived | `bytes_total == 0` | "Connected, but the caster sent nothing" |
+| Data arrived and stopped | `bytes_total > 0`, no bytes in the window | "The stream stopped after N s — the caster closed the session or the link dropped" |
+| Data arriving too slowly | bytes in the window, below the floor | the current wording, which is accurate for this case |
+
+Everything needed is already in the snapshot: `bytes_total`, the session
+clock, and the end reason the session layer emits (`NS_END_EOF` against
+`NS_END_NET_ERROR`). Nothing new has to be measured.
+
+**Where the fix lives.** `src/core/kpi.c`, not the CLI — so it reaches
+the GUI's station check and both Android editions at the same time. It is
+logged on this track because this is where it was found; whoever picks it
+up should expect to touch the shared engine and to check the string does
+not overflow the GUI's column.
 
 ## Phase 3 — Capture the ephemeris stream — not scheduled
 
