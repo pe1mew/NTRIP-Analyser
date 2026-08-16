@@ -1,11 +1,12 @@
 """Draw the application icon, in every form the project ships it.
 
-One mark, one geometry, four outputs:
+One mark, one geometry, five outputs:
 
   * `gui/ntrip-analyser.ico`                    the Windows GUI
   * `android/.../mipmap-*/ic_launcher.png`      legacy launcher bitmaps
   * `android/.../drawable/ic_launcher_*.xml`    adaptive + themed vectors
   * `docs/images/icon-*-512.png`                the Play listing asset
+  * `docs/favicon.ico`                          the documentation website
 
 Generated rather than hand-drawn so the ICO, the bitmaps and the vector
 cannot drift apart: they are the same circles, expressed four ways.
@@ -198,6 +199,22 @@ def main():
     path = os.path.join(ROOT, "gui", "ntrip-analyser.ico")
     ico[0].save(path, format="ICO",
                 sizes=[(s, s) for s in sizes], append_images=ico[1:])
+    print("wrote", os.path.relpath(path, ROOT))
+
+    # The website. Same blue mark as the GUI -- the site documents all
+    # four programs, so it wears the project's own colour rather than an
+    # edition's. A browser tab is 16 px, which is the size this mark was
+    # designed against in the first place.
+    #
+    # A favicon needs the file *and* a link element: GitHub Pages serves
+    # this project at /NTRIP-Analyser/, while a browser asks the origin
+    # root for /favicon.ico unless told otherwise. The theme's
+    # head-custom.html include does the telling.
+    fav_sizes = [64, 48, 32, 16]
+    fav = [render(s, ACCENT_FREE) for s in fav_sizes]
+    path = os.path.join(ROOT, "docs", "favicon.ico")
+    fav[0].save(path, format="ICO",
+                sizes=[(s, s) for s in fav_sizes], append_images=fav[1:])
     print("wrote", os.path.relpath(path, ROOT))
 
     for edition, accent in (("free", ACCENT_FREE), ("pro", ACCENT_PRO)):
