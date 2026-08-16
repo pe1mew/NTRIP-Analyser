@@ -69,7 +69,7 @@ captures can live there without being committed.
 The hand-written commands below remain for a quick compiler-only build.
 
 ### Windows
-This code was originally developed on Windows using the Mingw compiler that comes with Code::Blocks. For this the primary compiler was configured in Visual Studio Code. See [tasks.json](../.vscode/tasks.json).
+This code was originally developed on Windows using the Mingw compiler that comes with Code::Blocks. For this the primary compiler was configured in Visual Studio Code. See [tasks.json](https://github.com/pe1mew/NTRIP-Analyser/blob/main/.vscode/tasks.json).
 
 For Windows: install Code::Blocks with Mingw compiler and Visual Studio Code. In VSC type `ctrl-shift-b` to compile the code.
 

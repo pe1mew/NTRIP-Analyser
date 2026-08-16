@@ -20,16 +20,16 @@ Last reviewed: 2026-08-16.
 
 | Artefact | Licence |
 |---|---|
-| Code | [Apache License 2.0 **with the Commons Clause**](../LICENSE) |
-| Documentation and other non-code content | [CC BY-NC 4.0](../license.md) |
+| Code | [Apache License 2.0 **with the Commons Clause**](https://github.com/pe1mew/NTRIP-Analyser/blob/main/LICENSE) |
+| Documentation and other non-code content | [CC BY-NC 4.0](https://github.com/pe1mew/NTRIP-Analyser/blob/main/license.md) |
 
 **The Commons Clause forbids *selling*, not all commercial use.** It
 removes the right to provide the software to third parties for a fee
 where the value comes substantially from it — including paid hosting or
 support. It does not stop a company using the analyser internally on its
 own base stations, which is ordinary commercial use.
-[`license.md`](../license.md) states the same scope; the two documents
-agree.
+[`license.md`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/license.md)
+states the same scope; the two documents agree.
 
 **The author is not bound by his own licence**, so a paid Play listing is
 consistent with the source being public. Others may not sell it.
@@ -164,7 +164,8 @@ instead.
 The products connect to third-party infrastructure on the user's behalf,
 and **say so where a user meets it**: the wiki's *Getting started* carries
 a *Whose caster is it?* section beside the fields where a caster is typed
-in, *Privacy and support* repeats it, [`readme.md`](../readme.md),
+in, *Privacy and support* repeats it,
+[`readme.md`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/readme.md),
 [`docs/cli.md`](cli.md) and [`docs/jsonConfigs.md`](jsonConfigs.md) state
 it for the desktop tools, and the listing's privacy paragraph states it
 for anyone reading before they install. Holding valid access is the

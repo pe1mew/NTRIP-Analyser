@@ -182,7 +182,7 @@ program produces the list format above, which is how a file migrates.
 | Take a set of connections from the field to a server | Save from the Android pro edition; copy to `/etc/ntrip-monitord/` |
 
 A ready-to-edit example ships as
-[`bin/exampleConfig.json`](../bin/exampleConfig.json), targeting the
+[`bin/exampleConfig.json`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/bin/exampleConfig.json), targeting the
 Dutch Kadaster open caster with its ephemeris stream. Its `username`
 and `password` are empty on purpose: those streams are served
 anonymously, so the file works unedited. Fill them in for a caster that

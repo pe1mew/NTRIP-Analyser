@@ -12,7 +12,7 @@ The program will emulate a rover using preconfigured (static) coordinates. At co
 
 ### 1. Configuration File (`config.json`)
 
-A ready-to-edit example ships as [`bin/exampleConfig.json`](../bin/exampleConfig.json)
+A ready-to-edit example ships as [`bin/exampleConfig.json`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/bin/exampleConfig.json)
 (and beside the binaries in each release). It points at the Dutch
 Kadaster open caster, including its ephemeris mountpoint for the sky
 plot. Its username and password are empty because those streams are
@@ -361,7 +361,9 @@ station cannot pass here and fail elsewhere.
 ## License
 
 The code is under the [Apache License 2.0 with the Commons
-Clause](../LICENSE); this documentation is under
-[CC BY-NC 4.0](../license.md). [`docs/licences.md`](licences.md) sets out
+Clause](https://github.com/pe1mew/NTRIP-Analyser/blob/main/LICENSE); this
+documentation is under
+[CC BY-NC 4.0](https://github.com/pe1mew/NTRIP-Analyser/blob/main/license.md).
+[`docs/licences.md`](licences.md) sets out
 the full position, including what the project depends on and what it
 connects to.

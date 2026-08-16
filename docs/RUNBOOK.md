@@ -297,7 +297,7 @@ Add a check whenever drift is found by hand, so that the next time it is
 found by machine.
 
 The rest of the submission checklist — the ones no script can settle —
-is in [`design/work-items/play-listing.md`](../design/work-items/play-listing.md).
+is in [`design/work-items/play-listing.md`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/play-listing.md).
 
 ### Publishing the wiki
 

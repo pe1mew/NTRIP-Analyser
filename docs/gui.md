@@ -879,8 +879,9 @@ src/  (shared with CLI, additions for the Sky Plot)
 ## Future Enhancements
 
 The planned and considered work lives in the project-wide backlog:
-**[design/todo.md](../design/todo.md)**. It records what has shipped and
-why, so the same ideas are not re-proposed.
+**[design/todo.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/todo.md)**.
+It records what has shipped and why, so the same ideas are not
+re-proposed.
 
 Still open at the time of writing: structured export of analysis results
 (CSV / JSON — only PNG snapshots and `File > Export Statistics` exist
@@ -890,7 +891,7 @@ the replay worker, which currently runs as fast as disk and CPU allow.
 
 ## See Also
 
-- [Main README](../readme.md) — Project overview and CLI information
+- [Main README](https://github.com/pe1mew/NTRIP-Analyser/blob/main/readme.md) — Project overview and CLI information
 - [Compilation Guide](compile.md) — Detailed build instructions
-- [RTCM Parser Documentation](../src/core/rtcm3x_parser.h) — Message decoder API
-- [GUI Design Document](../design/gui-design.md) — Detailed architecture and design decisions
+- [RTCM Parser Documentation](https://github.com/pe1mew/NTRIP-Analyser/blob/main/src/core/rtcm3x_parser.h) — Message decoder API
+- [GUI Design Document](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/gui-design.md) — Detailed architecture and design decisions

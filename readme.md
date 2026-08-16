@@ -207,16 +207,9 @@ That run is a real one, and KPI 8 caught a real fault: the station was
 streaming NavIC while its sourcetable entry did not declare it — a
 registration error nobody had noticed.
 
-`--sky` writes the coverage heatmap, which is what a console cannot show
-you. Left, the satellite tracks; right, observed against expected per
-sector — the obstruction survey a photograph does not give:
-
-<table>
-<tr>
-<td width="50%"><img src="docs/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks, written by the CLI"></td>
-<td width="50%"><img src="docs/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap, written by the CLI"></td>
-</tr>
-</table>
+`--sky` writes the coverage heatmap as a PNG — the same view shown under
+[Screenshots](#screenshots) above, produced without a window, so a cron
+job can leave a nightly plot on disk.
 
 See the [CLI manual](docs/cli.md) for the full option list.
 
@@ -263,78 +256,53 @@ lines until something goes wrong. Ships as a tarball with a hardened
 systemd unit, a `sysusers` fragment and the Munin plugin. See the
 [Service Manual](docs/service.md).
 
-## Core Functionalities
+## What it measures
 
-The analyser can perform the following operations on NTRIP streams:
+The table above says which program shows what. This is what the shared
+core measures underneath all of them — one implementation, so a station
+cannot pass in one program and fail in another.
+[`design/feature-matrix.md`](design/feature-matrix.md) has the full
+per-product breakdown.
 
-1. **Retrieve mountpoint list** from a caster and display available streams
-2. **Connect to NTRIP stream** and receive RTCM data with:
-   - Real-time message decoding for all implemented RTCM message types
-   - Message statistics (count, minimum/average/maximum transmission intervals)
-   - Filtered message decoding (show only specific message types)
-   - Satellite analysis (count unique satellites per GNSS constellation)
+**The station acceptance test** — eight KPIs, about ninety seconds, and a
+verdict that must hold for sixty continuous seconds before it is
+reported, so a station that flickers cannot pass by being healthy at the
+right moment. Network mountpoints add the VRS assertions, because a
+moving reference point is correct behaviour there and a fault everywhere
+else.
 
-   **Any RTCM 3 observation format is measured**, not only the modern
-   ones. Satellites are counted from MSM1 through MSM7 and from the
-   legacy 1001–1004 and 1009–1012, so a station built before MSM is
-   graded rather than failed for its age. Signal strength is read
-   wherever the format carries it — a whole dB-Hz in MSM4 and MSM5, a
-   sixteenth in MSM6 and MSM7, a quarter in the legacy messages — and
-   MSM1–3 carry none at all, which the verdict says in those words
-   instead of blaming the station.
-3. **Station acceptance test** — eight KPIs over about ninety seconds,
-   ending in a verdict that must hold for sixty continuous seconds before
-   it is reported, so a station that flickers cannot pass by being healthy
-   at the right moment. Available as `--check` in the CLI (exit 0 / 6 / 1,
-   for installer sign-off or cron), as **View > Station Check** in the
-   GUI, and as station mode in the Android app — one engine
-   (`src/core/kpi.c`), so a station cannot pass in one and fail in
-   another. Network mountpoints add the VRS assertions (`--check-vrs`).
-4. **Stream health checks** (GUI) — answers "is this mountpoint actually
-   healthy", not just "is data arriving":
-   - **Caster handshake** — NTRIP 1.0 (ICY) vs 2.0 (HTTP), response status
-     and caster software, with the full response headers in the log
-   - **Frame integrity** — CRC-24Q error count and rate, malformed frames,
-     framing re-syncs
-   - **Advertised vs. observed** — every message type the sourcetable
-     promises, compared against what actually arrives and at what rate;
-     missing, off-rate and unadvertised types are called out
-   - **Reference-station position** — the sourcetable position cross-checked
-     against the broadcast RTCM 1005/1006 ARP, plus detection of a fixed
-     base that moves mid-session
-   - **VRS awareness** — network mountpoints are classified as such, so the
-     fixed-base checks are not applied where a moving reference point is
-     correct behaviour
-5. **Live polar sky plot** (GUI) — floating window showing every tracked
-   satellite at its azimuth / elevation as seen from the reference-station
-   ARP, with two render modes:
-   - **Markers** — per-GNSS coloured dots shaded by CNR, with a trail of
-     past positions and a left-click SV detail popup
-     (per-band CNR table, PRN, az/el)
-   - **Heatmap** — Onocoy-style observed-vs-expected sector coverage map
-     (150 sectors, red → yellow → green ramp)
-6. **Signal quality** (GUI) — C/N0 bars per satellite for the current epoch,
-   plus a C/N0-versus-elevation scatter over the whole session with a
-   per-constellation mean. A clean antenna installation rises monotonically
-   from horizon to zenith; obstructions and multipath show as a dip at
-   particular elevations
-7. **Session history** (GUI) — throughput, message rate, CRC errors,
-   satellites tracked, mean C/N0 and reference-point drift plotted over time
-   on a shared axis, so dropouts, bursts and reconnects are visible rather
-   than averaged away
-8. **VRS monitor** (GUI) — rover-to-virtual-station distance, a polar
-   direction plot and a rolling distance chart, for analysing network
-   services and their hand-overs
-9. **Multi-GNSS ephemeris** (GPS / GLONASS / Galileo / QZSS / BeiDou) sourced
-   from one of:
-   - A second NTRIP connection that feeds RTCM 1019 / 1020 / 1042 / 1044 /
-     1045 / 1046 frames into the eph cache (e.g. BKG `BCEP00BKG0` or
-     Kadaster `BCEP00KAD0`), or
-   - A RINEX 3 multi-GNSS NAV file loaded from disk
-10. **RTCM capture and replay** (GUI) — save the live stream to a `.rtcm3`
-   file and feed it back through the same UI pipeline for offline analysis
-11. **PNG snapshots** of the sky plot, signal-quality and session-history
-    windows, each self-contained with its own header/footer context
+**Any RTCM 3 observation format**, not only the modern ones. Satellites
+are counted from MSM1 through MSM7 and from the legacy 1001–1004 and
+1009–1012, so a station built before MSM is graded rather than failed for
+its age. Signal strength is read wherever the format carries it — a whole
+dB-Hz in MSM4 and MSM5, a sixteenth in MSM6 and MSM7, a quarter in the
+legacy messages — and MSM1–3 carry none at all, which the verdict says in
+those words instead of blaming the station.
+
+**Whether the stream is what it claims to be.** The caster handshake
+(NTRIP 1.0 ICY against 2.0 HTTP, status and caster software); frame
+integrity as a rate, not a count — CRC-24Q failures, malformed frames,
+framing re-syncs; every message type the sourcetable promises compared
+against what arrives and how often; and the sourcetable's position
+cross-checked against the broadcast 1005/1006, which catches a
+registration that has drifted from the antenna.
+
+**Where the signal comes from, and where it doesn't.** Satellites placed
+at their true azimuth and elevation from the station's own reference
+point, observed-against-expected coverage per sky sector, and C/N0
+against elevation over a session — a clean installation rises
+monotonically from horizon to zenith, and an obstruction shows as a dip
+at particular elevations. Orbits come from the station's own stream where
+it broadcasts them, from a second NTRIP connection carrying 1019 / 1020 /
+1042 / 1044 / 1045 / 1046, or from a RINEX 3 navigation file you supply.
+
+**The ionosphere**, as ROTI per satellite from dual-frequency MSM6/7 —
+the one cause of poor RTK that is nobody's fault and needs proving.
+
+**And the stream itself, kept.** Capture writes CRC-valid frames to a
+`.rtcm3` file, and replay feeds one back through the identical code path,
+so an analysis is reproducible and a bug report can travel with its
+evidence.
 
 ## Documentation
 

@@ -286,6 +286,30 @@ def check_feature_matrix():
               "add a row to design/feature-matrix.md")
 
 
+# ── Links that leave the published site ───────────────────────────────
+# docs/ is what GitHub Pages serves, and the site root is that folder.
+# A relative link out of it -- `](../LICENSE)` -- works when browsing the
+# repository and 404s on the website, silently, for the audience docs/
+# exists for. Verified live: https://pe1mew.github.io/LICENSE is a 404.
+#
+# Links *within* docs/ are fine and should stay relative: GitHub Pages
+# runs jekyll-relative-links, so `licences.md` is rewritten to
+# `/NTRIP-Analyser/licences.html` and works in both places.
+
+def check_doc_links():
+    print("published links")
+    bad = []
+    for name in sorted(os.listdir(os.path.join(ROOT, "docs"))):
+        if not name.endswith(".md"):
+            continue
+        for line_no, line in enumerate(read("docs", name).splitlines(), 1):
+            if "](../" in line:
+                bad.append("docs/%s:%d" % (name, line_no))
+    check(not bad,
+          "no doc links escape the published site with ../",
+          "; ".join(bad[:4]) + (" …" if len(bad) > 4 else ""))
+
+
 def main():
     ver = check_version()
     check_urls()
@@ -293,6 +317,7 @@ def main():
     check_listing()
     check_generated()
     check_feature_matrix()
+    check_doc_links()
 
     print("")
     if PROBLEMS:

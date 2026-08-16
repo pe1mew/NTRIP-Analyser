@@ -26,12 +26,19 @@ application appears only when one genuinely needs multiple pages.
 
 ## For developers, not users
 
-Architecture and the feature backlog live in [`design/`](../design/):
-[architecture.md](../design/architecture.md) explains how one core serves
-four frontends; [todo.md](../design/todo.md) records what is shipped,
-what is planned, and why;
-[security-review.md](../design/security-review.md) says what a hostile
-caster can do to this software, what was fixed, and what is still open.
+Architecture and the feature backlog live in
+[`design/`](https://github.com/pe1mew/NTRIP-Analyser/tree/main/design):
+[architecture.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/architecture.md)
+explains how one core serves four frontends;
+[todo.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/todo.md)
+records what is shipped, what is planned, and why;
+[security-review.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/security-review.md)
+says what a hostile caster can do to this software, what was fixed, and
+what is still open.
+
+Those links are absolute deliberately: `design/` is outside the folder
+GitHub Pages publishes, so a relative `../design/…` link resolves to
+nothing on the website even though it works when browsing the repository.
 
 `docs/` is served as a website by GitHub Pages, so it holds what is
 written to be read by someone who is not us. Working documents —
