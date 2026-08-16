@@ -333,6 +333,17 @@ as a **static** session. Keep everything it returns: the `full_output.zip`
 and the values behind the *summary* link are themselves part of the
 declaration outside Europe.
 
+**Check first that you can act on the answer.** A PPP solution is only
+useful if you can put it into the thing that broadcasts 1005 — and that
+is not always the receiver. Where a separate program composes the RTCM
+(NTRIP-X does, and it is not alone), the fixed position may live there,
+or be unreachable altogether: on the author's own stations it turned out
+to be settable in neither, and correcting a 1.9 m and a 2.8 m error now
+waits on the manufacturer. Establish where that number lives **before**
+you spend six hours measuring, because the alternative is a declaration
+that documents a position your base does not transmit — the sourcetable
+telling the truth while every rover is still handed the old one.
+
 **Read the report for what it says about your antenna.** It names the
 model it used and whether corrections were applied. If it did not
 recognise the name — the likely outcome when the calibration is in

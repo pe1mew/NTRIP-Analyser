@@ -78,6 +78,13 @@
   Both stations pass all eight KPIs and always did: they are healthy and
   in the wrong place, which is precisely what a bounded check cannot see
   and what tier 2 exists for.
+  **Correcting them is blocked on a third party** (2026-08-16): the 1005
+  is composed by **NTRIP-X**, which exposes no way to set the broadcast
+  position, so the fix needs the manufacturer rather than a
+  configuration change. The sourcetable now carries the PPP coordinates;
+  the receivers still broadcast the survey-in ones, and every rover
+  inherits that until the vendor responds. Parked deliberately, not
+  forgotten.
 - **The stream can be captured to a file from every frontend.** `--capture`
   <!-- verify: ctest --test-dir build -R capture --output-on-failure -->
   and `--capture-max` on the CLI, the File menu in the GUI, and the
