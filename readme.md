@@ -306,7 +306,7 @@ evidence.
 
 ## Documentation
 
-- **[Documentation Index](docs/readme.md)** — Which application, which page
+- **[Documentation Index](docs/index.md)** — Which application, which page ([published site](https://pe1mew.github.io/NTRIP-Analyser/))
 - **[Compilation Guide](docs/compile.md)** — Build instructions for Windows and Linux
 - **[GUI User Guide](docs/gui.md)** — Complete Windows GUI documentation
 - **[CLI Manual](docs/cli.md)** — Command-line usage and configuration
@@ -359,7 +359,7 @@ ordinary commercial use. [`docs/licences.md`](docs/licences.md) sets out
 the full position, what the project depends on, and what it connects to.
 
 Documentation is Creative Commons Attribution-NonCommercial 4.0
-International (http://creativecommons.org/licenses/by-nc/4.0/) by Remko Welling (https://ese.han.nl/~rwelling) E-mail: remko.welling@han.nl
+International (http://creativecommons.org/licenses/by-nc/4.0/) by Remko Welling — E-mail: pe1mew_at_gmail.com
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution-NonCommercial 4.0 International License</a>.
 

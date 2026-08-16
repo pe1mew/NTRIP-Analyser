@@ -270,7 +270,7 @@ sliver at the right edge of a 30-hour view.
 
 ## See also
 
-- [Documentation index](readme.md)
+- [Documentation index](index.md)
 - [`design/architecture.md`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/architecture.md) §5 — why the
   daemon+plugin shape was chosen
 - `src/core/ns_stats.h` — the snapshot schema the JSON follows
