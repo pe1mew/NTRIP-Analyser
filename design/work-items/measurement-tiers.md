@@ -30,7 +30,7 @@ does not exist yet.
 |---|---|---|
 | 0 | Declared position versus broadcast ARP — a second tier-1 candidate | specified 2026-08-16, evidence-backed |
 | 1 | Latency, and KPI 9 | specified; **blocked** until free clears closed testing |
-| 2 | The report skeleton, from metrics that already exist | next |
+| 2 | The report skeleton, from metrics that already exist | **built 2026-08-16**; no frontend shows it yet |
 | 3 | Sky visibility as a number | after phase 2 |
 | 4 | Cycle-slip rate from lock time | after phase 2 |
 | 5 | Observable retention → multipath RMS **and** a RINEX writer | deferred by decision |
@@ -193,7 +193,42 @@ flags, and `tools/check_release.py` verifies the count on six surfaces.
 Renaming it to nine while free is in closed testing edits a live listing
 mid-review for no operational gain. It waits.
 
-## Phase 2 — The report skeleton — next
+## Phase 2 — The report skeleton — **built**
+
+`src/core/station_report.{h,c}`, fed from `NsStatsSnapshot`, which every
+frontend already has and the daemon already writes once an interval. Six
+metrics, none of them new: availability (reconnects per hour), frame
+integrity (the *worst* CRC rate the window saw, because a mean hides a
+bad ten minutes inside a good six hours), signal level (the *fall* in
+mean C/N0 from the window's best, since an absolute level says more about
+the site than the station), satellites held, ionosphere (on `iono.h`'s
+own ROTI thresholds — space weather does not mean something different
+here), and delivery rate.
+
+`test/test_station_report.c` pins the three decisions that would
+otherwise erode quietly, and each case is written as the decision rather
+than as an assertion about a number:
+
+- **"Not enough evidence yet" is a verdict.** Ninety seconds of data
+  yields `INSUFFICIENT EVIDENCE`, not a grade — the mistake tier 1 made
+  three times before its sustain window existed.
+- **Live-only metrics are absent from a replay, not zero.** Built from a
+  capture, availability reports *"not available from a capture — it holds
+  no arrival times"*, and does not drag the roll-up down.
+- **Windows are stream time.** The same snapshots at any replay speed
+  produce a byte-identical report.
+
+Two smaller properties are pinned with them: a 7 dB fall in C/N0 is
+`UNSTABLE` even though the level it fell *to* is perfectly good, and a
+stream carrying no C/N0 at all (MSM1–3) is left unjudged rather than
+condemned, with the reason named.
+
+**No frontend shows it yet**, which is deliberate — the skeleton exists
+to prove the shape before new metrics are funded. Wiring it up is the
+next step, and the CLI is the natural first consumer: it already has the
+snapshot, a session clock and an offline replay path.
+
+## Phase 2a — Show it somewhere — next
 
 Build the tier before funding new metrics for it. A first report needs
 none of the four candidates: reconnects, CRC rate, C/N0 trend, ROTI,

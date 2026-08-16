@@ -118,8 +118,8 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
 | `android/app/src/main/java/.../MainActivity.kt` | The whole Android UI |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
-| `test/` | Six tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity, stream capture |
-<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | grep -c 'Test #')" = 6 -->
+| `test/` | Seven tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity, stream capture, station report |
+<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | grep -c 'Test #')" = 7 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
 | `.github/workflows/ci.yml` | Core, tests, release checks, the daemon's own Makefile and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
 | `.github/workflows/release-linux.yml` | On a `v*` tag: build, test, package, attach the Linux assets. `ubuntu-22.04` deliberately — its glibc 2.35 is the floor the binaries then require |

@@ -2,7 +2,7 @@
 #
 # This repository shipped for months with none, and the reason it needs
 # one now is that the checks it already has run only when somebody
-# remembers to type the command: six tests, thirty-four release checks,
+# remembers to type the command: seven tests, forty-five release checks,
 # an edition-parity task. During a fortnight of closed testing a
 # regression would sit undetected in exactly the code twelve strangers
 # are running.

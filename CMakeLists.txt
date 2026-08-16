@@ -93,6 +93,7 @@ add_library(ntrip_core STATIC
     src/core/sv_orbit.c
     src/core/sv_track.c
     src/core/kpi.c
+    src/core/station_report.c
     src/core/sourcetable.c
     src/core/vrs_check.c
     src/core/iono.c
@@ -179,6 +180,14 @@ add_test(NAME eph_validity COMMAND test_eph_validity)
 add_executable(test_capture test/test_capture.c)
 target_link_libraries(test_capture PRIVATE ntrip_session)
 add_test(NAME capture COMMAND test_capture)
+
+# Tier 2's three load-bearing decisions -- "not enough evidence" as a
+# verdict, live-only metrics absent rather than zero, and windows in
+# stream time so a replay reproduces exactly. Each would erode quietly
+# without a test that fails when it does.
+add_executable(test_station_report test/test_station_report.c)
+target_link_libraries(test_station_report PRIVATE ntrip_core)
+add_test(NAME station_report COMMAND test_station_report)
 
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure

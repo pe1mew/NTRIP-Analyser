@@ -333,7 +333,7 @@ so `windres` picks up the new `.ico`.
 request:
 
 - **Core and tests** — configures with `-Wall -Wextra`, builds and runs
-  `ctest` on Linux, then `tools/check_release.py`. Five of the six tests
+  `ctest` on Linux, then `tools/check_release.py`. Six of the seven tests
   link `ntrip_core` alone and touch no platform headers, which is why
   they run anywhere; `test_capture` links `ntrip_session` because the
   thing it pins lives there, and still needs no network — it replays a
