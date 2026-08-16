@@ -209,6 +209,11 @@
 **Root cause**: `$?` after a pipeline is the **last** command's status — `tail`'s — not `gh`'s. `--exit-status` was set and correct; the pipe discarded it.
 **Fix**: Redirect instead of piping (`gh run watch ... > /dev/null; echo $?`), or read the verdict from `gh run view` rather than an exit code that has passed through a pipe.
 
+### systemd discarded stderr because stdout was silenced (2026-08-16) [RESOLVED]
+**Problem**: A six-hour unattended capture ran perfectly and reported nothing — no frame count, no byte count, no reconnect count in the journal.
+**Root cause**: The `systemd-run` recipe set `StandardOutput=null` to keep the message-type stream out of the journal. `StandardError=` defaults to **`inherit`**, which means *whatever StandardOutput is* — so stderr, where the summary and every error go, was discarded with it.
+**Fix**: `--property=StandardError=journal` alongside it; the two belong together. Silencing one stream in systemd silences the other unless you say otherwise.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

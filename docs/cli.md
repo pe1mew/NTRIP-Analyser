@@ -153,7 +153,8 @@ the file is closed and flushed rather than abandoned. One command, no
 unit file:
 
 ```sh
-sudo systemd-run --unit=ntrip-capture --property=StandardOutput=null \
+sudo systemd-run --unit=ntrip-capture \
+  --property=StandardOutput=null --property=StandardError=journal \
   ntrip-analyser -c /etc/ntrip/config.json \
   -t 86400 --reconnect --capture /var/spool/gnss/ -q
 ```
@@ -167,6 +168,13 @@ stream goes to **stdout** and is not silenced by `-q` — some five tokens
 a second, which over a day fills the journal with `1077 1087 1097 1127`
 to no purpose. The capture summary and every error are on stderr, so
 nothing is lost.
+
+**`StandardError=journal` is what keeps that true.** systemd's
+`StandardError=` defaults to `inherit`, which means *whatever
+`StandardOutput` is* — so setting the one to `null` discards the other
+too. A six-hour capture run without it completed perfectly and reported
+nothing at all: no frame count, no byte count, no reconnect count, and no
+error had there been one. The two properties belong together.
 
 Two figures for planning a long run: roughly **180 MB a day** from a
 four-constellation MSM7 station at 1 Hz, and one reconnect per drop, each
