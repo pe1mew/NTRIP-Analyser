@@ -660,7 +660,6 @@ typedef struct {
      * timer -- same discipline as streamBytes above. */
     volatile LONG  healthFramesOk;     /* frames decoded with a valid CRC */
     volatile LONG  healthCrcErrors;    /* complete frames, CRC mismatch */
-    volatile LONG  healthMalformed;    /* bad preamble / too short (parser returned -1) */
     volatile LONG  healthResyncs;      /* preamble re-syncs after bogus length */
 
     /* ── Splitter between mountpoint list and tab control ── */

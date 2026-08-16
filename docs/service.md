@@ -147,7 +147,7 @@ Graphs appear under the **ntrip** category after two master poll cycles
 | Graph | Shows | Alert defaults |
 |---|---|---|
 | throughput | bytes/s | — |
-| integrity | CRC errors, malformed frames, re-syncs (rates) | warning on any CRC error |
+| integrity | CRC errors and framing re-syncs (rates) | warning on any CRC error |
 | satellites | satellites tracked | — |
 | cnr | mean C/N0 | warning below 35 dB-Hz |
 | iono | median and worst-satellite ROTI | — |

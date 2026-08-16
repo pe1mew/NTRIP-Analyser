@@ -227,8 +227,6 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_str(&o, ",");
     out_key(&o, "frames_crc_error"); out_json_u64(&o, s->frames_crc_error);
     out_str(&o, ",");
-    out_key(&o, "frames_malformed"); out_json_u64(&o, s->frames_malformed);
-    out_str(&o, ",");
     out_key(&o, "framing_resyncs"); out_json_u64(&o, s->framing_resyncs);
     out_str(&o, ",");
     out_key(&o, "crc_error_rate"); out_json_num(&o, s->crc_error_rate, 6);
@@ -359,7 +357,7 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
 #define NS_CSV_COLUMNS \
     "t_start_unix,uptime_s,mountpoint,caster,connected,ntrip_version," \
     "http_status,caster_software,reconnects,bytes_total,bytes_per_s," \
-    "frames_ok,frames_crc_error,frames_malformed,framing_resyncs," \
+    "frames_ok,frames_crc_error,framing_resyncs," \
     "crc_error_rate,advertised_count,types_missing,types_offrate," \
     "types_extra,sats_total,cnr_mean_all,station_type,arp_valid," \
     "arp_lat,arp_lon,arp_alt,arp_drift_m,arp_moves," \
@@ -421,7 +419,6 @@ int ns_stats_to_csv_row(const NsStatsSnapshot *s, char *out, size_t cap)
     out_csv_num(&o, s->bytes_per_s, 1);           out_ch(&o, ',');
     out_fmt(&o, "%llu", (unsigned long long)s->frames_ok);        out_ch(&o, ',');
     out_fmt(&o, "%llu", (unsigned long long)s->frames_crc_error); out_ch(&o, ',');
-    out_fmt(&o, "%llu", (unsigned long long)s->frames_malformed); out_ch(&o, ',');
     out_fmt(&o, "%llu", (unsigned long long)s->framing_resyncs);  out_ch(&o, ',');
     out_csv_num(&o, s->crc_error_rate, 6);        out_ch(&o, ',');
     out_fmt(&o, "%d", s->advertised_count);       out_ch(&o, ',');

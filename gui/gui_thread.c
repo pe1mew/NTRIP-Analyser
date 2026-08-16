@@ -524,7 +524,6 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
     case NS_EV_FRAME_BAD:
         switch (ev->u.bad.reason) {
         case NS_BAD_CRC:       InterlockedIncrement(&state->healthCrcErrors); break;
-        case NS_BAD_MALFORMED: InterlockedIncrement(&state->healthMalformed); break;
         case NS_BAD_LENGTH:    InterlockedIncrement(&state->healthResyncs);   break;
         }
         break;

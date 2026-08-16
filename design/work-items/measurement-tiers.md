@@ -122,7 +122,7 @@ to measure. It found **seven**, not two.
 | `sourcetable_offset_m`, `sourcetable_pos_valid` | declared position against the broadcast ARP | phase 0 |
 | `station_type` | physical base, VRS, or computed | the GUI classifies stations in its own code; the shared field is empty |
 | `arp_drift_m`, `arp_moves` | a fixed base that moves mid-session | same: implemented in the GUI, never published |
-| `frames_malformed` | frames rejected as malformed | **see below — this one is not merely unfilled** |
+| `frames_malformed` | frames rejected as malformed | **retired 2026-08-16 — see below** |
 
 The first six share one shape: the measurement exists, in the GUI, in
 GUI-private code, so the CLI, the daemon and Android publish `null` for
@@ -151,18 +151,28 @@ hunting" (bytes between frames are legitimate) and a runt or implausible
 length to `NS_BAD_LENGTH`, counted as a framing re-sync. There is nothing
 left for "malformed" to mean.
 
-So the choice is not *fill it* but **decide whether the concept exists**:
+**Decided 2026-08-16: retired.** The alternative was to give it a
+producer, which would have meant inventing a distinction between
+"malformed" and "re-synced" that the framer does not make and nobody had
+asked for. Removed in one change:
 
-1. **Retire it** — remove the enum value, the GUI case, the snapshot
-   field, the Munin graph and the manual's row. Six graph families, all
-   of which can move. This looks right: the two categories that survive,
-   CRC failures and framing re-syncs, already cover what a stream does
-   wrong.
-2. **Give it a producer** — decide what malformed means as distinct from
-   a re-sync, and emit it. Only worth doing if a real distinction exists.
+| Where | What went |
+|---|---|
+| `src/session/ntrip_session.h` | the `NS_BAD_MALFORMED` enumerator |
+| `src/core/ns_stats.h` | the `frames_malformed` field, and `NS_STATS_SCHEMA_VERSION` moved to **2** |
+| `src/core/ns_stats.c` | its JSON key, its CSV column and the header naming it |
+| `gui/gui_thread.c` | the `case` that could never run |
+| `gui/gui_state.h`, `gui/gui_events.c` | the counter, its two resets, and the Stream Health row — the rows after it renumbered |
+| `service/munin/ntrip_monitor` | the series, its value line and its stale-case placeholder |
+| `docs/service.md`, `design/architecture.md`, `design/feature-matrix.md` | the descriptions that promised it |
 
-Either way the schema changes, so it wants doing before more consumers
-render a field that means nothing.
+**The schema version moved because a field was removed**, which is what
+that counter is for: a Munin RRD, an installed phone build or an archived
+CSV outlives any one release, and a consumer reading `schema_version: 2`
+now knows the column is gone rather than finding it missing and guessing.
+
+Frame integrity is now two numbers that can both move — CRC failures and
+framing re-syncs — and the integrity graph means what it says.
 
 `NsStatsSnapshot.latency_s` exists, is documented, is serialised to JSON
 and CSV and is displayed on the Android tile. **Nothing computes it**;

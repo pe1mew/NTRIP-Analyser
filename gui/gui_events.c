@@ -625,7 +625,6 @@ static void RefreshStreamHealth(AppState *state)
 
     LONG ok        = InterlockedCompareExchange(&state->healthFramesOk,  0, 0);
     LONG crcErr    = InterlockedCompareExchange(&state->healthCrcErrors, 0, 0);
-    LONG malformed = InterlockedCompareExchange(&state->healthMalformed, 0, 0);
     LONG resyncs   = InterlockedCompareExchange(&state->healthResyncs,   0, 0);
 
     LONG attempted = ok + crcErr;      /* complete frames the CRC was tested on */
@@ -687,10 +686,10 @@ static void RefreshStreamHealth(AppState *state)
                      state->autoReconnect
                        ? "Auto-reconnect is on; the link has not dropped"
                        : "Auto-reconnect is off (Tools menu)");
-        HealthSetRow(hLv, 14, "Reconnects", v, d,
+        HealthSetRow(hLv, 13, "Reconnects", v, d,
                      state->lastStats.reconnects > 0 ? HEALTH_WARN : HEALTH_OK);
     } else {
-        HealthSetRow(hLv, 14, "Reconnects", "-",
+        HealthSetRow(hLv, 13, "Reconnects", "-",
                      state->autoReconnect
                        ? "Auto-reconnect is on (Tools menu)"
                        : "Auto-reconnect is off (Tools menu)",
@@ -709,12 +708,12 @@ static void RefreshStreamHealth(AppState *state)
                  "the base, not the base-rover gradient itself",
                  ls->iono_roti_median, ls->iono_roti_max,
                  ls->iono_sats_dualfreq, ls->iono_slips);
-        HealthSetRow(hLv, 15, "Ionosphere", v, d,
+        HealthSetRow(hLv, 14, "Ionosphere", v, d,
                      ls->iono_verdict == IONO_DISTURBED ? HEALTH_BAD :
                      ls->iono_verdict == IONO_UNSETTLED ? HEALTH_WARN
                                                         : HEALTH_OK);
     } else {
-        HealthSetRow(hLv, 15, "Ionosphere", "-",
+        HealthSetRow(hLv, 14, "Ionosphere", "-",
                      "Needs MSM7 with two frequencies per satellite and a "
                      "minute of unbroken carrier phase",
                      HEALTH_OK);
@@ -750,13 +749,8 @@ static void RefreshStreamHealth(AppState *state)
                  "CRC failures as a share of frames checked",
                  crcErr > 0 ? HEALTH_BAD : HEALTH_OK);
 
-    snprintf(v, sizeof(v), "%ld", (long)malformed);
-    HealthSetRow(hLv, 7, "Malformed frames", v,
-                 "Bad preamble or runt frame -- rejected before the CRC test",
-                 malformed > 0 ? HEALTH_WARN : HEALTH_OK);
-
     snprintf(v, sizeof(v), "%ld", (long)resyncs);
-    HealthSetRow(hLv, 8, "Framing re-syncs", v,
+    HealthSetRow(hLv, 7, "Framing re-syncs", v,
                  "Implausible length field; framing re-acquired from the next byte",
                  resyncs > 0 ? HEALTH_WARN : HEALTH_OK);
 
@@ -764,7 +758,7 @@ static void RefreshStreamHealth(AppState *state)
      * Msg Stats tab; this is the one-line answer to "does this mountpoint
      * send what it claims to". */
     if (!state->advValid) {
-        HealthSetRow(hLv, 9, "Advertised types", "unknown",
+        HealthSetRow(hLv, 8, "Advertised types", "unknown",
                      "No sourcetable entry for this mountpoint -- cannot compare",
                      HEALTH_OK);
     } else {
@@ -791,7 +785,7 @@ static void RefreshStreamHealth(AppState *state)
                  "%d unadvertised%s",
                  ok, missing, rate, extra,
                  state->advAutoFetched ? "  (sourcetable fetched on connect)" : "");
-        HealthSetRow(hLv, 9, "Advertised types", v, d,
+        HealthSetRow(hLv, 8, "Advertised types", v, d,
                      missing > 0 ? HEALTH_BAD :
                      rate    > 0 ? HEALTH_WARN : HEALTH_OK);
     }
@@ -806,7 +800,7 @@ static void RefreshStreamHealth(AppState *state)
     const char *type_txt =
         (state->stationType == STATION_VRS)   ? "VRS / network" :
         (state->stationType == STATION_FIXED) ? "fixed base"    : "unknown";
-    HealthSetRow(hLv, 10, "Station type", type_txt, state->stationWhy,
+    HealthSetRow(hLv, 9, "Station type", type_txt, state->stationWhy,
                  state->stationType == STATION_VRS ? HEALTH_INFO : HEALTH_OK);
 
     bool   arp_valid = false;
@@ -814,26 +808,26 @@ static void RefreshStreamHealth(AppState *state)
     rtcm_get_station_arp(&arp_valid, NULL, NULL, NULL, &arp_lat, &arp_lon, &arp_alt);
 
     if (!arp_valid) {
-        HealthSetRow(hLv, 11, "Broadcast ARP", "-",
+        HealthSetRow(hLv, 10, "Broadcast ARP", "-",
                      "No RTCM 1005/1006 received; the station has not stated its position",
                      HEALTH_WARN);
-        HealthSetRow(hLv, 12, "Sourcetable match", "-",
+        HealthSetRow(hLv, 11, "Sourcetable match", "-",
                      "Needs a broadcast ARP to compare against", HEALTH_OK);
-        HealthSetRow(hLv, 13, "ARP stability", "-", "Needs a broadcast ARP", HEALTH_OK);
+        HealthSetRow(hLv, 12, "ARP stability", "-", "Needs a broadcast ARP", HEALTH_OK);
         return;
     }
 
     snprintf(v, sizeof(v), "%.5f, %.5f", arp_lat, arp_lon);
     snprintf(d, sizeof(d), "From RTCM 1005/1006, altitude %.1f m", arp_alt);
-    HealthSetRow(hLv, 11, "Broadcast ARP", v, d, HEALTH_OK);
+    HealthSetRow(hLv, 10, "Broadcast ARP", v, d, HEALTH_OK);
 
     /* Declared vs broadcast position. */
     if (state->stationType == STATION_VRS) {
-        HealthSetRow(hLv, 12, "Sourcetable match", "n/a",
+        HealthSetRow(hLv, 11, "Sourcetable match", "n/a",
                      "Virtual station follows the rover -- comparison not meaningful",
                      HEALTH_OK);
     } else if (!state->sourcePosValid) {
-        HealthSetRow(hLv, 12, "Sourcetable match", "-",
+        HealthSetRow(hLv, 11, "Sourcetable match", "-",
                      "Sourcetable states no position for this mountpoint", HEALTH_OK);
     } else {
         double d_m = geo_distance_m(state->sourceLat, state->sourceLon,
@@ -852,7 +846,7 @@ static void RefreshStreamHealth(AppState *state)
                      "Sourcetable says %.4f, %.4f -- check the caster registration",
                      state->sourceLat, state->sourceLon);
         }
-        HealthSetRow(hLv, 12, "Sourcetable match", v, d,
+        HealthSetRow(hLv, 11, "Sourcetable match", v, d,
                      d_m > 100.0 ? HEALTH_BAD : HEALTH_OK);
     }
 
@@ -894,7 +888,7 @@ static void RefreshStreamHealth(AppState *state)
                      state->vrsArpHistCount, worst / 1000.0);
         stability_sev = HEALTH_BAD;
     }
-    HealthSetRow(hLv, 13, "ARP stability", v, d, stability_sev);
+    HealthSetRow(hLv, 12, "ARP stability", v, d, stability_sev);
 }
 
 /**
@@ -1304,7 +1298,6 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     /* Reset stream-health counters -- they describe one session */
     InterlockedExchange(&state->healthFramesOk,  0);
     InterlockedExchange(&state->healthCrcErrors, 0);
-    InterlockedExchange(&state->healthMalformed, 0);
     InterlockedExchange(&state->healthResyncs,   0);
     if (state->hLvStreamHealth)
         ListView_DeleteAllItems(state->hLvStreamHealth);
@@ -2755,7 +2748,6 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             /* Reset stream-health counters for the replay session */
             InterlockedExchange(&state->healthFramesOk,  0);
             InterlockedExchange(&state->healthCrcErrors, 0);
-            InterlockedExchange(&state->healthMalformed, 0);
             InterlockedExchange(&state->healthResyncs,   0);
             if (state->hLvStreamHealth)
                 ListView_DeleteAllItems(state->hLvStreamHealth);

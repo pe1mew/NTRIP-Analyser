@@ -47,7 +47,11 @@ extern "C" {
  * any change that removes or repurposes a field; adding a field at the
  * end is backward compatible and does not require a bump.
  */
-#define NS_STATS_SCHEMA_VERSION 1
+/* 2 (3.5.0): `frames_malformed` removed. Nothing ever incremented it --
+ * NS_BAD_MALFORMED had no producer -- so every consumer published a
+ * permanent zero, and a flat line in a monitoring graph reads as good
+ * news. A removal, so the version moves. */
+#define NS_STATS_SCHEMA_VERSION 2
 
 /** Distinct RTCM message types carried in one snapshot.
  *
@@ -152,7 +156,6 @@ typedef struct {
     double   bytes_per_s;         /**< over the most recent interval     */
     uint64_t frames_ok;           /**< CRC-24Q valid                     */
     uint64_t frames_crc_error;    /**< complete frames, CRC mismatch     */
-    uint64_t frames_malformed;    /**< bad preamble or runt frame        */
     uint64_t framing_resyncs;     /**< implausible length; re-acquired   */
     double   crc_error_rate;      /**< share of frames checked, 0..1     */
 

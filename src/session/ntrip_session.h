@@ -64,10 +64,19 @@ typedef enum {
     NS_EV_LOG,            /**< human-readable diagnostic               */
 } NsEventType;
 
-/** @brief Why a frame was rejected. */
+/**
+ * @brief Why a frame was rejected.
+ *
+ * Two categories, and the pair is exhaustive by construction. A
+ * `NS_BAD_MALFORMED` once sat between them and **nothing ever raised
+ * it**: the framer treats a byte outside a frame as ordinary (a stream
+ * legitimately begins mid-frame, and NMEA between frames is common) and
+ * an implausible length as a re-sync. It was retired in 3.5.0 along with
+ * the counter, the graph and the manual's row, because a monitoring
+ * signal that cannot move is worse than an absent one.
+ */
 typedef enum {
     NS_BAD_CRC = 1,       /**< complete frame, CRC-24Q mismatch        */
-    NS_BAD_MALFORMED,     /**< bad preamble or runt frame              */
     NS_BAD_LENGTH,        /**< implausible length; framing re-acquired */
 } NsBadReason;
 

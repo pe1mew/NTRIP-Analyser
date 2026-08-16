@@ -46,7 +46,7 @@ or forms a verdict; that rule is what makes the next row true.
 | Message-type census | Counts and per-epoch intervals per type. Epoch-based, so an MSM message split across frames is not reported at a multiple of its true rate. | ● | ● | ○ | ◐ | ● |
 | Satellites per constellation | Unique SVs, from MSM1–7 and the legacy 1001–1012 families both. | ● | ● | ● | ● | ● |
 | C/N0 per satellite and band | Resolution follows the message family — 6-bit whole dB in MSM4/5, 1/16 dB in MSM6/7, ¼ dB in the legacy messages. That property has twice been reported as an application defect. | ○ | ● | ● | ● | ● |
-| Frame integrity accounting | CRC-24Q failures, malformed frames and framing re-syncs, as a rate. A stream can look healthy while losing two frames in a hundred. | ◐ | ● | ◐ | ◐ | ● |
+| Frame integrity accounting | CRC-24Q failures and framing re-syncs, as a rate. A stream can look healthy while losing two frames in a hundred. | ◐ | ● | ◐ | ◐ | ● |
 | ARP decode | 1005/1006 reference position. Pro adds station ID, ITRF year, reference-versus-receiver, oscillator and raw ECEF. | ● | ● | ◐ | ● | ● |
 | Ephemeris decode from the observation stream | 1019/1020/1042/1044/1045/1046 through a single seven-type switch. Lets a station place its own satellites with nothing configured. The daemon decodes them with the rest of the session layer but surfaces nothing: it publishes no orbit and draws no sky. | ● | ● | ● | ● | ◐ |
 | Ionospheric ROTI | Geometry-free dual-frequency combination from MSM6/7, per satellite and as a polar heatmap. No other free NTRIP tool does this. | ○ | ● | ⋯ | ⋯ | ● |
@@ -132,7 +132,7 @@ looks at:
 | Graph | Why it is worth a year of RRD |
 |---|---|
 | Throughput | The first thing to move when a station degrades, and the easiest to attribute. |
-| Frame integrity | CRC errors, malformed frames and framing re-syncs, separately — a link fault and a receiver fault look different here. |
+| Frame integrity | CRC errors and framing re-syncs, separately — a link fault and a receiver fault look different here. |
 | Satellites tracked | A slow decline is an antenna or a horizon changing, not a bad day. |
 | Mean C/N0 | The antenna and LNA chain, which ages. |
 | Ionosphere (ROTI) | Median and worst satellite. Space weather is the one cause of poor RTK that is nobody's fault and needs proving. |

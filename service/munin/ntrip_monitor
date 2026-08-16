@@ -96,9 +96,6 @@ crc_error.label CRC-24Q errors
 crc_error.type DERIVE
 crc_error.min 0
 crc_error.warning 1
-malformed.label malformed frames
-malformed.type DERIVE
-malformed.min 0
 resyncs.label framing re-syncs
 resyncs.type DERIVE
 resyncs.min 0
@@ -160,13 +157,12 @@ emit_values() {
     if is_stale "$f"; then
         # The daemon has stopped writing.  Everything is U: a stale
         # "connected:true" must not keep a green light on.
-        bytes="U"; crc="U"; malformed="U"; resyncs="U"
+        bytes="U"; crc="U"; resyncs="U"
         sats="U"; cnr="U"; conn="U"; reconn="U"
         roti_med="U"; roti_max="U"
     else
         bytes=$(scalar "$f" bytes_per_s)
         crc=$(scalar "$f" frames_crc_error)
-        malformed=$(scalar "$f" frames_malformed)
         resyncs=$(scalar "$f" framing_resyncs)
         sats=$(scalar "$f" sats_total)
         cnr=$(scalar "$f" cnr_mean_all)
@@ -186,7 +182,6 @@ bytes_per_s.value ${bytes}
 
 multigraph ntrip_integrity_${name}
 crc_error.value ${crc}
-malformed.value ${malformed}
 resyncs.value ${resyncs}
 
 multigraph ntrip_satellites_${name}

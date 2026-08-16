@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Removed — a monitoring signal that had never been able to move
+
+`frames_malformed` is gone, and with it `NS_BAD_MALFORMED`, the GUI's
+Malformed frames row, and the Munin *malformed frames* series.
+**Nothing ever raised that reason**, so the counter was structurally
+zero: a `case` in the GUI that could not run, a JSON key and CSV column
+that were always `0`, and a `DERIVE` graph documented in the service
+manual as one of seven families a reader could watch, which could only
+ever draw a flat line. A monitoring signal that cannot move is worse than
+an absent one, because flat reads as good news.
+
+It was not a missing increment either. The framer deliberately treats a
+byte outside a frame as ordinary — a stream legitimately begins
+mid-frame, and NMEA between frames is common — and an implausible length
+as a framing re-sync. Nothing was left for "malformed" to mean, so the
+concept was retired rather than given an invented producer.
+
+**`NS_STATS_SCHEMA_VERSION` is now 2.** A field was removed, which is
+exactly what that counter exists to announce: a Munin RRD, an installed
+phone build or an archived CSV outlives the release that wrote it.
+
+Found by a new release check that reads every field of
+`NsStatsSnapshot` and fails if nothing outside `ns_stats.c` writes it —
+added after `latency_s` and `sourcetable_offset_m` were each discovered
+by accident. It found seven such fields; this is the first resolved, and
+the check now carries the rest as a list that may only shrink.
+
 ### Changed — the documentation, and the site that serves it
 
 **One privacy policy for the whole suite** instead of one for Android and

@@ -146,7 +146,7 @@ typedef enum {
     NS_EV_HANDSHAKE,       /* NtripHandshake available             */
     NS_EV_STREAMING,       /* first valid frame decoded            */
     NS_EV_FRAME,           /* one RTCM frame, CRC valid            */
-    NS_EV_FRAME_BAD,       /* CRC failure or malformed frame       */
+    NS_EV_FRAME_BAD,       /* CRC failure or implausible length    */
     NS_EV_STATS,           /* periodic statistics snapshot         */
     NS_EV_DISCONNECTED,    /* with a reason code                   */
     NS_EV_LOG,             /* human-readable line, severity-tagged */
@@ -158,7 +158,7 @@ typedef struct {
     union {
         struct { const unsigned char *data; int len; int msg_type;
                  uint32_t epoch; } frame;
-        struct { int reason; } bad;         /* CRC / malformed / short */
+        struct { int reason; } bad;         /* CRC or implausible length */
         const NtripHandshake *handshake;
         const NsStatsSnapshot *stats;
         struct { int severity; const char *text; } log;
@@ -201,8 +201,8 @@ loops `ns_pump()` until stopped covers the CLI case in three lines.
 ### 3.3 What moves into it
 
 From `gui/gui_thread.c`, which has the most complete implementation:
-format detection, epoch-aware statistics, CRC and malformed-frame
-counting, framing re-sync counting, GGA uplink, capture-to-file.
+format detection, epoch-aware statistics, CRC error counting, framing
+re-sync counting, GGA uplink, capture-to-file.
 
 From `gui/gui_events.c`: station classification, advertised-versus-
 observed comparison, the position cross-check, C/N0 aggregation, and the
@@ -243,7 +243,6 @@ typedef struct {
     double   bytes_per_s;
     uint64_t frames_ok;
     uint64_t frames_crc_error;
-    uint64_t frames_malformed;
     uint64_t framing_resyncs;
     double   crc_error_rate;        /* share of frames checked       */
 
@@ -340,7 +339,7 @@ One plugin per mountpoint using Munin's **multigraph** protocol:
 |---|---|---|
 | `throughput` | bytes/s | GAUGE |
 | `msgrate` | one per RTCM type | GAUGE |
-| `integrity` | crc_errors, malformed, resyncs | DERIVE |
+| `integrity` | crc_errors, resyncs | DERIVE |
 | `satellites` | one per constellation | GAUGE |
 | `cnr` | mean, median, min, max | GAUGE |
 | `latency` | epoch vs system clock | GAUGE |

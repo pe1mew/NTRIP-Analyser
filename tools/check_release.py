@@ -336,8 +336,12 @@ SNAPSHOT_KNOWN_GAPS = {
     "station_type":           "measurement-tiers.md, unfilled fields",
     "arp_drift_m":            "measurement-tiers.md, unfilled fields",
     "arp_moves":              "measurement-tiers.md, unfilled fields",
-    "frames_malformed":       "measurement-tiers.md, unfilled fields",
 }
+# `frames_malformed` was on this list for one commit. It is not there now
+# because the field is gone: NS_BAD_MALFORMED had no producer, so the
+# honest fix was to retire the concept rather than invent a number for
+# it. That is what this list is for -- a gap either gets filled or gets
+# removed, and either way it leaves.
 
 
 def check_snapshot_fields():
