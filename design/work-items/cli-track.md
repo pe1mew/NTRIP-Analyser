@@ -31,7 +31,7 @@ and what "done" will mean.
 
 | Phase | What | State |
 |---|---|---|
-| 1 | Capture the stream to a file, with reconnect | **built 2026-08-15**; V5 (a 6 h run to a PPP solution) outstanding |
+| 1 | Capture the stream to a file, with reconnect | **built 2026-08-15; V5 passed 2026-08-16.** Only V6's live half remains |
 | 2 | `--rtcm-stdin` beyond `--sky` | open |
 | 3 | Capture the ephemeris stream | not scheduled |
 
@@ -410,13 +410,28 @@ Phase 1 built 2026-08-15. What the plan said would happen, and what did:
 | V2 | junk and bad CRCs are filtered | **pass** — NMEA between frames and a deliberately corrupted frame are both absent from the output |
 | V3 | a capture that cannot be written is fatal | **pass** — refusing to overwrite and an unopenable path both end `NS_END_WRITE_ERROR`; the CLI returns 7 |
 | V4 | binary mode is what makes V1 work | not run as a build variant; the `"wb"` is in one place and commented |
-| V5 | 6 h live → `convbin` → CSRS-PPP | **outstanding.** Needs a day, not a command |
+| V5 | 6 h live → `convbin` → CSRS-PPP | **passed 2026-08-16.** See below |
 | V6 | GUI and CLI agree | **half done.** Offline: identical on the GUI's file. Live, side by side on one stream: outstanding, and it gates the GUI track's Phase 4 |
 
 Live behaviour, 30 s against the Kadaster caster: 159 frames, 62,503
 bytes, and the frame count matches the message census type for type
 (2×1006, 2×1008, 1×1013, 2×1033, 30×1077, 30×1087, 30×1097, 60×1127,
 2×1230 = 159). That capture then replays and re-captures identically.
+
+**V5, the acceptance test, 2026-08-16.** Six hours of `RFSEE01` under
+`systemd-run`, 18:13:28–00:13:28 UTC: 35.7 MB, and **720 of a possible
+720 epochs** at 30 s decimation — not one lost, so the link held for the
+whole session. `convbin` produced a RINEX 3.04 observation file whose
+header carried everything the run had established, and CSRS-PPP returned
+a static solution: σ95 of 4 mm east, 6 mm north, 16 mm up, with the
+antenna's NGS calibration recognised and applied.
+
+The feature justified itself on that first real run. The solution put the
+station **1.92 m below the position it broadcasts**, an error every rover
+taking RTK from it had been inheriting, unnoticed. A capture, a
+converter and six hours of patience found it; ninety seconds of KPIs
+never could, because the station is perfectly healthy — it is simply in
+the wrong place.
 
 Two things the plan did not foresee, both now in the code:
 
