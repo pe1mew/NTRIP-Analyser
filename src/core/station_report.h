@@ -70,6 +70,22 @@ extern "C" {
 /* Ionosphere reuses core/iono.h's own thresholds; space weather does not
  * mean something different here than it does there. */
 
+/**
+ * Seconds at the start of a session that are not a measurement of the
+ * station.
+ *
+ * `sats_total` and `cnr_mean_all` describe the last five seconds, so a
+ * sample taken while the first epoch is still arriving sees a partial
+ * constellation — nine satellites where the station holds forty. Left
+ * in, that single sample becomes the window's minimum and the report
+ * calls a healthy station UNSTABLE. Found on the first real run.
+ *
+ * Thirty seconds matches KPI 3's allowance for a 1005/1006 to appear,
+ * which is the same idea: a station is not answerable for what it has
+ * not had time to send.
+ */
+#define SR_WARMUP_S                30.0
+
 /** Evidence required before any verdict is offered at all. */
 #define SR_MIN_WINDOW_S            600.0
 #define SR_MIN_SAMPLES             10

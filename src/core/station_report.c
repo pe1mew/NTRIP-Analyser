@@ -36,6 +36,13 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
 {
     if (!s || !snap) return;
 
+    /* The warm-up is not evidence. A snapshot taken while the first
+     * epoch is still arriving reports a partial constellation, and one
+     * such sample is enough to make the window's minimum meaningless --
+     * which is exactly what the first live run produced: "fewest held:
+     * 9" from a station that never dropped below 39. */
+    if (t_stream < SR_WARMUP_S) return;
+
     if (!s->started) {
         s->started          = true;
         s->t_first          = t_stream;

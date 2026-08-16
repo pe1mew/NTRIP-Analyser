@@ -170,7 +170,32 @@ int main(void)
               "0.2 % CRC is DEGRADED -- worth looking at, not yet unusable");
     }
 
-    /* ── 7. No C/N0 in the stream is not a silent antenna ─────────── */
+    /* ── 7. The warm-up is not evidence ───────────────────────────── */
+    {
+        /* The first live run reported "fewest held: 9" against a station
+         * that never dropped below 39, because sats_total describes the
+         * last five seconds and the first sample lands mid-epoch. One
+         * such sample must not become the window's minimum. */
+        NsStatsSnapshot warm = healthy();
+        warm.sats_total  = 9;                /* a partial first epoch  */
+        warm.cnr_mean_all = 20.0f;           /* and a partial mean     */
+
+        NsStatsSnapshot s = healthy();
+        sr_reset(&st, false);
+        sr_feed(&st, &warm, 0.0);            /* inside the warm-up     */
+        sr_feed(&st, &warm, 15.0);           /* still inside it        */
+        for (int i = 0; i < 60; i++) sr_feed(&st, &s, 60.0 + i * 60.0);
+        sr_build(&st, &r);
+
+        check(r.metric[SR_SATELLITES].value == 38,
+              "a partial first epoch does not become the window's minimum");
+        check(r.overall == SR_STABLE,
+              "and a healthy station is not called UNSTABLE by its own warm-up");
+        check(r.window_s <= 60.0 * 60.0,
+              "the judged window starts after the warm-up, not before it");
+    }
+
+    /* ── 8. No C/N0 in the stream is not a silent antenna ─────────── */
     {
         NsStatsSnapshot s = healthy();
         s.cnr_mean_all = 0.0f;               /* MSM1-3 carry none */
