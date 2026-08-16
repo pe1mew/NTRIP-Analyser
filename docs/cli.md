@@ -113,7 +113,53 @@ ntrip-analyser [options]
 
 ---
 
-### 2a. Capturing the stream to a file
+### 2a. The stability report (`--report`)
+
+The eight checks ask whether a station is fit **now** and answer in about
+ninety seconds. `--report` asks a different question — has it *been* fit,
+and is it staying that way — which no ninety-second window can answer at
+any price.
+
+```sh
+ntrip-analyser -t 3600 --report
+```
+
+Six measurements over the run: availability (reconnects per hour), frame
+integrity, signal level, satellites held, ionosphere and delivery rate.
+Each is graded on its own, and the report ends with the worst finding
+stated with its evidence, rather than a bare word:
+
+```
+== DEGRADED over 6.0 h -- Frame integrity: worst CRC error rate 0.140 % ==
+```
+
+Four things about it are deliberate:
+
+- **It needs ten minutes before it will say anything.** Below that, every
+  line reads `INSUFFICIENT EVIDENCE` and the report says how much more it
+  wants. That is the honest answer, and the alternative — grading an
+  hour's question on a minute's data — is a mistake the eight checks
+  already made three times before their sustain window was added.
+- **It never uses the check's words.** `STABLE`, `DEGRADED`, `UNSTABLE`,
+  never `STATION OK`. A station can be fit right now and have been
+  unstable all week; both statements are true and neither contradicts the
+  other.
+- **It does not change the exit code.** `--check` owns that, because two
+  verdicts competing for one exit status makes an automation surface
+  unusable.
+- **Some measurements are marked `n/a`, not zero.** Availability counts
+  reconnections, which only a live session can observe; a report built
+  from a capture says so instead of showing a clean zero it did not earn.
+
+Two numbers are measured as changes rather than levels, which is what
+makes them useful over hours. **Signal level** reports how far the mean
+C/N0 *fell* from the best the window saw — a station that drops 7 dB to
+41 dB-Hz is flagged, though 41 is a perfectly good level, because
+something changed. **Frame integrity** reports the *worst* CRC rate
+observed, not the average, because an average hides a bad ten minutes
+inside a good six hours.
+
+### 2b. Capturing the stream to a file
 
 `--capture` writes the stream to disk so that a converter can read it
 hours later, or so the analyser can replay it offline. It works with any

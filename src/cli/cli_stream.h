@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include "net/ntrip_handler.h"       /* NTRIP_Config */
 #include "session/ntrip_session.h"   /* NsOptions, NtripSession */
+#include "core/station_report.h"     /* SrState, the tier-2 accumulator */
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,6 +110,26 @@ extern uint64_t cli_capture_max_bytes;
  * terms, and a mode added later cannot quietly forget to.
  */
 void cli_capture_apply(NsOptions *opt);
+
+/**
+ * @brief `--report`: print the tier-2 stability report when a run ends.
+ *
+ * Tier 1 asks whether a station is fit *now* and answers in ninety
+ * seconds. This asks whether it has *been* fit, which needs ten minutes
+ * before it will say anything at all — so it rides on the modes that
+ * already run for a duration (`-t`, `-s`, `--check`) rather than being a
+ * mode of its own.
+ *
+ * It does **not** affect the exit code. The verdict a script acts on
+ * belongs to tier 1; two verdicts competing for one exit status is how
+ * an automation surface becomes unusable.
+ */
+extern bool cli_report;
+
+/**
+ * @brief Print the report a run accumulated, if `--report` asked for one.
+ */
+void cli_report_print(const SrState *sr);
 
 /**
  * @brief Report what the capture wrote; true when it failed.

@@ -1124,6 +1124,7 @@ int main(int argc, char *argv[]) {
         {"check-vrs",      no_argument,       0, 23 },
         {"capture",        required_argument, 0, 24 },
         {"capture-max",    required_argument, 0, 25 },
+        {"report",         no_argument,       0, 26 },
         {"check-config",   no_argument,       0, 18 },
         {"json",           no_argument,       0, 19 },
         {"rtcm-stdin",     no_argument,       0, 20 },
@@ -1245,6 +1246,7 @@ int main(int argc, char *argv[]) {
             case 21: cli_auto_reconnect = true;  break;   /* --reconnect */
             case 22: claim_action(&operation, OP_CHECK,     "--check");     break;
             case 23: claim_action(&operation, OP_CHECK_VRS, "--check-vrs"); break;
+            case 26: cli_report = true; break;      /* --report      */
             case 24: capture_arg = optarg; break;   /* --capture     */
             case 25: {                             /* --capture-max */
                 double mb = atof(optarg);

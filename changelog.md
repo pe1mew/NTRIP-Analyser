@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — a second tier of measurement: has this station *been* fit?
+
+The eight checks answer whether a station is fit **now**, in about ninety
+seconds, and that bound is what makes the verdict worth having. Some
+questions cannot be answered inside it at any price — a cycle-slip rate,
+a coverage percentage, a latency distribution, and simply *is this
+station staying the way it was*. Rather than lengthen the check or grade
+an hour's question on a minute's data, those now belong to a second tier.
+
+`--report` prints it after any timed run (`-t`, `-s`, `-d`, `--check`).
+Six measurements, none of them new — availability, frame integrity,
+signal level, satellites held, ionosphere and delivery rate — all derived
+from the snapshot every frontend already holds and the daemon already
+writes once an interval. The tier had to prove its shape before new
+metrics were funded for it.
+
+Four properties are deliberate, and each is pinned by a test rather than
+left to erode:
+
+* **"Not enough evidence yet" is a verdict.** Below ten minutes every
+  line reads `INSUFFICIENT EVIDENCE` and the report says how much more it
+  wants. KPI 8 failed healthy stations three times by judging too early;
+  that lesson is built in from the start here.
+* **It never borrows tier 1's words.** `STABLE` / `DEGRADED` /
+  `UNSTABLE`, never `STATION OK`. A station can be fit right now and have
+  been unstable all week — two true statements, and a user seeing one
+  vocabulary twice would conclude one of them is broken.
+* **It does not touch the exit code.** `--check` owns that.
+* **Live-only measurements are marked `n/a`, never zero.** Availability
+  counts reconnections, which a replay cannot observe, so a report built
+  from a capture says so instead of showing a clean zero it did not earn.
+
+Two figures are measured as *changes* rather than levels, which is what
+makes them worth an hour: signal level reports how far mean C/N0 fell
+from the window's best — a 7 dB drop to 41 dB-Hz is flagged although 41
+is a fine level, because something changed — and frame integrity reports
+the worst CRC rate seen rather than the average, because an average hides
+a bad ten minutes inside a good six hours.
+
+Windows are counted in **stream time**, so the same session produces the
+same report at any replay speed. The offline path is not wired up yet:
+the session does not publish a stream clock, and passing the host's would
+make a six-hour capture replayed in twenty seconds report a twenty-second
+window.
+
 ### Removed — a monitoring signal that had never been able to move
 
 `frames_malformed` is gone, and with it `NS_BAD_MALFORMED`, the GUI's

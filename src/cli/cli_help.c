@@ -70,6 +70,15 @@ void print_help(const char *progname) {
     printf("                           Exit 0 = STATION OK, 6 = caution, 1 = failed.\n");
     printf("      --check-vrs          As --check plus the network-RTK assertions:\n");
     printf("                           GGA cadence, ARP-near-rover, and the gate test.\n");
+    printf("\nStability report (tier 2):\n");
+    printf("      --report             After a timed run, print the stability report:\n");
+    printf("                           availability, frame integrity, signal level,\n");
+    printf("                           satellites, ionosphere, delivery rate.\n");
+    printf("                           Asks whether a station has *been* fit, which\n");
+    printf("                           needs ~10 minutes -- shorter runs say\n");
+    printf("                           INSUFFICIENT EVIDENCE rather than guess.\n");
+    printf("                           Works with -t, -s, -d, --check.  Never changes\n");
+    printf("                           the exit code; that belongs to --check.\n");
     printf("\nCapture:\n");
     printf("      --capture <path>     Write every CRC-valid RTCM frame to <path>, for\n");
     printf("                           later conversion (RTKLIB convbin) or replay.  Give\n");

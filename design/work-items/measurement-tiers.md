@@ -228,7 +228,44 @@ to prove the shape before new metrics are funded. Wiring it up is the
 next step, and the CLI is the natural first consumer: it already has the
 snapshot, a session clock and an offline replay path.
 
-## Phase 2a — Show it somewhere — next
+## Phase 2a — Show it somewhere — **built in the CLI**
+
+`--report` rides on the modes that already run for a duration — `-t`,
+`-s`, `-d`, `--check` — rather than becoming a mode of its own, because
+tier 2 is a second reading of the same session rather than a different
+activity. Snapshots are sampled once a second into an `SrState`, and the
+report prints when the run ends.
+
+Two decisions worth keeping:
+
+- **It never changes the exit code.** `--check` owns that. Two verdicts
+  competing for one exit status is how an automation surface becomes
+  unusable, and a script that must distinguish them can read stdout.
+- **It prints beneath `--check` too**, where it will almost always say
+  `INSUFFICIENT EVIDENCE` — which is the point. Seeing the two tiers
+  disagree about how much they know, in one output, teaches the
+  distinction better than any wording could.
+
+Next consumers, in order: the daemon, which runs for months and is the
+natural home; then the GUI, for commissioning.
+
+## Phase 2b — A stream clock, so a replay can be reported — next
+
+The report takes its window from the caller, and the CLI passes
+seconds-since-start. On a live run the stream clock and the wall clock
+agree, so that is legitimate. **On a replay it is not**, and the offline
+path is therefore not wired up: a six-hour capture replayed in twenty
+seconds would report a twenty-second window and refuse to judge.
+
+What is missing is small: the session knows the newest MSM epoch, and
+nothing publishes it. A `stream_time_s` on the snapshot — filled at the
+point epochs are already decoded — would let a replay report exactly what
+the live run reported, which is the property `test_station_report.c`
+already pins and no user can yet demonstrate.
+
+That also makes the offline path the interesting one: a `.rtcm3` on disk
+becomes a station's history, re-judgeable years later against thresholds
+that did not exist when it was recorded.
 
 Build the tier before funding new metrics for it. A first report needs
 none of the four candidates: reconnects, CRC rate, C/N0 trend, ROTI,

@@ -23,6 +23,7 @@ bool cli_auto_reconnect = false;   /* set by --reconnect in main.c */
 
 const char *cli_capture_path      = NULL;  /* set by --capture     */
 uint64_t    cli_capture_max_bytes = 0;     /* set by --capture-max */
+bool        cli_report            = false; /* set by --report      */
 #include "session/ntrip_session.h"
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"
@@ -57,6 +58,9 @@ typedef struct {
 
     /* sats mode */
     SatStatsSummary summary;
+
+    /* tier 2, accumulated once a second while --report is set */
+    SrState    sr;
 } CliCtx;
 
 /** @brief Common event handling; per-mode work happens on NS_EV_FRAME. */
@@ -132,6 +136,38 @@ static void cli_on_event(const NsEvent *ev, void *user)
     default:
         break;
     }
+}
+
+/* ── The tier-2 report ──────────────────────────────────────────────── */
+
+void cli_report_print(const SrState *sr)
+{
+    if (!cli_report || !sr) return;
+
+    StationReport r;
+    sr_build(sr, &r);
+
+    /* 21 characters wide because "INSUFFICIENT EVIDENCE" is that long,
+     * and it is the value most runs will show. */
+    printf("\n%-3s %-18s %-21s %10s  %s\n",
+           "", "Stability", "verdict", "value", "detail");
+    for (int i = 0; i < SR_METRIC_COUNT; i++) {
+        const SrMetric *m = &r.metric[i];
+        if (!m->available) {
+            /* Stated, not omitted: a metric missing without explanation
+             * reads as a metric that passed. */
+            printf("%-3s %-18s %-21s %10s  %s\n", "-", m->label,
+                   "n/a", "--", m->detail);
+            continue;
+        }
+        printf("%-3d %-18s %-21s %10.3f  %s\n", i + 1, m->label,
+               sr_verdict_name(m->verdict), m->value, m->detail);
+    }
+
+    printf("\n== %s ==  window %.0f s, %d samples\n",
+           r.headline, r.window_s, r.samples);
+
+    /* Deliberately no exit code: see cli_report in the header. */
 }
 
 /* ── Capture, shared by every mode that opens a stream ──────────────── */
@@ -224,10 +260,23 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
 
     time_t t_start   = time(NULL);
     time_t last_gga  = 0;   /* forces an immediate first GGA */
+    time_t last_srs  = 0;   /* last tier-2 sample */
+
+    /* On a live run the stream clock and the wall clock agree, so
+     * seconds-since-start is a legitimate stream time. A *replay* would
+     * need the newest MSM epoch instead, which the session does not yet
+     * expose -- see measurement-tiers.md phase 2b. */
+    sr_reset(&c->sr, false);
 
     for (;;) {
         time_t now = time(NULL);
         if (cli_stop_requested) break;   /* only set while capturing */
+
+        if (cli_report && now != last_srs) {
+            last_srs = now;
+            sr_feed(&c->sr, ns_stats(sess), (double)(now - t_start));
+        }
+
         if (seconds > 0 && (now - t_start) >= seconds) break;
 
         if ((now - last_gga) >= CLI_GGA_INTERVAL_S) {
@@ -259,6 +308,7 @@ int cli_stream_decode(const NTRIP_Config *config,
     c.debug   = debug;
 
     NtripSession *sess = cli_run(&c, 0);
+    cli_report_print(&c.sr);
     int rc = cli_capture_finish(sess) ? EXIT_CAPTURE_FAILED : 0;
     ns_close(sess);
     return rc;
@@ -308,6 +358,7 @@ int cli_analyze_types(const NTRIP_Config *config, int seconds)
         printf("(more than %d distinct types; the rest were not tracked)\n",
                NS_MAX_TYPES);
 
+    cli_report_print(&c.sr);
     int rc = cli_capture_finish(sess) ? EXIT_CAPTURE_FAILED : 0;
     ns_close(sess);
     return rc;
@@ -394,6 +445,7 @@ int cli_analyze_sats(const NTRIP_Config *config, int seconds)
     printf("| Total     | %10d | %-*s|\n", total_unique, SAT_COL_WIDTH, "");
     printf("%s\n", border);
     #undef SAT_COL_WIDTH
+    cli_report_print(&c.sr);
     return rc;
 }
 
@@ -619,11 +671,17 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
                         "%.6f, %.6f\n",
                 config->MOUNTPOINT, config->LATITUDE, config->LONGITUDE);
 
+    SrState sr;
+    sr_reset(&sr, false);
+    double last_srs = -1.0;
+
     for (;;) {
         if (cli_stop_requested) break;   /* only set while capturing */
         bool alive = ns_pump(sess, 200) >= 0;
         double el = (double)(time(NULL) - t0);
         const NsStatsSnapshot *snap = ns_stats(sess);
+
+        if (cli_report && el != last_srs) { last_srs = el; sr_feed(&sr, snap, el); }
 
         if (vrs_mode && !gate_started && el - last_gga >= 10.0) {
             if (ns_send_gga(sess, config->LATITUDE, config->LONGITUDE))
@@ -686,6 +744,11 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     printf("\n== %s ==", kpi_run_verdict_name(kr.overall));
     if (vrs_mode) printf("  [service: %s]", vrs_gate_name(vr.gate));
     printf("  exit=%d\n", rc);
+
+    /* Tier 2 beneath tier 1, and plainly a different question: a ~90 s
+     * check will almost always report INSUFFICIENT EVIDENCE here, which
+     * is the honest answer and worth seeing. */
+    cli_report_print(&sr);
 
     ns_close(sess);
     return rc;
