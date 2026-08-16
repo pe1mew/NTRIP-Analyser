@@ -129,14 +129,70 @@ Taken 2026-08-16, from the study.
 | **Tier 2 spans CLI, GUI and daemon** | The GUI's role is commissioning — an hour to decide whether a station is worth a week of the daemon's attention. |
 | **Per-metric replay derivability, not a timestamped capture** | The report from a live stream must equal the report from a capture of the same bytes. Latency and reconnects cannot satisfy that — a capture holds no arrival times and a replay never drops. Rather than timestamp the capture (which would break the format's byte-identity) or add a sidecar (rejected when capture was specified), each metric states whether a replay can reproduce it, and equality is asserted over the derivable subset. |
 | **Observable retention deferred, and paired** | Multipath RMS and the RINEX writer are one piece of work with two justifications. Neither alone was worth the memory profile; together they might be. |
+| **Session-scoped windows, measured in stream time** | A wall-clock window makes a replayed report differ from the live one that recorded it, which kills replay equality. Stream time makes a capture replay identically at any speed. The daemon adds one rolling window because it runs for months. |
+| **Tier 2 judges per metric, and rolls up in its own vocabulary** | Bare numbers push thresholds onto the reader; `STATION OK` in two tiers produces two verdicts for one station. STABLE / DEGRADED / UNSTABLE, plus INSUFFICIENT EVIDENCE as a first-class state. |
+
+## The window: session-scoped, in stream time
+
+Both open questions were settled 2026-08-16. This one first, because it
+constrains everything the skeleton stores.
+
+**The report is session-scoped by default.** Its window runs from the
+first epoch to the last, and that is a fact about the run rather than a
+setting: a capture converted offline reports "6 h 00 m" because that is
+what the capture holds; the GUI commissioning an installation reports the
+hour it has been watching; pro reports its watch session.
+
+**The daemon additionally publishes a rolling window**, because it runs
+for months and "since restart" stops meaning anything after the first
+week — an average over forty days hides last night's outage completely.
+One rolling window, configurable, an hour by default. The long view is
+already Munin's job: it holds the RRD, and the daemon's role is to give
+it something true every interval.
+
+**Windows are measured in stream time, never wall-clock time.** This is
+the part that is easy to get wrong and expensive to fix. A window defined
+by the host's clock makes a replay produce different windows from the
+live run that recorded it — a six-hour capture replayed in twenty seconds
+would report a twenty-second window — and the replay-equality property
+dies on the spot. Defined over the epochs in the data, a capture replayed
+at any speed yields the identical report, which is what makes an archived
+`.rtcm3` a durable record rather than a souvenir.
+
+The live-only metrics are the stated exception, and they are already
+marked as such: latency and reconnects have no meaning in a replay
+because a capture holds no arrival times and a replay never drops.
+
+## The verdict: yes, but not in tier 1's words
+
+**Per-metric verdicts, against thresholds in `src/core`.** A report of
+bare numbers pushes the judgement onto the reader, who then invents
+thresholds of their own — which is exactly what keeping thresholds out of
+the frontends exists to prevent. Every metric is judged, in one place,
+for every product.
+
+**A roll-up, with its own vocabulary.** Alerting needs something
+boolean-shaped, and a person wants an answer rather than a table. But it
+must not be `STATION OK`: two verdicts for one station, in the same
+words, is a support question we would deserve. Tier 2 says **STABLE /
+DEGRADED / UNSTABLE**, and **INSUFFICIENT EVIDENCE** while it is still
+filling its window — a first-class state, not a placeholder.
+
+**The two tiers can disagree, and that is not a contradiction.** A
+station can be fit right now and have been unstable all week; it can also
+have been stable for a month and be failing this minute. When the report
+disagrees with the check, it says so explicitly and names the windows,
+because a user who sees `STATION OK` beside `UNSTABLE` will otherwise
+conclude that one of them is broken.
+
+**The headline is the worst finding with its evidence**, not the word
+alone: *"DEGRADED over 6 h — 3 reconnects, and median C/N0 fell 4 dB
+between 02:00 and 03:00."* The word is for alerting; the sentence is what
+makes it actionable.
 
 ## Open questions
 
-- What window does the report default to, and does it roll or accumulate?
-  A daemon wants both — the last hour *and* since restart.
-- Does the report get a verdict at all, or only measurements with
-  thresholds? A single word invites the comparison with STATION OK that
-  tier 1 owns.
+None outstanding. The next decisions belong to phase 2's design.
 
 ## Outcome
 
