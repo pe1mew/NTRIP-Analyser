@@ -1,0 +1,62 @@
+---
+# Front matter, empty on purpose: it is what makes Jekyll compile this
+# file instead of copying it. Removing these two lines breaks the site's
+# styling entirely.
+---
+
+@import "{{ site.theme }}";
+
+// ── A documentation site needs a wider column ────────────────────────
+//
+// jekyll-theme-minimal is built for a project landing page: a 270px
+// sidebar and a **500px** content column. That is fine for three
+// paragraphs and a download link, and much too narrow for this — the
+// architecture diagrams in gui.md are ninety columns of monospace, and
+// at 500px they were clipped to about half, with a scrollbar as the only
+// way to read them. Wide tables (the feature matrix, the KPI tables)
+// had the same problem.
+//
+// So the column grows on screens that can afford it. Below 960px the
+// theme's own media query takes over and stacks everything, and none of
+// this applies — a phone still gets the layout the theme intends.
+@media screen and (min-width: 961px) {
+  .wrapper {
+    width: auto;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 30px;
+  }
+
+  // 270px sidebar + a 50px gutter, the rest to the text.
+  section {
+    width: calc(100% - 320px);
+    max-width: 1080px;
+  }
+}
+
+// Code blocks. `overflow-x: auto` is already the theme's, and it stays:
+// a 400-character gcc command line in compile.md will never fit any
+// column and scrolling is the honest answer for that. The smaller size
+// is what buys the diagrams their extra fifteen columns.
+pre, code {
+  font-size: 13px;
+}
+
+pre {
+  line-height: 1.45;
+}
+
+// Wide tables scroll inside themselves rather than pushing the page
+// sideways, which is the failure that makes a whole layout feel broken.
+section table {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+// Screenshots are laid out with <table> in a few pages; those should not
+// be treated as data tables with borders under every cell.
+section table td img {
+  display: block;
+}
