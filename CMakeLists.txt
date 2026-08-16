@@ -198,11 +198,20 @@ add_executable(test_stream_clock test/test_stream_clock.c)
 target_link_libraries(test_stream_clock PRIVATE ntrip_session)
 add_test(NAME stream_clock COMMAND test_stream_clock)
 
+# Both serialisations are written by hand, field by field, and a missing
+# separator once made the snapshot JSON unparseable for the daemon, the
+# GUI export and the Android bridge alike.  This parses the output rather
+# than inspecting it, and knows nothing about the fields, so it keeps
+# working as fields are added.
+add_executable(test_ns_stats test/test_ns_stats.c)
+target_link_libraries(test_ns_stats PRIVATE ntrip_core)
+add_test(NAME ns_stats COMMAND test_ns_stats)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
-            test_stream_clock)
+            test_stream_clock test_ns_stats)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

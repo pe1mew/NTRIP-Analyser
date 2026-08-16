@@ -80,6 +80,14 @@ produced `"advertised_gnss":5"types_missing":2`, which a strict parser
 rejects — affecting the daemon's status output, the GUI's JSON export
 and the Android bridge alike. Found while adding a key beside it.
 
+Both serialisations are now parsed by a test rather than read by eye:
+`test/test_ns_stats.c` runs a strict JSON reader and an RFC 4180 field
+splitter over the output, so a missing separator, a duplicated key, a
+CSV column present in the header and absent from the row, or a caster's
+`Server:` header ending a string or inventing a column, each fail the
+build. It knows nothing about the individual fields, and so keeps
+working as fields are added.
+
 ### Removed — a monitoring signal that had never been able to move
 
 `frames_malformed` is gone, and with it `NS_BAD_MALFORMED`, the GUI's
