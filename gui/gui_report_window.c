@@ -188,17 +188,27 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
 
     /* The second line carries the evidence: how much stream this verdict
      * rests on. A verdict without its window is a rumour, which is the
-     * rule the whole tier is built on. */
+     * rule the whole tier is built on.
+     *
+     * What it must *not* do is repeat the banner. The first version
+     * printed the verdict here and again below it, so a window three
+     * lines tall said "INSUFFICIENT EVIDENCE" twice and the sample count
+     * twice, and the one genuinely new number -- how much more stream it
+     * wants -- was buried among the repetitions. */
     char line[sizeof(state->config.NTRIP_CASTER) +
-              sizeof(state->config.MOUNTPOINT) + 128];
+              sizeof(state->config.MOUNTPOINT) + 160];
     if (!state->reportHave) {
         snprintf(line, sizeof(line), "%s / %s",
                  state->config.NTRIP_CASTER, state->config.MOUNTPOINT);
     } else {
+        char need[48] = "";
+        if (state->reportOut.overall == SR_INSUFFICIENT)
+            snprintf(need, sizeof(need), "   (%.0f s needed to judge)",
+                     SR_MIN_WINDOW_S);
         snprintf(line, sizeof(line),
-                 "%s / %s   %.0f s of stream, %d samples%s",
+                 "%s / %s   %.0f s of stream, %d samples%s%s",
                  state->config.NTRIP_CASTER, state->config.MOUNTPOINT,
-                 state->reportOut.window_s, state->reportOut.samples,
+                 state->reportOut.window_s, state->reportOut.samples, need,
                  state->reportFromCapture ? "   (from a capture)" : "");
     }
 
@@ -210,10 +220,20 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
     SetTextColor(hdc, RGB(60, 60, 60));
     TextOut(hdc, rc->left + 16, rc->top + 46, line, (int)strlen(line));
 
-    if (state->reportHave && state->reportOut.headline[0]) {
-        TextOut(hdc, rc->left + 16, rc->top + 64,
-                state->reportOut.headline,
-                (int)strlen(state->reportOut.headline));
+    /* Third line: the culprit, and only the culprit.  The headline is
+     * written for a terminal, where it stands alone and has to carry the
+     * verdict with it; here the banner above has already said that, so
+     * only the clause after the dash -- "Frame integrity: worst CRC
+     * error rate 0.140 %" -- is worth the room.  A clean STABLE names no
+     * culprit and gets no third line, which is the right amount to say
+     * about a station with nothing wrong with it. */
+    if (state->reportHave && state->reportOut.overall != SR_INSUFFICIENT) {
+        const char *culprit = strstr(state->reportOut.headline, " -- ");
+        if (culprit) {
+            culprit += 4;
+            TextOut(hdc, rc->left + 16, rc->top + 64,
+                    culprit, (int)strlen(culprit));
+        }
     }
     SelectObject(hdc, old);
     DeleteObject(small_f);
@@ -255,9 +275,13 @@ static LRESULT CALLBACK ReportWndProc(HWND hwnd, UINT msg,
         ListView_SetExtendedListViewStyle(hLv,
             LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
+        /* Sized so the four fit the default width without a horizontal
+         * scrollbar, and so the *verdict* is never the column that
+         * clips: "INSUFFICIENT EVIDENCE" is the longest of them and the
+         * one most runs spend their first ten minutes showing. */
         struct { const char *t; int w; } cols[] = {
-            { "Stability", 190 }, { "Verdict", 150 },
-            { "Value",      80 }, { "Detail",  420 },
+            { "Stability", 150 }, { "Verdict", 170 },
+            { "Value",      70 }, { "Detail",  290 },
         };
         for (int i = 0; i < 4; i++) {
             LVCOLUMN c;
