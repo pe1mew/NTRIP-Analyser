@@ -211,7 +211,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         k[0].detail  = "Authenticated, connected, data flowing";
     } else if (s->bytes_per_s > 0.0) {
         k[0].verdict = KPI_WARN;
-        k[0].detail  = "Connected but throughput below 100 B/s";
+        k[0].detail  = "Connected, but throughput is below the minimum";
     } else {
         k[0].verdict = KPI_FAIL;
         k[0].detail  = "Connected but no data arriving";
@@ -241,7 +241,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     } else {
         k[2].verdict = (out->elapsed_s < run->pol.arp_deadline_s)
                        ? KPI_PENDING : KPI_FAIL;
-        k[2].detail  = "No RTCM 1005/1006 within the 30 s allowance";
+        k[2].detail  = "No RTCM 1005/1006 within the allowance";
     }
 
     /* ── 4: observations flowing ────────────────────────────────────
@@ -264,13 +264,13 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     k[3].value = (double)at_rate_n;
     if (streaming > 0 && at_rate_n == streaming) {
         k[3].verdict = KPI_PASS;
-        k[3].detail  = "Every constellation streaming at 0.5 Hz or faster";
+        k[3].detail  = "Every constellation streaming at or above the minimum rate";
     } else if (out->elapsed_s < 15.0) {
         k[3].verdict = KPI_PENDING;
         k[3].detail  = "Waiting for epochs to establish a rate";
     } else if (at_rate_n > 0) {
         k[3].verdict = KPI_WARN;
-        k[3].detail  = "Some constellations slower than 0.5 Hz";
+        k[3].detail  = "Some constellations slower than the minimum rate";
     } else {
         k[3].verdict = KPI_FAIL;
         k[3].detail  = "No observations arriving at rate";
@@ -343,10 +343,10 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         k[5].detail  = "Antenna and LNA chain healthy";
     } else if (med >= run->pol.min_cnr_median * 0.9) {
         k[5].verdict = KPI_WARN;
-        k[5].detail  = "Median C/N0 within 10% below threshold";
+        k[5].detail  = "Median C/N0 just below the floor";
     } else {
         k[5].verdict = KPI_FAIL;
-        k[5].detail  = "Median C/N0 well below 40 dB-Hz";
+        k[5].detail  = "Median C/N0 well below the floor";
     }
 
     /* ── 7: frame integrity ─────────────────────────────────────────
@@ -398,13 +398,13 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
             k[6].detail  = "Too few frames to judge integrity yet";
         } else if (run->crc_pct >= run->pol.min_integrity_pct) {
             k[6].verdict = KPI_PASS;
-            k[6].detail  = "99.9 % or more of frames passed CRC";
+            k[6].detail  = "Frames passing CRC at or above the minimum";
         } else if (run->crc_pct >= run->pol.bad_integrity_pct) {
             k[6].verdict = KPI_WARN;
-            k[6].detail  = "Under 99.9 % passing: elevated CRC errors";
+            k[6].detail  = "Below the minimum share passing: elevated CRC errors";
         } else {
             k[6].verdict = KPI_FAIL;
-            k[6].detail  = "Under 99 % passing: the link corrupts frames";
+            k[6].detail  = "Far below the minimum: the link is corrupting frames";
         }
     }
 

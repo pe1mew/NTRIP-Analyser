@@ -28,11 +28,29 @@ same as a paid one, and a desktop verdict the same as a phone's.
 > using — and KPI 5 shows the figure *this* station was held to, which
 > depends on the constellations it streams.
 >
-> **On overriding them.** A mechanism for user-supplied thresholds that
-> survives a restart is **proposed but not built** — see
+> **You can override them.** The CLI takes `--thresholds <file>`, a JSON
+> policy that is **partial by design**: it carries only what you
+> disagree with, and every key it omits keeps the value below. A bad
+> setting is refused with the field named, and nothing is half-applied —
+> a policy that was only partly accepted would produce a verdict
+> belonging to no stated standard at all.
+>
+> ```sh
+> ntrip-analyser --thresholds-print                 # what am I judging by?
+> ntrip-analyser --thresholds survey.json --check   # judge by that instead
+> ```
+>
+> `--thresholds-print` lists every threshold in force, whether it came
+> from a file or the build, and what it means; it needs no config and no
+> network. A run under a non-default policy names it, with a fingerprint
+> over the effective values — because once verdicts can be produced
+> under different standards, `STATION OK` is not comparable between two
+> users unless each says which standard it used.
+>
+> [`bin/exampleThresholds.json`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/bin/exampleThresholds.json)
+> is a worked example. The GUI and the service still use the built-in
+> values; see
 > [the design track](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/thresholds-track.md).
-> Until it lands, the values below are the values the programs use, and
-> changing one means rebuilding.
 
 ---
 

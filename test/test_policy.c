@@ -30,6 +30,7 @@
 #include "core/kpi.h"
 #include "core/iono.h"
 #include "core/station_report.h"
+#include "core/thresholds.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -236,6 +237,111 @@ int main(void)
               "and does not pass a policy that asks for fifty");
         check(rep.kpi[5].limit == 50.0,
               "the check reports the floor it was actually held to");
+    }
+
+    /* ── 5. A file is an overlay, not a replacement ───────────────── */
+    {
+        Thresholds t;
+        char err[256];
+        thresholds_defaults(&t);
+
+        const char *doc =
+            "{ \"schema_version\": 1, \"name\": \"hobby base\","
+            "  \"tier1\": { \"min_cnr_median\": 36.0,"
+            "               \"expect_sats\": { \"gps\": 6 } },"
+            "  \"tier2\": { \"sats_warn\": 20, \"sats_bad\": 10 } }";
+
+        check(thresholds_parse(&t, doc, err, sizeof(err)),
+              "a partial policy is accepted");
+        check(t.kpi.min_cnr_median == 36.0 && t.sr.sats_warn == 20 &&
+              t.sr.sats_bad == 10,
+              "what it names is applied");
+        check(t.kpi.expect_sats[1] == 6 && t.kpi.expect_sats[5] == 8,
+              "expect_sats is per constellation: GPS changed, BeiDou did not");
+        check(t.sr.cnr_drop_warn == SR_CNR_DROP_WARN &&
+              t.kpi.min_bytes_per_s == KPI_MIN_BYTES_PER_S &&
+              t.sr.min_window_s == SR_MIN_WINDOW_S,
+              "everything it does not name keeps its default -- a file that "
+              "had to restate them would rot as thresholds are added");
+        check(strcmp(t.name, "hobby base") == 0 && t.loaded,
+              "the policy carries its name, so a verdict can cite it");
+
+        /* Provenance, field by field: without it a screen cannot say
+         * which numbers were the user's and which were the build's. */
+        int set_count = 0, unset_count = 0;
+        for (int i = 0; i < thresholds_field_count(); i++) {
+            if (thresholds_is_set(&t, i)) set_count++;
+            else                          unset_count++;
+        }
+        check(set_count == 3 && unset_count == thresholds_field_count() - 3,
+              "exactly the three named scalars are marked as coming from "
+              "the file");
+    }
+
+    /* ── 6. A bad policy changes nothing at all ───────────────────── */
+    {
+        /* The promise that makes refusal safe: a half-applied standard
+         * is one no verdict can be attributed to, so a rejected file
+         * must leave the previous policy exactly as it was. */
+        Thresholds t, before;
+        char err[256];
+        thresholds_defaults(&t);
+        t.sr.sats_warn = 30;                 /* something to preserve */
+        before = t;
+
+        struct { const char *doc; const char *why; } bad[] = {
+            { "{ \"tier2\": { \"sats_warn\": 10, \"sats_bad\": 30 } }",
+              "a warn level on the wrong side of its bad level" },
+            { "{ \"tier2\": { \"min_window_s\": 60 } }",
+              "a window below the evidence six metrics need" },
+            { "{ \"tier2\": { \"sats_warn\": \"lots\" } }",
+              "a value that is not a number" },
+            { "{ \"tier1\": { \"min_cnr_median\": -5 } }",
+              "a figure outside the range that could describe a stream" },
+            { "{ \"schema_version\": 99 }",
+              "a schema this build does not understand" },
+            { "not json at all",
+              "a document that is not JSON" },
+        };
+        for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+            err[0] = '\0';
+            bool ok = thresholds_parse(&t, bad[i].doc, err, sizeof(err));
+            check(!ok, bad[i].why);
+            check(err[0] != '\0',
+                  "  ...and the refusal says which field, not just 'invalid'");
+            check(memcmp(&t, &before, sizeof(t)) == 0,
+                  "  ...and nothing was applied");
+        }
+    }
+
+    /* ── 7. The fingerprint distinguishes what the name cannot ────── */
+    {
+        /* Two people may both call their policy "survey". Only the
+         * numbers decide whether their verdicts are comparable. */
+        Thresholds a, b;
+        char err[256], fa[16], fb[16];
+
+        thresholds_defaults(&a);
+        thresholds_defaults(&b);
+        thresholds_fingerprint(&a, fa, sizeof(fa));
+        thresholds_fingerprint(&b, fb, sizeof(fb));
+        check(strcmp(fa, fb) == 0,
+              "identical policies fingerprint identically");
+
+        check(thresholds_parse(&b, "{ \"name\": \"survey\" }", err, sizeof(err)),
+              "a policy that renames but changes no value is accepted");
+        thresholds_fingerprint(&b, fb, sizeof(fb));
+        check(strcmp(fa, fb) == 0,
+              "and does not change the fingerprint -- the name is not the "
+              "standard");
+
+        check(thresholds_parse(&b, "{ \"tier2\": { \"sats_warn\": 26 } }",
+                               err, sizeof(err)),
+              "a policy that changes one value is accepted");
+        thresholds_fingerprint(&b, fb, sizeof(fb));
+        check(strcmp(fa, fb) != 0,
+              "and does change the fingerprint, so two reports cannot claim "
+              "the same standard while using different numbers");
     }
 
     printf("\n%s\n", failures ? "FAILURES" : "all policy cases pass");

@@ -72,6 +72,14 @@ void print_help(const char *progname) {
     printf("                           Exit 0 = STATION OK, 6 = caution, 1 = failed.\n");
     printf("      --check-vrs          As --check plus the network-RTK assertions:\n");
     printf("                           GGA cadence, ARP-near-rover, and the gate test.\n");
+    printf("\nThresholds:\n");
+    printf("      --thresholds <file>  Judge by the thresholds in this JSON policy rather\n");
+    printf("                           than the built-in ones.  Partial: a key it omits\n");
+    printf("                           keeps its default.  A bad value is refused and\n");
+    printf("                           named; nothing is ever half-applied.\n");
+    printf("      --thresholds-print   Print every threshold in force, whether it came\n");
+    printf("                           from a file or the build, and what it means.\n");
+    printf("                           Needs no config and no network.\n");
     printf("\nStability report (tier 2):\n");
     printf("      --report             After a timed run, print the stability report:\n");
     printf("                           availability, frame integrity, signal level,\n");

@@ -110,6 +110,8 @@ ntrip-analyser [options]
 | &nbsp; | --capture    | path             | Write every CRC-valid frame to a `.rtcm3` file (see below)                  |
 | &nbsp; | --capture-max | MB              | Close the capture at this size and keep streaming; default no limit         |
 | &nbsp; | --reconnect  | &nbsp;           | Reconnect with backoff if the stream drops                                  |
+| &nbsp; | --thresholds | file             | Judge by this JSON policy instead of the built-in thresholds (see below)     |
+| &nbsp; | --thresholds-print | &nbsp;     | Print every threshold in force and where it came from, then exit            |
 
 ---
 
@@ -260,6 +262,49 @@ run rather than chatter about it:
 To turn one into a RINEX observation file — for a base-station
 declaration, say — see
 [Declaring a base station](base-declaration.md).
+
+### 2bb. Judging by your own thresholds
+
+Every verdict rests on a number someone chose, and
+[thresholds.md](thresholds.md) says which of them are well founded and
+which are starting points. `--thresholds` lets you disagree:
+
+```sh
+ntrip-analyser --thresholds-print                  # what am I judging by?
+ntrip-analyser --thresholds survey.json --check    # judge by that instead
+```
+
+The policy is JSON and **partial by design** — it carries only what you
+change, and every key it omits keeps its built-in value, so the file does
+not rot as thresholds are added:
+
+```json
+{
+  "name": "hobby base",
+  "tier1": { "min_cnr_median": 36.0, "expect_sats": { "gps": 6 } },
+  "tier2": { "sats_warn": 20, "sats_bad": 12 }
+}
+```
+
+[`bin/exampleThresholds.json`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/bin/exampleThresholds.json)
+is a worked example. Three behaviours are worth knowing:
+
+- **A bad setting is refused, and named.** A warn level on the wrong
+  side of its bad level, a window shorter than the evidence six metrics
+  need, a percentage above a hundred — each is reported with the field
+  that caused it, and **nothing is half-applied**. A partly accepted
+  policy would produce a verdict belonging to no stated standard.
+- **A run under a policy says so**, with a fingerprint over the
+  effective values: `[POLICY] Judged by "hobby base" (fingerprint
+  c207150d)`. Once verdicts can come from different standards,
+  `STATION OK` means nothing between two people unless each says which
+  standard produced it — and the name alone cannot, because two people
+  may both call a file "survey".
+- **`--thresholds-print` needs no config and no network.** It is the
+  answer to "what is this build actually judging by", which is otherwise
+  discoverable only by reading the source of the version you are running.
+
+The GUI and the monitoring service still use the built-in values.
 
 ### 2c. Reading a capture back
 

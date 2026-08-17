@@ -26,6 +26,7 @@
 #include "net/ntrip_handler.h"       /* NTRIP_Config */
 #include "session/ntrip_session.h"   /* NsOptions, NtripSession */
 #include "core/station_report.h"     /* SrState, the tier-2 accumulator */
+#include "core/thresholds.h"         /* Thresholds, the policy in force */
 
 #ifdef __cplusplus
 extern "C" {
@@ -125,6 +126,45 @@ void cli_capture_apply(NsOptions *opt);
  * an automation surface becomes unusable.
  */
 extern bool cli_report;
+
+/**
+ * @brief The thresholds every verdict in this process is judged by.
+ *
+ * Built-in until `--thresholds` loads a file over them. Global for the
+ * same reason `cli_report` is: a run has one standard, and passing it
+ * down through four mode functions would only create the opportunity
+ * for two of them to disagree.
+ */
+extern Thresholds cli_thresholds;
+
+/**
+ * @brief Load a policy file over @ref cli_thresholds.
+ *
+ * Reads the file, applies it, and reports the failure on stderr with
+ * the offending field named.  On any error the thresholds are left as
+ * they were — a half-applied standard is one no verdict can be
+ * attributed to.
+ *
+ * @return true when the policy was accepted entire.
+ */
+bool cli_thresholds_load(const char *path);
+
+/**
+ * @brief Print every effective threshold and where it came from.
+ *
+ * `--thresholds-print`. The answer to "what is this program actually
+ * judging by", which is otherwise only discoverable by reading the
+ * source of the version you happen to be running.
+ */
+void cli_thresholds_print(void);
+
+/**
+ * @brief One line naming the policy in force, or "" for the built-in.
+ *
+ * Printed above a check or a report so that its verdict cannot be
+ * quoted without the standard that produced it.
+ */
+const char *cli_thresholds_banner(void);
 
 /**
  * @brief `--rtcm-stdin`: read the stream from stdin instead of a caster.

@@ -35,6 +35,130 @@ bool        cli_replay_stdin      = false; /* set by --rtcm-stdin  */
 #include <time.h>
 #include <signal.h>   /* Ctrl-C must close a capture, not kill it */
 
+/* ── The thresholds in force ────────────────────────────────────────
+ *
+ * Built-in until --thresholds loads a file over them. Global for the
+ * same reason cli_report is: a run has one standard, and threading it
+ * through four mode functions would only create the opportunity for two
+ * of them to disagree. */
+
+Thresholds  cli_thresholds;
+static bool cli_thresholds_ready = false;
+
+static const Thresholds *cli_th(void)
+{
+    /* Filled on first use, so a mode that never asks still judges by
+     * something rather than by a struct of zeros -- which would pass
+     * every station ever measured. */
+    if (!cli_thresholds_ready) {
+        thresholds_defaults(&cli_thresholds);
+        cli_thresholds_ready = true;
+    }
+    return &cli_thresholds;
+}
+
+bool cli_thresholds_load(const char *path)
+{
+    if (!path) return false;
+    (void)cli_th();                    /* defaults first: this overlays */
+
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "[ERROR] Cannot open thresholds file: %s\n", path);
+        return false;
+    }
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (len <= 0 || len > 1024 * 1024) {
+        fprintf(stderr, "[ERROR] %s is empty or implausibly large\n", path);
+        fclose(f);
+        return false;
+    }
+    char *text = (char *)malloc((size_t)len + 1);
+    if (!text) { fclose(f); return false; }
+    if (fread(text, 1, (size_t)len, f) != (size_t)len) {
+        fprintf(stderr, "[ERROR] Could not read %s\n", path);
+        free(text);
+        fclose(f);
+        return false;
+    }
+    text[len] = '\0';
+    fclose(f);
+
+    char err[256] = "";
+    bool ok = thresholds_parse(&cli_thresholds, text, err, sizeof(err));
+    free(text);
+
+    if (!ok) {
+        /* Named, and refused. A clamped value would produce a verdict
+         * the user did not ask for and could not reproduce. */
+        fprintf(stderr, "[ERROR] %s: %s\n", path, err);
+        fprintf(stderr, "        Thresholds unchanged; nothing was "
+                        "half-applied.\n");
+        return false;
+    }
+    /* A policy with no name of its own is named for its file, so the
+     * banner and the report can still say which standard was used. */
+    if (!cli_thresholds.name[0])
+        snprintf(cli_thresholds.name, sizeof(cli_thresholds.name), "%s", path);
+    return true;
+}
+
+const char *cli_thresholds_banner(void)
+{
+    /* Sized from what it prints, not from a round number: the fixed text
+     * plus a full-length policy name plus the fingerprint. */
+    static char line[TH_NAME_LEN + 160];
+    const Thresholds *t = cli_th();
+    if (!t->loaded) return "";
+
+    char fp[16];
+    thresholds_fingerprint(t, fp, sizeof(fp));
+    snprintf(line, sizeof(line),
+             "[POLICY] Judged by \"%s\" (fingerprint %s), not the built-in "
+             "thresholds\n", t->name, fp);
+    return line;
+}
+
+void cli_thresholds_print(void)
+{
+    const Thresholds *t = cli_th();
+    char fp[16];
+    thresholds_fingerprint(t, fp, sizeof(fp));
+
+    printf("Thresholds in force: %s (fingerprint %s)\n",
+           t->loaded ? t->name : "built-in defaults", fp);
+    printf("\n%-24s %14s  %-9s %s\n", "field", "value", "from", "meaning");
+
+    int last_tier = 0;
+    for (int i = 0; i < thresholds_field_count(); i++) {
+        const ThField *f = thresholds_field(i);
+        if ((int)f->tier != last_tier) {
+            printf("\n-- tier %d %s\n", (int)f->tier,
+                   f->tier == TH_TIER1 ? "(the acceptance check)"
+                                       : "(the stability report)");
+            last_tier = (int)f->tier;
+        }
+        char val[40];
+        snprintf(val, sizeof(val), "%.*f%s%s", f->decimals,
+                 thresholds_value(t, i), *f->unit ? " " : "", f->unit);
+        printf("%-24s %14s  %-9s %s\n", f->key, val,
+               thresholds_is_set(t, i) ? "file" : "built-in", f->what);
+    }
+
+    printf("\n-- tier 1 satellites expected, per constellation\n");
+    static const char *names[8] = { NULL, "gps", "glonass", "galileo",
+                                    "qzss", "beidou", "sbas", "navic" };
+    for (int g = 1; g <= 7; g++)
+        printf("%-24s %14d\n", names[g], t->kpi.expect_sats[g]);
+
+    printf("\nA station is held to the sum over the constellations it "
+           "streams, never to a flat total.\n"
+           "Every one of these is a judgement rather than a fact: "
+           "docs/thresholds.md says how well founded each is.\n");
+}
+
 /* The old implementations printed "GGA " into the type stream on every
  * uplink, once per second.  Kept: it is a useful heartbeat and scripts
  * may key on it. */
@@ -152,6 +276,8 @@ void cli_report_print(const SrState *sr)
 
     StationReport r;
     sr_build(sr, &r);
+
+    fputs(cli_thresholds_banner(), stdout);
 
     /* 21 characters wide because "INSUFFICIENT EVIDENCE" is that long,
      * and it is the value most runs will show. */
@@ -299,7 +425,7 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
     /* A replay holds no arrival times and never drops, so availability
      * is reported as unavailable rather than as a clean zero it did not
      * earn.  test_station_report.c pins that distinction. */
-    sr_reset(&c->sr, cli_replay_stdin, NULL);
+    sr_reset(&c->sr, cli_replay_stdin, &cli_th()->sr);
 
     /* Stream time of the last tier-2 sample.  The cadence is the
      * stream's, not this host's: a six-hour capture read from disk in
@@ -629,6 +755,9 @@ static void check_on_event(const NsEvent *ev, void *user)
 /** @brief Print the KPI table, and the VRS assertions when present. */
 static void check_print(const KpiReport *kr, const VrsReport *vr)
 {
+    /* The standard, above the verdict it produced: a run under a policy
+     * that is not the built-in one must not be quotable without it. */
+    fputs(cli_thresholds_banner(), stdout);
     printf("\n%-3s %-26s %-5s %13s %-18s %s\n",
            "#", "KPI", "verd", "value", "limit", "detail");
     for (int i = 0; i < KPI_COUNT; i++)
@@ -725,7 +854,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     VrsRun vrun;  VrsReport vr;
     memset(&kr, 0, sizeof(kr));
     memset(&vr, 0, sizeof(vr));
-    kpi_run_start(&krun, 0.0, NULL);
+    kpi_run_start(&krun, 0.0, &cli_th()->kpi);
     vrs_run_start(&vrun, 0.0);
 
     time_t t0 = time(NULL);
@@ -743,7 +872,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
                 config->MOUNTPOINT, config->LATITUDE, config->LONGITUDE);
 
     SrState sr;
-    sr_reset(&sr, false, NULL);
+    sr_reset(&sr, false, &cli_th()->sr);
     double last_srs = -1e9;   /* stream time of the last tier-2 sample */
 
     for (;;) {

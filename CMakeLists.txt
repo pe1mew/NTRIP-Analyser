@@ -94,6 +94,7 @@ add_library(ntrip_core STATIC
     src/core/sv_track.c
     src/core/kpi.c
     src/core/station_report.c
+    src/core/thresholds.c
     src/core/sourcetable.c
     src/core/vrs_check.c
     src/core/iono.c

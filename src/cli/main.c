@@ -60,6 +60,13 @@ bool quiet   = false;        /* -q / --quiet: suppress info chatter */
 bool no_progress = false;    /* --no-progress: never emit the per-second status line */
 bool json_output = false;    /* --json: machine-readable status lines */
 bool rtcm_stdin  = false;    /* --rtcm-stdin: read obs RTCM from stdin */
+
+/* --thresholds <path>: judge by this policy rather than the built-in
+ * one. --thresholds-print: say what the policy in force actually is,
+ * which is otherwise discoverable only by reading the source of the
+ * version you happen to be running. */
+static const char *thresholds_arg   = NULL;
+static bool        thresholds_print  = false;
 const char *capture_arg = NULL;  /* --capture: a file, or a directory  */
 /* Set when --sky's capture did not happen.  --sky's own return value is
  * about the PNG, so the capture verdict travels beside it. */
@@ -1168,6 +1175,8 @@ int main(int argc, char *argv[]) {
         {"capture",        required_argument, 0, 24 },
         {"capture-max",    required_argument, 0, 25 },
         {"report",         no_argument,       0, 26 },
+        {"thresholds",       required_argument, 0, 27 },
+        {"thresholds-print", no_argument,       0, 28 },
         {"check-config",   no_argument,       0, 18 },
         {"json",           no_argument,       0, 19 },
         {"rtcm-stdin",     no_argument,       0, 20 },
@@ -1290,6 +1299,8 @@ int main(int argc, char *argv[]) {
             case 22: claim_action(&operation, OP_CHECK,     "--check");     break;
             case 23: claim_action(&operation, OP_CHECK_VRS, "--check-vrs"); break;
             case 26: cli_report = true; break;      /* --report      */
+            case 27: thresholds_arg   = optarg; break;  /* --thresholds */
+            case 28: thresholds_print = true;   break;  /* --thresholds-print */
             case 24: capture_arg = optarg; break;   /* --capture     */
             case 25: {                             /* --capture-max */
                 double mb = atof(optarg);
@@ -1330,6 +1341,16 @@ int main(int argc, char *argv[]) {
             "        Pick one action per invocation.\n",
             action_seen_first, action_seen_second);
         return EXIT_BAD_ARGS;
+    }
+
+    /* Thresholds before anything is judged, and before a config is
+     * required: "what am I judging by" is a question a user may ask
+     * without a station in mind. */
+    if (thresholds_arg && !cli_thresholds_load(thresholds_arg))
+        return EXIT_BAD_ARGS;
+    if (thresholds_print) {
+        cli_thresholds_print();
+        return EXIT_OK;
     }
 
     if (load_config(config_filename, &config) != 0) {

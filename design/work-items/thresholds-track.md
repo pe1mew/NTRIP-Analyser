@@ -1,9 +1,9 @@
 # Work item — user-supplied thresholds
 
-**Status:** decision 3's first half is **built** — every row on every
-desktop screen shows the limit it was judged against. The five design
-decisions are settled (2026-08-17); the build order at the end has four
-phases, none started.
+**Status:** phases 1 and 2 are **built** — thresholds are data, a policy
+file loads over them, and every desktop row shows the limit it was
+judged against. Phase 3 (provenance in the machine-readable outputs) and
+phase 4 (the service and the GUI) remain.
 
 The numbers that decide every verdict are `#define`s in `src/core/`, and
 [docs/thresholds.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/thresholds.md)
@@ -225,7 +225,7 @@ Each phase is useful on its own and leaves the tree working.
 | # | Phase | What lands |
 |---|---|---|
 | 1 | **Policy structs** | `KpiPolicy` / `SrPolicy` with `*_policy_defaults()`, threaded through `kpi_update()`, `sr_feed()` and `sr_build()`. No file, no behaviour change: every caller passes the defaults, and the tests prove the verdicts are unchanged. |
-| 2 | **Loading and validation** | `thresholds.json`, partial by design, `schema_version`, the floors table, and refusal — naming the field — rather than clamping. Plus `--thresholds-print` showing every effective value and where it came from. |
+| 2 | **Loading and validation** — **built** | `src/core/thresholds.{h,c}`: one table drives parsing, validation and printing, so the three cannot drift. Partial overlay, `schema_version`, ranges and cross-field ordering, refusal that names the field, and nothing half-applied. `--thresholds` and `--thresholds-print` in the CLI, which owns the file because core does no I/O. |
 | 3 | **Provenance** | The policy name in the check and report headers; name and fingerprint in `ns_stats_to_json`, `sr_to_json` and the CSV export. A release check asserting every threshold in `docs/thresholds.md` appears in `--thresholds-print`, so the page cannot drift from the code. |
 | 4 | **Frontends** | The CLI flag, the service's `"thresholds"` key, the GUI's load-and-remember. Android keeps built-in defaults; the platform limit is stated, not worked around. |
 

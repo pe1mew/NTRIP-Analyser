@@ -73,6 +73,55 @@ It is also the better clock for a live run, where the two used to agree:
 a host NTP correction steps the wall clock sideways mid-session, and
 epoch counting cannot be stepped.
 
+### Added — thresholds you can disagree with
+
+Every verdict rests on a number someone chose, and
+[docs/thresholds.md](docs/thresholds.md) is candid about which of them
+are well founded: four are conventional or checked against real streams,
+three exist because a defect exposed their absence, and the rest —
+including all twelve tier-2 values — are reasoned but never measured
+against a population of stations. A control network and a hobby base
+should not inherit each other's numbers by accident.
+
+So the `#define`s became the **defaults** of a policy the run carries,
+and the CLI can load another over them:
+
+```sh
+ntrip-analyser --thresholds-print                  # what am I judging by?
+ntrip-analyser --thresholds survey.json --check    # judge by that instead
+```
+
+The file is **partial by design** — it carries only what you change, and
+every key it omits keeps its built-in value, so it does not rot as
+thresholds are added. `bin/exampleThresholds.json` is a worked example.
+
+Four decisions are load-bearing:
+
+* **A bad setting is refused and named**, never clamped: a warn level on
+  the wrong side of its bad level, a window shorter than the evidence six
+  metrics need, a percentage above a hundred. **Nothing is
+  half-applied** — a partly accepted policy would produce a verdict
+  belonging to no stated standard at all.
+* **A run under a policy says so**, with a fingerprint over the effective
+  values. The name cannot carry that alone: two people may both call a
+  file "survey", and only the numbers decide whether their verdicts are
+  comparable.
+* **One table drives parsing, validation and printing**, so those three
+  cannot drift apart — a field cannot gain a parser and no bounds, or be
+  loadable and never shown.
+* **Thresholds still live in `src/core/`.** A frontend cannot invent a
+  number; it can only hand core a policy it was given.
+
+Phase 1 of that work is invisible by design — the engines read a policy
+instead of the macros, every caller passes the built-in one, and nothing
+changes. `test/test_policy.c` asserts it rather than assuming: every
+default equals the constant it replaced, a report built with no policy is
+identical to one built with the defaults, and — the property those two
+cannot show — a policy that differs actually moves the verdict, in both
+directions.
+
+The GUI and the monitoring service still use the built-in values.
+
 ### Added — every check now shows what it was judged against
 
 A verdict without the number behind it cannot be argued with. *"Median
