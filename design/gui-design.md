@@ -129,7 +129,8 @@ gui/
 since grown several modules that this document does not cover — the
 floating Sky Plot, Signal Quality, Session History, VRS Monitor and
 per-SV detail windows, the GDI+ snapshot helper, and the RTCM detail
-viewer. For the current file inventory see
+viewer — plus two that it now does: `gui_check_window.{c,h}` (§13) and
+`gui_report_window.{c,h}` (§14). For the current file inventory see
 [`docs/gui.md`](../docs/gui.md); `build-gui.bat` is authoritative. The
 design rationale below is retained as a record of the decisions that
 shaped the codebase, not as a description of its present shape.
@@ -373,6 +374,20 @@ Help
 ├── About NTRIP-Analyser
 └── View on GitHub
 ```
+
+**This is the original design and no longer the menu.** There is no
+Analysis menu — those became tabs — and there are now View and Tools
+menus the sketch never had. `gui/resource.rc` is authoritative;
+[`docs/gui.md`](../docs/gui.md) describes the menus a user sees. What
+has been added since, and where it is designed:
+
+| Menu item | Section |
+|---|---|
+| View → Station Check… | §13 |
+| View → Stability… | §14 |
+| File → Load Thresholds… | §15 |
+| File → Start/Stop RTCM Capture, Replay RTCM File… | `docs/gui.md` |
+| View → Sky Plot, VRS Monitor, Signal Quality, Session History, Ionosphere, Ionosphere Sky | `docs/gui.md` |
 
 ---
 
@@ -751,7 +766,192 @@ is compiled — only called.
 
 ---
 
-## 14. Reference
+### 13.10 What changed after it shipped
+
+The check window as designed above is intact; three things were added to
+it later, all consequences of the work in §15.
+
+- **A `Limit` column**, between Value and Detail. `KpiResult` gained
+  `limit` and `limit_dir`, set where the verdict is decided, and
+  `kpi_limit_text()` formats them in core. A verdict without the number
+  behind it cannot be argued with: *"Median C/N0 — 45.7 — healthy"*
+  invites the question *healthy compared with what?* Check 5 shows the
+  figure **this** station was held to, which is the sum over the
+  constellations it streams — a static string could not have said that.
+  The structural checks and the VRS assertions leave the column blank,
+  being tests rather than comparisons.
+- **Units and per-check precision on the value**, from
+  `kpi_value_unit()` and `kpi_value_decimals()`. The window printed
+  every value at two decimals, so an elevated CRC rate — then a
+  fraction — read `0.00` beside its `WARN`. A warning whose number says
+  nothing is worse than no number at all.
+- **The run takes a policy.** `kpi_run_start()` and `vrs_run_start()`
+  are handed `state->thresholds.kpi` and `.vrs`, so a check is conducted
+  under whichever standard is loaded and cannot change standard midway.
+
+---
+
+## 14. Stability (tier 2)
+
+The Station Check answers whether a station is fit **now**. This answers
+whether it has *been* fit, over hours — the question no ninety-second
+window can reach at any price. Same engine as the CLI's `--report` and
+the daemon's `<mountpoint>.report.json` (`src/core/station_report.c`),
+over the stream the GUI already has open.
+
+`gui_report_window.{c,h}`, class `NtripStabilityClass`, opened from
+**View → Stability**.
+
+### 14.1 Why it is not a second Station Check
+
+The check is a **bounded run**: the user starts it, it ends, and the
+verdict freezes so it can be quoted. This is the opposite shape, and
+deliberately so:
+
+| | Station Check | Stability |
+|---|---|---|
+| Started | explicitly, by button | never — it accumulates with the session |
+| Ends | at a settled verdict, or a bound | not at all; it is read whenever |
+| Silent until | ~90 s | 10 minutes (`SR_MIN_WINDOW_S`) |
+| Vocabulary | `STATION OK` / `CAUTION` / `FAILED` | `STABLE` / `DEGRADED` / `UNSTABLE` |
+
+**The vocabularies never overlap**, which is load-bearing rather than
+stylistic. A station can be fit this second and have been unstable all
+week; both statements are true, and a user seeing one set of words twice
+would conclude that one of them is broken.
+
+The one button is **Restart window**, which begins a fresh window of
+evidence without touching the stream. It exists for one moment in
+particular: you re-seat the antenna and want the next hour judged on its
+own rather than averaged with the hour that prompted the change. It
+preserves `reportFromCapture`, so restarting a replay cannot quietly
+turn it into a live run and begin inventing availability figures.
+
+### 14.2 Where the state lives
+
+In `AppState`, for the same reason `KpiRun` is there — an hour of
+evidence must survive its window being closed, and `SrState` cannot be
+rebuilt from a repaint.
+
+```c
+/* in AppState */
+SrState       reportRun;         /* the accumulator                     */
+StationReport reportOut;         /* last build, for the window to paint */
+BOOL          reportHave;
+BOOL          reportFromCapture; /* a replay: availability is n/a       */
+double        reportLastSample;  /* stream time of the last sr_feed     */
+```
+
+### 14.3 What drives it, and on which clock
+
+`NS_EV_STATS`, beside `CheckOnStats()` — the data justifies the verdict,
+so the window steps once per snapshot rather than on a timer that knows
+nothing about whether anything arrived.
+
+**Samples are paced and stamped by `NsStatsSnapshot::stream_time_s`, not
+by the host clock.** A dropout therefore counts as window, an NTP
+correction cannot distort a running window, and a replayed capture is
+judged over the window the *capture* holds rather than the seconds the
+disk took. A stream carrying no observation epochs has no clock at all,
+and the window says it cannot measure rather than guessing.
+
+### 14.4 Two session-layer defects this exposed
+
+Wiring the window up found faults that had nothing to do with the
+window, and both were invisible until something consumed the events:
+
+1. **The replay worker set `stats_interval_s = 0.0`**, so `NS_EV_STATS`
+   never fired for a capture at all. The window would have stayed empty
+   for ever.
+2. **`maybe_emit_stats()` paced itself on the wall clock.** Turning the
+   interval on was not enough: six hours of capture arrive in
+   milliseconds, so it would have emitted *two* snapshots where the live
+   run emitted twenty-one thousand. The gate now runs on `obs_clock()` —
+   arrival time live, stream time on a replay — which fixes it for every
+   future consumer of that event, not only this window.
+
+### 14.5 Defects found by looking at it
+
+Three, all of one family: the screen asserting something it had not
+measured.
+
+- **A partial first epoch became the window's minimum.** The first live
+  run reported *"fewest held: 9"* against a station that never dropped
+  below 39, because `sats_total` describes the last five seconds and the
+  first sample lands mid-epoch. Fixed with `SR_WARMUP_S` (30 s).
+- **Claims about the stream, made from a clock.** *"No dual-frequency
+  pair to measure with"* at twenty-five seconds, against a station
+  streaming MSM7 on two frequencies — ROTI needs phase arcs that take
+  minutes to form. That wording and the C/N0 one now wait until the
+  window is judgeable at all.
+- **The header said the same thing three times.** Banner, evidence line
+  and headline each carried the verdict. The evidence line now carries
+  the number that was buried — how much more stream it wants — and the
+  third line is the culprit clause alone, absent for a clean `STABLE`.
+
+### 14.6 Column widths are measured, not guessed
+
+Twice a fixed width clipped `INSUFFICIENT EVIDENCE`, which every session
+shows for its first ten minutes and is therefore the worst of the four
+to truncate. The verdict column is now measured with
+`GetTextExtentPoint32()` over the strings it will hold, in the list's
+own font — which meant setting that font **before** creating the
+columns, since the control is born with the stock system font. `Detail`
+then takes whatever width remains, so widening the window widens the
+column that actually varies.
+
+---
+
+## 15. Thresholds in the GUI
+
+Every verdict rests on a number someone chose, and
+[`docs/thresholds.md`](../docs/thresholds.md) is candid about which of
+them are well founded and which are starting points. **File → Load
+Thresholds…** lets a user disagree.
+
+### 15.1 What it does
+
+Takes a JSON policy (`src/core/thresholds.h`) and applies it to both the
+Station Check and the Stability window from their next run.
+
+- **Applied over the built-in values, never over whatever was loaded
+  before.** Two policies half-merged would be a standard nobody wrote.
+- **A bad setting is refused with the field named**, in a message box,
+  and the previous thresholds stay in force — nothing is half-applied.
+- The file is **partial by design**: it carries only what the user
+  changes, so it does not rot as thresholds are added.
+
+### 15.2 The first thing this program remembers
+
+The path is kept under `HKCU\Software\NTRIP-Analyser`, value
+`ThresholdsPath`, and restored by `GuiThresholdsInit()` before any
+window can judge anything.
+
+**This is a departure from the design as it stood**: until now the GUI
+persisted nothing at all — not window positions, not the auto-reconnect
+toggle. It is justified because an installer working to one standard
+should not reload it every morning, and it is deliberately only a
+*path*, so the policy itself stays one file that the CLI, the service
+and this program read and fingerprint identically.
+
+A remembered file that has since been deleted or edited badly is
+reported once on the log and then ignored, and the program starts on the
+built-in values. It must not stop the program starting; it must not
+silently become a different standard either.
+
+### 15.3 What is not here
+
+- **No editor.** Twenty fields, each needing its own bounds checking,
+  and the validation belongs in core where it already is. Loading is the
+  whole feature for anyone who has a policy; an editor is a separate
+  piece of UI and a later decision.
+- **No per-window policy.** One standard per process, for the same
+  reason a run has one standard: two windows judging by different
+  numbers would be indefensible in a screenshot.
+
+---
+
+## 16. Reference
 
 - Win32 API: [Microsoft Learn — Desktop Win32 Apps](https://learn.microsoft.com/en-us/windows/win32/)
 - Common Controls: [Microsoft Learn — About Common Controls](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)

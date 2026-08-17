@@ -36,7 +36,7 @@ because people will point it at real stations and believe what it says.
 | Building, testing, deploying, adding a file | `docs/RUNBOOK.md` |
 | Asking "does X already exist?" | `design/todo.md` — shipped vs planned, stable item numbers |
 | Making architectural decisions | `design/architecture.md`; Android decisions D1–D7 in `android/design/design-review.md` §8, cited from code as `design-review Dn` |
-| Any Windows GUI work | `design/gui-design.md` — §13 is the station check |
+| Any Windows GUI work | `design/gui-design.md` — §13 station check, §14 stability, §15 thresholds, all as built |
 | Any Android work | `android/design/editions.md` (free/pro split, payment, profiles, GGA sources) and `android/design/views.md` (what each view is for) |
 | Reading or writing configuration files | `docs/jsonConfigs.md` — one format everywhere, passwords in the clear |
 | Stuck, or something behaves impossibly | `memory/gotcha-log.md` — problem→root cause→fix archive |
