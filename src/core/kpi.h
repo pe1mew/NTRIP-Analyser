@@ -211,7 +211,17 @@ typedef struct {
     int    verdict;        /**< @ref KpiVerdict                        */
     double value;          /**< the measured figure the verdict is on  */
     const char *label;     /**< static short name, e.g. "ARP broadcast" */
-    const char *detail;    /**< static explanation of the current state */
+    /**
+     * Explanation of the current state.
+     *
+     * A string literal, except where the explanation has to carry a
+     * number -- KPI 1 says how long the stream ran before it stopped --
+     * in which case it points into the @ref KpiRun that produced it and
+     * is valid until the next @ref kpi_update on that run.  Every caller
+     * reads the report before updating it again; a caller that keeps a
+     * report longer than its run must copy the text.
+     */
+    const char *detail;
     /**
      * The figure @ref value is judged against, in the same units.
      *
@@ -252,6 +262,15 @@ typedef struct {
     bool     crc_have_base;
     double   crc_pct;      /**< last completed reading, percent        */
     bool     crc_have_pct;
+
+    /*
+     * KPI 1 has to tell a stream that stopped from one that never
+     * started, which needs two things the snapshot alone cannot give:
+     * when data was last seen, and somewhere to write that number.
+     */
+    uint64_t bytes_seen;   /**< bytes_total at its last increase        */
+    double   bytes_up_s;   /**< session uptime at that increase         */
+    char     detail1[80];  /**< KPI 1's detail when it carries a number */
 
     /** The thresholds this run is judged by; a copy, so the caller's
      *  policy need not outlive @ref kpi_run_start. */

@@ -217,11 +217,19 @@ add_executable(test_policy test/test_policy.c)
 target_link_libraries(test_policy PRIVATE ntrip_core)
 add_test(NAME policy COMMAND test_policy)
 
+# A verdict is only half of what a user acts on; the sentence beside it
+# is the other half.  KPI 1 described a stream that stopped as one that
+# never started -- an accusation against a healthy station, seen twice on
+# live casters -- so the three states it now distinguishes are pinned.
+add_executable(test_kpi_stopped test/test_kpi_stopped.c)
+target_link_libraries(test_kpi_stopped PRIVATE ntrip_core)
+add_test(NAME kpi_stopped COMMAND test_kpi_stopped)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
-            test_stream_clock test_ns_stats test_policy)
+            test_stream_clock test_ns_stats test_policy test_kpi_stopped)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

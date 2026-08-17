@@ -15,13 +15,26 @@ statements, and only one of them is a pass.
 The caster accepted the connection and bytes are arriving. The number is
 throughput in bytes per second.
 
-- **"Connected but no data arriving"** — the caster accepted you and then
-  sent nothing. On a network mountpoint this usually means it is waiting
-  for a position: see **Send GGA** in
+- **"Connected, but the caster has sent nothing"** — the caster accepted
+  you and then sent nothing at all. On a network mountpoint this usually
+  means it is waiting for a position: see **Send GGA** in
   [Getting started](Getting-started). Otherwise the mountpoint may be
   published but not currently fed by its receiver.
-- **"Connected but throughput below 100 B/s"** — something is arriving,
-  but not enough to be a working observation stream.
+- **"Data arrived for N s, then the stream stopped"** — a different
+  finding, and one worth reading carefully. The station *did* deliver,
+  and check 2 will still show the frames it delivered; something then
+  ended the flow. That may be the receiver, the caster, or the network
+  in between, and this check cannot tell you which — but it is not a
+  station that never produced.
+  One cause is close to home: many casters allow **one session per
+  account**, so a second check started while the first is still running
+  evicts it. Leave a gap between runs before suspecting the station.
+- **"Connection lost after N s of data"** — the socket itself went away
+  after the station had delivered. `--check` does not reconnect, on
+  purpose: a drop inside an acceptance run is a finding rather than a
+  nuisance to paper over.
+- **"Connected, but throughput is below the minimum"** — something is
+  arriving, but not enough to be a working observation stream.
 
 ## 2. RTCM 3.x format
 

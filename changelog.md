@@ -84,6 +84,58 @@ account still applies, so the
 [tester opt-in](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)
 remains open and joining it genuinely helps.
 
+### Fixed — a check that accused a station of never producing
+
+One report, two lines, in direct contradiction:
+
+```
+1  Connected and producing  FAIL  0 B/s  Connected but no data arriving
+2  RTCM 3.x format          PASS  289    CRC-valid RTCM 3.x frames decoded
+```
+
+Two hundred and eighty-nine frames had arrived, been CRC-checked and
+counted, and check 1 described the stream as one that never delivered.
+Seen twice on live casters — `HANESE` on 2026-08-16, Centipede's `NEAR`
+on 2026-08-17 — and in both cases the station was healthy: the caster
+allows one session per account, and a second check evicted the first.
+This tool exists to say whether a **station** is fit, and *"no data
+arriving"* is what a user takes to the station's owner.
+
+The verdict was right and has not changed: `--check` disables reconnect
+on purpose, so a session that dies inside a run is a finding. The
+explanation is now four messages where it was two, separating states
+that share one instant on the throughput meter and mean entirely
+different things:
+
+| State | Message |
+|---|---|
+| Never connected | `No connection to the caster` |
+| Connected, nothing ever sent | `Connected, but the caster has sent nothing` |
+| Delivered, then silent | `Data arrived for 15 s, then the stream stopped` |
+| Delivered, then the socket went | `Connection lost after 15 s of data` |
+
+The seconds are the **session's** clock, not the check's, so a check
+begun an hour into a stream reports the stream's life rather than its
+own.
+
+Deliberately, the sentence names no culprit. The plan for this was *"the
+caster closed the session or the link dropped"*, and that is a guess the
+engine is not entitled to make — a base that stops feeding its caster
+looks identical from here, and the same sentence would then be
+exonerating the station instead of accusing it. The causes, ranked, are
+on the Troubleshooting page, where a reader can weigh them.
+
+`test/test_kpi_stopped.c` pins all four messages, the verdicts they
+carry, the clock the number comes from, and that the longest of them
+still fits the GUI's Detail column. Six of its thirteen assertions fail
+against the engine as it was, and the rest pass — which is how it says
+the fix changed the sentence and not the verdict.
+
+Verified without touching a public caster: a local one that feeds a real
+57 KB capture and then goes silent, sends nothing, or closes the socket
+reproduces all three states, since reproducing the original sighting
+would have meant evicting a live station's session on purpose again.
+
 ### Fixed — a finished check that said "RUNNING"
 
 `--check-vrs` against Centipede's `NEAR` ended with `== RUNNING ==` as

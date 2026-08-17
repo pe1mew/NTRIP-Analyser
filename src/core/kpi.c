@@ -186,6 +186,25 @@ static double cnr_median_weighted(const NsStatsSnapshot *s, int *nsats_out)
     return n ? acc / n : 0.0;
 }
 
+/**
+ * @brief Write one of KPI 1's numbered explanations into the run.
+ *
+ * A `%.0f` will happily write three hundred digits for a nonsense
+ * double, so the seconds become a clamped whole number first: the
+ * sentence is then at most six digits wider than its format, which is a
+ * width the compiler can check rather than one a reader has to trust.
+ * @p fmt therefore takes `%ld`, not `%f`.
+ *
+ * @return the run's buffer, so it can be assigned inline.
+ */
+static const char *detail_secs(KpiRun *run, const char *fmt, double secs)
+{
+    long n = 0;                                   /* !(>0) catches NaN */
+    if (secs > 0.0) n = (secs > 999999.0) ? 999999L : (long)secs;
+    snprintf(run->detail1, sizeof run->detail1, fmt, n);
+    return run->detail1;
+}
+
 void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
                 KpiReport *out)
 {
@@ -195,6 +214,15 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
 
     KpiResult *k = out->kpi;
 
+    /* When data was last seen, in the session's own clock.  A stream
+     * that delivered and then stopped and a stream that never delivered
+     * are the same instant on the throughput meter and entirely
+     * different findings, and only this tells them apart. */
+    if (s->bytes_total > run->bytes_seen) {
+        run->bytes_seen = s->bytes_total;
+        run->bytes_up_s = s->uptime_s;
+    }
+
     /* ── 1: connected and producing ─────────────────────────────────── */
     k[0].label = "Connected and producing";
     k[0].value = s->bytes_per_s;
@@ -202,7 +230,10 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     k[0].limit_dir = KPI_LIMIT_MIN;
     if (!s->connected) {
         k[0].verdict = (out->elapsed_s < 10.0) ? KPI_PENDING : KPI_FAIL;
-        k[0].detail  = "No connection to the caster";
+        k[0].detail  = s->bytes_total
+            ? detail_secs(run, "Connection lost after %ld s of data",
+                          run->bytes_up_s)
+            : "No connection to the caster";
     } else if (out->elapsed_s < 10.0) {
         k[0].verdict = KPI_PENDING;
         k[0].detail  = "Measuring throughput";
@@ -212,9 +243,18 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     } else if (s->bytes_per_s > 0.0) {
         k[0].verdict = KPI_WARN;
         k[0].detail  = "Connected, but throughput is below the minimum";
+    } else if (s->bytes_total) {
+        /* The verdict stands -- a session that stops mid-check has
+         * failed the check -- but the explanation must not read as
+         * though nothing was ever delivered, which contradicts KPI 2
+         * counting the frames that were. */
+        k[0].verdict = KPI_FAIL;
+        k[0].detail  = detail_secs(run,
+            "Data arrived for %ld s, then the stream stopped",
+            run->bytes_up_s);
     } else {
         k[0].verdict = KPI_FAIL;
-        k[0].detail  = "Connected but no data arriving";
+        k[0].detail  = "Connected, but the caster has sent nothing";
     }
 
     /* ── 2: format is RTCM 3.x ──────────────────────────────────────── */

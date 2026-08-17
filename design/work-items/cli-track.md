@@ -34,7 +34,7 @@ and what "done" will mean.
 | 1 | Capture the stream to a file, with reconnect | **built 2026-08-15; V5 passed 2026-08-16.** Only V6's live half remains |
 | 2 | `--rtcm-stdin` beyond `--sky` | **built 2026-08-17** |
 | 3 | Capture the ephemeris stream | not scheduled |
-| 4 | KPI 1 blames the station when the stream stops | open; observed 2026-08-16, and again 2026-08-17 |
+| 4 | KPI 1 blames the station when the stream stops | **built 2026-08-17**; observed 2026-08-16 and again 2026-08-17 |
 | 5 | `--report` — tier 2 in the CLI | **built 2026-08-16**, see [measurement-tiers.md](measurement-tiers.md) §2a |
 | 6 | `--thresholds`, `--thresholds-print` | **built 2026-08-17**, see [thresholds-track.md](thresholds-track.md) |
 | 7 | A run that ends without a verdict says so | **built 2026-08-17** |
@@ -357,7 +357,7 @@ A live run answers *what am I being given*; a replay answers *what did
 the station send*. Stated in `docs/cli.md` §2c rather than left for a
 user to discover by comparing two reports and doubting both.
 
-## Phase 4 — KPI 1 blames the station when the stream stops — open
+## Phase 4 — KPI 1 blames the station when the stream stops — **built**
 
 Observed against `HANESE` on 2026-08-16, and the two lines are from one
 report:
@@ -420,6 +420,76 @@ the GUI's station check and both Android editions at the same time. It is
 logged on this track because this is where it was found; whoever picks it
 up should expect to touch the shared engine and to check the string does
 not overflow the GUI's column.
+
+### Built, 2026-08-17
+
+The three states are told apart exactly as the table above specifies,
+with two departures from it, both deliberate.
+
+**The wording does not name a culprit.** The plan's message was *"the
+caster closed the session or the link dropped"*, and that is a guess this
+engine is not entitled to make: a base station that stops feeding its
+caster produces precisely the same evidence, and then the sentence would
+be exonerating the station rather than accusing it — the same error in
+the opposite direction. What KPI 1 can see is that data arrived, for how
+long, and that it stopped, so that is all it says. The
+[Troubleshooting](../../docs/wiki/Troubleshooting.md) page carries the
+causes, ranked, with the one-session-per-account eviction first, because
+that is where a reader can weigh them.
+
+**The `!connected` branch was fixed too**, though the plan only listed
+the three connected states. *"No connection to the caster"* against a
+session that had delivered for an hour is the same defect wearing a
+different coat, and it reads as *"we never got in"*.
+
+Four messages now, where there were two:
+
+| State | Message |
+|---|---|
+| Never connected | `No connection to the caster` |
+| Connected, nothing ever sent | `Connected, but the caster has sent nothing` |
+| Delivered, then silent | `Data arrived for 15 s, then the stream stopped` |
+| Delivered, then the socket went | `Connection lost after 15 s of data` |
+
+**The number is the session's clock, not the check's** — `uptime_s` at
+the last byte, so a check begun an hour into a stream says the stream ran
+an hour, not that it ran the minute the check has been watching.
+
+**Two things it needed that the snapshot could not give.** When data was
+last seen has to be remembered between updates, so `KpiRun` gained
+`bytes_seen` and `bytes_up_s`; and a message carrying a number cannot be
+a string literal, so it gained an 80-byte buffer that `KpiResult::detail`
+points into. That is the first non-literal detail in the engine, and
+`kpi.h` now says what its lifetime is: valid until the next
+`kpi_update` on that run. Every caller holds its run and its report
+together — the GUI in `AppState`, the CLI on one stack frame, Android in
+`struct NtripBridge` — so no caller had to change.
+
+**Verified against a caster that misbehaves on purpose.** Reproducing
+this live was what made it a two-sighting bug rather than a fixed one:
+both sightings were single-session casters evicting the analyser's own
+earlier connection, and deliberately doing that again to a public caster
+is antisocial. So the three states were produced locally instead, by a
+throwaway caster that feeds a real 57 KB capture and then goes silent,
+sends nothing at all, or closes the socket:
+
+```
+1  Connected and producing  FAIL  0 B/s  Data arrived for 1 s, then the stream stopped
+2  RTCM 3.x format          PASS  206    CRC-valid RTCM 3.x frames decoded
+```
+
+The two lines no longer contradict each other, which was the whole
+complaint. The silent caster gives `Connected, but the caster has sent
+nothing` with KPI 2 failing beside it — agreeing, this time — and the
+closed socket gives `Connection lost after 1 s of data` and ends the run
+`== NO VERDICT ==  the stream closed after 1 s`, which is phase 7 doing
+its job on the same run.
+
+`test/test_kpi_stopped.c` pins all four messages, that the verdicts did
+not move, that the number comes from the session's clock, and that the
+longest of them still fits the GUI's Detail column. Six of its thirteen
+assertions fail against the engine as it was; the rest pass, which is
+what says the fix changed the sentence and not the verdict.
 
 ## Phase 3 — Capture the ephemeris stream — not scheduled
 

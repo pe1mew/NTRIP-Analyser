@@ -256,7 +256,7 @@
 ### One session per account made a healthy station read as broken (2026-08-16) [RESOLVED]
 **Problem**: Two consecutive `--check` runs on HANESE reported FAILED after 15 s and then 10 frames. A minute later the same station gave 45 of 45 epochs and a clean 90 s pass.
 **Root cause**: The caster allows one session per account, and `--check` opens *two* connections — a sourcetable fetch, then the stream. Runs in quick succession evict one another.
-**Fix**: Leave a gap between checks on a single-session caster. The report also misattributes this: KPI 1 said "connected but no data arriving" while KPI 2 counted 102 decoded frames — logged as phase 4 of `design/work-items/cli-track.md`.
+**Fix**: Leave a gap between checks on a single-session caster. The report also misattributed this — KPI 1 said "connected but no data arriving" while KPI 2 counted 102 decoded frames — fixed 2026-08-17 (phase 4 of `design/work-items/cli-track.md`): KPI 1 now says `Data arrived for N s, then the stream stopped`, and the Troubleshooting page names the eviction as the first cause to rule out.
 
 ### A theme built for a landing page clipped the documentation (2026-08-16) [RESOLVED]
 **Problem**: Architecture diagrams on the published site were cut off mid-line.

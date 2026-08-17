@@ -6,9 +6,9 @@ enough.
 
 ---
 
-## "Connected but no data arriving"
+## "Connected, but the caster has sent nothing"
 
-The caster accepted the connection and then sent nothing.
+The caster accepted the connection and then sent nothing at all.
 
 1. **Does the mountpoint expect a position?** Network-RTK and
    "nearest base" services send nothing until the receiver reports where
@@ -19,6 +19,24 @@ The caster accepted the connection and then sent nothing.
    whether or not its receiver is currently connected. Try another
    mountpoint on the same caster: if that one flows, the station is the
    problem, not you.
+
+## "Data arrived for N s, then the stream stopped"
+
+Not the same finding, and worth separating from the one above: this
+station **did** deliver — check 2 will still show the frames — and then
+the flow ended.
+
+1. **Are you already connected to it?** Many casters allow one session
+   per account, and starting a second check while the first is running
+   evicts one of them. This is the commonest cause, and it is not the
+   station's fault. Leave a gap between runs and try again.
+2. **How long did it run?** The number is how long data flowed. Seconds
+   points at the session being taken away; many minutes points at the
+   receiver feeding the caster, or at the link to it.
+3. **Try it again before reporting it.** One drop is an event; a station
+   that does it every run is a finding. `--report` and the Stability
+   window exist for exactly that question — they watch for hours and
+   count the drops.
 
 ## The verdict says FAILED but the numbers look fine
 
