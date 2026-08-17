@@ -84,6 +84,28 @@ account still applies, so the
 [tester opt-in](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)
 remains open and joining it genuinely helps.
 
+### Fixed — a finished check that said "RUNNING"
+
+`--check-vrs` against Centipede's `NEAR` ended with `== RUNNING ==` as
+the last line of its report. The run had ended because the gate test
+answered, which it can do before the eight checks have held their
+sustain window — so there was no verdict, and the live roll-up was being
+printed as though it were one. `RUNNING` at the foot of a finished
+report reads as though the program were still going.
+
+It now says what happened, and why, in the terms the GUI has always
+used:
+
+```
+== NO VERDICT ==  the gate test finished after 211 s  exit=6
+The checks above are the last reading, not a conclusion: the verdict had not held for 60 s.
+```
+
+The five ways a run can end are each named: the verdict settled, a check
+failed outright, the gate test finished, the stream closed, or the 300 s
+limit was reached. The sustain figure comes from the policy in force, so
+it is right even when a file has changed it.
+
 ### Added — thresholds you can disagree with
 
 Every verdict rests on a number someone chose, and

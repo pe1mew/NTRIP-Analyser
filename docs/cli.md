@@ -115,6 +115,23 @@ ntrip-analyser [options]
 
 ---
 
+### 2ab. When a check ends without a verdict
+
+A verdict is what **held** for sixty seconds, or a failure, which is
+conclusive at once. A run can end before either: the 300-second ceiling,
+the stream closing, or — under `--check-vrs` — the gate test answering
+before the eight checks have held their window. The report then says so
+rather than printing the live roll-up as though it were a conclusion:
+
+```
+== NO VERDICT ==  the 300 s limit was reached after 301 s  exit=6
+The checks above are the last reading, not a conclusion: the verdict had not held for 60 s.
+```
+
+The rows above it are still worth reading — they are what was true when
+the run ended. They are simply not a verdict, and **exit 6** says the
+same thing to a script.
+
 ### 2a. The stability report (`--report`)
 
 The eight checks ask whether a station is fit **now** and answer in about
