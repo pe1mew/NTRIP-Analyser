@@ -208,6 +208,25 @@ int main(void)
               "and the report says which property of the stream caused it");
     }
 
+    /* ── 9. Say nothing about a stream before sampling it ─────────── */
+    {
+        /* The daemon publishes a report every ten seconds from the
+         * moment a session opens, and for the first thirty of those --
+         * the warm-up -- it published "no C/N0 in this stream (MSM1-3)"
+         * and "no dual-frequency pair to measure with" about a station
+         * sending both. An empty accumulator knows nothing about the
+         * station, and must say that instead. */
+        sr_reset(&st, false);
+        sr_build(&st, &r);
+
+        check(strstr(r.metric[SR_SIGNAL].detail, "MSM1-3") == NULL,
+              "an unsampled stream is not accused of carrying no C/N0");
+        check(strstr(r.metric[SR_IONOSPHERE].detail, "dual-frequency") == NULL,
+              "nor of having no dual-frequency pair");
+        check(r.overall == SR_INSUFFICIENT,
+              "and the verdict is that there is not yet evidence");
+    }
+
     printf("\n%s\n", failures ? "FAILURES" : "all station-report cases pass");
     return failures ? 1 : 0;
 }

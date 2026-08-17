@@ -2,6 +2,8 @@
   "_comment": "ntrip-monitord configuration. Copy to /etc/ntrip-monitord/monitord.json and edit. output_dir must match the Munin plugin's env.statedir (default /var/lib/ntrip-monitor).",
   "output_dir": "/var/lib/ntrip-monitor",
   "interval_s": 10,
+  "_comment_report": "report_window_s: length of the tier-2 rolling window in seconds. The published <mountpoint>.report.json covers between one and two of these. Minimum 600 -- the shortest window the report will judge at all -- and 3600 by default.",
+  "report_window_s": 3600,
   "mountpoints": [
     {
       "caster": "rfsee.net",

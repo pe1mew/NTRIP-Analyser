@@ -14,6 +14,7 @@
 #include "core/station_report.h"
 #include "core/iono.h"
 
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -154,10 +155,14 @@ void sr_build(const SrState *s, StationReport *out)
         double drop = (s->cnr_best > 0.0f && s->cnr_last > 0.0f)
                     ? (double)(s->cnr_best - s->cnr_last) : 0.0;
         SrMetric *m = &out->metric[SR_SIGNAL];
+        /* "This stream carries no C/N0" is a claim about the station and
+         * must not be made before anything has been sampled -- which is
+         * what the daemon published for the first thirty seconds of
+         * every session it opened. */
         if (!enough || s->cnr_best <= 0.0f)
             set(m, "Signal level", drop, SR_INSUFFICIENT, false, true,
-                s->cnr_best <= 0.0f ? "no C/N0 in this stream (MSM1-3)"
-                                    : "gathering");
+                (s->samples > 0 && s->cnr_best <= 0.0f)
+                    ? "no C/N0 in this stream (MSM1-3)" : "gathering");
         else
             set(m, "Signal level", drop,
                 grade_up(drop, SR_CNR_DROP_WARN, SR_CNR_DROP_BAD), false, true,
@@ -180,8 +185,8 @@ void sr_build(const SrState *s, StationReport *out)
         SrMetric *m = &out->metric[SR_IONOSPHERE];
         if (!enough || s->roti_worst < 0.0f)
             set(m, "Ionosphere", 0.0, SR_INSUFFICIENT, false, true,
-                s->roti_worst < 0.0f ? "no dual-frequency pair to measure with"
-                                     : "gathering");
+                (s->samples > 0 && s->roti_worst < 0.0f)
+                    ? "no dual-frequency pair to measure with" : "gathering");
         else
             set(m, "Ionosphere", s->roti_worst,
                 grade_up(s->roti_worst, IONO_ROTI_UNSETTLED, IONO_ROTI_DISTURBED),
@@ -241,4 +246,160 @@ const char *sr_verdict_name(int verdict)
     case SR_UNSTABLE: return "UNSTABLE";
     default:          return "INSUFFICIENT EVIDENCE";
     }
+}
+
+const char *sr_metric_key(int metric_id)
+{
+    switch (metric_id) {
+    case SR_AVAILABILITY: return "availability";
+    case SR_INTEGRITY:    return "integrity";
+    case SR_SIGNAL:       return "signal";
+    case SR_SATELLITES:   return "satellites";
+    case SR_IONOSPHERE:   return "ionosphere";
+    case SR_DELIVERY:     return "delivery";
+    default:              return "unknown";
+    }
+}
+
+/* ── JSON ─────────────────────────────────────────────────────────────
+ * The same bounded-append shape as ns_stats.c, for the same reasons: a
+ * truncated write still reports the buffer the caller should have
+ * supplied, and core writes into that buffer rather than to a file. */
+
+typedef struct {
+    char  *buf;
+    size_t cap;
+    size_t len;      /* bytes that would have been written, less the NUL */
+} SrOut;
+
+static void o_ch(SrOut *o, char c)
+{
+    if (o->cap > 0 && o->len + 1 < o->cap) {
+        o->buf[o->len] = c;
+        o->buf[o->len + 1] = '\0';
+    }
+    o->len++;
+}
+
+static void o_str(SrOut *o, const char *s)
+{
+    for (; s && *s; s++) o_ch(o, *s);
+}
+
+static void o_fmt(SrOut *o, const char *fmt, ...)
+{
+    char tmp[192];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(tmp, sizeof(tmp), fmt, ap);
+    va_end(ap);
+    if (n < 0) return;
+    tmp[sizeof(tmp) - 1] = '\0';
+    o_str(o, tmp);
+}
+
+/**
+ * @brief A JSON string literal, escaped.
+ *
+ * The details are our own text, but a mountpoint is caster-supplied and
+ * may hold anything at all.
+ */
+static void o_jstr(SrOut *o, const char *s)
+{
+    o_ch(o, '"');
+    for (; s && *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        switch (c) {
+        case '"':  o_str(o, "\\\""); break;
+        case '\\': o_str(o, "\\\\"); break;
+        case '\b': o_str(o, "\\b");  break;
+        case '\f': o_str(o, "\\f");  break;
+        case '\n': o_str(o, "\\n");  break;
+        case '\r': o_str(o, "\\r");  break;
+        case '\t': o_str(o, "\\t");  break;
+        default:
+            if (c < 0x20) o_fmt(o, "\\u%04x", c);
+            else          o_ch(o, (char)c);
+            break;
+        }
+    }
+    o_ch(o, '"');
+}
+
+/**
+ * @brief Append `,"key":`.
+ *
+ * The separator lives with the key it precedes rather than after the
+ * value before it, so it cannot be forgotten between two fields -- which
+ * is precisely how the snapshot serialiser came to emit a document no
+ * parser would accept.
+ */
+static void o_key(SrOut *o, const char *k)
+{
+    o_str(o, ",\"");
+    o_str(o, k);
+    o_str(o, "\":");
+}
+
+static void o_num(SrOut *o, double v, int decimals)
+{
+    if (!isfinite(v)) { o_str(o, "null"); return; }
+    o_fmt(o, "%.*f", decimals, v);
+}
+
+int sr_to_json(const StationReport *r, const char *mountpoint,
+               char *out, size_t cap)
+{
+    if (!r || (!out && cap > 0)) return -1;
+
+    SrOut o;
+    o.buf = out;
+    o.cap = cap;
+    o.len = 0;
+    if (cap > 0) out[0] = '\0';
+
+    /* `report_schema_version`, not `schema_version`, and the difference
+     * is load-bearing.  The daemon writes reports beside snapshots in
+     * one directory, and the Munin plugin finds snapshots by globbing
+     * `*.json` and keeping whatever carries a `schema_version`.  A key
+     * of that name here would make every report look like a snapshot to
+     * a plugin older than it -- a phantom graph family per station, full
+     * of undefined values, on any host where the daemon is updated
+     * before the plugin.  With this name an old plugin skips the file,
+     * and the new one identifies it positively. */
+    o_str(&o, "{\"report_schema_version\":");
+    o_fmt(&o, "%d", SR_JSON_SCHEMA_VERSION);
+
+    o_key(&o, "mountpoint");   o_jstr(&o, mountpoint ? mountpoint : "");
+    o_key(&o, "window_s");     o_num(&o, r->window_s, 3);
+    o_key(&o, "samples");      o_fmt(&o, "%d", r->samples);
+    o_key(&o, "from_capture"); o_str(&o, r->from_capture ? "true" : "false");
+    o_key(&o, "overall");      o_fmt(&o, "%d", r->overall);
+    o_key(&o, "overall_name"); o_jstr(&o, sr_verdict_name(r->overall));
+    o_key(&o, "headline");     o_jstr(&o, r->headline);
+
+    for (int i = 0; i < SR_METRIC_COUNT; i++) {
+        const SrMetric *m = &r->metric[i];
+        const char *k = sr_metric_key(i);
+        char key[48];
+
+        /* An unavailable metric is null, never 0.  A live-only figure
+         * absent from a replay and a figure measured as zero are
+         * different statements, and a monitoring graph that cannot tell
+         * them apart draws the second when it means the first. */
+        snprintf(key, sizeof(key), "%s_verdict", k);
+        o_key(&o, key);
+        if (m->available) o_fmt(&o, "%d", m->verdict); else o_str(&o, "null");
+
+        snprintf(key, sizeof(key), "%s_value", k);
+        o_key(&o, key);
+        if (m->available) o_num(&o, m->value, 3); else o_str(&o, "null");
+
+        snprintf(key, sizeof(key), "%s_detail", k);
+        o_key(&o, key);
+        o_jstr(&o, m->detail);
+    }
+
+    o_ch(&o, '}');
+    return (int)o.len;
 }

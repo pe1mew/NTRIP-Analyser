@@ -29,6 +29,7 @@
  * License: Apache License 2.0 with Commons Clause
  */
 #include "core/ns_stats.h"
+#include "core/station_report.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -422,7 +423,51 @@ int main(void)
         check((size_t)n >= sizeof(tiny), "so does a short header buffer");
     }
 
-    /* ── 6. A NULL snapshot is refused, not dereferenced ──────────── */
+    /* ── 6. The station report serialises the same way ────────────── */
+    {
+        /* The daemon publishes this beside the snapshot, and the same
+         * shell plugin reads both -- so it has to survive the same
+         * reader, and an unavailable metric has to be null rather than
+         * a zero a monitoring graph would draw as healthy. */
+        SrState st;
+        StationReport rep;
+        NsStatsSnapshot h;
+        ns_stats_init(&h);
+        h.sats_total       = 38;
+        h.cnr_mean_all     = 45.0f;
+        h.iono_roti_median = 0.2f;
+
+        sr_reset(&st, false);
+        for (int i = 0; i < 60; i++) sr_feed(&st, &h, 60.0 + i * 60.0);
+        sr_build(&st, &rep);
+
+        int n = sr_to_json(&rep, "HANE\"SE", json, sizeof(json));
+        check(n > 0 && (size_t)n < sizeof(json), "a report fits the buffer");
+        json_check(json, "a station report is well-formed JSON");
+        json_check_unique(json, "and no key of it is emitted twice");
+        check(strstr(json, "\"overall_name\":\"STABLE\"") != NULL,
+              "the verdict is carried by name as well as by number");
+
+        /* Built from a capture, availability cannot be measured. */
+        sr_reset(&st, true);
+        for (int i = 0; i < 60; i++) sr_feed(&st, &h, 60.0 + i * 60.0);
+        sr_build(&st, &rep);
+        sr_to_json(&rep, "HANESE", json, sizeof(json));
+        json_check(json, "a report built from a capture is well-formed too");
+        check(strstr(json, "\"availability_verdict\":null") != NULL,
+              "an unmeasurable metric is null, not a passing zero");
+
+        char tiny[24];
+        memset(tiny, 'x', sizeof(tiny));
+        n = sr_to_json(&rep, "HANESE", tiny, sizeof(tiny));
+        check((size_t)n >= sizeof(tiny), "a short report buffer reports the need");
+        check(memchr(tiny, '\0', sizeof(tiny)) != NULL,
+              "and the truncated report is still NUL-terminated");
+        check(sr_to_json(NULL, "x", json, sizeof(json)) < 0,
+              "serialising no report is an error, not a crash");
+    }
+
+    /* ── 7. A NULL snapshot is refused, not dereferenced ──────────── */
     {
         check(ns_stats_to_json(NULL, json, sizeof(json)) < 0,
               "serialising nothing is an error, not a crash");

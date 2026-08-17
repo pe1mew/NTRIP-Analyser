@@ -180,7 +180,7 @@
   side-stream only when nothing has reached the cache for 20 s
   (`android/design/views.md`).
 - **CI, since 2026-08-14**: `.github/workflows/ci.yml` builds the core
-  and runs the seven tests on Linux, builds the daemon **through both of its
+  and runs the test suite on Linux, builds the daemon **through both of its
   <!-- verify: test -f .github/workflows/ci.yml && test -f .github/workflows/release-linux.yml -->
   build paths** (CMake and `service/Makefile`), builds both Android
   editions (which runs `checkEditionParity` as a preBuild dependency), and

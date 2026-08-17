@@ -1,17 +1,24 @@
 #!/bin/sh
 # ntrip_monitor -- Munin multigraph plugin for NTRIP-Analyser's monitord.
 #
-# Reads the per-mountpoint JSON snapshots that ntrip-monitord writes and
-# prints Munin multigraph config/values.  The plugin holds no connection
-# and does no computation: munin-node invokes plugins every five minutes
-# and expects an answer in seconds, which is why the daemon exists
+# Reads the per-mountpoint JSON that ntrip-monitord writes and prints
+# Munin multigraph config/values.  The plugin holds no connection and
+# does no computation: munin-node invokes plugins every five minutes and
+# expects an answer in seconds, which is why the daemon exists
 # (design/architecture.md par. 5.1).
 #
+# Two documents per mountpoint, and they answer different questions:
+#
+#   <mount>.json          a snapshot -- what is true this instant
+#   <mount>.report.json   the tier-2 stability report over a rolling
+#                         window -- whether the station has *been* fit
+#
 # The parsing here is NOT a general JSON parser.  It reads the flat
-# single-line documents produced by ns_stats_to_json(), whose exact shape
-# this project controls (src/core/ns_stats.c).  Every key it extracts is
-# a unique top-level scalar, or an element of the "types" array in the
-# fixed order the serialiser emits.
+# single-line documents produced by ns_stats_to_json() and sr_to_json(),
+# whose exact shape this project controls (src/core/ns_stats.c,
+# src/core/station_report.c).  Every key it extracts is a unique
+# top-level scalar, or an element of the "types" array in the fixed
+# order the serialiser emits.
 #
 # Field names are a published contract: Munin has no version negotiation,
 # and renaming a field silently orphans its RRD history.  Treat every
@@ -42,6 +49,11 @@ scalar() {
         \"*)     echo "$v" | tr -d '"' ;;
         *)       echo "$v" ;;
     esac
+}
+
+# report_file <snapshot> -> the tier-2 report written beside it
+report_file() {
+    echo "${1%.json}.report.json"
 }
 
 # is_stale <file> -> 0 (stale) / 1 (fresh)
@@ -149,6 +161,30 @@ EOF
         echo "type_${t}.type DERIVE"
         echo "type_${t}.min 0"
     done
+
+    # Tier 2.  Only when the daemon is publishing reports: an older one
+    # is not, and a graph family of nothing but undefined values is
+    # worse than an absent one.
+    r=$(report_file "$f")
+    [ -f "$r" ] || return 0
+
+    cat <<EOF
+
+multigraph ntrip_stability_${name}
+graph_title NTRIP ${mount} stability (tier 2)
+graph_category ntrip
+graph_vlabel verdict
+graph_args --lower-limit 0 --upper-limit 3 --rigid
+graph_info Stability over a rolling window of hours -- a different question from the rest of these graphs, which describe this instant. 0 = insufficient evidence (the window is not yet long enough to judge, which is the honest answer for the first ten minutes of every session), 1 = stable, 2 = degraded, 3 = unstable. A metric that cannot be measured reads U rather than 0, so "not applicable" is never drawn as "fine". Thresholds: degraded warns, unstable is critical; insufficient evidence never alerts.
+EOF
+    for m in availability integrity signal satellites ionosphere delivery; do
+        echo "${m}.label ${m}"
+        echo "${m}.type GAUGE"
+        echo "${m}.min 0"
+        echo "${m}.max 3"
+        echo "${m}.warning 0:1"
+        echo "${m}.critical 0:2"
+    done
 }
 
 emit_values() {
@@ -209,6 +245,23 @@ EOF
             echo "type_${t}.value ${frames}"
         done
     fi
+
+    r=$(report_file "$f")
+    [ -f "$r" ] || return 0
+
+    echo ""
+    echo "multigraph ntrip_stability_${name}"
+    for m in availability integrity signal satellites ionosphere delivery; do
+        # Staleness is judged on the report's own file: it is written on
+        # the same interval, so an old one means the same thing here as
+        # there -- the daemon has stopped, and a verdict it can no longer
+        # support must not keep a green line on the graph.
+        if is_stale "$r"; then
+            echo "${m}.value U"
+        else
+            echo "${m}.value $(scalar "$r" "${m}_verdict")"
+        fi
+    done
 }
 
 # ── Main ────────────────────────────────────────────────────────────
@@ -216,9 +269,14 @@ EOF
 found=0
 for f in "$STATEDIR"/*.json; do
     [ -f "$f" ] || continue
+    # The reports are read through their snapshots, never on their own:
+    # one station is one set of graph families, whichever files it takes
+    # to fill them.
+    case "$f" in *.report.json) continue ;; esac
     # Only snapshots: anything ns_stats_to_json() wrote carries a
     # schema_version.  A stray JSON file (a config, a note) must not
-    # invent a graph family.
+    # invent a graph family.  A report carries report_schema_version and
+    # so fails this test too, which is why it has that name.
     [ "$(scalar "$f" schema_version)" = "U" ] && continue
     found=1
     base=$(basename "$f" .json)

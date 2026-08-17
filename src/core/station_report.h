@@ -38,6 +38,7 @@
 #define STATION_REPORT_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include "core/ns_stats.h"
 
 #ifdef __cplusplus
@@ -169,6 +170,50 @@ void sr_build(const SrState *s, StationReport *out);
 
 /** @brief "STABLE", "DEGRADED", "UNSTABLE", "INSUFFICIENT EVIDENCE". */
 const char *sr_verdict_name(int verdict);
+
+/**
+ * @brief Stable key for a metric: "availability", "integrity", ...
+ *
+ * These name fields in the published JSON, and Munin has no version
+ * negotiation: renaming one silently orphans its RRD history.  Frozen,
+ * like every field name the daemon emits (architecture.md §7.3).
+ */
+const char *sr_metric_key(int metric_id);
+
+/**
+ * @brief Schema version of @ref sr_to_json's output.
+ *
+ * Separate from @ref NS_STATS_SCHEMA_VERSION: a snapshot and a report
+ * are different documents with different lifetimes, and tying them
+ * together would force a bump on one for a change to the other.
+ *
+ * Emitted under the key `report_schema_version`, which is deliberately
+ * *not* the snapshot's key name — see the note in the implementation.
+ */
+#define SR_JSON_SCHEMA_VERSION 1
+
+/**
+ * @brief Serialise a report as a single-line JSON object.
+ *
+ * Flat by design: every metric contributes `<key>_verdict`,
+ * `<key>_value` and `<key>_detail` as top-level scalars, so the shell
+ * plugin that already reads the snapshot can read this the same way
+ * without becoming a JSON parser.
+ *
+ * A metric that is **unavailable** — live-only, built from a capture —
+ * emits `null` for its verdict and value rather than a zero, so a reader
+ * cannot mistake "cannot be measured here" for "measured, and fine".
+ *
+ * @param r          The report.
+ * @param mountpoint Written as `"mountpoint"`; may be NULL.
+ * @param out        Caller's buffer.
+ * @param cap        Its size, including the NUL.
+ * @return As snprintf: the length the output would have had.  A value
+ *         >= @p cap means it was truncated and must not be used.
+ *         Negative on a NULL report.
+ */
+int sr_to_json(const StationReport *r, const char *mountpoint,
+               char *out, size_t cap);
 
 #ifdef __cplusplus
 }

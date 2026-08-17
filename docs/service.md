@@ -16,7 +16,8 @@ ntrip-monitord ── holds one persistent session per mountpoint
       │
       │  every interval_s, writes atomically (tmp + rename)
       ▼
-/var/lib/ntrip-monitor/<mountpoint>.json     ← one snapshot per mountpoint
+/var/lib/ntrip-monitor/<mountpoint>.json         ← a snapshot: this instant
+/var/lib/ntrip-monitor/<mountpoint>.report.json  ← a report: the last hour
       │
       │  read at munin-node's poll (every 5 min)
       ▼
@@ -33,6 +34,45 @@ The snapshot is single-line JSON in the project-wide statistics schema
 temporary file and `rename()`d into place, so a reader never sees a
 half-written document. The same file is directly usable by anything
 else: `cat`, `jq`, a cron job.
+
+### The two documents answer different questions
+
+The snapshot says what is true **now** — bytes a second, satellites this
+moment, whether the socket is up. The report says whether the station has
+**been** fit, over a window of hours, in the vocabulary of tier 2:
+`STABLE`, `DEGRADED`, `UNSTABLE`, `INSUFFICIENT EVIDENCE`. A station can
+be perfectly healthy this second and have been unstable all week; those
+are not contradictions, and giving them one file and one vocabulary would
+make them look like one.
+
+```json
+{"report_schema_version":1,"mountpoint":"HANESE","window_s":3600.000,
+ "samples":3598,"overall":1,"overall_name":"STABLE",
+ "headline":"STABLE over 1.0 h","integrity_verdict":1,...}
+```
+
+The version key is `report_schema_version`, not `schema_version`, and the
+difference is deliberate: the Munin plugin finds snapshots by globbing
+`*.json` and keeping whatever carries a `schema_version`. Under that name
+a report would look like a snapshot to **any plugin older than it** — a
+phantom graph family per station, full of undefined values, on every host
+where the daemon is updated before the plugin.
+
+Flat, single-line, one key per figure — the same shape the shell plugin
+already reads, so nothing needs a JSON parser. Every metric contributes
+`<name>_verdict` (0 insufficient, 1 stable, 2 degraded, 3 unstable),
+`<name>_value` and `<name>_detail`. A metric that **cannot** be measured
+emits `null` rather than a zero, so a graph cannot draw "not applicable"
+as "fine".
+
+**The window rolls, and it is measured in stream time.** The report
+covers between one and two `report_window_s` — the daemon keeps two
+staggered accumulators and always publishes the older, so the figure
+never goes blank at a boundary. A session-scoped window would be
+worthless here: this daemon runs for months, and "the worst CRC rate
+since March" is not a thing anyone can act on. Stream time rather than
+wall time means a station that goes silent stops advancing its own
+window, instead of accumulating an hour of silence as an hour of health.
 
 ## Building
 
@@ -108,6 +148,11 @@ should be readable by the service group and nobody else.
 
 - `output_dir` must match the Munin plugin's `env.statedir` (both
   default to `/var/lib/ntrip-monitor`).
+- `report_window_s` is the tier-2 rolling window, 3600 by default; the
+  published report covers between one and two of them. Values below 600
+  are ignored, because 600 seconds is the least evidence the report will
+  judge on at all and a shorter setting could only ever publish
+  `INSUFFICIENT EVIDENCE`.
 - `send_gga: true` enables a periodic GGA uplink at the configured
   position — required by VRS / network mountpoints, harmless elsewhere.
 - Up to 16 mountpoints; the daemon round-robins them on one thread.
@@ -194,6 +239,25 @@ that silently stops sending 1005, or halves its MSM rate, shows up here
 and nowhere else.</em></td>
 </tr>
 </table>
+
+An eighth family, **stability**, draws the six tier-2 verdicts —
+availability, frame integrity, signal level, satellites held, ionosphere
+and delivery rate — on one 0–3 scale: 0 insufficient evidence, 1 stable,
+2 degraded, 3 unstable. It is the only graph here that describes a
+*window of hours* rather than an instant, and it reads differently for
+it: a flat line at 1 is a station that has been fit for as long as the
+window is long, and a step to 2 says which of the six moved.
+
+Degraded warns and unstable is critical, so Munin will alert on them.
+**Insufficient evidence never alerts** — it is the honest state for the
+first ten minutes after a restart, and a monitor that pages every time
+the daemon is upgraded is a monitor people turn off. A metric that
+cannot be measured on a given stream reads `U` rather than 0, so "not
+applicable" is never drawn as "fine".
+
+The family appears only when the daemon is new enough to publish
+reports, so upgrading the plugin ahead of the daemon changes nothing and
+breaks nothing.
 
 The remaining two families — integrity and availability — are flat lines
 on a healthy station and are worth looking at only when something is

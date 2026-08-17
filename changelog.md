@@ -73,6 +73,58 @@ It is also the better clock for a live run, where the two used to agree:
 a host NTP correction steps the wall clock sideways mid-session, and
 epoch counting cannot be stepped.
 
+### Added — the monitoring daemon publishes the stability report
+
+`ntrip-monitord` now writes `<mountpoint>.report.json` beside each
+snapshot, atomically, on the same interval — the tier-2 verdict over a
+rolling window, in a flat single-line shape the existing shell plugin
+can read without becoming a JSON parser.
+
+Two documents rather than one, because they answer different questions.
+The snapshot says what is true *now*; the report says whether the station
+has *been* fit, over hours. A station can be healthy this second and have
+been unstable all week, and one file with one vocabulary would make those
+look like a contradiction. Every existing reader of the snapshot is
+untouched.
+
+**The window rolls, and it had to.** A session-scoped report keeps the
+worst value it has ever seen, which is right for a run of an hour and
+worthless for a process that runs for months — one bad afternoon in March
+would still be the verdict in June. The daemon keeps two staggered
+accumulators and always publishes the older, so the report covers between
+one and two `report_window_s` (3600 by default) and never goes blank at a
+boundary. The clock is stream time: a station that goes silent stops
+advancing its own window instead of banking the silence as health.
+
+A metric that cannot be measured is published as `null`, never as `0`, so
+a graph cannot draw "not applicable" as "fine".
+
+**Munin draws it**, as an eighth graph family per mountpoint: the six
+verdicts on one 0–3 scale, with degraded warning and unstable critical.
+Insufficient evidence never alerts — it is the honest state for ten
+minutes after every restart, and a monitor that pages on an upgrade is
+one people turn off.
+
+The version key in the report is `report_schema_version` rather than
+`schema_version`, which is what keeps the two halves independent. The
+plugin finds snapshots by globbing `*.json` and keeping whatever carries
+a `schema_version`; under that name every report would have looked like a
+snapshot to any plugin older than it, and drawn a phantom graph family
+per station full of undefined values. As it stands an old plugin skips
+the reports and a new plugin omits the family when no reports exist, so
+either half can be upgraded first. Both directions were tested rather
+than reasoned about.
+
+### Fixed — a report claimed things it had not measured
+
+For the first thirty seconds of every session — the warm-up, before
+anything is sampled — the report stated *"no C/N0 in this stream
+(MSM1-3)"* and *"no dual-frequency pair to measure with"* about stations
+sending both. Those are claims about the station; an empty accumulator
+has grounds for neither, and now says "gathering" until it has sampled
+something. Visible only once the daemon began writing the report to a
+file, where a terminal had scrolled it past.
+
 ### Added — reporting over a captured stream
 
 `--rtcm-stdin` now works with `-d`, `-t` and `-s`, not only `--sky`, so a

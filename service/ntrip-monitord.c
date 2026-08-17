@@ -14,6 +14,15 @@
  * service/munin/ reads these files; so can anything else -- the snapshot
  * is the same schema the GUI will export (src/core/ns_stats.h).
  *
+ * Beside each one it writes
+ *
+ *     <output_dir>/<mountpoint>.report.json
+ *
+ * the tier-2 stability report over a rolling window (src/core/
+ * station_report.h).  Two documents rather than one: a snapshot is a
+ * point in time and a report is a window over many of them, and keeping
+ * them apart leaves every existing reader of the first untouched.
+ *
  * Why a daemon at all: munin-node invokes plugins every five minutes and
  * expects an answer in seconds.  Rates need a persistent session, and
  * dropouts -- the thing a stream monitor most needs to catch -- are
@@ -29,6 +38,7 @@
 
 #include "session/ntrip_session.h"
 #include "core/ns_stats.h"
+#include "core/station_report.h"
 #include "core/version.h"
 
 #include "cJSON.h"
@@ -53,14 +63,54 @@
 #define MD_MAX_SESSIONS 16
 #define MD_JSON_MAX     16384
 
+/** Default length of the tier-2 rolling window, seconds. */
+#define MD_REPORT_WINDOW_S 3600.0
+
+/** Seconds of *stream* between tier-2 samples; the CLI's cadence. */
+#define MD_REPORT_SAMPLE_S 1.0
+
 /* ── Configuration ───────────────────────────────────────────────── */
 
 typedef struct {
     char   output_dir[512];
     double interval_s;          /* snapshot write interval             */
+    double report_window_s;     /* tier-2 rolling window               */
     int    n;
     NsOptions opt[MD_MAX_SESSIONS];
 } MdConfig;
+
+/**
+ * @struct MdReport
+ * @brief One station's tier-2 accumulator: a rolling window from a pair.
+ *
+ * The CLI's report is session-scoped, and for a run of an hour or six
+ * that is the right shape.  This daemon runs for **months**, where the
+ * same shape decays into nonsense: `SrState` keeps the worst value it
+ * has ever seen, so one bad afternoon in March would still be the
+ * verdict in June, and the graph would never recover.
+ *
+ * So the window rolls, using two staggered accumulators rather than a
+ * ring of samples:
+ *
+ *   - Slot 0 starts with the stream; slot 1 starts one window later.
+ *   - Each is retired and restarted once it holds **two** windows.
+ *   - The published report is always the *older* slot, which therefore
+ *     always holds between one and two windows of evidence.
+ *
+ * Two `SrState`s and two timestamps, and the report never goes blank at
+ * a boundary the way a tumbling window does.
+ *
+ * The clock throughout is @ref NsStatsSnapshot::stream_time_s.  A window
+ * measured against the host would age while a station sat silent, and
+ * would be stepped sideways by an NTP correction on a machine that is
+ * expected to run unattended for months.
+ */
+typedef struct {
+    SrState slot[2];
+    double  start[2];        /* stream time each slot was armed at   */
+    bool    live[2];
+    double  last_sample;     /* stream time of the last sr_feed      */
+} MdReport;
 
 static volatile sig_atomic_t g_stop = 0;
 
@@ -78,6 +128,7 @@ static void on_signal(int sig)
  * {
  *   "output_dir": "/var/lib/ntrip-monitor",
  *   "interval_s": 10,
+ *   "report_window_s": 3600,
  *   "mountpoints": [
  *     { "caster": "rfsee.net", "port": 2101, "mountpoint": "RFSEE01",
  *       "username": "u", "password": "p",
@@ -93,7 +144,8 @@ static void on_signal(int sig)
 static bool load_md_config(const char *path, MdConfig *cfg)
 {
     memset(cfg, 0, sizeof(*cfg));
-    cfg->interval_s = 10.0;
+    cfg->interval_s      = 10.0;
+    cfg->report_window_s = MD_REPORT_WINDOW_S;
     strncpy(cfg->output_dir, ".", sizeof(cfg->output_dir) - 1);
 
     FILE *f = fopen(path, "rb");
@@ -128,6 +180,12 @@ static bool load_md_config(const char *path, MdConfig *cfg)
     if ((v = cJSON_GetObjectItem(root, "interval_s")) && cJSON_IsNumber(v) &&
         v->valuedouble >= 1.0)
         cfg->interval_s = v->valuedouble;
+    /* Floored at the report's own minimum: a window shorter than that
+     * can only ever publish INSUFFICIENT EVIDENCE, and a setting whose
+     * every value is "no answer" is a trap rather than a choice. */
+    if ((v = cJSON_GetObjectItem(root, "report_window_s")) &&
+        cJSON_IsNumber(v) && v->valuedouble >= SR_MIN_WINDOW_S)
+        cfg->report_window_s = v->valuedouble;
 
     const cJSON *arr = cJSON_GetObjectItem(root, "mountpoints");
     if (!cJSON_IsArray(arr) || cJSON_GetArraySize(arr) == 0) {
@@ -209,33 +267,23 @@ static void safe_name(const char *mount, char *out, size_t cap)
 }
 
 /**
- * @brief Write one session's snapshot atomically.
+ * @brief Write one document atomically as `<dir>/<mount><suffix>.json`.
  *
  * POSIX rename() over an existing file is atomic, so a reader sees the
- * old snapshot or the new one, never a torn mix.  Windows rename() fails
+ * old document or the new one, never a torn mix.  Windows rename() fails
  * on an existing target; MoveFileEx with MOVEFILE_REPLACE_EXISTING is
  * the equivalent there (Windows is a development convenience for this
  * daemon, not a deployment target).
  */
-static bool publish(const MdConfig *cfg, const NtripSession *sess)
+static bool write_atomic(const MdConfig *cfg, const char *mount,
+                         const char *suffix, const char *text)
 {
-    const NsStatsSnapshot *st = ns_stats(sess);
-    if (!st) return false;
-
-    static char json[MD_JSON_MAX];
-    int n = ns_stats_to_json(st, json, sizeof(json));
-    if (n <= 0 || (size_t)n >= sizeof(json)) {
-        fprintf(stderr, "ntrip-monitord: snapshot for %s did not fit "
-                "(%d bytes)\n", st->mountpoint, n);
-        return false;
-    }
-
     char name[128];
-    safe_name(st->mountpoint, name, sizeof(name));
+    safe_name(mount, name, sizeof(name));
 
     char final_path[768], tmp_path[784];
-    snprintf(final_path, sizeof(final_path), "%s" PATH_SEP "%s.json",
-             cfg->output_dir, name);
+    snprintf(final_path, sizeof(final_path), "%s" PATH_SEP "%s%s.json",
+             cfg->output_dir, name, suffix);
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", final_path);
 
     FILE *f = fopen(tmp_path, "wb");
@@ -244,7 +292,7 @@ static bool publish(const MdConfig *cfg, const NtripSession *sess)
                 tmp_path, strerror(errno));
         return false;
     }
-    fputs(json, f);
+    fputs(text, f);
     fputc('\n', f);
     if (fclose(f) != 0) return false;
 
@@ -261,6 +309,101 @@ static bool publish(const MdConfig *cfg, const NtripSession *sess)
     }
 #endif
     return true;
+}
+
+/** @brief Publish one session's point-in-time snapshot. */
+static bool publish(const MdConfig *cfg, const NtripSession *sess)
+{
+    const NsStatsSnapshot *st = ns_stats(sess);
+    if (!st) return false;
+
+    static char json[MD_JSON_MAX];
+    int n = ns_stats_to_json(st, json, sizeof(json));
+    if (n <= 0 || (size_t)n >= sizeof(json)) {
+        fprintf(stderr, "ntrip-monitord: snapshot for %s did not fit "
+                "(%d bytes)\n", st->mountpoint, n);
+        return false;
+    }
+    return write_atomic(cfg, st->mountpoint, "", json);
+}
+
+/* ── Tier 2: the rolling stability report ────────────────────────────── */
+
+/**
+ * @brief Fold the current snapshot into the rolling window.
+ *
+ * Called every loop, gated on the stream's clock rather than the host's:
+ * a station that stops sending stops advancing its own window, which is
+ * the behaviour that makes the published figure "over the last hour of
+ * *stream*" rather than "over the last hour, of which forty minutes were
+ * silence we counted as good".
+ */
+static void report_update(MdReport *r, const NsStatsSnapshot *st,
+                          double window_s)
+{
+    if (!st) return;
+    double t = st->stream_time_s;
+    if (t < 0.0) return;                 /* no epochs: nothing to measure */
+
+    if (!r->live[0]) {
+        sr_reset(&r->slot[0], false);
+        r->start[0] = t;
+        r->live[0]  = true;
+        r->last_sample = -1e9;
+    }
+    /* The second slot is armed one window in, so that when the first is
+     * retired at two windows there is already a full one behind it. */
+    if (!r->live[1] && t - r->start[0] >= window_s) {
+        sr_reset(&r->slot[1], false);
+        r->start[1] = t;
+        r->live[1]  = true;
+    }
+    for (int i = 0; i < 2; i++) {
+        if (r->live[i] && t - r->start[i] >= 2.0 * window_s) {
+            sr_reset(&r->slot[i], false);
+            r->start[i] = t;
+        }
+    }
+
+    if (t - r->last_sample < MD_REPORT_SAMPLE_S) return;
+    r->last_sample = t;
+
+    /* Absolute stream time, not time-since-slot-armed: sr_feed()'s
+     * warm-up guard should discard the session's first thirty seconds,
+     * when the constellation is still arriving -- not thirty seconds out
+     * of every window for the rest of the month. */
+    for (int i = 0; i < 2; i++)
+        if (r->live[i]) sr_feed(&r->slot[i], st, t);
+}
+
+/**
+ * @brief Publish the rolling report as `<mountpoint>.report.json`.
+ *
+ * A second file rather than more keys in the first: a snapshot is a
+ * point in time and a report is a window, they have different lifetimes,
+ * and every existing reader of the snapshot -- the Munin plugin above
+ * all -- keeps working untouched.
+ */
+static bool publish_report(const MdConfig *cfg, const MdReport *r,
+                           const char *mount)
+{
+    /* The older slot, which is the one holding a full window. */
+    int best = -1;
+    for (int i = 0; i < 2; i++)
+        if (r->live[i] && (best < 0 || r->start[i] < r->start[best])) best = i;
+    if (best < 0) return false;
+
+    StationReport rep;
+    sr_build(&r->slot[best], &rep);
+
+    static char json[MD_JSON_MAX];
+    int n = sr_to_json(&rep, mount, json, sizeof(json));
+    if (n <= 0 || (size_t)n >= sizeof(json)) {
+        fprintf(stderr, "ntrip-monitord: report for %s did not fit "
+                "(%d bytes)\n", mount, n);
+        return false;
+    }
+    return write_atomic(cfg, mount, ".report", json);
 }
 
 /* ── Event sink ──────────────────────────────────────────────────── */
@@ -335,11 +478,13 @@ int main(int argc, char **argv)
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 
-    fprintf(stderr, "%s %s: %d mountpoint(s), interval %.0fs, output %s\n",
+    fprintf(stderr, "%s %s: %d mountpoint(s), interval %.0fs, "
+            "report window %.0fs, output %s\n",
             NTRIP_ARTEFACT_SERVICE, NTRIP_VERSION_STRING,
-            cfg.n, cfg.interval_s, cfg.output_dir);
+            cfg.n, cfg.interval_s, cfg.report_window_s, cfg.output_dir);
 
     NtripSession *sess[MD_MAX_SESSIONS] = { 0 };
+    static MdReport reports[MD_MAX_SESSIONS];
     for (int i = 0; i < cfg.n; i++) {
         sess[i] = ns_open(&cfg.opt[i], on_event,
                           (void *)cfg.opt[i].config.MOUNTPOINT);
@@ -365,6 +510,10 @@ int main(int argc, char **argv)
         for (int i = 0; i < cfg.n; i++) {
             if (!sess[i]) continue;
             if (ns_pump(sess[i], timeout) >= 0) all_ended = false;
+            /* Every loop, not every publish: the window is fed at the
+             * stream's own cadence, and publishing is only when a reader
+             * is shown the result. */
+            report_update(&reports[i], ns_stats(sess[i]), cfg.report_window_s);
         }
 
         double now = md_now();
@@ -376,16 +525,24 @@ int main(int argc, char **argv)
 
         if (due) {
             last_publish = now;
-            for (int i = 0; i < cfg.n; i++)
-                if (sess[i]) publish(&cfg, sess[i]);
+            for (int i = 0; i < cfg.n; i++) {
+                if (!sess[i]) continue;
+                publish(&cfg, sess[i]);
+                publish_report(&cfg, &reports[i],
+                               cfg.opt[i].config.MOUNTPOINT);
+            }
             if (oneshot) break;
         }
         if (all_ended) {
             /* Only reachable when auto_reconnect is off or every session
              * hit a terminal condition; publish the final state and stop
              * rather than spinning. */
-            for (int i = 0; i < cfg.n; i++)
-                if (sess[i]) publish(&cfg, sess[i]);
+            for (int i = 0; i < cfg.n; i++) {
+                if (!sess[i]) continue;
+                publish(&cfg, sess[i]);
+                publish_report(&cfg, &reports[i],
+                               cfg.opt[i].config.MOUNTPOINT);
+            }
             break;
         }
     }

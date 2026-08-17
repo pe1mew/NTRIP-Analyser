@@ -347,8 +347,72 @@ delivery, which no file can hold — which is exactly why availability is
 marked live-only, and is worth stating rather than leaving for a user to
 discover by comparing two reports and doubting both.
 
-Next: the daemon, which runs for months and is the natural home; then
-the GUI, for commissioning.
+## Phase 2d — The daemon publishes it — **built**
+
+`ntrip-monitord` writes `<mountpoint>.report.json` beside the snapshot,
+atomically, on the same interval. A second document rather than more
+keys in the first: a snapshot is a point in time and a report is a
+window over many of them, they have different lifetimes, and every
+existing reader of the snapshot — the Munin plugin above all — keeps
+working untouched. `sr_to_json()` lives in core, flat and single-line,
+so the shell plugin can read it with the `scalar()` helper it already
+has rather than becoming a JSON parser.
+
+**The window has to roll here.** `SrState` keeps the worst value it has
+ever seen, which is right for a run of an hour and worthless for a
+process that runs for months: one bad afternoon in March would still be
+the verdict in June, and the graph could never recover.
+
+The daemon keeps **two staggered accumulators** rather than a ring of
+samples. Slot 0 starts with the stream, slot 1 one window later, each is
+retired and restarted at two windows, and the published report is always
+the older — so it always holds between one and two windows, and never
+goes blank at a boundary the way a tumbling window does. Two `SrState`s
+and two timestamps.
+
+`report_window_s` defaults to 3600 and is floored at `SR_MIN_WINDOW_S`:
+a setting whose every value produces `INSUFFICIENT EVIDENCE` is a trap
+rather than a choice.
+
+The clock is `stream_time_s` throughout. A window measured against the
+host would age while a station sat silent — counting an hour of silence
+as an hour of health — and would be stepped sideways by an NTP
+correction on a machine expected to run unattended for months.
+
+### What publishing it found
+
+The report was published every ten seconds from the moment a session
+opened, and for the first thirty of those — the warm-up, when nothing
+has been sampled — it said *"no C/N0 in this stream (MSM1-3)"* and *"no
+dual-frequency pair to measure with"* about a station sending both.
+Those are claims about the station, and an empty accumulator has no
+grounds for either. Both now say "gathering" until something has been
+sampled, with a case in `test_station_report.c`.
+
+It only became visible because a file on disk shows what a terminal
+scrolls past.
+
+### Munin draws it — **built**
+
+`ntrip_stability_<mount>`: the six verdicts on one 0–3 scale, GAUGE,
+`warning 0:1` and `critical 0:2` so degraded warns and unstable pages
+while insufficient evidence never does. Deployed to the monitoring host
+and verified there under dash, against both live stations.
+
+Adding it found a hazard the daemon had introduced two phases earlier.
+The plugin discovers stations by globbing `*.json` and keeping whatever
+carries a `schema_version` — so `<mount>.report.json` would have looked
+like a snapshot to any plugin older than the daemon, and drawn a phantom
+graph family per station, full of undefined values, on every host
+upgraded in the wrong order. Fixed from both sides: the plugin skips
+`*.report.json` explicitly, and the report's version key is
+`report_schema_version`, so an old plugin skips it without knowing why.
+The new plugin omits the family when no report file exists, so the other
+order is safe too. **Both directions were tested** — the previous
+plugin, taken from git, against a new-format report — rather than
+reasoned about.
+
+Next: the GUI, for commissioning.
 
 **What it does not give is a date.** An epoch is a time *within* a week
 or a day with no week number, so it measures spans, never instants.
