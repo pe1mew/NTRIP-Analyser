@@ -157,7 +157,8 @@ static int SeverityOf(int verdict)
 }
 
 static void SetRow(HWND hLv, int row, const char *name, const char *verdict,
-                   const char *value, const char *detail, int severity)
+                   const char *value, const char *limit, const char *detail,
+                   int severity)
 {
     if (ListView_GetItemCount(hLv) <= row) {
         LVITEM lvi;
@@ -178,7 +179,8 @@ static void SetRow(HWND hLv, int row, const char *name, const char *verdict,
     }
     ListView_SetItemText(hLv, row, 1, (char *)verdict);
     ListView_SetItemText(hLv, row, 2, (char *)value);
-    ListView_SetItemText(hLv, row, 3, (char *)detail);
+    ListView_SetItemText(hLv, row, 3, (char *)limit);
+    ListView_SetItemText(hLv, row, 4, (char *)detail);
 }
 
 static void RefreshRows(HWND hwnd, AppState *state)
@@ -188,7 +190,7 @@ static void RefreshRows(HWND hwnd, AppState *state)
 
     if (!state->checkHaveReport) {
         ListView_DeleteAllItems(hLv);
-        SetRow(hLv, 0, "Not started", "", "",
+        SetRow(hLv, 0, "Not started", "", "", "",
                state->bWorkerRunning
                    ? "Press Run Check to test the open stream"
                    : "Open a stream first: the check watches what it carries",
@@ -196,20 +198,23 @@ static void RefreshRows(HWND hwnd, AppState *state)
         return;
     }
 
-    char num[64];
+    char num[64], lim[64];
     int row = 0;
     for (int i = 0; i < KPI_COUNT; i++) {
         const KpiResult *k = &state->checkReport.kpi[i];
         char name[96];
         snprintf(name, sizeof(name), "%d. %s", i + 1,
                  k->label ? k->label : "");
+        /* The number this check was held to. Blank for the structural
+         * ones -- whether RTCM decodes at all is not a comparison. */
+        kpi_limit_text(k, i, lim, sizeof(lim));
         /* The unit rides with the number: a Value column of 1562, 46.0
          * and 100.000 is three quantities a reader has to already know
          * the meaning of. */
         const char *unit = kpi_value_unit(i);
         snprintf(num, sizeof(num), "%.*f%s%s", kpi_value_decimals(i),
                  k->value, *unit ? " " : "", unit);
-        SetRow(hLv, row++, name, kpi_verdict_name(k->verdict), num,
+        SetRow(hLv, row++, name, kpi_verdict_name(k->verdict), num, lim,
                k->detail ? k->detail : "", SeverityOf(k->verdict));
     }
 
@@ -222,7 +227,9 @@ static void RefreshRows(HWND hwnd, AppState *state)
             snprintf(name, sizeof(name), "A%d. %s", i + 1,
                      a->label ? a->label : "");
             snprintf(num, sizeof(num), "%.2f", a->value);
-            SetRow(hLv, row++, name, kpi_verdict_name(a->verdict), num,
+            /* The assertions have deadlines, not limits, and each says
+             * its own in the detail. */
+            SetRow(hLv, row++, name, kpi_verdict_name(a->verdict), num, "",
                    a->detail ? a->detail : "", SeverityOf(a->verdict));
         }
     }
@@ -389,9 +396,11 @@ static LRESULT CALLBACK CheckWndProc(HWND hwnd, UINT msg,
 
         struct { const char *t; int w; } cols[] = {
             { "Check",   230 }, { "Verdict", 70 },
-            { "Value",  100 },  { "Detail",  420 },   /* "100.000 %" */
+            { "Value",   100 },                       /* "100.000 %"     */
+            { "Limit",   110 },                       /* "min 99.900 %"  */
+            { "Detail",  420 },
         };
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             LVCOLUMN c;
             ZeroMemory(&c, sizeof(c));
             c.mask     = LVCF_TEXT | LVCF_WIDTH;

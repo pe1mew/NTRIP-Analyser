@@ -8,6 +8,7 @@
  */
 
 #include "core/kpi.h"
+#include <stdio.h>     /* snprintf, into caller buffers only -- no I/O */
 #include <string.h>
 
 void kpi_run_start(KpiRun *run, double now)
@@ -36,6 +37,21 @@ const char *kpi_value_unit(int kpi_index)
     case 6:  return "%";       /* frames passing CRC                    */
     default: return "";        /* frames, satellites, types: counts     */
     }
+}
+
+const char *kpi_limit_text(const KpiResult *k, int kpi_index,
+                           char *out, size_t cap)
+{
+    if (!out || cap == 0) return out;
+    out[0] = '\0';
+    if (!k || k->limit_dir == KPI_LIMIT_NONE) return out;
+
+    const char *unit = kpi_value_unit(kpi_index);
+    snprintf(out, cap, "%s %.*f%s%s",
+             k->limit_dir == KPI_LIMIT_MIN ? "min" : "max",
+             kpi_value_decimals(kpi_index), k->limit,
+             *unit ? " " : "", unit);
+    return out;
 }
 
 const char *kpi_verdict_name(int v)
@@ -155,6 +171,8 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     /* ── 1: connected and producing ─────────────────────────────────── */
     k[0].label = "Connected and producing";
     k[0].value = s->bytes_per_s;
+    k[0].limit = KPI_MIN_BYTES_PER_S;
+    k[0].limit_dir = KPI_LIMIT_MIN;
     if (!s->connected) {
         k[0].verdict = (out->elapsed_s < 10.0) ? KPI_PENDING : KPI_FAIL;
         k[0].detail  = "No connection to the caster";
@@ -254,6 +272,13 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         }
         if (want <= 0) want = KPI_EXPECT_UNKNOWN;
 
+        /* The number this station was actually held to, which differs
+         * with the constellations it streams -- a GPS+GLONASS base is
+         * not asked for what a five-system one delivers. Showing the
+         * flat table value instead would misstate the test. */
+        k[4].limit     = (double)want;
+        k[4].limit_dir = KPI_LIMIT_MIN;
+
         if (out->elapsed_s < 10.0 && s->sats_total == 0) {
             k[4].verdict = KPI_PENDING;
             k[4].detail  = "Counting";
@@ -274,6 +299,8 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     int cnr_sats = 0;
     double med = cnr_median_weighted(s, &cnr_sats);
     k[5].value = med;
+    k[5].limit = KPI_MIN_CNR_MEDIAN;
+    k[5].limit_dir = KPI_LIMIT_MIN;
     if (cnr_sats == 0) {
         /* Every MSM that carries C/N0 is now read -- 4, 5, 6 and 7 --
          * so this branch means the stream carries none of them: MSM1-3,
@@ -336,7 +363,9 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
          * complement is "CRC error rate"; it is not BER, and not FER,
          * which names frames that never arrived rather than frames that
          * arrived broken. */
-        k[6].value = run->crc_have_pct ? run->crc_pct : 100.0;
+        k[6].value     = run->crc_have_pct ? run->crc_pct : 100.0;
+        k[6].limit     = KPI_MIN_INTEGRITY_PCT;
+        k[6].limit_dir = KPI_LIMIT_MIN;
         if (!run->crc_have_pct) {
             k[6].verdict = KPI_PENDING;
             k[6].detail  = "Too few frames to judge integrity yet";

@@ -81,7 +81,8 @@ static int SeverityOf(int verdict)
 }
 
 static void SetRow(HWND hLv, int row, const char *name, const char *verdict,
-                   const char *value, const char *detail, int severity)
+                   const char *value, const char *limit, const char *detail,
+                   int severity)
 {
     if (ListView_GetItemCount(hLv) <= row) {
         LVITEM lvi;
@@ -102,7 +103,8 @@ static void SetRow(HWND hLv, int row, const char *name, const char *verdict,
     }
     ListView_SetItemText(hLv, row, 1, (char *)verdict);
     ListView_SetItemText(hLv, row, 2, (char *)value);
-    ListView_SetItemText(hLv, row, 3, (char *)detail);
+    ListView_SetItemText(hLv, row, 3, (char *)limit);
+    ListView_SetItemText(hLv, row, 4, (char *)detail);
 }
 
 static void RefreshRows(HWND hwnd, AppState *state)
@@ -112,7 +114,7 @@ static void RefreshRows(HWND hwnd, AppState *state)
 
     if (!state->reportHave) {
         ListView_DeleteAllItems(hLv);
-        SetRow(hLv, 0, "Nothing measured yet", "", "",
+        SetRow(hLv, 0, "Nothing measured yet", "", "", "",
                state->bWorkerRunning
                    ? "Gathering: the first verdict needs ten minutes of stream"
                    : "Open a stream or replay a capture; this watches what it carries",
@@ -123,22 +125,28 @@ static void RefreshRows(HWND hwnd, AppState *state)
     int row = 0;
     for (int i = 0; i < SR_METRIC_COUNT; i++) {
         const SrMetric *m = &state->reportOut.metric[i];
-        char name[96], num[64];
+        char name[96], num[64], lim[64];
         snprintf(name, sizeof(name), "%d. %s", i + 1,
                  m->label ? m->label : "");
+
+        /* The limit shows on every row, including one that cannot be
+         * measured here: what a capture *would* have been held to is
+         * still worth a reader knowing. */
+        sr_metric_limit_text(m, i, lim, sizeof(lim));
 
         /* An unavailable metric shows "n/a" and no number.  A live-only
          * figure absent from a replay is not a figure measured as zero,
          * and a clean 0.000 in that column would be an invention. */
         /* detail is an array, not a pointer: always valid, never NULL. */
         if (!m->available) {
-            SetRow(hLv, row++, name, "n/a", "--", m->detail, HEALTH_INFO);
+            SetRow(hLv, row++, name, "n/a", "--", lim, m->detail,
+                   HEALTH_INFO);
             continue;
         }
         const char *unit = sr_metric_unit(i);
         snprintf(num, sizeof(num), "%.*f%s%s", sr_metric_decimals(i),
                  m->value, *unit ? " " : "", unit);
-        SetRow(hLv, row++, name, sr_verdict_name(m->verdict), num,
+        SetRow(hLv, row++, name, sr_verdict_name(m->verdict), num, lim,
                m->detail, SeverityOf(m->verdict));
     }
 
@@ -292,10 +300,11 @@ static void LayoutChildren(HWND hwnd)
          * grey beside four fixed ones. */
         int fixed = ListView_GetColumnWidth(hLv, 0)
                   + ListView_GetColumnWidth(hLv, 1)
-                  + ListView_GetColumnWidth(hLv, 2);
+                  + ListView_GetColumnWidth(hLv, 2)
+                  + ListView_GetColumnWidth(hLv, 3);
         int detail = w - fixed - GetSystemMetrics(SM_CXVSCROLL) - 4;
         if (detail < 160) detail = 160;
-        ListView_SetColumnWidth(hLv, 3, detail);
+        ListView_SetColumnWidth(hLv, 4, detail);
     }
 
     HWND hRst = GetDlgItem(hwnd, IDC_REPORT_BTN_RESET);
@@ -332,9 +341,11 @@ static LRESULT CALLBACK ReportWndProc(HWND hwnd, UINT msg,
          * Detail is resized to fill in LayoutChildren(). */
         struct { const char *t; int w; } cols[] = {
             { "Stability", 150 }, { "Verdict", VerdictColumnWidth(hLv) },
-            { "Value",     110 }, { "Detail",  290 },   /* 0.06 TECU/min */
+            { "Value",     110 },  /* 0.06 TECU/min */
+            { "Limit",     120 },  /* max 0.50 TECU/min */
+            { "Detail",    290 },
         };
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             LVCOLUMN c;
             ZeroMemory(&c, sizeof(c));
             c.mask    = LVCF_TEXT | LVCF_WIDTH;

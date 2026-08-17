@@ -1,6 +1,8 @@
 # Work item — user-supplied thresholds
 
-**Status:** proposed. Nothing here is built.
+**Status:** decision 3's first half is **built** — every row on every
+desktop screen now shows the limit it was judged against. The rest is
+proposed, and four questions at the end are the author's to answer.
 
 The numbers that decide every verdict are `#define`s in `src/core/`, and
 [docs/thresholds.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/thresholds.md)
@@ -98,13 +100,36 @@ GUI's status line, the daemon's startup line.
 
 This is the part that must not be traded away for schedule.
 
-**On screen, beside each row.** The detail column already carries the
-evidence; it should carry the threshold too:
+**On screen, beside each row — built.** Every row of the CLI's
+`--check` and `--report`, and of both GUI windows, now carries a
+**limit** column:
 
 ```
-6. Median C/N0        PASS   45.73   healthy: 45.7 >= 40.0 dB-Hz
-4. Satellites held    STABLE    39   fewest 39, warn below 25
+4   Satellites held    INSUFFICIENT EVIDENCE     38  min 25      fewest held: 38
+5   Ionosphere         INSUFFICIENT EVIDENCE 0.00 TECU/min  max 0.50 TECU/min  gathering
 ```
+
+`KpiResult` and `SrMetric` gained `limit` and `limit_dir`, set where the
+verdict is decided, and `kpi_limit_text()` / `sr_metric_limit_text()`
+format them in core so every surface prints the same sentence in the
+row's own units and precision. Two consequences worth the shape:
+
+- A screen **cannot** show a threshold the engine is not using, because
+  there is no second copy of the number to drift.
+- KPI 5 shows what *this* station was held to. Its expectation is the
+  sum over the constellations the station streams, so a GPS+GLONASS
+  base reads `min 14` where a five-system one reads `min 29` — a static
+  string could not have said that, and the flat table value would have
+  misstated the test.
+
+The structural checks — whether RTCM decodes at all, whether an ARP has
+arrived — and the VRS assertions leave the column blank. They are not
+comparisons against a number, and inventing one would be worse than the
+gap.
+
+**Not yet on the phone.** The Android bridge serialises verdict, value
+and detail; adding the limit is a JSON field plus Kotlin, and is the
+remaining half of "any screen".
 
 **In the header, when the policy is not the built-in one.** A verdict
 produced under custom criteria must say so, or a screenshot of it is

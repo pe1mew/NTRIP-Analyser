@@ -152,12 +152,41 @@ typedef enum {
     KPI_RUN_FAILED,       /**< a hard KPI failed                       */
 } KpiRunVerdict;
 
+/**
+ * @brief Which side of its limit a value has to be on to pass.
+ *
+ * A verdict without the number that decided it cannot be argued with:
+ * "Median C/N0 — 45.7 — healthy" invites the question *healthy compared
+ * with what?* and answers nothing. So every check that has a limit
+ * carries it, in the units its value is already in.
+ *
+ * @ref KPI_LIMIT_NONE for the structural checks -- whether RTCM decodes
+ * at all, whether an ARP has arrived -- which are not comparisons and
+ * have no number to show.
+ */
+typedef enum {
+    KPI_LIMIT_NONE = 0,
+    KPI_LIMIT_MIN,         /**< pass at or above @ref KpiResult::limit */
+    KPI_LIMIT_MAX,         /**< pass at or below it                    */
+} KpiLimitDir;
+
 /** @brief One KPI's evaluation, with the number behind it. */
 typedef struct {
     int    verdict;        /**< @ref KpiVerdict                        */
     double value;          /**< the measured figure the verdict is on  */
     const char *label;     /**< static short name, e.g. "ARP broadcast" */
     const char *detail;    /**< static explanation of the current state */
+    /**
+     * The figure @ref value is judged against, in the same units.
+     *
+     * Set where the verdict is decided rather than written into a
+     * frontend, so that a screen cannot show a threshold the engine is
+     * not using -- and so that KPI 5, whose expectation depends on the
+     * constellations the station streams, can show the number it was
+     * actually held to.
+     */
+    double limit;
+    int    limit_dir;      /**< @ref KpiLimitDir                       */
 } KpiResult;
 
 /**
@@ -203,6 +232,18 @@ typedef struct {
      */
     bool   settled;
 } KpiReport;
+
+/**
+ * @brief Write a check's limit as text: "min 40.0 dB-Hz", "min 29", "".
+ *
+ * Formatted here rather than in each frontend so every screen shows a
+ * user the same sentence, in the check's own units and precision.
+ * Writes "" for the structural checks, which have no number.
+ *
+ * @return @p out, always, so it can be used inline.
+ */
+const char *kpi_limit_text(const KpiResult *k, int kpi_index,
+                           char *out, size_t cap);
 
 /**
  * @brief Begin (or restart) an acceptance run.

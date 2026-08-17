@@ -255,6 +255,30 @@ void sr_build(const SrState *s, StationReport *out)
             false, true, "off-rate in %.0f %% of samples", share * 100.0);
     }
 
+    /* ── The figure each row was judged against ──────────────────────
+     * In the units the row displays, so a screen can put it beside the
+     * value and a reader can see for himself what "STABLE" was measured
+     * against. Every one of these is a judgement rather than a fact --
+     * see docs/thresholds.md -- which is exactly why it should not be
+     * invisible. Indexed by name so reordering the enum cannot silently
+     * pair a row with someone else's threshold. */
+    {
+        static const struct { double limit; int dir; } lim[SR_METRIC_COUNT] = {
+            [SR_AVAILABILITY] = { SR_RECONNECTS_WARN_PER_H, SR_LIMIT_MAX },
+            [SR_INTEGRITY]    = { SR_INTEGRITY_WARN_PCT,    SR_LIMIT_MIN },
+            [SR_SIGNAL]       = { SR_CNR_DROP_WARN,         SR_LIMIT_MAX },
+            [SR_SATELLITES]   = { SR_SATS_WARN,             SR_LIMIT_MIN },
+            [SR_IONOSPHERE]   = { IONO_ROTI_UNSETTLED,      SR_LIMIT_MAX },
+            /* The share is graded as a fraction and shown as a per
+             * cent; the limit follows the display. */
+            [SR_DELIVERY]     = { SR_OFFRATE_WARN * 100.0,  SR_LIMIT_MAX },
+        };
+        for (int i = 0; i < SR_METRIC_COUNT; i++) {
+            out->metric[i].limit     = lim[i].limit;
+            out->metric[i].limit_dir = lim[i].dir;
+        }
+    }
+
     /* ── Roll-up.  Insufficient evidence is a state, not a failure: it
      * says the window is too short to judge, which is true for the first
      * ten minutes of every run. ── */
@@ -320,6 +344,21 @@ const char *sr_metric_unit(int metric_id)
     case SR_DELIVERY:     return "%";         /* of samples off-rate    */
     default:              return "";          /* satellites: a count    */
     }
+}
+
+const char *sr_metric_limit_text(const SrMetric *m, int metric_id,
+                                 char *out, size_t cap)
+{
+    if (!out || cap == 0) return out;
+    out[0] = '\0';
+    if (!m || m->limit_dir == SR_LIMIT_NONE) return out;
+
+    const char *unit = sr_metric_unit(metric_id);
+    snprintf(out, cap, "%s %.*f%s%s",
+             m->limit_dir == SR_LIMIT_MIN ? "min" : "max",
+             sr_metric_decimals(metric_id), m->limit,
+             *unit ? " " : "", unit);
+    return out;
 }
 
 const char *sr_metric_key(int metric_id)

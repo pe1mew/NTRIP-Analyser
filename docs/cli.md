@@ -126,11 +126,13 @@ ntrip-analyser -t 3600 --report
 
 Six measurements over the run: availability (reconnects per hour), frame
 integrity, signal level, satellites held, ionosphere and delivery rate.
-Each is graded on its own, and the report ends with the worst finding
-stated with its evidence, rather than a bare word:
+Each row carries its value, **the limit it was judged against**, and the
+evidence behind it, so a verdict can be argued with rather than merely
+read. The report ends with the worst finding stated with its evidence,
+rather than a bare word:
 
 ```
-== DEGRADED over 6.0 h -- Frame integrity: worst CRC error rate 0.140 % ==
+== DEGRADED over 6.0 h -- Frame integrity: worst 99.860 % of frames passed CRC in 10 min ==
 ```
 
 Four things about it are deliberate:

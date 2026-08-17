@@ -602,6 +602,14 @@ ninety seconds and reports eight KPIs:
 | 7 | Frame integrity (CRC) | more than 1 error per 1000 frames |
 | 8 | Advertised versus actual | advertised message types never arrive |
 
+Every row shows **the limit it was judged against** — `min 40.0 dB-Hz`,
+`min 99.900 %` — so a verdict can be argued with rather than merely
+read. Check 5 shows the figure *this* station was held to, which is the
+sum over the constellations it streams: a GPS+GLONASS base is asked for
+fewer satellites than a five-system one. The structural checks, and the
+VRS assertions, leave that column blank because they are not
+comparisons against a number.
+
 KPI 8 compares the sourcetable's promise against delivery. A type that
 is advertised but missing is a failure — a rover configured from that
 sourcetable will not get what it was told to expect. Sending types or
@@ -648,8 +656,9 @@ open and reads `INSUFFICIENT EVIDENCE` until it has ten minutes to judge
 on, which is the shape commissioning wants: connect, get on with the
 work, and the verdict is there when you next look at it.
 
-Six measurements, each graded on its own, with the worst finding stated
-in the header along with the evidence behind it:
+Six measurements, each graded on its own, each showing **the limit it
+was judged against** beside its value, with the worst finding stated in
+the header along with the evidence behind it:
 
 | # | Measurement | Reads |
 |---|---|---|

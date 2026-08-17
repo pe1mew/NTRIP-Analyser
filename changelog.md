@@ -73,6 +73,39 @@ It is also the better clock for a live run, where the two used to agree:
 a host NTP correction steps the wall clock sideways mid-session, and
 epoch counting cannot be stepped.
 
+### Added — every check now shows what it was judged against
+
+A verdict without the number behind it cannot be argued with. *"Median
+C/N0 — 45.7 — healthy"* invites the question *healthy compared with
+what?* and answers nothing.
+
+Both tiers now carry a **limit** column, in the CLI's `--check` and
+`--report` and in the GUI's Station Check and Stability windows:
+
+```
+4   Satellites held    INSUFFICIENT EVIDENCE            38  min 25
+5   Ionosphere         INSUFFICIENT EVIDENCE 0.00 TECU/min  max 0.50 TECU/min
+```
+
+`KpiResult` and `SrMetric` gained the figure and its direction, set
+where the verdict is decided; `kpi_limit_text()` and
+`sr_metric_limit_text()` format it in core, so every surface prints the
+same sentence in the row's own units and precision, and no screen can
+show a threshold the engine is not using.
+
+It also states something a fixed string could not: KPI 5's expectation
+is the sum over the constellations a station streams, so a GPS+GLONASS
+base is shown `min 14` where a five-system one is shown `min 29` — the
+number that station was actually held to. The structural checks and the
+VRS assertions leave the column blank, being tests rather than
+comparisons.
+
+The Android app is not covered yet; its bridge carries verdict, value
+and detail, and the limit is a JSON field plus Kotlin away.
+
+See [docs/thresholds.md](docs/thresholds.md), which documents all of
+them with a rationale, and how confident each one is.
+
 ### Fixed — frame integrity could not detect what it exists to detect
 
 Tier 2's frame-integrity metric documents itself as reporting the worst

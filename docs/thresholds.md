@@ -20,6 +20,14 @@ Every threshold lives in `src/core/` — never in the CLI, the GUI, the
 service or the Android app. That is what makes a free verdict worth the
 same as a paid one, and a desktop verdict the same as a phone's.
 
+> **Every screen shows the limit it used.** The CLI's `--check` and
+> `--report`, and the GUI's Station Check and Stability windows, carry a
+> **limit** column beside each value: `min 40.0 dB-Hz`, `max 1.00 /h`,
+> `min 29`. It is set where the verdict is decided, not written into a
+> frontend, so a screen cannot display a threshold the engine is not
+> using — and KPI 5 shows the figure *this* station was held to, which
+> depends on the constellations it streams.
+>
 > **On overriding them.** A mechanism for user-supplied thresholds that
 > survives a restart is **proposed but not built** — see
 > [the design track](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/thresholds-track.md).

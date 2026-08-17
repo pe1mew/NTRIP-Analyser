@@ -155,15 +155,17 @@ void cli_report_print(const SrState *sr)
 
     /* 21 characters wide because "INSUFFICIENT EVIDENCE" is that long,
      * and it is the value most runs will show. */
-    printf("\n%-3s %-18s %-21s %13s  %s\n",
-           "", "Stability", "verdict", "value", "detail");
+    printf("\n%-3s %-18s %-21s %13s %-18s %s\n",
+           "", "Stability", "verdict", "value", "limit", "detail");
     for (int i = 0; i < SR_METRIC_COUNT; i++) {
         const SrMetric *m = &r.metric[i];
+        char lim[48];
+        sr_metric_limit_text(m, i, lim, sizeof(lim));
         if (!m->available) {
             /* Stated, not omitted: a metric missing without explanation
              * reads as a metric that passed. */
-            printf("%-3s %-18s %-21s %13s  %s\n", "-", m->label,
-                   "n/a", "--", m->detail);
+            printf("%-3s %-18s %-21s %13s %-18s %s\n", "-", m->label,
+                   "n/a", "--", lim, m->detail);
             continue;
         }
         char num[48];
@@ -171,8 +173,8 @@ void cli_report_print(const SrState *sr)
         snprintf(num, sizeof(num), "%.*f%s%s", sr_metric_decimals(i),
                  m->value, *unit ? " " : "", unit);
         /* 13 wide: "0.00 TECU/min" is the longest a metric produces. */
-        printf("%-3d %-18s %-21s %13s  %s\n", i + 1, m->label,
-               sr_verdict_name(m->verdict), num, m->detail);
+        printf("%-3d %-18s %-21s %13s %-18s %s\n", i + 1, m->label,
+               sr_verdict_name(m->verdict), num, lim, m->detail);
     }
 
     printf("\n== %s ==  window %.0f s, %d samples\n",
@@ -627,23 +629,28 @@ static void check_on_event(const NsEvent *ev, void *user)
 /** @brief Print the KPI table, and the VRS assertions when present. */
 static void check_print(const KpiReport *kr, const VrsReport *vr)
 {
-    printf("\n%-3s %-26s %-5s %12s  %s\n",
-           "#", "KPI", "verd", "value", "detail");
+    printf("\n%-3s %-26s %-5s %13s %-18s %s\n",
+           "#", "KPI", "verd", "value", "limit", "detail");
     for (int i = 0; i < KPI_COUNT; i++)
     {
-        char num[48];
+        char num[48], lim[48];
         const char *unit = kpi_value_unit(i);
         snprintf(num, sizeof(num), "%.*f%s%s", kpi_value_decimals(i),
                  kr->kpi[i].value, *unit ? " " : "", unit);
-        printf("%-3d %-26s %-5s %12s  %s\n", i + 1,
+        kpi_limit_text(&kr->kpi[i], i, lim, sizeof(lim));
+        printf("%-3d %-26s %-5s %13s %-18s %s\n", i + 1,
                kr->kpi[i].label, kpi_verdict_name(kr->kpi[i].verdict),
-               num, kr->kpi[i].detail);
+               num, lim, kr->kpi[i].detail);
     }
     if (vr) {
         for (int i = 0; i < VRS_ASSERT_COUNT; i++)
-            printf("V%-2d %-26s %-5s %12.2f  %s\n", i + 1,
+            /* The assertions carry no limit of their own: each is a
+             * yes-or-no about caster behaviour, and its deadline is in
+             * the detail. The column is left blank rather than filled
+             * with a number that would not mean the same thing. */
+            printf("V%-2d %-26s %-5s %13.2f %-18s %s\n", i + 1,
                    vr->a[i].label, kpi_verdict_name(vr->a[i].verdict),
-                   vr->a[i].value, vr->a[i].detail);
+                   vr->a[i].value, "", vr->a[i].detail);
     }
 }
 

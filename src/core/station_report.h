@@ -147,6 +147,19 @@ typedef enum {
     SR_METRIC_COUNT,
 } SrMetricId;
 
+/**
+ * @brief Which side of its limit a value has to be on to be STABLE.
+ *
+ * A verdict without the number that decided it cannot be argued with,
+ * and every threshold on this tier is a judgement rather than a fact —
+ * so the figure a row was held to travels with the row.
+ */
+typedef enum {
+    SR_LIMIT_NONE = 0,
+    SR_LIMIT_MIN,          /**< stable above @ref SrMetric::limit       */
+    SR_LIMIT_MAX,          /**< stable below it                         */
+} SrLimitDir;
+
 /** @brief One line of the report. */
 typedef struct {
     const char *label;
@@ -155,6 +168,14 @@ typedef struct {
     bool        live_only; /**< a replay cannot reproduce this          */
     bool        available; /**< false when live_only and built offline  */
     char        detail[96];
+    /**
+     * The figure @ref value is judged against, in the same units — the
+     * level at which the verdict stops being STABLE.  The harsher of
+     * the two levels is in @ref docs/thresholds.md; a row has room for
+     * the one that decides whether anything is wrong at all.
+     */
+    double      limit;
+    int         limit_dir; /**< @ref SrLimitDir                         */
 } SrMetric;
 
 /** @brief The finished report. */
@@ -249,6 +270,18 @@ int sr_metric_decimals(int metric_id);
  * label them identically.
  */
 const char *sr_metric_unit(int metric_id);
+
+/**
+ * @brief Write a metric's limit as text: "min 25", "max 1.0 /h", "".
+ *
+ * Formatted here rather than in each frontend so the CLI, the GUI and
+ * anything else show a user the same sentence, in the metric's own
+ * units and precision.  Writes "" when the metric has no limit.
+ *
+ * @return @p out, always, so it can be used inline.
+ */
+const char *sr_metric_limit_text(const SrMetric *m, int metric_id,
+                                 char *out, size_t cap);
 
 /**
  * @brief Schema version of @ref sr_to_json's output.
