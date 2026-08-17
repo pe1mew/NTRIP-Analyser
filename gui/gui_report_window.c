@@ -135,7 +135,9 @@ static void RefreshRows(HWND hwnd, AppState *state)
             SetRow(hLv, row++, name, "n/a", "--", m->detail, HEALTH_INFO);
             continue;
         }
-        snprintf(num, sizeof(num), "%.*f", sr_metric_decimals(i), m->value);
+        const char *unit = sr_metric_unit(i);
+        snprintf(num, sizeof(num), "%.*f%s%s", sr_metric_decimals(i),
+                 m->value, *unit ? " " : "", unit);
         SetRow(hLv, row++, name, sr_verdict_name(m->verdict), num,
                m->detail, SeverityOf(m->verdict));
     }
@@ -330,7 +332,7 @@ static LRESULT CALLBACK ReportWndProc(HWND hwnd, UINT msg,
          * Detail is resized to fill in LayoutChildren(). */
         struct { const char *t; int w; } cols[] = {
             { "Stability", 150 }, { "Verdict", VerdictColumnWidth(hLv) },
-            { "Value",      70 }, { "Detail",  290 },
+            { "Value",     110 }, { "Detail",  290 },   /* 0.06 TECU/min */
         };
         for (int i = 0; i < 4; i++) {
             LVCOLUMN c;

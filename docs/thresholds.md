@@ -163,6 +163,16 @@ how the question is asked. 99.9 % is the same standard as one error per
 thousand frames (`KPI_MAX_CRC_RATE`), and tier 2 uses the identical
 pair, so the two tiers cannot disagree about what a clean stream is.
 
+> **On the name.** This is *frame integrity*, the share of frames that
+> passed CRC-24Q. It is deliberately **not** called FER. Consistent with
+> BER, FER would be Frame *Error* Rate — the complement of this figure —
+> and in codec usage "erasure" means a frame that never arrived at all,
+> which here is a dropout rather than a corruption and is reported by
+> availability and delivery rate instead. Neither RTCM 10403.x nor NTRIP
+> defines an error-rate metric; the term the field uses for the
+> complement is **CRC error rate**, which is what the detail lines say
+> when they describe the failing side.
+
 A clean TCP path delivers essentially zero CRC failures, so anything
 measurable points at the serial link, the radio, or a caster mangling
 bytes.

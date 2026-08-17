@@ -203,7 +203,12 @@ static void RefreshRows(HWND hwnd, AppState *state)
         char name[96];
         snprintf(name, sizeof(name), "%d. %s", i + 1,
                  k->label ? k->label : "");
-        snprintf(num, sizeof(num), "%.*f", kpi_value_decimals(i), k->value);
+        /* The unit rides with the number: a Value column of 1562, 46.0
+         * and 100.000 is three quantities a reader has to already know
+         * the meaning of. */
+        const char *unit = kpi_value_unit(i);
+        snprintf(num, sizeof(num), "%.*f%s%s", kpi_value_decimals(i),
+                 k->value, *unit ? " " : "", unit);
         SetRow(hLv, row++, name, kpi_verdict_name(k->verdict), num,
                k->detail ? k->detail : "", SeverityOf(k->verdict));
     }
@@ -384,7 +389,7 @@ static LRESULT CALLBACK CheckWndProc(HWND hwnd, UINT msg,
 
         struct { const char *t; int w; } cols[] = {
             { "Check",   230 }, { "Verdict", 70 },
-            { "Value",   80 },  { "Detail",  420 },
+            { "Value",  100 },  { "Detail",  420 },   /* "100.000 %" */
         };
         for (int i = 0; i < 4; i++) {
             LVCOLUMN c;

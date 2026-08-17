@@ -240,6 +240,17 @@ const char *sr_metric_key(int metric_id);
 int sr_metric_decimals(int metric_id);
 
 /**
+ * @brief The unit @ref SrMetric::value is in, or "" for a bare count.
+ *
+ * A column of numbers without units is a column of numbers a reader has
+ * to already understand: `100.000` beside `0.06` says nothing about
+ * which is a percentage and which a rate of change of ionospheric
+ * content. Beside the decimals, and in core, so the CLI and the GUI
+ * label them identically.
+ */
+const char *sr_metric_unit(int metric_id);
+
+/**
  * @brief Schema version of @ref sr_to_json's output.
  *
  * Separate from @ref NS_STATS_SCHEMA_VERSION: a snapshot and a report

@@ -310,6 +310,18 @@ int sr_metric_decimals(int metric_id)
     }
 }
 
+const char *sr_metric_unit(int metric_id)
+{
+    switch (metric_id) {
+    case SR_AVAILABILITY: return "/h";        /* reconnections per hour */
+    case SR_INTEGRITY:    return "%";         /* frames passing CRC     */
+    case SR_SIGNAL:       return "dB-Hz";     /* the fall, not a level  */
+    case SR_IONOSPHERE:   return "TECU/min";
+    case SR_DELIVERY:     return "%";         /* of samples off-rate    */
+    default:              return "";          /* satellites: a count    */
+    }
+}
+
 const char *sr_metric_key(int metric_id)
 {
     switch (metric_id) {

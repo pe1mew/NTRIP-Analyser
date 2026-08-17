@@ -28,6 +28,16 @@ int kpi_value_decimals(int kpi_index)
     }
 }
 
+const char *kpi_value_unit(int kpi_index)
+{
+    switch (kpi_index) {
+    case 0:  return "B/s";     /* throughput                            */
+    case 5:  return "dB-Hz";   /* median C/N0                           */
+    case 6:  return "%";       /* frames passing CRC                    */
+    default: return "";        /* frames, satellites, types: counts     */
+    }
+}
+
 const char *kpi_verdict_name(int v)
 {
     switch (v) {
@@ -320,19 +330,25 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
              * a handful of frames. */
         }
 
+        /* The details describe the same side of the measurement the
+         * value does -- frames *passing* -- so a reader is not asked to
+         * invert one against the other. The field's own term for the
+         * complement is "CRC error rate"; it is not BER, and not FER,
+         * which names frames that never arrived rather than frames that
+         * arrived broken. */
         k[6].value = run->crc_have_pct ? run->crc_pct : 100.0;
         if (!run->crc_have_pct) {
             k[6].verdict = KPI_PENDING;
             k[6].detail  = "Too few frames to judge integrity yet";
         } else if (run->crc_pct >= KPI_MIN_INTEGRITY_PCT) {
             k[6].verdict = KPI_PASS;
-            k[6].detail  = "Fewer than 1 error per 1000 frames";
+            k[6].detail  = "99.9 % or more of frames passed CRC";
         } else if (run->crc_pct >= KPI_BAD_INTEGRITY_PCT) {
             k[6].verdict = KPI_WARN;
-            k[6].detail  = "Elevated CRC error rate";
+            k[6].detail  = "Under 99.9 % passing: elevated CRC errors";
         } else {
             k[6].verdict = KPI_FAIL;
-            k[6].detail  = "Link is corrupting frames";
+            k[6].detail  = "Under 99 % passing: the link corrupts frames";
         }
     }
 

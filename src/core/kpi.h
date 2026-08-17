@@ -127,6 +127,15 @@ extern "C" {
  */
 int kpi_value_decimals(int kpi_index);
 
+/**
+ * @brief The unit @ref KpiResult::value is in, or "" for a bare count.
+ *
+ * `1562` and `46.0` and `100.000` in one column are three numbers a
+ * reader has to already know the meaning of. Beside the decimals, and
+ * in core, so every frontend labels them the same way.
+ */
+const char *kpi_value_unit(int kpi_index);
+
 /** @brief Verdict for one KPI at one instant. */
 typedef enum {
     KPI_PENDING = 0,   /**< too early to judge -- evidence still due   */
