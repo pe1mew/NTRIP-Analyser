@@ -135,7 +135,7 @@
   generated feature graphic; a foreground-service declaration with a
   demonstration video. See `design/work-items/release-to-play.md`.
 - **The website and the wiki are live** (2026-08-14): GitHub Pages serves
-  <!-- verify: gh api repos/pe1mew/NTRIP-Analyser/pages --jq .status | grep -q built && git ls-remote -q https://github.com/pe1mew/NTRIP-Analyser.wiki.git HEAD | grep -q . -->
+  <!-- verify-net: gh api repos/pe1mew/NTRIP-Analyser/pages --jq .status | grep -q built && git ls-remote -q https://github.com/pe1mew/NTRIP-Analyser.wiki.git HEAD | grep -q . -->
   `docs/` — the privacy-policy URL Play requires — and twelve wiki pages
   are published from `docs/wiki/` by `tools/publish_wiki.sh`. The app
   links into both, so an unpublished page is a broken button.

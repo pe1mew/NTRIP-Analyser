@@ -2,6 +2,8 @@
 
     python tools/verify_memory.py            # every claim
     python tools/verify_memory.py --quiet     # failures only
+    python tools/verify_memory.py --offline   # skip the ones that
+                                              # reach the network
 
 A memory file records what was true when somebody wrote it. That is its
 purpose and its weakness: `CLAUDE.md` said "two tests" for a day after
@@ -14,6 +16,15 @@ So a claim that can be checked carries the check, immediately after it:
 
     - The keystore is the author's to create.
       <!-- verify: manual — keystore.properties is git-ignored -->
+
+    - The site is live.
+      <!-- verify-net: gh api repos/x/y/pages --jq .status | grep -q built -->
+
+`verify-net:` marks a check that leaves the machine. Those run weekly,
+because a runner without egress or a service having a bad afternoon
+would otherwise fail a claim that is perfectly true. Everything else is
+decided from the tree in milliseconds and runs on every push, so a
+sentence breaks in the run that broke it.
 
 This runs each one from the repository root and reports:
 
@@ -66,7 +77,24 @@ FILES = [
     os.path.join("memory", "gotcha-log.md"),
 ]
 
-VERIFY = re.compile(r"<!--\s*verify:\s*(.*?)-->", re.S)
+VERIFY = re.compile(r"<!--\s*verify(-net)?:\s*(.*?)-->", re.S)
+
+# `verify-net:` marks a check that reaches the network -- the live site,
+# the wiki, a caster. Those cannot run on every push: a runner without
+# egress, or a service having a bad afternoon, fails a claim that is
+# perfectly true, and a checker that cries wolf gets ignored.
+#
+# Every other check is a grep or a test run, settled from the tree in
+# milliseconds. Those *should* run on every push, and why is the whole
+# point of the split: CLAUDE.md said "Seven tests" for two days after
+# there were nine, because the only job that reads it runs on Mondays.
+# The claim broke on a Saturday push and the alarm arrived forty hours
+# later attached to a scheduled run -- by which time it named neither
+# the change that caused it nor the person who could fix it in ten
+# seconds.
+#
+# So --offline runs the deterministic ones, per push. The weekly job
+# still runs everything.
 
 
 def claim_above(lines, index):
@@ -84,7 +112,9 @@ def claim_above(lines, index):
 
 def main():
     quiet = "--quiet" in sys.argv
+    offline = "--offline" in sys.argv
     counts = {"PASS": 0, "FAIL": 0, "ERROR": 0, "MANUAL": 0}
+    skipped = 0
     failures = []
 
     for rel in FILES:
@@ -110,8 +140,12 @@ def main():
         for m in VERIFY.finditer(text):
             # Newlines joined, inner spacing preserved: 'FOO  "3.3.0"'
             # is not the same pattern as 'FOO "3.3.0"'.
+            needs_net = m.group(1) is not None
+            if offline and needs_net:
+                skipped += 1
+                continue
             body = " ".join(part.strip()
-                            for part in m.group(1).strip().splitlines())
+                            for part in m.group(2).strip().splitlines())
             line_no = text[:m.start()].count("\n")
             name = claim_above(lines, line_no - 1)
 
@@ -148,6 +182,12 @@ def main():
 
     print("%d pass, %d fail, %d error, %d manual" %
           (counts["PASS"], counts["FAIL"], counts["ERROR"], counts["MANUAL"]))
+    # Stated, never silent: a run that skipped half the claims and
+    # printed the same closing line as one that ran them all would be a
+    # green light for work it did not do.
+    if skipped:
+        print("%d network claim(s) not run (--offline); the weekly job "
+              "runs them." % skipped)
 
     if failures:
         print("")

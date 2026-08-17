@@ -96,6 +96,18 @@ jobs:
       - name: Release checks
         run: python tools/check_release.py
 
+      # The claims in CLAUDE.md and memory/ that are settled from the tree
+      # -- greps and test runs, milliseconds each. The ones that leave the
+      # machine are marked verify-net: and belong to the weekly job below.
+      #
+      # Here rather than only there, because a claim that breaks on a push
+      # should fail on that push. CLAUDE.md said "Seven tests" for two days
+      # after there were nine: it broke on a Saturday, and the weekly job
+      # reported it on Monday morning against a scheduled run rather than
+      # against the change that caused it.
+      - name: Verified claims (offline)
+        run: python tools/verify_memory.py --offline
+
   android:
     name: Both editions
     runs-on: ubuntu-latest
@@ -140,8 +152,11 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
 
-      # Others ask whether the site and the wiki are still live, which is
-      # why this job is weekly: it is checking the world, not the commit.
+      # Everything, including the verify-net: claims that ask whether the
+      # site and the wiki are still live -- which is why this job is
+      # weekly: it is checking the world, not the commit. The rest of them
+      # already ran per push, in the core job; running them again here
+      # costs seconds and keeps one command that means "all of it".
       - name: Verify the claims in CLAUDE.md and memory/
         env:
           GH_TOKEN: ${{ github.token }}
