@@ -441,12 +441,23 @@ int main(void)
         for (int i = 0; i < 60; i++) sr_feed(&st, &h, 60.0 + i * 60.0);
         sr_build(&st, &rep);
 
-        int n = sr_to_json(&rep, "HANE\"SE", json, sizeof(json));
+        SrJsonCtx ctx;
+        ctx.mountpoint  = "HANE\"SE";
+        ctx.policy      = "survey \"strict\"";   /* quotes from a user */
+        ctx.fingerprint = "a4f19c2b";
+        int n = sr_to_json(&rep, &ctx, json, sizeof(json));
         check(n > 0 && (size_t)n < sizeof(json), "a report fits the buffer");
         json_check(json, "a station report is well-formed JSON");
         json_check_unique(json, "and no key of it is emitted twice");
         check(strstr(json, "\"overall_name\":\"STABLE\"") != NULL,
               "the verdict is carried by name as well as by number");
+        /* The standard the verdict came from, escaped like any other
+         * user-supplied text. Without it two documents cannot be
+         * compared and nothing in them says so. */
+        check(strstr(json, "\"policy\":\"survey \\\"strict\\\"\"") != NULL,
+              "the policy is named, and its quotes are escaped");
+        check(strstr(json, "\"policy_fingerprint\":\"a4f19c2b\"") != NULL,
+              "and the fingerprint travels with it");
         /* A count of satellites, not 38.000 of them. */
         check(strstr(json, "\"satellites_value\":38,") != NULL,
               "a count is serialised without a fractional part");
@@ -455,18 +466,19 @@ int main(void)
         sr_reset(&st, true, NULL);
         for (int i = 0; i < 60; i++) sr_feed(&st, &h, 60.0 + i * 60.0);
         sr_build(&st, &rep);
-        sr_to_json(&rep, "HANESE", json, sizeof(json));
+        ctx.mountpoint = "HANESE";
+        sr_to_json(&rep, &ctx, json, sizeof(json));
         json_check(json, "a report built from a capture is well-formed too");
         check(strstr(json, "\"availability_verdict\":null") != NULL,
               "an unmeasurable metric is null, not a passing zero");
 
         char tiny[24];
         memset(tiny, 'x', sizeof(tiny));
-        n = sr_to_json(&rep, "HANESE", tiny, sizeof(tiny));
+        n = sr_to_json(&rep, &ctx, tiny, sizeof(tiny));
         check((size_t)n >= sizeof(tiny), "a short report buffer reports the need");
         check(memchr(tiny, '\0', sizeof(tiny)) != NULL,
               "and the truncated report is still NUL-terminated");
-        check(sr_to_json(NULL, "x", json, sizeof(json)) < 0,
+        check(sr_to_json(NULL, &ctx, json, sizeof(json)) < 0,
               "serialising no report is an error, not a crash");
     }
 

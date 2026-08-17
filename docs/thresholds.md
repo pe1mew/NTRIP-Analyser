@@ -132,7 +132,7 @@ true rate.
 
 | | |
 |---|---|
-| Thresholds | `KPI_EXPECT_SATS` per constellation; `KPI_MIN_SATS` = **25** as the fallback |
+| Thresholds | `KPI_EXPECT_SATS` per constellation; `KPI_EXPECT_UNKNOWN` = **25** as the fallback, which is `KPI_MIN_SATS` |
 | Rule | at or above the expectation passes; at or above **half** of it warns; below that fails |
 
 Per-constellation expectations, above a 10° mask at mid latitude:
@@ -146,6 +146,10 @@ Per-constellation expectations, above a 10° mask at mid latitude:
 | BeiDou | 8 |
 | SBAS | 2 |
 | NavIC | 2 |
+
+The fallback applies only when neither the sourcetable nor the stream
+says which constellations to expect — otherwise a station is held to the
+**sum** over the constellations it actually streams.
 
 **Rationale.** A table rather than one number, because a GPS+GLONASS
 station cannot reach a flat 25 however healthy it is, and failing it for

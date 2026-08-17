@@ -489,7 +489,7 @@ static void o_num(SrOut *o, double v, int decimals)
     o_fmt(o, "%.*f", decimals, v);
 }
 
-int sr_to_json(const StationReport *r, const char *mountpoint,
+int sr_to_json(const StationReport *r, const SrJsonCtx *ctx,
                char *out, size_t cap)
 {
     if (!r || (!out && cap > 0)) return -1;
@@ -512,7 +512,17 @@ int sr_to_json(const StationReport *r, const char *mountpoint,
     o_str(&o, "{\"report_schema_version\":");
     o_fmt(&o, "%d", SR_JSON_SCHEMA_VERSION);
 
-    o_key(&o, "mountpoint");   o_jstr(&o, mountpoint ? mountpoint : "");
+    o_key(&o, "mountpoint");
+    o_jstr(&o, (ctx && ctx->mountpoint) ? ctx->mountpoint : "");
+
+    /* The standard this verdict was produced under. "built-in" is a
+     * statement, not a placeholder: a reader comparing two documents
+     * needs to know that one of them used the shipped thresholds. */
+    o_key(&o, "policy");
+    o_jstr(&o, (ctx && ctx->policy && ctx->policy[0]) ? ctx->policy
+                                                     : "built-in");
+    o_key(&o, "policy_fingerprint");
+    o_jstr(&o, (ctx && ctx->fingerprint) ? ctx->fingerprint : "");
     o_key(&o, "window_s");     o_num(&o, r->window_s, 3);
     o_key(&o, "samples");      o_fmt(&o, "%d", r->samples);
     o_key(&o, "from_capture"); o_str(&o, r->from_capture ? "true" : "false");

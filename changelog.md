@@ -120,7 +120,26 @@ identical to one built with the defaults, and — the property those two
 cannot show — a policy that differs actually moves the verdict, in both
 directions.
 
-The GUI and the monitoring service still use the built-in values.
+**A published report names the standard that produced it.** The
+daemon's `<mountpoint>.report.json` gains `"policy"` and
+`"policy_fingerprint"`, and the daemon says the same at startup. Without
+it, two report files from two hosts are not comparable and nothing in
+them says so — and a fleet's Munin graphs would silently mix standards.
+The snapshot and the CSV deliberately do *not* carry it: they publish
+measurements rather than verdicts, and a policy stamp there would imply
+the numbers had been judged.
+
+**Two release checks keep the page honest.** Every threshold macro in
+the headers must appear in `docs/thresholds.md` — a number that decides a
+verdict and is never explained is one nobody can argue with — and every
+field of both policy structs must appear in the table in
+`thresholds.c`, or it would be silently unsettable by a file and absent
+from `--thresholds-print`. The first check found `KPI_EXPECT_UNKNOWN`
+undocumented on its first run, and the page naming the wrong macro for
+KPI 5's fallback.
+
+The GUI and the monitoring service still use the built-in values, and
+the VRS assertions are not yet in a policy.
 
 ### Added — every check now shows what it was judged against
 

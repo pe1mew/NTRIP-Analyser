@@ -1,9 +1,11 @@
 # Work item — user-supplied thresholds
 
-**Status:** phases 1 and 2 are **built** — thresholds are data, a policy
-file loads over them, and every desktop row shows the limit it was
-judged against. Phase 3 (provenance in the machine-readable outputs) and
-phase 4 (the service and the GUI) remain.
+**Status:** phases 1 to 3 are **built** — thresholds are data, a policy
+file loads over them, every desktop row shows the limit it was judged
+against, and a published report names the standard that produced it.
+Phase 4 remains: the service and the GUI can carry a policy but cannot
+yet load one, Android has no policy at all, and the VRS assertions are
+still constants despite decision 4.
 
 The numbers that decide every verdict are `#define`s in `src/core/`, and
 [docs/thresholds.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/thresholds.md)
@@ -140,11 +142,17 @@ misleading:
 STATION OK   settled after 91 s, held 61 s   [policy: RFSEE domestic]
 ```
 
-**In every machine-readable output.** `ns_stats_to_json`,
-`sr_to_json` and the CSV export gain a policy name and a fingerprint
-(a short hash over the effective values). Without it, two `.report.json`
-files from two hosts are not comparable and nothing in them says so —
-and the Munin graphs of a fleet would silently mix standards.
+**In every machine-readable output that carries a verdict — built.**
+`sr_to_json` takes an `SrJsonCtx` and emits `"policy"` and
+`"policy_fingerprint"`, and the daemon fills them and says the same at
+startup. Without it, two `.report.json` files from two hosts are not
+comparable and nothing in them says so, and the Munin graphs of a fleet
+would silently mix standards.
+
+**Deliberately not in the snapshot or the CSV**, which the plan
+originally called for. Those carry *measurements*, not verdicts — bytes
+a second, satellites, a CRC rate — and no threshold touches them. A
+policy stamp there would be noise implying the numbers had been judged.
 
 **And a way to print the effective policy**, with provenance per field:
 
@@ -226,7 +234,7 @@ Each phase is useful on its own and leaves the tree working.
 |---|---|---|
 | 1 | **Policy structs** | `KpiPolicy` / `SrPolicy` with `*_policy_defaults()`, threaded through `kpi_update()`, `sr_feed()` and `sr_build()`. No file, no behaviour change: every caller passes the defaults, and the tests prove the verdicts are unchanged. |
 | 2 | **Loading and validation** — **built** | `src/core/thresholds.{h,c}`: one table drives parsing, validation and printing, so the three cannot drift. Partial overlay, `schema_version`, ranges and cross-field ordering, refusal that names the field, and nothing half-applied. `--thresholds` and `--thresholds-print` in the CLI, which owns the file because core does no I/O. |
-| 3 | **Provenance** | The policy name in the check and report headers; name and fingerprint in `ns_stats_to_json`, `sr_to_json` and the CSV export. A release check asserting every threshold in `docs/thresholds.md` appears in `--thresholds-print`, so the page cannot drift from the code. |
+| 3 | **Provenance** — **built** | The policy name and fingerprint in `sr_to_json` via `SrJsonCtx`, and in the daemon's startup line. Two release checks: every threshold macro is documented, and every policy field is in the table — so a threshold cannot be undocumented, nor silently unloadable. |
 | 4 | **Frontends** | The CLI flag, the service's `"thresholds"` key, the GUI's load-and-remember. Android keeps built-in defaults; the platform limit is stated, not worked around. |
 
 Phase 1 is the one that cannot be skipped or reordered, and it is also

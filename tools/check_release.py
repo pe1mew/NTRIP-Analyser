@@ -344,6 +344,75 @@ SNAPSHOT_KNOWN_GAPS = {
 # removed, and either way it leaves.
 
 
+# ── Thresholds: documented, and loadable ──────────────────────────────
+# Two ways a threshold goes wrong that no compiler notices.
+#
+# It can be **undocumented**: added to a header, used to decide a
+# verdict, and absent from docs/thresholds.md -- so a user is judged by a
+# number the project never explains. The page exists precisely because
+# these are judgements rather than facts.
+#
+# It can be **unloadable**: added to KpiPolicy or SrPolicy and left out
+# of the table in thresholds.c, so --thresholds silently cannot set it
+# and --thresholds-print silently does not show it. That is the failure
+# the one-table design exists to prevent, and this is what proves the
+# table stayed complete.
+
+# Macros in the two headers that are not thresholds: sizes, counts,
+# sentinels, include guards.
+THRESHOLD_MACRO_SKIP = {
+    "KPI_H", "KPI_COUNT", "KPI_MAX_CRC_RATE",
+    "STATION_REPORT_H", "SR_METRIC_COUNT", "SR_JSON_SCHEMA_VERSION",
+}
+
+
+def check_thresholds():
+    print("thresholds")
+    doc = read("docs", "thresholds.md")
+
+    undocumented = []
+    for header, prefix in (("kpi.h", "KPI_"), ("station_report.h", "SR_")):
+        text = read("src", "core", header)
+        for m in re.finditer(r"^#define\s+(" + prefix + r"\w+)", text, re.M):
+            name = m.group(1)
+            if name in THRESHOLD_MACRO_SKIP:
+                continue
+            if name not in doc:
+                undocumented.append(name)
+    check(not undocumented,
+          "every threshold in the headers is documented",
+          ", ".join(undocumented) + " -- add it to docs/thresholds.md "
+          "with a rationale, or it is a number nobody can argue with")
+
+    # Every field of both policy structs must appear in the table, or it
+    # cannot be set from a file nor shown by --thresholds-print.
+    table = read("src", "core", "thresholds.c")
+    keys = set(re.findall(r'\{\s*"(\w+)",\s*TH_TIER', table))
+
+    missing = []
+    for header, struct in (("kpi.h", "KpiPolicy"), ("station_report.h",
+                                                    "SrPolicy")):
+        text = read("src", "core", header)
+        m = re.search(r"typedef struct \{(.*?)\} " + struct + r";", text, re.S)
+        if not m:
+            missing.append(struct + " not found")
+            continue
+        body = re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S)
+        for line in body.splitlines():
+            line = line.strip()
+            if not line.endswith(";"):
+                continue
+            name = re.sub(r"\[.*", "", line[:-1].split()[-1]).strip("*")
+            # expect_sats is an array, handled by its own parser.
+            if name in ("expect_sats",):
+                continue
+            if name not in keys:
+                missing.append(struct + "." + name)
+    check(not missing,
+          "every policy field is in the table, so it can be set and shown",
+          ", ".join(missing) + " -- add a row to FIELDS in thresholds.c")
+
+
 def check_snapshot_fields():
     print("snapshot fields")
     h = read("src", "core", "ns_stats.h")
@@ -401,6 +470,7 @@ def main():
     check_generated()
     check_feature_matrix()
     check_doc_links()
+    check_thresholds()
     check_snapshot_fields()
 
     print("")

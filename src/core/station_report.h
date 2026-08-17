@@ -343,6 +343,30 @@ const char *sr_metric_limit_text(const SrMetric *m, int metric_id,
 #define SR_JSON_SCHEMA_VERSION 1
 
 /**
+ * @struct SrJsonCtx
+ * @brief What a published report is about, and what judged it.
+ *
+ * The station is obvious. The **policy** is the part that is easy to
+ * leave out and expensive to add later: once a verdict can be produced
+ * under thresholds a user chose, `STABLE` is not comparable between two
+ * documents unless each says which standard produced it. A fleet whose
+ * hosts run different policies would otherwise publish one graph out of
+ * two standards and nothing anywhere would say so.
+ *
+ * The name alone cannot carry it — two people may both call a file
+ * "survey" — so the fingerprint over the effective values travels with
+ * it. A rename leaves the fingerprint alone; a changed number moves it.
+ *
+ * A struct rather than four more parameters, so that what a report is
+ * published *with* can grow without every caller being edited again.
+ */
+typedef struct {
+    const char *mountpoint;   /**< the station; may be NULL           */
+    const char *policy;       /**< policy name; NULL/"" = built-in    */
+    const char *fingerprint;  /**< over the effective values; may be NULL */
+} SrJsonCtx;
+
+/**
  * @brief Serialise a report as a single-line JSON object.
  *
  * Flat by design: every metric contributes `<key>_verdict`,
@@ -354,15 +378,16 @@ const char *sr_metric_limit_text(const SrMetric *m, int metric_id,
  * emits `null` for its verdict and value rather than a zero, so a reader
  * cannot mistake "cannot be measured here" for "measured, and fine".
  *
- * @param r          The report.
- * @param mountpoint Written as `"mountpoint"`; may be NULL.
- * @param out        Caller's buffer.
- * @param cap        Its size, including the NUL.
+ * @param r    The report.
+ * @param ctx  What the report is *about* — the station, and the
+ *             standard it was judged by.  May be NULL for neither.
+ * @param out  Caller's buffer.
+ * @param cap  Its size, including the NUL.
  * @return As snprintf: the length the output would have had.  A value
  *         >= @p cap means it was truncated and must not be used.
  *         Negative on a NULL report.
  */
-int sr_to_json(const StationReport *r, const char *mountpoint,
+int sr_to_json(const StationReport *r, const SrJsonCtx *ctx,
                char *out, size_t cap);
 
 #ifdef __cplusplus

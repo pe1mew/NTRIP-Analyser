@@ -39,6 +39,7 @@
 #include "session/ntrip_session.h"
 #include "core/ns_stats.h"
 #include "core/station_report.h"
+#include "core/thresholds.h"
 #include "core/version.h"
 
 #include "cJSON.h"
@@ -111,6 +112,14 @@ typedef struct {
     bool    live[2];
     double  last_sample;     /* stream time of the last sr_feed      */
 } MdReport;
+
+/* The thresholds every verdict this daemon publishes is judged by.
+ * Built-in for now -- loading a policy file is phase 4 of
+ * design/work-items/thresholds-track.md -- but the reports carry the
+ * name and fingerprint from the start, so a fleet cannot quietly end up
+ * publishing one graph built out of two standards. */
+static Thresholds g_thresholds;
+static char       g_policy_fp[16];
 
 static volatile sig_atomic_t g_stop = 0;
 
@@ -346,7 +355,7 @@ static void report_update(MdReport *r, const NsStatsSnapshot *st,
     if (t < 0.0) return;                 /* no epochs: nothing to measure */
 
     if (!r->live[0]) {
-        sr_reset(&r->slot[0], false, NULL);
+        sr_reset(&r->slot[0], false, &g_thresholds.sr);
         r->start[0] = t;
         r->live[0]  = true;
         r->last_sample = -1e9;
@@ -354,13 +363,13 @@ static void report_update(MdReport *r, const NsStatsSnapshot *st,
     /* The second slot is armed one window in, so that when the first is
      * retired at two windows there is already a full one behind it. */
     if (!r->live[1] && t - r->start[0] >= window_s) {
-        sr_reset(&r->slot[1], false, NULL);
+        sr_reset(&r->slot[1], false, &g_thresholds.sr);
         r->start[1] = t;
         r->live[1]  = true;
     }
     for (int i = 0; i < 2; i++) {
         if (r->live[i] && t - r->start[i] >= 2.0 * window_s) {
-            sr_reset(&r->slot[i], false, NULL);
+            sr_reset(&r->slot[i], false, &g_thresholds.sr);
             r->start[i] = t;
         }
     }
@@ -396,8 +405,13 @@ static bool publish_report(const MdConfig *cfg, const MdReport *r,
     StationReport rep;
     sr_build(&r->slot[best], &rep);
 
+    SrJsonCtx ctx;
+    ctx.mountpoint  = mount;
+    ctx.policy      = g_thresholds.loaded ? g_thresholds.name : "built-in";
+    ctx.fingerprint = g_policy_fp;
+
     static char json[MD_JSON_MAX];
-    int n = sr_to_json(&rep, mount, json, sizeof(json));
+    int n = sr_to_json(&rep, &ctx, json, sizeof(json));
     if (n <= 0 || (size_t)n >= sizeof(json)) {
         fprintf(stderr, "ntrip-monitord: report for %s did not fit "
                 "(%d bytes)\n", mount, n);
@@ -472,6 +486,9 @@ int main(int argc, char **argv)
         }
     }
 
+    thresholds_defaults(&g_thresholds);
+    thresholds_fingerprint(&g_thresholds, g_policy_fp, sizeof(g_policy_fp));
+
     MdConfig cfg;
     if (!load_md_config(cfg_path, &cfg)) return 1;
 
@@ -482,6 +499,13 @@ int main(int argc, char **argv)
             "report window %.0fs, output %s\n",
             NTRIP_ARTEFACT_SERVICE, NTRIP_VERSION_STRING,
             cfg.n, cfg.interval_s, cfg.report_window_s, cfg.output_dir);
+    /* Said at startup for the same reason it is published: an operator
+     * reading two hosts' graphs must be able to tell whether they were
+     * judged the same way. */
+    fprintf(stderr, "%s: thresholds %s (fingerprint %s)\n",
+            NTRIP_ARTEFACT_SERVICE,
+            g_thresholds.loaded ? g_thresholds.name : "built-in",
+            g_policy_fp);
 
     NtripSession *sess[MD_MAX_SESSIONS] = { 0 };
     static MdReport reports[MD_MAX_SESSIONS];
