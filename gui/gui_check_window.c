@@ -46,7 +46,9 @@ void CheckStart(AppState *state)
     if (!state) return;
 
     double now = CheckNow();
-    kpi_run_start(&state->checkRun, now, NULL);
+    /* The standard this run is judged by, chosen once and carried for
+     * its whole life -- a check cannot change standard halfway. */
+    kpi_run_start(&state->checkRun, now, &state->thresholds.kpi);
     memset(&state->checkReport, 0, sizeof(state->checkReport));
     state->checkHaveReport = FALSE;
     state->checkSettled    = FALSE;

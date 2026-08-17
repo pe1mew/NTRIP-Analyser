@@ -37,7 +37,8 @@
 void ReportReset(AppState *state, BOOL from_capture)
 {
     if (!state) return;
-    sr_reset(&state->reportRun, from_capture ? true : false, NULL);
+    sr_reset(&state->reportRun, from_capture ? true : false,
+             &state->thresholds.sr);
     memset(&state->reportOut, 0, sizeof(state->reportOut));
     state->reportHave       = FALSE;
     state->reportFromCapture = from_capture;

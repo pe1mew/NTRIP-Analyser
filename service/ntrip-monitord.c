@@ -130,6 +130,30 @@ static void on_signal(int sig)
 }
 
 /**
+ * @brief Read a whole text file.  Caller frees; NULL on any failure.
+ *
+ * The daemon does its own I/O -- src/core/ may not -- so the policy
+ * text is fetched here and parsed there.
+ */
+static char *read_text_file(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (len <= 0 || len > 1024 * 1024) { fclose(f); return NULL; }
+    char *text = (char *)malloc((size_t)len + 1);
+    if (!text) { fclose(f); return NULL; }
+    if (fread(text, 1, (size_t)len, f) != (size_t)len) {
+        free(text); fclose(f); return NULL;
+    }
+    text[len] = '\0';
+    fclose(f);
+    return text;
+}
+
+/**
  * @brief Load the daemon configuration.
  *
  * Format (JSON):
@@ -138,6 +162,7 @@ static void on_signal(int sig)
  *   "output_dir": "/var/lib/ntrip-monitor",
  *   "interval_s": 10,
  *   "report_window_s": 3600,
+ *   "thresholds": "/etc/ntrip-monitord/survey.json",
  *   "mountpoints": [
  *     { "caster": "rfsee.net", "port": 2101, "mountpoint": "RFSEE01",
  *       "username": "u", "password": "p",
@@ -195,6 +220,50 @@ static bool load_md_config(const char *path, MdConfig *cfg)
     if ((v = cJSON_GetObjectItem(root, "report_window_s")) &&
         cJSON_IsNumber(v) && v->valuedouble >= SR_MIN_WINDOW_S)
         cfg->report_window_s = v->valuedouble;
+
+    /* Thresholds: a path to a policy file, or the policy inline. Both
+     * are the same document; a path is the useful form when several
+     * hosts share one standard, which is exactly when a fleet must not
+     * drift apart. */
+    if ((v = cJSON_GetObjectItem(root, "thresholds"))) {
+        char err[256] = "";
+        bool ok;
+        if (cJSON_IsString(v)) {
+            char *text = read_text_file(v->valuestring);
+            if (!text) {
+                fprintf(stderr, "ntrip-monitord: cannot read thresholds "
+                        "file %s: %s\n", v->valuestring, strerror(errno));
+                cJSON_Delete(root);
+                return false;
+            }
+            ok = thresholds_parse(&g_thresholds, text, err, sizeof(err));
+            free(text);
+            if (ok && !g_thresholds.name[0])
+                snprintf(g_thresholds.name, sizeof(g_thresholds.name),
+                         "%s", v->valuestring);
+        } else if (cJSON_IsObject(v)) {
+            char *text = cJSON_PrintUnformatted(v);
+            if (!text) { cJSON_Delete(root); return false; }
+            ok = thresholds_parse(&g_thresholds, text, err, sizeof(err));
+            free(text);
+            if (ok && !g_thresholds.name[0])
+                snprintf(g_thresholds.name, sizeof(g_thresholds.name),
+                         "%s", "inline");
+        } else {
+            snprintf(err, sizeof(err),
+                     "\"thresholds\" must be a path or an object");
+            ok = false;
+        }
+        if (!ok) {
+            /* Refuse to start. An operator who asked for a standard must
+             * get it or be told why -- a monitor that quietly judges by
+             * something else publishes months of graphs nobody can
+             * interpret. */
+            fprintf(stderr, "ntrip-monitord: thresholds: %s\n", err);
+            cJSON_Delete(root);
+            return false;
+        }
+    }
 
     const cJSON *arr = cJSON_GetObjectItem(root, "mountpoints");
     if (!cJSON_IsArray(arr) || cJSON_GetArraySize(arr) == 0) {
@@ -486,11 +555,13 @@ int main(int argc, char **argv)
         }
     }
 
+    /* Defaults first: the config file overlays a policy onto them. */
     thresholds_defaults(&g_thresholds);
-    thresholds_fingerprint(&g_thresholds, g_policy_fp, sizeof(g_policy_fp));
 
     MdConfig cfg;
     if (!load_md_config(cfg_path, &cfg)) return 1;
+
+    thresholds_fingerprint(&g_thresholds, g_policy_fp, sizeof(g_policy_fp));
 
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);

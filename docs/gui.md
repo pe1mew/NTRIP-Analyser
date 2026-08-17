@@ -697,6 +697,25 @@ with the hour that prompted the change.
 Closing the window does not stop it. The evidence belongs to the
 session, so an hour of it survives a window being closed and reopened.
 
+#### Judging by your own thresholds
+
+**File > Load Thresholds...** takes a JSON policy and applies it to both
+the Station Check and this window from their next run. The file is
+partial — it carries only what you disagree with — and a bad setting is
+refused with the field named, leaving the previous thresholds in force
+rather than half-applying a standard nobody wrote.
+
+The choice is **remembered**: the path is kept under
+`HKCU\Software\NTRIP-Analyser`, so an installer working to one standard
+does not reload it every morning. If that file has since been deleted or
+edited badly, the program says so once and starts with the built-in
+values rather than silently judging by something else.
+
+The same file works with the CLI's `--thresholds` and the monitoring
+service's `thresholds` key, and all three compute the same fingerprint
+for it. [thresholds.md](thresholds.md) lists every threshold, what it
+means, and how well founded it is.
+
 ### Keyboard Shortcuts
 
 **Main window:**
@@ -752,6 +771,8 @@ by capture time.
 **View Menu:**
 - **Station Check...** — the acceptance test over the open stream
 - **Stability...** — tier 2: has it *been* fit, over hours of stream
+
+Under **File**: **Load Thresholds...** — judge by a policy of your own
 - **Sky Plot...** — floating polar sky-visibility window
 - **VRS Monitor...** — network-mountpoint analysis
 - **Signal Quality...** — C/N0 bars and C/N0-vs-elevation scatter

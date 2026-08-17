@@ -25,6 +25,7 @@
 /* 9010-9012 belong to the Connection block below, so this File item
  * takes the next free id rather than colliding with Get Mountpoints. */
 #define IDM_FILE_EXPORT_STATS   9013
+#define IDM_FILE_LOAD_THRESHOLDS 9014  /* judge by a policy file */
 
 /* ── Menu items: Connection ───────────────────────────────── */
 #define IDM_CONN_MOUNTPOINTS    9010

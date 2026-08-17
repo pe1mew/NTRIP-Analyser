@@ -138,8 +138,25 @@ from `--thresholds-print`. The first check found `KPI_EXPECT_UNKNOWN`
 undocumented on its first run, and the page naming the wrong macro for
 KPI 5's fallback.
 
-The GUI and the monitoring service still use the built-in values, and
-the VRS assertions are not yet in a policy.
+**Every program can now be given a policy.** The service takes a
+`thresholds` key — a path, or the policy inline — and **refuses to
+start** if it cannot be applied, naming the field: an operator who asked
+for a standard must get it or be told why, rather than publish months of
+graphs judged against something else. The GUI takes **File > Load
+Thresholds...**, applies it over the built-in values rather than over
+whatever was loaded before, and **remembers the path** under
+`HKCU\Software\NTRIP-Analyser` — the first thing this program has ever
+remembered. A file deleted or broken since last time is reported once and
+then ignored, so the program starts with the built-in values rather than
+silently judging by something else.
+
+One file serves all three: the CLI, the service and the GUI compute the
+same fingerprint for it, which is what makes a fleet's verdicts
+comparable.
+
+Android keeps the built-in values; the platform has no file to point at,
+and that limit is stated rather than worked around. The VRS assertions
+are still constants despite decision 4.
 
 ### Added — every check now shows what it was judged against
 

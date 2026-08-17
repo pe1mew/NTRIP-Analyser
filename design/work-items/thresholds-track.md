@@ -1,11 +1,15 @@
 # Work item — user-supplied thresholds
 
-**Status:** phases 1 to 3 are **built** — thresholds are data, a policy
-file loads over them, every desktop row shows the limit it was judged
-against, and a published report names the standard that produced it.
-Phase 4 remains: the service and the GUI can carry a policy but cannot
-yet load one, Android has no policy at all, and the VRS assertions are
-still constants despite decision 4.
+**Status:** all four phases are **built**. Thresholds are data; the CLI,
+the service and the GUI each load a policy and agree on its fingerprint;
+every desktop row shows the limit it was judged against; and a published
+report names the standard that produced it.
+
+Two things remain, both stated rather than quietly dropped: **Android**
+keeps the built-in values, having no file to point at; and the **VRS
+assertions** are still constants, despite decision 4 saying they should
+be overridable — they are five numbers about caster behaviour, and the
+least likely of the set to need changing.
 
 The numbers that decide every verdict are `#define`s in `src/core/`, and
 [docs/thresholds.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/thresholds.md)
@@ -235,7 +239,7 @@ Each phase is useful on its own and leaves the tree working.
 | 1 | **Policy structs** | `KpiPolicy` / `SrPolicy` with `*_policy_defaults()`, threaded through `kpi_update()`, `sr_feed()` and `sr_build()`. No file, no behaviour change: every caller passes the defaults, and the tests prove the verdicts are unchanged. |
 | 2 | **Loading and validation** — **built** | `src/core/thresholds.{h,c}`: one table drives parsing, validation and printing, so the three cannot drift. Partial overlay, `schema_version`, ranges and cross-field ordering, refusal that names the field, and nothing half-applied. `--thresholds` and `--thresholds-print` in the CLI, which owns the file because core does no I/O. |
 | 3 | **Provenance** — **built** | The policy name and fingerprint in `sr_to_json` via `SrJsonCtx`, and in the daemon's startup line. Two release checks: every threshold macro is documented, and every policy field is in the table — so a threshold cannot be undocumented, nor silently unloadable. |
-| 4 | **Frontends** | The CLI flag, the service's `"thresholds"` key, the GUI's load-and-remember. Android keeps built-in defaults; the platform limit is stated, not worked around. |
+| 4 | **Frontends** — **built** | The service's `"thresholds"` key (path or inline; refuses to start on a bad one), and the GUI's File > Load Thresholds with the path remembered in the registry. Android keeps the built-in values. |
 
 Phase 1 is the one that cannot be skipped or reordered, and it is also
 the one that touches the most call sites while changing no behaviour —

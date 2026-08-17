@@ -4,6 +4,8 @@
   "interval_s": 10,
   "_comment_report": "report_window_s: length of the tier-2 rolling window in seconds. The published <mountpoint>.report.json covers between one and two of these. Minimum 600 -- the shortest window the report will judge at all -- and 3600 by default.",
   "report_window_s": 3600,
+  "_comment_thresholds": "thresholds: judge by your own policy instead of the built-in values. Either a path to a JSON policy file, or the policy inline as an object. The daemon refuses to start if it cannot be applied. Omit it to use the built-in thresholds.",
+  "_thresholds": "/etc/ntrip-monitord/survey.json",
   "mountpoints": [
     {
       "caster": "rfsee.net",

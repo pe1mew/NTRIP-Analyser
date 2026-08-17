@@ -23,6 +23,7 @@
 #include "core/ns_stats.h"
 #include "core/kpi.h"
 #include "core/station_report.h"
+#include "core/thresholds.h"
 #include "core/vrs_check.h"
 #include "core/iono.h"
 #include "net/ntrip_proto.h"
@@ -563,6 +564,15 @@ typedef struct {
      *
      * reportFromCapture is kept so Restart cannot quietly turn a replay
      * into a live run and begin inventing availability figures for it. */
+    /* ── Thresholds ────────────────────────────────────────────────
+     * The standard every verdict in this process is judged by.
+     * Built-in until File > Load Thresholds says otherwise, and
+     * remembered across restarts so an installer who works to one
+     * standard does not have to reload it every morning. */
+    Thresholds    thresholds;
+    char          thresholdsPath[MAX_PATH];
+    char          thresholdsFp[16];
+
     SrState       reportRun;
     StationReport reportOut;
     BOOL          reportHave;
@@ -879,6 +889,29 @@ void ResizeControls(HWND hwnd, AppState *state, int width, int height);
  * @return Result for the handled message, or `DefWindowProc` otherwise.
  */
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+/**
+ * @brief Built-in thresholds, overlaid by whichever policy was loaded
+ *        last time this program ran.
+ *
+ * Called before any window can judge anything.  A remembered file that
+ * has since been deleted or edited badly is reported once and then
+ * ignored — it must not stop the program starting, and it must not
+ * silently become a different standard either.
+ */
+void GuiThresholdsInit(AppState *state);
+
+/**
+ * @brief Apply a policy file, reporting any refusal to the user.
+ *
+ * Applied over the *built-in* values rather than over whatever was
+ * loaded before, so two policies cannot half-merge into a standard
+ * nobody wrote.
+ *
+ * @param quiet TRUE when restoring at startup rather than at the user's
+ *              request.
+ */
+BOOL GuiThresholdsLoad(AppState *state, const char *path, BOOL quiet);
 
 /* ── gui_thread.c ──────────────────────────────────────────────────────
  *

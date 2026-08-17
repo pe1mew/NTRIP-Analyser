@@ -2139,6 +2139,123 @@ static void OnSatUpdate(AppState *state)
 
 /* Documented in gui_state.h -- the contract lives with the declaration.
  */
+
+/* ── Thresholds ──────────────────────────────────────────────────────
+ *
+ * A policy file decides what "STABLE" and "STATION OK" mean here, so the
+ * choice has to outlive the session: an installer working to one
+ * standard should not reload it every morning. The path lives under
+ * HKCU\Software\NTRIP-Analyser -- the first thing this program has
+ * ever remembered, and deliberately only a *path*, so the policy stays
+ * one file that the CLI and the daemon read the same way. */
+
+#define GUI_REG_KEY   "Software\\NTRIP-Analyser"
+#define GUI_REG_VALUE "ThresholdsPath"
+
+static void GuiThresholdsRemember(const char *path)
+{
+    HKEY k;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, GUI_REG_KEY, 0, NULL, 0,
+                       KEY_SET_VALUE, NULL, &k, NULL) != ERROR_SUCCESS)
+        return;
+    if (path && path[0])
+        RegSetValueEx(k, GUI_REG_VALUE, 0, REG_SZ,
+                      (const BYTE *)path, (DWORD)strlen(path) + 1);
+    else
+        RegDeleteValue(k, GUI_REG_VALUE);
+    RegCloseKey(k);
+}
+
+/**
+ * @brief Apply a policy file, reporting any refusal to the user.
+ *
+ * @param quiet true when restoring at startup: a file that has been
+ *        deleted or edited badly since last time must say so once, but
+ *        must not stop the program from starting.
+ * @return true when the policy was accepted entire.
+ */
+BOOL GuiThresholdsLoad(AppState *state, const char *path, BOOL quiet)
+{
+    if (!state || !path || !path[0]) return FALSE;
+
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        if (!quiet)
+            MessageBox(state->hMain, "Could not open that thresholds file.",
+                       APP_TITLE, MB_ICONERROR | MB_OK);
+        return FALSE;
+    }
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (len <= 0 || len > 1024 * 1024) { fclose(f); return FALSE; }
+    char *text = (char *)malloc((size_t)len + 1);
+    if (!text) { fclose(f); return FALSE; }
+    size_t got = fread(text, 1, (size_t)len, f);
+    fclose(f);
+    if (got != (size_t)len) { free(text); return FALSE; }
+    text[len] = '\0';
+
+    /* Applied over the built-in values, never over whatever was loaded
+     * before: two policies half-merged would be a standard nobody
+     * wrote. */
+    Thresholds fresh;
+    thresholds_defaults(&fresh);
+    char err[256] = "";
+    BOOL ok = thresholds_parse(&fresh, text, err, sizeof(err)) ? TRUE : FALSE;
+    free(text);
+
+    if (!ok) {
+        char msg[512];
+        snprintf(msg, sizeof(msg),
+                 "That thresholds file was not applied:\n\n%s\n\n"
+                 "Nothing was changed; the previous thresholds are still "
+                 "in force.", err);
+        MessageBox(state->hMain, msg, APP_TITLE, MB_ICONERROR | MB_OK);
+        return FALSE;
+    }
+
+    state->thresholds = fresh;
+    if (!state->thresholds.name[0])
+        snprintf(state->thresholds.name, sizeof(state->thresholds.name),
+                 "%s", path);
+    snprintf(state->thresholdsPath, sizeof(state->thresholdsPath), "%s", path);
+    thresholds_fingerprint(&state->thresholds, state->thresholdsFp,
+                           sizeof(state->thresholdsFp));
+
+    printf("[INFO] Thresholds: %s (fingerprint %s)\n",
+           state->thresholds.name, state->thresholdsFp);
+    fflush(stdout);
+    return TRUE;
+}
+
+void GuiThresholdsInit(AppState *state)
+{
+    if (!state) return;
+    thresholds_defaults(&state->thresholds);
+    thresholds_fingerprint(&state->thresholds, state->thresholdsFp,
+                           sizeof(state->thresholdsFp));
+
+    char path[MAX_PATH] = "";
+    DWORD n = sizeof(path);
+    HKEY k;
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, GUI_REG_KEY, 0, KEY_QUERY_VALUE,
+                     &k) == ERROR_SUCCESS) {
+        DWORD type = 0;
+        if (RegQueryValueEx(k, GUI_REG_VALUE, NULL, &type, (BYTE *)path, &n)
+                == ERROR_SUCCESS && type == REG_SZ && path[0]) {
+            if (!GuiThresholdsLoad(state, path, TRUE)) {
+                /* Said once, not silently: a user who set a standard is
+                 * otherwise judged by a different one without knowing. */
+                printf("[WARN] Remembered thresholds file %s could not be "
+                       "applied; using the built-in values\n", path);
+                fflush(stdout);
+            }
+        }
+        RegCloseKey(k);
+    }
+}
+
 LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     AppState *state;
@@ -2814,6 +2931,33 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 "[INFO] RTCM capture stopped: %ld bytes -> %s\r\n",
                 (long)total_bytes, path);
             AppendLog(state->hEditLog, msg);
+            return 0;
+        }
+
+        case IDM_FILE_LOAD_THRESHOLDS: {
+            char filename[MAX_PATH] = "";
+            OPENFILENAME ofn;
+            ZeroMemory(&ofn, sizeof(ofn));
+            ofn.lStructSize  = sizeof(ofn);
+            ofn.hwndOwner    = hwnd;
+            ofn.lpstrFilter  = "Threshold policy (*.json)\0*.json\0"
+                               "All Files (*.*)\0*.*\0";
+            ofn.lpstrFile    = filename;
+            ofn.nMaxFile     = MAX_PATH;
+            ofn.lpstrTitle   = "Load thresholds (JSON policy)";
+            ofn.Flags        = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            if (GetOpenFileName(&ofn) && GuiThresholdsLoad(state, filename,
+                                                          FALSE)) {
+                GuiThresholdsRemember(filename);
+                char msg[512];
+                snprintf(msg, sizeof(msg),
+                         "Judging by \"%s\" (fingerprint %s).\n\n"
+                         "This applies to the Station Check and the "
+                         "Stability window from their next run, and is "
+                         "remembered next time you start.",
+                         state->thresholds.name, state->thresholdsFp);
+                MessageBox(hwnd, msg, APP_TITLE, MB_ICONINFORMATION | MB_OK);
+            }
             return 0;
         }
 

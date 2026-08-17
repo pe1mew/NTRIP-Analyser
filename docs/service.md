@@ -148,6 +148,14 @@ should be readable by the service group and nobody else.
 
 - `output_dir` must match the Munin plugin's `env.statedir` (both
   default to `/var/lib/ntrip-monitor`).
+- `thresholds` judges by a policy of your own rather than the built-in
+  values — either a path to a JSON policy file, or the policy inline as
+  an object. The daemon **refuses to start** if it cannot be applied,
+  naming the field at fault: an operator who asked for a standard must
+  get it or be told why, rather than have months of graphs published
+  against something else. Every report then carries the policy name and
+  a fingerprint over the effective values, and the startup line says the
+  same. See [thresholds.md](thresholds.md).
 - `report_window_s` is the tier-2 rolling window, 3600 by default; the
   published report covers between one and two of them. Values below 600
   are ignored, because 600 seconds is the least evidence the report will

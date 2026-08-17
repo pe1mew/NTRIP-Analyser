@@ -19,6 +19,7 @@ BEGIN
         MENUITEM "Load &Ephemerides (RINEX)...",     IDM_FILE_LOAD_EPH
         MENUITEM "Save Sky &Plot as PNG...",         IDM_FILE_SAVE_SKYPLOT
         MENUITEM "&Export Statistics...",             IDM_FILE_EXPORT_STATS
+        MENUITEM "Load &Thresholds...",               IDM_FILE_LOAD_THRESHOLDS
         MENUITEM SEPARATOR
         MENUITEM "Start &RTCM Capture...",           IDM_FILE_RTCM_START
         MENUITEM "Stop RTCM Capture",                IDM_FILE_RTCM_STOP

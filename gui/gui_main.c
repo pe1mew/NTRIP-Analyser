@@ -96,6 +96,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     }
 
     state->hMain = hwnd;
+    /* Before any window can judge anything: built-in values, overlaid by
+     * whichever policy was loaded last time. */
+    GuiThresholdsInit(state);
 
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
