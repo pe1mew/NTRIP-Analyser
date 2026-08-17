@@ -469,9 +469,13 @@ together — the GUI in `AppState`, the CLI on one stack frame, Android in
 this live was what made it a two-sighting bug rather than a fixed one:
 both sightings were single-session casters evicting the analyser's own
 earlier connection, and deliberately doing that again to a public caster
-is antisocial. So the three states were produced locally instead, by a
-throwaway caster that feeds a real 57 KB capture and then goes silent,
-sends nothing at all, or closes the socket:
+is antisocial. So the three states are produced locally instead —
+`test/tools/stub_caster.py` now takes a mode (`flow`, `silent`, `stop`,
+`drop`) and feeds a real 57 KB capture before it goes quiet, sends
+nothing at all, or closes the socket. In the repository rather than in a
+scratch file, because a state that cannot be reproduced next month is a
+state that will regress unnoticed; the modes and the sentence each must
+produce are in `docs/RUNBOOK.md`.
 
 ```
 1  Connected and producing  FAIL  0 B/s  Data arrived for 1 s, then the stream stopped
@@ -490,6 +494,13 @@ not move, that the number comes from the session's clock, and that the
 longest of them still fits the GUI's Detail column. Six of its thirteen
 assertions fail against the engine as it was; the rest pass, which is
 what says the fix changed the sentence and not the verdict.
+
+**Confirmed in the GUI**, 2026-08-17, against the same stub with a 60 s
+feed: the station-check window shows the new sentence and the Detail
+column does not clip it. Worth doing rather than assuming, since the
+column width was the one thing the engine could not know about itself —
+and the fix reaching all four programs from one place is the claim this
+track keeps making.
 
 ## Phase 3 — Capture the ephemeris stream — not scheduled
 
