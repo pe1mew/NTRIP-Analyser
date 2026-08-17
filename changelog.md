@@ -73,6 +73,49 @@ It is also the better clock for a live run, where the two used to agree:
 a host NTP correction steps the wall clock sideways mid-session, and
 epoch counting cannot be stepped.
 
+### Fixed — frame integrity could not detect what it exists to detect
+
+Tier 2's frame-integrity metric documents itself as reporting the worst
+CRC rate rather than the average, "because an average hides a bad ten
+minutes inside a good six hours". It was reading the rate off the
+statistics snapshot, which is **cumulative since the session opened** —
+so the number it kept the maximum of *was* an average, and it failed
+both ways round:
+
+* **The first seconds decided the verdict.** Two errors against a small
+  early denominator read as 0.93 % and stayed the "worst" for the rest
+  of the run, against a station that settled at 0.43 % and then ran
+  clean.
+* **Later damage was invisible.** Six hours in, a station has some
+  130 000 frames; fifty corrupted ones move the cumulative rate by
+  0.04 %, far below whatever was banked early, so the maximum never
+  moves. The bad ten minutes was precisely what it could not see.
+
+Both were found on a live stream, one in the same screenshot as the
+other. The rate is now measured **per interval** — errors and frames
+since the last judged sample — and `SR_CRC_MIN_FRAMES` (2000) sets how
+much evidence an interval needs. That size is fixed by the warn
+threshold, not chosen: one corrupted frame in 2000 is below the warn
+level, so a warning always means a rate rather than an event. Under
+2000 frames the metric reports no rate rather than 0.000 %.
+
+Four test cases pin it, and each fails against the previous
+implementation: a burst late in a clean hour is caught although the
+cumulative rate ends below the warn level; a station is not condemned by
+its first two hundred frames; and too few frames reads as no measurement
+rather than a perfect one.
+
+### Fixed — a warning whose number read zero
+
+The station check showed `Frame integrity (CRC)  WARN  0.00  Elevated
+CRC error rate`. The value is a rate, every KPI was printed at two
+decimals, and 0.0043 renders as `0.00`. `kpi_value_decimals()` now gives
+each check the precision its value deserves — five decimals for the CRC
+rate, so `0.00430` can be compared directly with the `0.001` the
+threshold is documented as, and none for the six that are counts, so a
+satellite total stops reading `40.00`. Applied in the CLI, the GUI and
+the Android bridge from one place in core.
+
 ### Added — the stability report in the GUI
 
 `View > Stability`, beside `View > Station Check`. The check asks whether

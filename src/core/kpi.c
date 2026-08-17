@@ -19,6 +19,15 @@ void kpi_run_start(KpiRun *run, double now)
     run->stable_verdict = KPI_RUN_RUNNING;
 }
 
+int kpi_value_decimals(int kpi_index)
+{
+    switch (kpi_index) {
+    case 5:  return 1;   /* median C/N0, dB-Hz                         */
+    case 6:  return 5;   /* a CRC rate: 0.00430 against a 0.001 limit  */
+    default: return 0;   /* bytes/s, frames, satellites, types: counts */
+    }
+}
+
 const char *kpi_verdict_name(int v)
 {
     switch (v) {

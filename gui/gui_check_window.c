@@ -203,7 +203,7 @@ static void RefreshRows(HWND hwnd, AppState *state)
         char name[96];
         snprintf(name, sizeof(name), "%d. %s", i + 1,
                  k->label ? k->label : "");
-        snprintf(num, sizeof(num), "%.2f", k->value);
+        snprintf(num, sizeof(num), "%.*f", kpi_value_decimals(i), k->value);
         SetRow(hLv, row++, name, kpi_verdict_name(k->verdict), num,
                k->detail ? k->detail : "", SeverityOf(k->verdict));
     }

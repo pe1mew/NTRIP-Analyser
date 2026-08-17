@@ -58,6 +58,38 @@ extern "C" {
 #define SR_CRC_WARN                0.001
 #define SR_CRC_BAD                 0.01
 
+/**
+ * Frames that must accumulate before an interval's CRC rate is judged.
+ *
+ * The rate on the snapshot is **cumulative since the session opened**,
+ * and the maximum of a running mean is not what this metric claims to
+ * report. It fails in both directions:
+ *
+ *   - **The first seconds dominate.** Two errors against a small early
+ *     denominator read as 0.93 % and stay the "worst" for the rest of
+ *     the run, while the session settles at 0.43 %. Seen on a live
+ *     stream, which is how this was found.
+ *   - **Later damage is invisible.** After six hours a station has
+ *     ~130 000 frames; a burst of fifty corrupted ones moves the
+ *     cumulative rate to 0.04 %, far below whatever was banked early,
+ *     so the maximum never notices. The bad ten minutes this metric
+ *     exists to catch is exactly what it would miss.
+ *
+ * So the rate is measured **per interval** -- errors and frames since
+ * the previous judged sample -- and the worst of those is kept.
+ *
+ * The size is set by the warn threshold, not by taste: at 2000 frames a
+ * single corrupted frame is 0.0005, which is **below** @ref
+ * SR_CRC_WARN. Any smaller and one stray error would raise a warning
+ * about a rate, when what happened was an event. Two errors reach the
+ * warn level, twenty reach the bad one.
+ *
+ * An interval short of this is not judged and not discarded: it keeps
+ * accumulating until there are enough frames to say something. A slow
+ * station is judged over a longer stretch rather than never.
+ */
+#define SR_CRC_MIN_FRAMES          2000
+
 /** Fall in mean C/N0 from the best the window saw, dB-Hz. */
 #define SR_CNR_DROP_WARN           3.0
 #define SR_CNR_DROP_BAD            6.0
@@ -140,7 +172,11 @@ typedef struct {
     int      samples;
 
     int      reconnects_first, reconnects_last;
-    double   crc_worst;
+    double   crc_worst;         /**< worst *interval* rate, not the mean */
+    uint64_t crc_base_frames;   /**< frames at the last judged interval  */
+    uint64_t crc_base_errors;   /**< errors at the same point            */
+    bool     crc_have_base;
+    int      crc_intervals;     /**< intervals judged; 0 = nothing yet   */
     float    cnr_best, cnr_last;
     int      sats_min;
     float    roti_worst;

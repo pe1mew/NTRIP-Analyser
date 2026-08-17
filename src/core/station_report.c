@@ -57,7 +57,36 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
 
     s->reconnects_last = snap->reconnects;
 
-    if (snap->crc_error_rate > s->crc_worst) s->crc_worst = snap->crc_error_rate;
+    /* Frame integrity, per interval rather than cumulative -- see
+     * SR_CRC_MIN_FRAMES for why the snapshot's own rate cannot answer
+     * the question this metric asks. */
+    {
+        uint64_t frames = snap->frames_ok + snap->frames_crc_error;
+        uint64_t errors = snap->frames_crc_error;
+
+        /* Counters only climb within a session. If they have gone
+         * backwards the caller has handed us a different session, and
+         * the honest response is to start again rather than to compute
+         * a delta between two unrelated streams. */
+        if (!s->crc_have_base ||
+            frames < s->crc_base_frames || errors < s->crc_base_errors) {
+            s->crc_base_frames = frames;
+            s->crc_base_errors = errors;
+            s->crc_have_base   = true;
+        } else {
+            uint64_t d_frames = frames - s->crc_base_frames;
+            if (d_frames >= (uint64_t)SR_CRC_MIN_FRAMES) {
+                uint64_t d_errors = errors - s->crc_base_errors;
+                double rate = (double)d_errors / (double)d_frames;
+                if (rate > s->crc_worst) s->crc_worst = rate;
+                s->crc_intervals++;
+                s->crc_base_frames = frames;
+                s->crc_base_errors = errors;
+            }
+            /* Too few frames: keep the base where it is, so the next
+             * sample judges a longer interval instead of none at all. */
+        }
+    }
 
     /* C/N0 of zero means "not measured" -- MSM1-3 carry none -- and must
      * not be mistaken for a silent antenna. */
@@ -142,10 +171,19 @@ void sr_build(const SrState *s, StationReport *out)
      * A mean hides a bad ten minutes inside a good six hours. ── */
     {
         SrMetric *m = &out->metric[SR_INTEGRITY];
-        set(m, "Frame integrity", s->crc_worst * 100.0,
-            enough ? grade_up(s->crc_worst, SR_CRC_WARN, SR_CRC_BAD)
-                   : SR_INSUFFICIENT,
-            false, true, "worst CRC error rate %.3f %%", s->crc_worst * 100.0);
+        /* No judged interval means no rate -- not a rate of zero. A slow
+         * station may take several minutes to send enough frames, and
+         * "0.000 %" would claim a measurement that has not been made. */
+        if (s->crc_intervals == 0)
+            set(m, "Frame integrity", 0.0, SR_INSUFFICIENT, false, true,
+                "fewer than %d frames so far: no rate to judge",
+                SR_CRC_MIN_FRAMES);
+        else
+            set(m, "Frame integrity", s->crc_worst * 100.0,
+                enough ? grade_up(s->crc_worst, SR_CRC_WARN, SR_CRC_BAD)
+                       : SR_INSUFFICIENT,
+                false, true, "worst %.3f %% in any %d frames",
+                s->crc_worst * 100.0, SR_CRC_MIN_FRAMES);
     }
 
     /* ── Signal: how far the mean C/N0 fell from the best this window

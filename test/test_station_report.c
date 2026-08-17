@@ -53,6 +53,24 @@ static void feed_run(SrState *st, NsStatsSnapshot *s, int n, double step)
     for (int i = 0; i < n; i++) sr_feed(st, s, i * step);
 }
 
+/**
+ * @brief Advance the cumulative frame counters, `errors` of them bad.
+ *
+ * Frame integrity is measured from the counters, not from the rate the
+ * snapshot carries: that rate is cumulative since the session opened,
+ * and the maximum of a running mean answers a different question from
+ * the one the metric asks.  The rate is kept in step here anyway, since
+ * that is what a real session would publish.
+ */
+static void add_frames(NsStatsSnapshot *s, uint64_t frames, uint64_t errors)
+{
+    s->frames_ok        += frames - errors;
+    s->frames_crc_error += errors;
+    uint64_t total = s->frames_ok + s->frames_crc_error;
+    s->crc_error_rate = total ? (double)s->frames_crc_error / (double)total
+                              : 0.0;
+}
+
 int main(void)
 {
     SrState st;
@@ -89,9 +107,11 @@ int main(void)
     /* ── 3. Each metric can carry the verdict alone ───────────────── */
     {
         NsStatsSnapshot s = healthy();
-        s.crc_error_rate = 0.02;             /* twice the bad threshold */
         sr_reset(&st, false);
-        feed_run(&st, &s, 60, 60.0);
+        for (int i = 0; i < 60; i++) {
+            add_frames(&s, 6000, 120);       /* 2 %: twice the bad level */
+            sr_feed(&st, &s, 60.0 + i * 60.0);
+        }
         sr_build(&st, &r);
         check(r.metric[SR_INTEGRITY].verdict == SR_UNSTABLE,
               "a 2 % CRC rate is UNSTABLE");
@@ -148,18 +168,22 @@ int main(void)
 
     /* ── 6. Replay speed cannot change the report ─────────────────── */
     {
-        NsStatsSnapshot s = healthy();
-        s.crc_error_rate = 0.002;            /* enough to be DEGRADED */
         StationReport live, fast;
+        NsStatsSnapshot s = healthy();
 
         sr_reset(&st, false);
-        feed_run(&st, &s, 60, 60.0);         /* an hour, in real time */
+        for (int i = 0; i < 60; i++) {       /* an hour, in real time  */
+            add_frames(&s, 6000, 12);        /* 0.2 %: DEGRADED        */
+            sr_feed(&st, &s, 60.0 + i * 60.0);
+        }
         sr_build(&st, &live);
 
+        s = healthy();
         sr_reset(&st, false);
-        feed_run(&st, &s, 60, 60.0);         /* the same stream clock,
-                                              * whatever the wall clock
-                                              * did while replaying */
+        for (int i = 0; i < 60; i++) {       /* the same stream clock, */
+            add_frames(&s, 6000, 12);        /* whatever the wall did  */
+            sr_feed(&st, &s, 60.0 + i * 60.0);
+        }
         sr_build(&st, &fast);
 
         check(live.overall == fast.overall
@@ -242,6 +266,66 @@ int main(void)
               "two minutes without C/N0 is the clock, not the stream");
         check(strstr(r.metric[SR_IONOSPHERE].detail, "dual-frequency") == NULL,
               "and two minutes without ROTI is arcs still forming");
+    }
+
+    /* ── 10. A burst late in a long run is not hidden by the mean ─── */
+    {
+        /* The reason frame integrity is measured per interval. The
+         * snapshot's own rate is cumulative since the session opened,
+         * so after six hours a burst of corrupted frames barely moves
+         * it -- and a metric that keeps the maximum of a running mean
+         * would report this station as spotless. It is not: for one
+         * minute of the hour, one frame in a hundred was corrupt. */
+        NsStatsSnapshot s = healthy();
+        sr_reset(&st, false);
+        for (int i = 0; i < 60; i++) {
+            add_frames(&s, 6000, i == 45 ? 60 : 0);   /* 1 % for a minute */
+            sr_feed(&st, &s, 60.0 + i * 60.0);
+        }
+        sr_build(&st, &r);
+
+        check(s.crc_error_rate < SR_CRC_WARN,
+              "the cumulative rate ends below the warn level -- the mean "
+              "has swallowed the burst");
+        check(r.metric[SR_INTEGRITY].verdict == SR_UNSTABLE,
+              "and the interval rate catches it anyway");
+    }
+
+    /* ── 11. A small early denominator is not a measurement ───────── */
+    {
+        /* Two errors inside the first two hundred frames read as 0.93 %
+         * cumulatively, and used to be banked as the worst rate for the
+         * rest of the session -- against a station that settled at
+         * 0.43 % and then ran clean. Seen on a live stream. */
+        NsStatsSnapshot s = healthy();
+        add_frames(&s, 200, 2);              /* 1 % of a tiny sample */
+        sr_reset(&st, false);
+        sr_feed(&st, &s, 60.0);
+        for (int i = 1; i < 60; i++) {
+            add_frames(&s, 6000, 0);         /* and then nothing but good */
+            sr_feed(&st, &s, 60.0 + i * 60.0);
+        }
+        sr_build(&st, &r);
+
+        check(r.metric[SR_INTEGRITY].verdict == SR_STABLE,
+              "a clean station is not condemned by its first two hundred "
+              "frames");
+    }
+
+    /* ── 12. Too few frames is no rate, not a rate of zero ────────── */
+    {
+        NsStatsSnapshot s = healthy();
+        sr_reset(&st, false);
+        for (int i = 0; i < 60; i++) {
+            add_frames(&s, 20, 0);           /* 1200 frames in an hour */
+            sr_feed(&st, &s, 60.0 + i * 60.0);
+        }
+        sr_build(&st, &r);
+
+        check(r.metric[SR_INTEGRITY].verdict == SR_INSUFFICIENT,
+              "under 2000 frames there is no rate to report");
+        check(strstr(r.metric[SR_INTEGRITY].detail, "no rate to judge") != NULL,
+              "and the report says so rather than showing 0.000 %");
     }
 
     printf("\n%s\n", failures ? "FAILURES" : "all station-report cases pass");

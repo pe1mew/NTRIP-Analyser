@@ -477,9 +477,13 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
 
     for (int i = 0; i < KPI_COUNT; i++) {
         const KpiResult *k = &b->rep.kpi[i];
+        /* The precision the desktop prints, for the same reason: at
+         * three decimals a CRC rate reads 0.004 against a threshold
+         * documented as 0.001, and a satellite count reads 40.000. */
         app(out, cap, &pos, "%s{\"verdict\":%d,\"verdict_name\":\"%s\","
-                            "\"value\":%.3f,\"label\":\"",
-            i ? "," : "", k->verdict, kpi_verdict_name(k->verdict), k->value);
+                            "\"value\":%.*f,\"label\":\"",
+            i ? "," : "", k->verdict, kpi_verdict_name(k->verdict),
+            kpi_value_decimals(i), k->value);
         app_escaped(out, cap, &pos, k->label);
         app(out, cap, &pos, "\",\"detail\":\"");
         app_escaped(out, cap, &pos, k->detail);

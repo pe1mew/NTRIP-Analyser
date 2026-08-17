@@ -86,6 +86,25 @@ extern "C" {
 /** @brief Number of KPIs in the rudimentary set. */
 #define KPI_COUNT 8
 
+/**
+ * @brief Decimal places @ref KpiResult::value is meaningful to.
+ *
+ * Six of the eight are counts -- frames, satellites, constellations,
+ * message types -- and printing one as `40.00` invites the reader to
+ * wonder what a hundredth of a satellite is.
+ *
+ * KPI 7 is why this exists. Its value is a *rate*, and at two decimals
+ * an elevated one reads `0.00`: the check window showed
+ * `WARN  0.00  Elevated CRC error rate`, a warning whose number said
+ * nothing at all. Five decimals shows `0.00430` against the `0.001`
+ * this threshold is documented as, so the two compare without the
+ * reader converting anything.
+ *
+ * Here rather than in a frontend, for the same reason the thresholds
+ * are: the CLI, the GUI and the phone then print one number one way.
+ */
+int kpi_value_decimals(int kpi_index);
+
 /** @brief Verdict for one KPI at one instant. */
 typedef enum {
     KPI_PENDING = 0,   /**< too early to judge -- evidence still due   */

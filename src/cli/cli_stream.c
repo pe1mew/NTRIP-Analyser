@@ -626,9 +626,9 @@ static void check_print(const KpiReport *kr, const VrsReport *vr)
     printf("\n%-3s %-26s %-5s %12s  %s\n",
            "#", "KPI", "verd", "value", "detail");
     for (int i = 0; i < KPI_COUNT; i++)
-        printf("%-3d %-26s %-5s %12.2f  %s\n", i + 1,
+        printf("%-3d %-26s %-5s %12.*f  %s\n", i + 1,
                kr->kpi[i].label, kpi_verdict_name(kr->kpi[i].verdict),
-               kr->kpi[i].value, kr->kpi[i].detail);
+               kpi_value_decimals(i), kr->kpi[i].value, kr->kpi[i].detail);
     if (vr) {
         for (int i = 0; i < VRS_ASSERT_COUNT; i++)
             printf("V%-2d %-26s %-5s %12.2f  %s\n", i + 1,
