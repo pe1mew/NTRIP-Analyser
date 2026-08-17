@@ -625,8 +625,16 @@ int ns_iono_view(const NtripSession *s, IonoSatView *out, int max_out)
 static void maybe_emit_stats(NtripSession *s, double now)
 {
     if (s->opt.stats_interval_s <= 0.0) return;
-    if (now - s->last_stats_t < s->opt.stats_interval_s) return;
-    s->last_stats_t = now;
+
+    /* Paced on the observation clock, so "once a second" means once a
+     * second *of stream*.  Against the wall, a six-hour capture read in
+     * two seconds would emit two snapshots -- and a consumer that
+     * accumulates them, as the stability report does, would see two
+     * samples where the live run saw twenty-one thousand.  Live the two
+     * clocks are the same one, so nothing there changes. */
+    double t = obs_clock(s, now);
+    if (t - s->last_stats_t < s->opt.stats_interval_s) return;
+    s->last_stats_t = t;
 
     stats_refresh(s, now);
 

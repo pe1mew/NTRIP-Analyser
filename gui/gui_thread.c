@@ -20,6 +20,7 @@
 #include "core/sourcetable.h"
 #include "core/version.h"
 #include "gui_check_window.h"
+#include "gui_report_window.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -539,6 +540,12 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
              * KPI clock steps once per snapshot -- never twice, never
              * skipping one. */
             CheckOnStats(state, ev->u.stats);
+            /* Tier 2 advances from the same event and for the same
+             * reason. It paces itself on the stream clock inside the
+             * snapshot, so a replay running at disk speed accumulates
+             * the window the capture holds rather than the seconds the
+             * disk took. */
+            ReportOnStats(state, ev->u.stats);
         }
         break;
 
@@ -678,6 +685,11 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
         return 1;
     }
     ctx.sess = sess;
+
+    /* A new stream is a new window of evidence: carrying the last
+     * station's worst CRC rate into this one would be a verdict about
+     * neither of them. */
+    ReportReset(state, FALSE);
 
     /* ── Hand the session what the mountpoint advertises ──────────────
      * KPI 8 compares promise against delivery, and it reads the promise
@@ -932,7 +944,11 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
     NsOptions opt;
     ns_options_default(&opt);
     opt.config           = state->config;
-    opt.stats_interval_s = 0.0;
+    /* Once a second *of stream*, not of wall clock: the session paces
+     * this event on the observation clock, so a six-hour capture read in
+     * a moment still yields six hours of samples. Off, the stability
+     * window would see nothing at all from a replay. */
+    opt.stats_interval_s = 1.0;
 
     NtripSession *sess = ns_open_file(state->replayPath, &opt,
                                       ObsOnEvent, &ctx);
@@ -943,6 +959,10 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
         return 1;
     }
     ctx.sess = sess;
+
+    /* From a capture: availability is reported unavailable rather than
+     * as a clean zero, because a file holds no arrival times. */
+    ReportReset(state, TRUE);
 
     while (!state->bStopRequested) {
         if (ns_pump(sess, 0) < 0)

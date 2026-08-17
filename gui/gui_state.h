@@ -22,6 +22,7 @@
 #include "core/sv_ephemeris.h"
 #include "core/ns_stats.h"
 #include "core/kpi.h"
+#include "core/station_report.h"
 #include "core/vrs_check.h"
 #include "core/iono.h"
 #include "net/ntrip_proto.h"
@@ -550,6 +551,24 @@ typedef struct {
     NsStatsSnapshot lastStats;
     BOOL            haveStats;
 
+    /* ── Stability (View > Stability) ──────────────────────────────
+     * Tier 2: has this station *been* fit, over as much of the stream
+     * as has been open. Not a run and not startable -- it accumulates
+     * for the life of the session, which is the shape commissioning
+     * wants: connect, work, and the verdict is there when you look.
+     *
+     * Here rather than in the window for the same reason as the check
+     * below: an hour of evidence must survive its window being closed,
+     * and SrState cannot be rebuilt from a repaint.
+     *
+     * reportFromCapture is kept so Restart cannot quietly turn a replay
+     * into a live run and begin inventing availability figures for it. */
+    SrState       reportRun;
+    StationReport reportOut;
+    BOOL          reportHave;
+    BOOL          reportFromCapture;
+    double        reportLastSample;   /* stream time of the last sample */
+
     /* ── Station check (View > Station Check) ──────────────────────
      * A bounded acceptance run: the same engine the CLI's --check and
      * the Android station mode use, over the stream that is already
@@ -799,6 +818,10 @@ typedef struct {
     HWND hCheckWnd;
     RECT checkWndRect;
     BOOL checkWndRectValid;
+
+    HWND hReportWnd;
+    RECT reportWndRect;
+    BOOL reportWndRectValid;
 
 } AppState;
 

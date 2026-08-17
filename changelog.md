@@ -73,6 +73,33 @@ It is also the better clock for a live run, where the two used to agree:
 a host NTP correction steps the wall clock sideways mid-session, and
 epoch counting cannot be stepped.
 
+### Added — the stability report in the GUI
+
+`View > Stability`, beside `View > Station Check`. The check asks whether
+a station is fit **now** and answers in ninety seconds; this asks whether
+it has *been* fit, over hours.
+
+There is nothing to start. It accumulates for as long as the stream is
+open and reads `INSUFFICIENT EVIDENCE` until it has ten minutes to judge
+on — the shape commissioning wants, where you connect, work on the
+antenna, and look at the verdict afterwards. **Restart window** begins a
+fresh window without touching the stream, for the moment after you have
+changed something and want the next hour judged on its own.
+
+It never borrows the check's vocabulary: `STABLE` / `DEGRADED` /
+`UNSTABLE`, never `STATION OK`. Replaying a capture is judged over the
+window the capture holds, and availability reads `n/a` there rather than
+a zero it did not earn.
+
+**Wiring it up found the replay path emitting no statistics at all.** The
+GUI's replay worker had `stats_interval_s = 0.0`, so the window would
+have stayed empty for ever; and turning it on was not enough, because the
+emit gate paced itself on the wall clock — a six-hour capture read in two
+seconds would have produced two snapshots where the live run produced
+twenty-one thousand. The gate now runs on the observation clock, so
+"once a second" means once a second of stream. Live behaviour is
+unchanged, because live the two clocks are the same one.
+
 ### Added — the monitoring daemon publishes the stability report
 
 `ntrip-monitord` now writes `<mountpoint>.report.json` beside each

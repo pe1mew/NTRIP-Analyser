@@ -636,6 +636,58 @@ and waits for the caster to drop the stream. A drop means a live network
 service; continued streaming means a fixed base. That is a
 classification, not a fault.
 
+#### 📉 Stability (View > Stability)
+
+**Purpose:** the other question. The Station Check asks whether a
+station is fit **now**, and answers in ninety seconds. This asks whether
+it has *been* fit — over hours — which no ninety-second window can
+reach at any price.
+
+There is nothing to start. It accumulates for as long as the stream is
+open and reads `INSUFFICIENT EVIDENCE` until it has ten minutes to judge
+on, which is the shape commissioning wants: connect, get on with the
+work, and the verdict is there when you next look at it.
+
+Six measurements, each graded on its own, with the worst finding stated
+in the header along with the evidence behind it:
+
+| # | Measurement | Reads |
+|---|---|---|
+| 1 | Availability | reconnections per hour |
+| 2 | Frame integrity | the **worst** CRC error rate the window saw |
+| 3 | Signal level | how far mean C/N0 **fell** from the window's best |
+| 4 | Satellites held | the fewest held at any moment |
+| 5 | Ionosphere | the worst median ROTI |
+| 6 | Delivery rate | share of samples with a type arriving off-rate |
+
+Two of those are deliberately *changes* rather than levels, which is
+what makes them worth an hour. A 7 dB drop to 41 dB-Hz is flagged though
+41 is a perfectly good level, because something changed; and the worst
+CRC rate is reported rather than the average, because an average hides a
+bad ten minutes inside a good six hours.
+
+**It never uses the check's words.** `STABLE`, `DEGRADED`, `UNSTABLE` —
+never `STATION OK`. A station can be fit right now and have been
+unstable all week; both statements are true and neither contradicts the
+other, so they do not share a vocabulary.
+
+**The window is stream time**, counted from the observation epochs
+rather than from this computer's clock. Three consequences: a dropout
+counts, because the epochs on either side of it say so; a clock
+correction on this machine cannot distort a running window; and a
+**replayed capture** is judged over the window the *capture* holds, so
+six hours read from disk in a moment are judged over six hours. Over a
+replay, availability reads `n/a` — a file holds no arrival times and
+never drops, so a clean zero would be an invention.
+
+**Restart window** begins a fresh window without touching the stream.
+That is for the moment you change something: having re-seated the
+antenna, you want the next hour judged on its own rather than averaged
+with the hour that prompted the change.
+
+Closing the window does not stop it. The evidence belongs to the
+session, so an hour of it survives a window being closed and reopened.
+
 ### Keyboard Shortcuts
 
 **Main window:**
@@ -690,6 +742,7 @@ by capture time.
 
 **View Menu:**
 - **Station Check...** — the acceptance test over the open stream
+- **Stability...** — tier 2: has it *been* fit, over hours of stream
 - **Sky Plot...** — floating polar sky-visibility window
 - **VRS Monitor...** — network-mountpoint analysis
 - **Signal Quality...** — C/N0 bars and C/N0-vs-elevation scatter
@@ -802,6 +855,7 @@ gui/
 ├── gui_hist_window.c   — Floating Session History (six strip charts)
 ├── gui_vrs_window.c    — Floating VRS Monitor (distance, polar, chart)
 ├── gui_check_window.c  — Floating Station Check (KPI rows, verdict, VRS)
+├── gui_report_window.c — Floating Stability (tier-2 rows, rolling verdict)
 ├── gui_snapshot.c      — GDI+ PNG snapshot + shared save-with-prompt flow
 ├── gui_sv_detail.c     — Per-SV detail popup (left-click on marker)
 ├── gui_state.h         — AppState structure, constants, function prototypes

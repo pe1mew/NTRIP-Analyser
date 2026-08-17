@@ -412,7 +412,45 @@ order is safe too. **Both directions were tested** — the previous
 plugin, taken from git, against a new-format report — rather than
 reasoned about.
 
-Next: the GUI, for commissioning.
+## Phase 2e — The GUI shows it — **built**
+
+`View > Stability`, beside `View > Station Check`, and shaped by the
+same rule that separates the two tiers: the check is a bounded run with
+a Run button, and this is not a run at all. It accumulates for the life
+of the session and says `INSUFFICIENT EVIDENCE` until it has ten minutes
+— which is what commissioning wants, where the installer connects, works
+on the antenna, and looks back at the verdict later.
+
+`gui_report_window.c`, a sibling of `gui_check_window.c` down to the
+custom-draw severity colours, so the two read as one family. The
+accumulator lives in `AppState`, not in the window: an hour of evidence
+must survive its window being closed, exactly as the check's sustain
+clocks must.
+
+`Restart window` exists for one moment in particular — you re-seat the
+antenna and want the next hour judged on its own rather than averaged
+with the hour that prompted the change. It keeps `reportFromCapture`, so
+restarting a replay cannot quietly turn it into a live run and begin
+inventing availability figures.
+
+### Wiring it up found the replay path emitting nothing
+
+The GUI's replay worker set `stats_interval_s = 0.0`, so `NS_EV_STATS`
+never fired for a capture and the window would have stayed empty
+for ever. Setting it to 1.0 was not enough on its own, either:
+`maybe_emit_stats()` paced itself on the wall clock, so a six-hour
+capture read in two seconds would have emitted **two** snapshots where
+the live run emitted twenty-one thousand.
+
+So the emit gate now runs on `obs_clock()` too — the same rule as
+everything else this work touched: arrival time live, stream time on a
+replay, and live behaviour byte for byte what it was because there the
+two are one clock. That fixes the same defect for every future consumer
+of `NS_EV_STATS`, not just this window.
+
+Next: nothing on this track is blocked. KPI 9 (latency) and KPI 10
+(position agreement) remain gated on the free edition clearing Play
+closed testing, since "eight checks" is published on six surfaces.
 
 **What it does not give is a date.** An epoch is a time *within* a week
 or a day with no week number, so it measures spans, never instants.

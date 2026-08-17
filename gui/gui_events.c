@@ -15,6 +15,7 @@
 #include "gui_sky_window.h"
 #include "gui_vrs_window.h"
 #include "gui_check_window.h"
+#include "gui_report_window.h"
 #include "gui_signal_window.h"
 #include "gui_hist_window.h"
 #include "gui_iono_window.h"
@@ -2929,6 +2930,21 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 state->hCheckWnd = CreateCheckWindow(hInst, hwnd, state);
                 if (!state->hCheckWnd) {
                     MessageBox(hwnd, "Failed to create Station Check window.",
+                               APP_TITLE, MB_ICONERROR | MB_OK);
+                }
+            }
+            return 0;
+
+        case IDM_VIEW_STABILITY:
+            if (state->hReportWnd) {
+                if (IsIconic(state->hReportWnd))
+                    ShowWindow(state->hReportWnd, SW_RESTORE);
+                SetForegroundWindow(state->hReportWnd);
+            } else {
+                HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+                state->hReportWnd = CreateReportWindow(hInst, hwnd, state);
+                if (!state->hReportWnd) {
+                    MessageBox(hwnd, "Failed to create Stability window.",
                                APP_TITLE, MB_ICONERROR | MB_OK);
                 }
             }

@@ -40,6 +40,7 @@
 #define IDM_VIEW_IONO_SKY       9025  /* polar ROTI heatmap / tracks */
 #define IDM_VIEW_RESET_LAYOUT   9026  /* windows back to default size/pos */
 #define IDM_VIEW_STATION_CHECK  9027  /* bounded acceptance test, ~90 s */
+#define IDM_VIEW_STABILITY      9028  /* tier 2: stability over hours */
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
@@ -132,6 +133,7 @@
 #define WM_APP_SOURCETABLE      (WM_APP + 13)   /* sourcetable fetched on connect: lParam=heap string, UI frees */
 #define WM_APP_TRAY             (WM_APP + 14)   /* notification-area callback: lParam=mouse message */
 #define WM_APP_CHECK_UPDATE     (WM_APP + 15)   /* station check advanced: repaint its window */
+#define WM_APP_REPORT_UPDATE    (WM_APP + 16)   /* stability report advanced: repaint its window */
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700
@@ -148,6 +150,10 @@
 #define IDC_CHECK_LIST          1900
 #define IDC_CHECK_BTN_RUN       1901
 #define IDC_CHECK_CHK_GATE      1902
+
+/* ── Stability window ────────────────────────────────────── */
+#define IDC_REPORT_LIST         1910
+#define IDC_REPORT_BTN_RESET    1911
 
 /* ── Context menu IDs ────────────────────────────────────── */
 #define IDM_CTX_SELECT_ALL      3001
