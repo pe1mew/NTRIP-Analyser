@@ -363,6 +363,8 @@ SNAPSHOT_KNOWN_GAPS = {
 THRESHOLD_MACRO_SKIP = {
     "KPI_H", "KPI_COUNT", "KPI_MAX_CRC_RATE",
     "STATION_REPORT_H", "SR_METRIC_COUNT", "SR_JSON_SCHEMA_VERSION",
+    "VRS_CHECK_H", "VRS_ASSERT_COUNT", "VRS_GATE_UNTESTED", "VRS_GATE_TESTING",
+    "VRS_GATE_GATED", "VRS_GATE_NOT_GATED",
 }
 
 
@@ -371,7 +373,8 @@ def check_thresholds():
     doc = read("docs", "thresholds.md")
 
     undocumented = []
-    for header, prefix in (("kpi.h", "KPI_"), ("station_report.h", "SR_")):
+    for header, prefix in (("kpi.h", "KPI_"), ("station_report.h", "SR_"),
+                           ("vrs_check.h", "VRS_")):
         text = read("src", "core", header)
         for m in re.finditer(r"^#define\s+(" + prefix + r"\w+)", text, re.M):
             name = m.group(1)
@@ -387,11 +390,12 @@ def check_thresholds():
     # Every field of both policy structs must appear in the table, or it
     # cannot be set from a file nor shown by --thresholds-print.
     table = read("src", "core", "thresholds.c")
-    keys = set(re.findall(r'\{\s*"(\w+)",\s*TH_TIER', table))
+    keys = set(re.findall(r'\{\s*"(\w+)",\s*TH_(?:TIER\d|VRS)', table))
 
     missing = []
-    for header, struct in (("kpi.h", "KpiPolicy"), ("station_report.h",
-                                                    "SrPolicy")):
+    for header, struct in (("kpi.h", "KpiPolicy"),
+                           ("station_report.h", "SrPolicy"),
+                           ("vrs_check.h", "VrsPolicy")):
         text = read("src", "core", header)
         m = re.search(r"typedef struct \{(.*?)\} " + struct + r";", text, re.S)
         if not m:

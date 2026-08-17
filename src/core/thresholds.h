@@ -56,6 +56,7 @@
 
 #include "core/kpi.h"
 #include "core/station_report.h"
+#include "core/vrs_check.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -74,6 +75,11 @@ extern "C" {
 typedef enum {
     TH_TIER1 = 1,
     TH_TIER2 = 2,
+    /* The network-RTK assertions. Their own section rather than part of
+     * tier 1: they test what a caster does, not what a station
+     * achieves, and they apply only to a mountpoint classified as a
+     * network service. */
+    TH_VRS   = 3,
 } ThTier;
 
 /** @brief A field's storage type. */
@@ -117,6 +123,7 @@ typedef struct {
 typedef struct {
     KpiPolicy kpi;
     SrPolicy  sr;
+    VrsPolicy vrs;
     char      name[TH_NAME_LEN];   /**< from the file; "" when built-in */
     int       schema_version;
     bool      loaded;              /**< a file was applied              */

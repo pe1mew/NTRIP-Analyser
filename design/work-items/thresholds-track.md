@@ -5,11 +5,10 @@ the service and the GUI each load a policy and agree on its fingerprint;
 every desktop row shows the limit it was judged against; and a published
 report names the standard that produced it.
 
-Two things remain, both stated rather than quietly dropped: **Android**
-keeps the built-in values, having no file to point at; and the **VRS
-assertions** are still constants, despite decision 4 saying they should
-be overridable — they are five numbers about caster behaviour, and the
-least likely of the set to need changing.
+Decision 4 is now built too: the **VRS assertions** take a policy under
+a `vrs` section, on the same mechanism as the rest. One thing remains,
+stated rather than quietly dropped: **Android** keeps the built-in
+values, having no file to point at.
 
 The numbers that decide every verdict are `#define`s in `src/core/`, and
 [docs/thresholds.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/thresholds.md)

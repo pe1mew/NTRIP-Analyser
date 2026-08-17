@@ -21,7 +21,18 @@ static double haversine_km(double lat1, double lon1, double lat2, double lon2)
     return 2.0 * R * atan2(sqrt(a), sqrt(1.0 - a));
 }
 
-void vrs_run_start(VrsRun *run, double now)
+void vrs_policy_defaults(VrsPolicy *p)
+{
+    if (!p) return;
+    memset(p, 0, sizeof(*p));
+    p->accept_s   = VRS_ACCEPT_S;
+    p->rtcm_s     = VRS_RTCM_S;
+    p->arp_max_km = VRS_ARP_MAX_KM;
+    p->hold_s     = VRS_HOLD_S;
+    p->gate_s     = VRS_GATE_S;
+}
+
+void vrs_run_start(VrsRun *run, double now, const VrsPolicy *pol)
 {
     if (!run) return;
     memset(run, 0, sizeof(*run));
@@ -30,6 +41,11 @@ void vrs_run_start(VrsRun *run, double now)
     run->t_first_frame = -1.0;
     run->t_disconnect  = -1.0;
     run->t_gate_start  = -1.0;
+
+    /* A zeroed policy would give every assertion a deadline of zero, so
+     * an absent one means the built-in deadlines rather than none. */
+    if (pol) run->pol = *pol;
+    else     vrs_policy_defaults(&run->pol);
 }
 
 void vrs_note_gga(VrsRun *run, const NsStatsSnapshot *s, double now,
@@ -83,18 +99,18 @@ void vrs_update(VrsRun *run, const NsStatsSnapshot *s, double now,
         a[0].verdict = KPI_PENDING;
         a[0].detail  = "No GGA sent yet";
     } else if (run->t_disconnect >= 0.0 &&
-               run->t_disconnect - run->t_first_gga <= VRS_ACCEPT_S &&
+               run->t_disconnect - run->t_first_gga <= run->pol.accept_s &&
                run->t_gate_start < 0.0) {
         a[0].verdict = KPI_FAIL;
         a[0].value   = run->t_disconnect - run->t_first_gga;
         a[0].detail  = "Caster dropped the stream on receiving the GGA";
-    } else if (since_gga < VRS_ACCEPT_S) {
+    } else if (since_gga < run->pol.accept_s) {
         a[0].verdict = KPI_PENDING;
         a[0].detail  = "Watching for a rejection";
     } else {
         a[0].verdict = KPI_PASS;
         a[0].value   = since_gga;
-        a[0].detail  = "No disconnect within 5 s of the first GGA";
+        a[0].detail  = "No disconnect in the window after the first GGA";
     }
 
     /* ── A2: RTCM starts after GGA ──────────────────────────────────── */
@@ -105,17 +121,17 @@ void vrs_update(VrsRun *run, const NsStatsSnapshot *s, double now,
     } else if (run->t_first_frame >= 0.0) {
         double dt = run->t_first_frame - run->t_first_gga;
         a[1].value = dt;
-        a[1].verdict = (dt <= VRS_RTCM_S) ? KPI_PASS : KPI_WARN;
-        a[1].detail  = (dt <= VRS_RTCM_S)
-                       ? "Corrections flowing within 10 s of the GGA"
-                       : "Corrections started, but slower than 10 s";
-    } else if (since_gga <= VRS_RTCM_S) {
+        a[1].verdict = (dt <= run->pol.rtcm_s) ? KPI_PASS : KPI_WARN;
+        a[1].detail  = (dt <= run->pol.rtcm_s)
+                       ? "Corrections flowing inside the deadline"
+                       : "Corrections started, but past the deadline";
+    } else if (since_gga <= run->pol.rtcm_s) {
         a[1].verdict = KPI_PENDING;
         a[1].detail  = "Waiting for the first frame";
     } else {
         a[1].verdict = KPI_FAIL;
         a[1].value   = since_gga;
-        a[1].detail  = "No RTCM within 10 s of the GGA";
+        a[1].detail  = "No RTCM within the deadline after the GGA";
     }
 
     /* ── A3: ARP near the rover ─────────────────────────────────────── */
@@ -127,12 +143,12 @@ void vrs_update(VrsRun *run, const NsStatsSnapshot *s, double now,
         double km = haversine_km(run->gga_lat, run->gga_lon,
                                  s->arp_lat, s->arp_lon);
         a[2].value = km;
-        if (km <= VRS_ARP_MAX_KM) {
+        if (km <= run->pol.arp_max_km) {
             a[2].verdict = KPI_PASS;
-            a[2].detail  = "Reference position within 50 km of the GGA";
-        } else if (km <= 2.0 * VRS_ARP_MAX_KM) {
+            a[2].detail  = "Reference position within range of the GGA";
+        } else if (km <= 2.0 * run->pol.arp_max_km) {
             a[2].verdict = KPI_WARN;
-            a[2].detail  = "ARP 50-100 km away: nearest-station service?";
+            a[2].detail  = "ARP beyond the ceiling but under twice it: nearest-station service?";
         } else {
             a[2].verdict = KPI_FAIL;
             a[2].detail  = "ARP implausibly far from the GGA position";
@@ -148,10 +164,10 @@ void vrs_update(VrsRun *run, const NsStatsSnapshot *s, double now,
         a[3].verdict = KPI_FAIL;
         a[3].value   = run->t_disconnect - run->t_first_gga;
         a[3].detail  = "Stream dropped despite the GGA cadence";
-    } else if (since_gga >= VRS_HOLD_S) {
+    } else if (since_gga >= run->pol.hold_s) {
         a[3].verdict = KPI_PASS;
         a[3].value   = since_gga;
-        a[3].detail  = "Continuous for 60 s at the GGA cadence";
+        a[3].detail  = "Continuous through the window at the GGA cadence";
     } else {
         a[3].verdict = KPI_PENDING;
         a[3].value   = since_gga;
@@ -170,14 +186,14 @@ void vrs_update(VrsRun *run, const NsStatsSnapshot *s, double now,
         a[4].verdict = KPI_PASS;
         a[4].value   = run->t_disconnect - run->t_gate_start;
         a[4].detail  = "Stream dropped after GGA stopped: a live network service";
-    } else if (now - run->t_gate_start > VRS_GATE_S) {
+    } else if (now - run->t_gate_start > run->pol.gate_s) {
         /* Deliberately not a failure: a fixed base ignoring GGA is
          * behaving correctly for what it is.  The classification is the
          * result. */
         out->gate    = VRS_GATE_NOT_GATED;
         a[4].verdict = KPI_WARN;
         a[4].value   = now - run->t_gate_start;
-        a[4].detail  = "Still streaming 90 s after GGA stopped: fixed base";
+        a[4].detail  = "Still streaming past the deadline after GGA stopped: fixed base";
     } else {
         out->gate    = VRS_GATE_TESTING;
         a[4].verdict = KPI_PENDING;

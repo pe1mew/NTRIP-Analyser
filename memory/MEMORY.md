@@ -118,12 +118,15 @@
   sets the resolution of the C/N0 views, which is documented in
   `android/design/views.md` because it has twice looked like an app
   defect.
-- **Free is submitted to Google Play** (2026-08-14), closed testing track,
-  awaiting review. The signed bundle is `app-free-release.aab`, 3.3.0 /
-  30300, **1.35 MB to install** because Play sends one ABI split and one
-  language split. Pro's bundle is built and signed but not submitted:
-  its data-safety answers differ and two reviews at once is two chances
-  to be asked the same question.
+- **Free is live on Google Play** (2026-08-17), listing at
+  `play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free`,
+  with the tester opt-in at `play.google.com/apps/testing/…`. Google's
+  twelve-testers-for-fourteen-days rule for a new developer account
+  still applies, so the readme still asks for testers. The signed bundle
+  is `app-free-release.aab`, 3.3.0 / 30300, **1.35 MB to install**
+  because Play sends one ABI split and one language split. Pro's bundle
+  is built and signed but not submitted: its data-safety answers differ
+  and two reviews at once is two chances to be asked the same question.
   <!-- verify: grep -q "targetSdk = 36" android/app/build.gradle.kts -->
 - **The release keystore exists**, outside the tree, and both editions
   are signed with it — one key, two listings.

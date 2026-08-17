@@ -31,6 +31,7 @@
 #include "core/iono.h"
 #include "core/station_report.h"
 #include "core/thresholds.h"
+#include "core/vrs_check.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -342,6 +343,61 @@ int main(void)
         check(strcmp(fa, fb) != 0,
               "and does change the fingerprint, so two reports cannot claim "
               "the same standard while using different numbers");
+    }
+
+    /* ── 8. The VRS assertions take a policy too ──────────────────── */
+    {
+        /* Decision 4: the least likely of these thresholds to need
+         * changing, and overridable anyway -- "unlikely to be wrong" is
+         * not a reason to make something unarguable. */
+        Thresholds t;
+        char err[256];
+        thresholds_defaults(&t);
+
+        VrsPolicy def;
+        vrs_policy_defaults(&def);
+        check(def.accept_s   == VRS_ACCEPT_S &&
+              def.rtcm_s     == VRS_RTCM_S &&
+              def.arp_max_km == VRS_ARP_MAX_KM &&
+              def.hold_s     == VRS_HOLD_S &&
+              def.gate_s     == VRS_GATE_S,
+              "the five network-RTK deadlines match their constants");
+
+        check(thresholds_parse(&t,
+                  "{ \"vrs\": { \"rtcm_s\": 25.0, \"gate_s\": 180 } }",
+                  err, sizeof(err)),
+              "a policy may carry a vrs section");
+        check(t.vrs.rtcm_s == 25.0 && t.vrs.gate_s == 180.0,
+              "and the deadlines it names are applied");
+        check(t.vrs.accept_s   == VRS_ACCEPT_S &&
+              t.vrs.arp_max_km == VRS_ARP_MAX_KM &&
+              t.vrs.hold_s     == VRS_HOLD_S,
+              "while the three it does not name keep their defaults");
+
+        /* And the engine reads them rather than merely storing them: a
+         * caster silent for twenty seconds fails a ten-second deadline
+         * and is still pending against a twenty-five-second one. */
+        NsStatsSnapshot s = healthy();
+        s.connected = true;
+        s.frames_ok = 0;
+
+        VrsRun run;
+        VrsReport rep;
+        VrsPolicy slow;
+        vrs_policy_defaults(&slow);
+        slow.rtcm_s = 25.0;
+
+        vrs_run_start(&run, 0.0, NULL);
+        vrs_note_gga(&run, &s, 0.0, 52.0, 6.0);
+        vrs_update(&run, &s, 20.0, &rep);
+        check(rep.a[1].verdict == KPI_FAIL,
+              "no corrections after 20 s fails the built-in 10 s deadline");
+
+        vrs_run_start(&run, 0.0, &slow);
+        vrs_note_gga(&run, &s, 0.0, 52.0, 6.0);
+        vrs_update(&run, &s, 20.0, &rep);
+        check(rep.a[1].verdict == KPI_PENDING,
+              "and is still pending against a policy that allows 25 s");
     }
 
     printf("\n%s\n", failures ? "FAILURES" : "all policy cases pass");

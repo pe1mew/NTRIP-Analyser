@@ -249,6 +249,14 @@ service. They test behaviour a fixed base never claims to have.
 A5 not dropping is a *classification*, not a fault: it means a fixed
 base behind a network-looking name.
 
+These five are **overridable like the rest**, under a `vrs` section of a
+policy file — `accept_s`, `rtcm_s`, `arp_max_km`, `hold_s`, `gate_s`.
+They are the least likely of the set to need changing, describing what
+casters actually do rather than what a station ought to achieve, but a
+network with unusual keep-alive behaviour would otherwise have no
+recourse at all — and "unlikely to need changing" is not a reason to
+make something unarguable.
+
 ---
 
 ## Tier 2 — the stability report (`src/core/station_report.h`)

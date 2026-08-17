@@ -65,7 +65,7 @@ void CheckStart(AppState *state)
     state->checkGateStarted = FALSE;
     memset(&state->checkVrsReport, 0, sizeof(state->checkVrsReport));
     if (state->checkVrsActive)
-        vrs_run_start(&state->checkVrs, now);
+        vrs_run_start(&state->checkVrs, now, &state->thresholds.vrs);
 }
 
 /* End a run that will not produce a verdict, and record which way. */

@@ -27,22 +27,27 @@ antenna or siting problem for what it is.
 </tr>
 </table>
 
-### Be a tester on Google Play
+### It is on Google Play
 
-The Play release needs **twelve testers who stay opted in for fourteen
-days** before Google will allow it into production. That is their rule
-for a new developer account, and there is no way around it — so this is
-a genuine invitation rather than a formality.
+**→ [Get NTRIP Analyser on Google Play](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free)**
 
-**→ [Join the closed test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)**
-*(opens once the developer account clears verification and the track is
-live — the account is in verification now)*
+Free, no advertising, no account, and nothing leaves the phone but the
+NTRIP connection you configure — see the
+[privacy policy](https://pe1mew.github.io/NTRIP-Analyser/privacy-policy.html).
 
-What you are agreeing to: install the free edition, keep it installed
-for a fortnight, and use it on a station you care about. What would help
-most is telling us about a station where the verdict looks wrong —
-[open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues) with
-the caster, the mountpoint and what you expected.
+**Testers are still wanted.** Google requires **twelve testers who stay
+opted in for fourteen days** before a new developer account may go to
+production, so joining the test is a genuine help rather than a
+formality:
+
+**→ [Join the test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)**
+
+What would help most is telling us about a station where the verdict
+looks wrong — [open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues)
+with the caster, the mountpoint and what you expected. A verdict that
+disagrees with a station you know is the most useful bug report this
+project can receive, because every threshold behind it is a judgement
+rather than a fact ([which ones, and how well founded](https://pe1mew.github.io/NTRIP-Analyser/thresholds.html)).
 
 ### Samsung Galaxy Store, and F-Droid from our own repository
 

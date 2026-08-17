@@ -135,9 +135,10 @@ void cli_thresholds_print(void)
     for (int i = 0; i < thresholds_field_count(); i++) {
         const ThField *f = thresholds_field(i);
         if ((int)f->tier != last_tier) {
-            printf("\n-- tier %d %s\n", (int)f->tier,
-                   f->tier == TH_TIER1 ? "(the acceptance check)"
-                                       : "(the stability report)");
+            printf("\n-- %s\n",
+                   f->tier == TH_TIER1 ? "tier 1 (the acceptance check)"
+                 : f->tier == TH_TIER2 ? "tier 2 (the stability report)"
+                                       : "vrs (the network-RTK assertions)");
             last_tier = (int)f->tier;
         }
         char val[40];
@@ -855,7 +856,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     memset(&kr, 0, sizeof(kr));
     memset(&vr, 0, sizeof(vr));
     kpi_run_start(&krun, 0.0, &cli_th()->kpi);
-    vrs_run_start(&vrun, 0.0);
+    vrs_run_start(&vrun, 0.0, &cli_th()->vrs);
 
     time_t t0 = time(NULL);
     double last_gga = -1e9;

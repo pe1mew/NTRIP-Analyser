@@ -73,6 +73,17 @@ It is also the better clock for a live run, where the two used to agree:
 a host NTP correction steps the wall clock sideways mid-session, and
 epoch counting cannot be stepped.
 
+### Added — the free Android edition is on Google Play
+
+[NTRIP Analyser](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free)
+is live: the eight-check verdict, the sky view, C/N0 per satellite and
+C/N0 against elevation, free and without advertising or an account.
+
+Google's twelve-testers-for-fourteen-days rule for a new developer
+account still applies, so the
+[tester opt-in](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)
+remains open and joining it genuinely helps.
+
 ### Added — thresholds you can disagree with
 
 Every verdict rests on a number someone chose, and
@@ -154,9 +165,18 @@ One file serves all three: the CLI, the service and the GUI compute the
 same fingerprint for it, which is what makes a fleet's verdicts
 comparable.
 
+**The network-RTK assertions are overridable too**, under a `vrs`
+section: `accept_s`, `rtcm_s`, `arp_max_km`, `hold_s`, `gate_s`. They
+are the least likely of these thresholds to need changing — they
+describe what casters actually do rather than what a station ought to
+achieve — but a network with unusual keep-alive behaviour would
+otherwise have no recourse, and "unlikely to need changing" is not a
+reason to make something unarguable. Their detail lines stopped quoting
+their deadlines for the same reason tier 1's did: *"Corrections flowing
+within 10 s of the GGA"* becomes a lie the moment a policy says 25.
+
 Android keeps the built-in values; the platform has no file to point at,
-and that limit is stated rather than worked around. The VRS assertions
-are still constants despite decision 4.
+and that limit is stated rather than worked around.
 
 ### Added — every check now shows what it was judged against
 

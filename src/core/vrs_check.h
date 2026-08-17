@@ -66,6 +66,32 @@ typedef enum {
     VRS_GATE_NOT_GATED,     /**< kept streaming: fixed base behaviour    */
 } VrsGate;
 
+/**
+ * @struct VrsPolicy
+ * @brief The deadlines a network-RTK run is tested against.
+ *
+ * The five values above as data rather than constants, on the same
+ * mechanism as @ref KpiPolicy and @ref SrPolicy. They are the **least**
+ * likely of this project's thresholds to need changing — they describe
+ * what casters actually do rather than what a station ought to achieve
+ * — but a network with unusual keep-alive behaviour would otherwise
+ * have no recourse at all, and "unlikely to need changing" is not a
+ * reason to make something unarguable.
+ *
+ * Copied into @ref VrsRun at @ref vrs_run_start, so a run cannot change
+ * standard halfway and the caller's policy need not outlive the call.
+ */
+typedef struct {
+    double accept_s;    /**< @ref VRS_ACCEPT_S    */
+    double rtcm_s;      /**< @ref VRS_RTCM_S      */
+    double arp_max_km;  /**< @ref VRS_ARP_MAX_KM  */
+    double hold_s;      /**< @ref VRS_HOLD_S      */
+    double gate_s;      /**< @ref VRS_GATE_S      */
+} VrsPolicy;
+
+/** @brief Fill @p p with the built-in deadlines. */
+void vrs_policy_defaults(VrsPolicy *p);
+
 /** @brief State of one VRS test run.  Plain value type; zero to reset. */
 typedef struct {
     double t_start;
@@ -76,6 +102,10 @@ typedef struct {
     double t_disconnect;      /**< when connected went false; <0 never   */
     bool   was_connected;
     double t_gate_start;      /**< when the caller stopped GGA; <0 none  */
+
+    /** The deadlines this run is judged by; a copy, so the caller's
+     *  policy need not outlive @ref vrs_run_start. */
+    VrsPolicy pol;
 } VrsRun;
 
 /** @brief One assertion's outcome. */
@@ -94,8 +124,14 @@ typedef struct {
     bool   complete;       /**< A1..A4 resolved (and gate, if started)   */
 } VrsReport;
 
-/** @brief Begin a VRS test run. */
-void vrs_run_start(VrsRun *run, double now);
+/**
+ * @brief Begin a VRS test run.
+ *
+ * @param pol Deadlines to test against, copied into the run.  **NULL
+ *            for the built-in ones**, which is what every caller passed
+ *            before policies existed.
+ */
+void vrs_run_start(VrsRun *run, double now, const VrsPolicy *pol);
 
 /**
  * @brief Tell the engine a GGA was just sent, and from where.

@@ -22,6 +22,7 @@
 
 #define K(field) offsetof(KpiPolicy, field)
 #define S(field) offsetof(SrPolicy,  field)
+#define V(field) offsetof(VrsPolicy, field)
 
 /* The table. Ranges are what a *setting* may be, not what a station may
  * be: outside them the number could not describe a measurement at all.
@@ -86,6 +87,22 @@ static const ThField FIELDS[] = {
     "evidence required before any verdict is offered" },
   { "min_samples", TH_TIER2, TH_INT, S(min_samples), 10, 100000, "", 0,
     "samples required before any verdict is offered" },
+
+  /* ── The network-RTK assertions ─────────────────────────────────
+   * Deadlines describing what a caster does, not what a station
+   * achieves. The least likely of these thresholds to need changing,
+   * and included for the same reason as the rest: "unlikely to need
+   * changing" is not a reason to make something unarguable. */
+  { "accept_s", TH_VRS, TH_DOUBLE, V(accept_s), 0.5, 120, "s", 1,
+    "A1: a disconnect later than this is unrelated to the GGA" },
+  { "rtcm_s", TH_VRS, TH_DOUBLE, V(rtcm_s), 0.5, 300, "s", 1,
+    "A2: deadline for the first correction after a GGA" },
+  { "arp_max_km", TH_VRS, TH_DOUBLE, V(arp_max_km), 0.1, 2000, "km", 1,
+    "A3: how far the reference position may be from the rover" },
+  { "hold_s", TH_VRS, TH_DOUBLE, V(hold_s), 5, 3600, "s", 0,
+    "A4: window the stream must hold at the GGA cadence" },
+  { "gate_s", TH_VRS, TH_DOUBLE, V(gate_s), 5, 3600, "s", 0,
+    "A5: how long to wait for the drop once the GGA stops" },
 };
 
 #define N_FIELDS ((int)(sizeof(FIELDS) / sizeof(FIELDS[0])))
@@ -101,14 +118,17 @@ const ThField *thresholds_field(int i)
 /** @brief Where a field lives in whichever policy owns it. */
 static void *field_ptr(Thresholds *t, const ThField *f)
 {
-    char *base = (f->tier == TH_TIER1) ? (char *)&t->kpi : (char *)&t->sr;
+    char *base = (f->tier == TH_TIER1) ? (char *)&t->kpi
+               : (f->tier == TH_TIER2) ? (char *)&t->sr
+                                       : (char *)&t->vrs;
     return base + f->offset;
 }
 
 static const void *field_ptr_const(const Thresholds *t, const ThField *f)
 {
     const char *base = (f->tier == TH_TIER1) ? (const char *)&t->kpi
-                                             : (const char *)&t->sr;
+                     : (f->tier == TH_TIER2) ? (const char *)&t->sr
+                                             : (const char *)&t->vrs;
     return base + f->offset;
 }
 
@@ -133,6 +153,7 @@ void thresholds_defaults(Thresholds *t)
     memset(t, 0, sizeof(*t));
     kpi_policy_defaults(&t->kpi);
     sr_policy_defaults(&t->sr);
+    vrs_policy_defaults(&t->vrs);
     t->schema_version = TH_SCHEMA_VERSION;
 }
 
@@ -142,6 +163,16 @@ void thresholds_defaults(Thresholds *t)
 static const char *GNSS_KEYS[8] = {
     NULL, "gps", "glonass", "galileo", "qzss", "beidou", "sbas", "navic"
 };
+
+/** @brief The section a field appears under in the file. */
+static const char *section_name(int tier)
+{
+    switch (tier) {
+    case TH_TIER1: return "tier1";
+    case TH_TIER2: return "tier2";
+    default:       return "vrs";
+    }
+}
 
 static void fail(char *err, size_t cap, const char *fmt, ...)
 {
@@ -217,10 +248,11 @@ bool thresholds_parse(Thresholds *t, const char *json_text,
     if (ok && (v = cJSON_GetObjectItem(root, "name")) && cJSON_IsString(v))
         snprintf(work.name, sizeof(work.name), "%s", v->valuestring);
 
-    const cJSON *sect[3] = { NULL, NULL, NULL };
+    const cJSON *sect[4] = { NULL, NULL, NULL, NULL };
     if (ok) {
         sect[TH_TIER1] = cJSON_GetObjectItem(root, "tier1");
         sect[TH_TIER2] = cJSON_GetObjectItem(root, "tier2");
+        sect[TH_VRS]   = cJSON_GetObjectItem(root, "vrs");
     }
 
     for (int i = 0; ok && i < N_FIELDS; i++) {
@@ -232,7 +264,7 @@ bool thresholds_parse(Thresholds *t, const char *json_text,
         if (!e) continue;                      /* absent: keep the default */
 
         if (!cJSON_IsNumber(e)) {
-            fail(err, err_cap, "tier%d.%s must be a number", (int)f->tier,
+            fail(err, err_cap, "%s.%s must be a number", section_name(f->tier),
                  f->key);
             ok = false;
             break;
@@ -240,8 +272,8 @@ bool thresholds_parse(Thresholds *t, const char *json_text,
         double val = e->valuedouble;
         if (val < f->lo || val > f->hi) {
             fail(err, err_cap,
-                 "tier%d.%s is %g, outside the usable range %g to %g",
-                 (int)f->tier, f->key, val, f->lo, f->hi);
+                 "%s.%s is %g, outside the usable range %g to %g",
+                 section_name(f->tier), f->key, val, f->lo, f->hi);
             ok = false;
             break;
         }
