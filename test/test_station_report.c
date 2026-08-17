@@ -276,19 +276,23 @@ int main(void)
          * it -- and a metric that keeps the maximum of a running mean
          * would report this station as spotless. It is not: for one
          * minute of the hour, one frame in a hundred was corrupt. */
+        /* Ten hours of stream, and one bad quarter of an hour in the
+         * middle of it. Over the session that is 0.025 % of frames --
+         * far inside the healthy band. Over the ten minutes it happened
+         * in, it is one frame in seventy. */
         NsStatsSnapshot s = healthy();
         sr_reset(&st, false);
-        for (int i = 0; i < 60; i++) {
-            add_frames(&s, 6000, i == 45 ? 60 : 0);   /* 1 % for a minute */
+        for (int i = 0; i < 600; i++) {
+            add_frames(&s, 6000, i == 450 ? 900 : 0);
             sr_feed(&st, &s, 60.0 + i * 60.0);
         }
         sr_build(&st, &r);
 
-        check(s.crc_error_rate < SR_CRC_WARN,
-              "the cumulative rate ends below the warn level -- the mean "
-              "has swallowed the burst");
+        check(100.0 * (1.0 - s.crc_error_rate) > SR_INTEGRITY_WARN_PCT,
+              "the session-wide figure ends healthy -- the mean has "
+              "swallowed the burst");
         check(r.metric[SR_INTEGRITY].verdict == SR_UNSTABLE,
-              "and the interval rate catches it anyway");
+              "and the windowed reading catches it anyway");
     }
 
     /* ── 11. A small early denominator is not a measurement ───────── */
@@ -312,20 +316,23 @@ int main(void)
               "frames");
     }
 
-    /* ── 12. Too few frames is no rate, not a rate of zero ────────── */
+    /* ── 12. An incomplete window is no reading at all ────────────── */
     {
+        /* Five minutes in, no ten-minute window has closed. The metric
+         * must say that rather than publish the perfect score it would
+         * have if asked to grade what it has. */
         NsStatsSnapshot s = healthy();
         sr_reset(&st, false);
-        for (int i = 0; i < 60; i++) {
-            add_frames(&s, 20, 0);           /* 1200 frames in an hour */
+        for (int i = 0; i < 5; i++) {
+            add_frames(&s, 6000, 0);
             sr_feed(&st, &s, 60.0 + i * 60.0);
         }
         sr_build(&st, &r);
 
         check(r.metric[SR_INTEGRITY].verdict == SR_INSUFFICIENT,
-              "under 2000 frames there is no rate to report");
-        check(strstr(r.metric[SR_INTEGRITY].detail, "no rate to judge") != NULL,
-              "and the report says so rather than showing 0.000 %");
+              "before the first window closes there is no reading");
+        check(strstr(r.metric[SR_INTEGRITY].detail, "not yet complete") != NULL,
+              "and the report says which window it is waiting for");
     }
 
     printf("\n%s\n", failures ? "FAILURES" : "all station-report cases pass");

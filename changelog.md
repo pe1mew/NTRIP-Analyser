@@ -92,29 +92,37 @@ both ways round:
   moves. The bad ten minutes was precisely what it could not see.
 
 Both were found on a live stream, one in the same screenshot as the
-other. The rate is now measured **per interval** — errors and frames
-since the last judged sample — and `SR_CRC_MIN_FRAMES` (2000) sets how
-much evidence an interval needs. That size is fixed by the warn
-threshold, not chosen: one corrupted frame in 2000 is below the warn
-level, so a warning always means a rate rather than an event. Under
-2000 frames the metric reports no rate rather than 0.000 %.
+other.
 
-Four test cases pin it, and each fails against the previous
-implementation: a burst late in a clean hour is caught although the
-cumulative rate ends below the warn level; a station is not condemned by
-its first two hundred frames; and too few frames reads as no measurement
-rather than a perfect one.
+**Frame integrity is now the share of frames that passed CRC**, over a
+window of stream time: 100 % is a clean stream and the figure falls as
+frames fail, which is how the question is actually asked. Tier 1 reads
+the last **60 s** — its own sustain window, because a check has to be
+able to change within the run or the sustain clock is timing a number
+that can no longer move — and tier 2 the last **600 s**, matching the
+window at which it will first judge anything. The thresholds are one
+pair for both tiers: 99.9 % to warn, 99.0 % to fail, which is the same
+standard as tier 1's old one error per thousand frames.
+
+Before a window has closed, the metric reports no reading rather than
+the perfect score it would have if asked to grade what little it has.
+
+Three test cases pin it, each failing against the previous
+implementation: a bad ten minutes inside ten hours is caught although
+the session-wide figure ends healthy; a station is not condemned by its
+first two hundred frames; and an incomplete window reads as no
+measurement rather than as 100 %.
 
 ### Fixed — a warning whose number read zero
 
 The station check showed `Frame integrity (CRC)  WARN  0.00  Elevated
 CRC error rate`. The value is a rate, every KPI was printed at two
 decimals, and 0.0043 renders as `0.00`. `kpi_value_decimals()` now gives
-each check the precision its value deserves — five decimals for the CRC
-rate, so `0.00430` can be compared directly with the `0.001` the
-threshold is documented as, and none for the six that are counts, so a
-satellite total stops reading `40.00`. Applied in the CLI, the GUI and
-the Android bridge from one place in core.
+each check the precision its value deserves — three decimals for
+integrity, so `99.743 %` can be read against the 99.9 % it is judged by,
+and none for the six that are counts, so a satellite total stops reading
+`40.00`. Applied in the CLI, the GUI and the Android bridge from one
+place in core.
 
 ### Added — the stability report in the GUI
 

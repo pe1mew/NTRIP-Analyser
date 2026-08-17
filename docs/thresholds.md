@@ -153,13 +153,28 @@ rather than the level.
 
 | | |
 |---|---|
-| Threshold | `KPI_MAX_CRC_RATE` = **0.001** (1 error per 1000 frames) |
-| Rule | below passes; below ten times it (**1 %**) warns; above fails |
+| Thresholds | `KPI_MIN_INTEGRITY_PCT` = **99.9 %** of frames passing; `KPI_BAD_INTEGRITY_PCT` = **99.0 %** |
+| Window | `KPI_INTEGRITY_WINDOW_S` = **60 s**, which is `KPI_SUSTAIN_S` |
+| Rule | at or above 99.9 % passes; at or above 99.0 % warns; below fails |
 
-**Rationale.** A clean TCP path delivers essentially zero CRC failures,
-so anything measurable points at the serial link, the radio, or a
-caster mangling bytes. One in a thousand is generous enough not to fire
-on a single corrupted frame in a short run.
+**Rationale.** Reported as the share of frames that **passed** — 100 %
+is a clean stream and the figure falls as frames fail — because that is
+how the question is asked. 99.9 % is the same standard as one error per
+thousand frames (`KPI_MAX_CRC_RATE`), and tier 2 uses the identical
+pair, so the two tiers cannot disagree about what a clean stream is.
+
+A clean TCP path delivers essentially zero CRC failures, so anything
+measurable points at the serial link, the radio, or a caster mangling
+bytes.
+
+**Measured over the last 60 s, not over the session.** A figure
+accumulated since the stream opened dilutes in both directions: a burst
+in the first seconds is washed out by every clean second after it, and
+one late in a long run is washed out by everything before. Either way
+the verdict stops being able to move — and a verdict that cannot move
+makes the sustain clock meaningless, since it would be timing a number
+that can no longer change. The window needs at least 100 frames before
+it will report; below that it stays `PENDING`.
 
 ### 8. Advertised versus actual
 
@@ -206,7 +221,7 @@ and was unstable all week can say both without contradicting itself.
 | # | Measurement | Degraded at | Unstable at | Measures |
 |---|---|---|---|---|
 | 1 | Availability | `SR_RECONNECTS_WARN_PER_H` = **1.0 /h** | `SR_RECONNECTS_BAD_PER_H` = **4.0 /h** | reconnections per hour |
-| 2 | Frame integrity | `SR_CRC_WARN` = **0.001** | `SR_CRC_BAD` = **0.01** | the *worst* CRC rate in any 2000 frames |
+| 2 | Frame integrity | `SR_INTEGRITY_WARN_PCT` = **99.9 %** | `SR_INTEGRITY_BAD_PCT` = **99.0 %** | the *lowest* share of frames passing CRC in any 10 minutes |
 | 3 | Signal level | `SR_CNR_DROP_WARN` = **3 dB-Hz** | `SR_CNR_DROP_BAD` = **6 dB-Hz** | the *fall* from the window's best mean C/N0 |
 | 4 | Satellites held | `SR_SATS_WARN` = **25** | `SR_SATS_BAD` = **15** | the fewest held at any moment |
 | 5 | Ionosphere | `IONO_ROTI_UNSETTLED` = **0.5 TECU/min** | `IONO_ROTI_DISTURBED` = **1.0 TECU/min** | the worst median ROTI |
@@ -219,28 +234,30 @@ investigating; four is a link nobody can survey on. Both are about the
 *path*, not the base — a station on domestic broadband will show this
 where the same receiver on fibre will not.
 
-**2. Frame integrity** reuses tier 1's floor as its warn level, so the
-two tiers do not disagree about what a clean stream is. The bad level
-is ten times it, matching tier 1's own warn band.
+**2. Frame integrity** uses exactly tier 1's pair — 99.9 % passing to
+warn, 99.0 % to fail — so the two tiers do not disagree about what a
+clean stream is.
 
-**The worst rate in any 2000 frames, not the rate for the session.**
-This distinction is the whole metric. The rate carried on the statistics
-snapshot is cumulative since the session opened, and the maximum of a
-running mean fails in both directions: two errors against a small early
-denominator read as 0.93 % and are banked as the "worst" for the rest of
-the run, while a burst of fifty corrupted frames six hours in moves that
-cumulative figure by 0.04 % and is never noticed. Both were observed on
-a live stream. So the rate is measured **per interval** — errors and
-frames since the last judged sample — and the worst of those is kept.
+**The lowest reading in any ten minutes, not the figure for the
+session.** This distinction is the whole metric. The rate carried on the
+statistics snapshot is cumulative since the session opened, and the
+extreme of a running mean fails in both directions: two errors against a
+small early denominator read as 0.93 % and are banked as the "worst" for
+the rest of the run, while a burst of corrupted frames six hours in
+moves that cumulative figure by hundredths of a per cent and is never
+noticed. Both were observed on a live stream, in the same session.
 
-`SR_CRC_MIN_FRAMES` = **2000** sets the interval, and the size is fixed
-by the warn threshold rather than by taste: one corrupted frame in 2000
-is 0.0005, which is *below* the warn level. Any shorter and a single
-stray error would raise a warning about a rate when what happened was an
-event. Two errors reach the warn level; twenty reach the bad one. Below
-2000 frames the metric reports **no rate at all** rather than 0.000 % —
-a slow station is judged over a longer stretch, never on a denominator
-too small to mean anything.
+So integrity is measured over `SR_INTEGRITY_WINDOW_S` = **600 s** of
+stream — ten minutes, matching `SR_MIN_WINDOW_S`, so the first reading
+arrives exactly when the report first has the evidence to judge anything
+at all — and the worst of those readings is what the report carries.
+
+The window is a choice with a cost worth stating: a bad *minute* inside
+a good ten shows up diluted by ten, so a minute at 99 % reads as 99.9 %
+across the window. It is caught, but as `DEGRADED` rather than
+`UNSTABLE`. A shorter window is more sensitive to bursts and noisier on
+slow stations; ten minutes is the length at which a reading describes
+something a person would call an outage.
 
 **3. Signal level is measured as a fall, not a level.** An absolute
 C/N0 says more about the site than about the station: a rooftop in a
@@ -284,7 +301,8 @@ a minute's data.
 | `SR_WARMUP_S` | **30 s** | Tier 2 ignores the first 30 s of a session. `sats_total` describes the last five seconds, so a sample taken while the first epoch is still arriving sees a partial constellation. Found the hard way: a station that never dropped below 39 satellites was reported as holding 9. |
 | `SR_MIN_WINDOW_S` | **600 s** | No tier-2 verdict at all below ten minutes. |
 | `SR_MIN_SAMPLES` | **10** | And not without ten samples, however long the window claims to be. |
-| `SR_CRC_MIN_FRAMES` | **2000** | Frames that must accumulate before a CRC rate is judged. Sized so that one corrupted frame falls *below* the warn level: any shorter and a single stray error would raise a warning about a rate when what happened was an event. |
+| `KPI_INTEGRITY_WINDOW_S` | **60 s** | Stream each tier-1 integrity reading covers, and deliberately `KPI_SUSTAIN_S`: a check has to be able to change within the run, or the sustain clock is timing a number that can no longer move. At least 100 frames must arrive in it. |
+| `SR_INTEGRITY_WINDOW_S` | **600 s** | Stream each tier-2 integrity reading covers, matching `SR_MIN_WINDOW_S` so the first arrives when the report can first judge. |
 | Sampling cadence | **1 s of stream** | Tier 2 samples once per second *of stream time*, in every program. A replay at disk speed therefore produces the same number of samples as the live run did. |
 
 **Tier-2 windows are measured in stream time**, taken from the

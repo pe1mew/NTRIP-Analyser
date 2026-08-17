@@ -83,6 +83,28 @@ extern "C" {
 /** KPI 7: maximum CRC error rate (1 in 1000). */
 #define KPI_MAX_CRC_RATE    0.001
 
+/**
+ * KPI 7: frame integrity as the **share of frames that passed CRC**,
+ * which is how the question is asked: 100 % is a clean stream and the
+ * figure falls as frames fail.  Equivalent to @ref KPI_MAX_CRC_RATE --
+ * 1 error in 1000 is 99.9 % passing -- and to tier 2's thresholds, so
+ * the two tiers cannot disagree about what a clean stream is.
+ */
+#define KPI_MIN_INTEGRITY_PCT   99.9
+#define KPI_BAD_INTEGRITY_PCT   99.0
+
+/**
+ * KPI 7: seconds of stream each integrity reading covers.
+ *
+ * The rate on the snapshot is cumulative since the session opened, so
+ * it dilutes: a burst in the first seconds is diluted by every clean
+ * second after it, and a burst late in a long session is diluted by
+ * everything before. Measured instead over the window the verdict is
+ * held over, which is @ref KPI_SUSTAIN_S -- a KPI has to be able to
+ * change within the run, or the sustain clock is timing nothing.
+ */
+#define KPI_INTEGRITY_WINDOW_S  KPI_SUSTAIN_S
+
 /** @brief Number of KPIs in the rudimentary set. */
 #define KPI_COUNT 8
 
@@ -147,6 +169,15 @@ typedef struct {
     double stable_since;
     int    stable_verdict; /**< the verdict being timed                 */
     bool   arp_ever;       /**< a 1005/1006 has been seen this run      */
+
+    /* KPI 7 over a window rather than the session: the counters and the
+     * time at the start of the window being measured. */
+    uint64_t crc_base_frames;
+    uint64_t crc_base_errors;
+    double   crc_base_t;
+    bool     crc_have_base;
+    double   crc_pct;      /**< last completed reading, percent        */
+    bool     crc_have_pct;
 } KpiRun;
 
 /** @brief A full report: the seven results plus the roll-up. */

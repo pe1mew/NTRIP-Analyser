@@ -54,12 +54,20 @@ extern "C" {
 #define SR_RECONNECTS_WARN_PER_H   1.0
 #define SR_RECONNECTS_BAD_PER_H    4.0
 
-/** Worst CRC error rate observed.  The warn level is KPI 7's floor. */
-#define SR_CRC_WARN                0.001
-#define SR_CRC_BAD                 0.01
+/**
+ * Frame integrity, as the **share of frames that passed CRC**.
+ *
+ * Reported the way a person asks the question: 100 % is a clean stream
+ * and the number falls as frames fail. The thresholds are the same
+ * standard tier 1 applies -- its floor is 1 error in 1000, which is
+ * 99.9 % passing -- so the two tiers cannot disagree about what a clean
+ * stream is.
+ */
+#define SR_INTEGRITY_WARN_PCT      99.9
+#define SR_INTEGRITY_BAD_PCT       99.0
 
 /**
- * Frames that must accumulate before an interval's CRC rate is judged.
+ * Seconds of stream each frame-integrity reading covers.
  *
  * The rate on the snapshot is **cumulative since the session opened**,
  * and the maximum of a running mean is not what this metric claims to
@@ -75,20 +83,15 @@ extern "C" {
  *     so the maximum never notices. The bad ten minutes this metric
  *     exists to catch is exactly what it would miss.
  *
- * So the rate is measured **per interval** -- errors and frames since
- * the previous judged sample -- and the worst of those is kept.
+ * So integrity is measured **per window** -- the frames that arrived in
+ * the last ten minutes of stream -- and the worst window is kept.
  *
- * The size is set by the warn threshold, not by taste: at 2000 frames a
- * single corrupted frame is 0.0005, which is **below** @ref
- * SR_CRC_WARN. Any smaller and one stray error would raise a warning
- * about a rate, when what happened was an event. Two errors reach the
- * warn level, twenty reach the bad one.
- *
- * An interval short of this is not judged and not discarded: it keeps
- * accumulating until there are enough frames to say something. A slow
- * station is judged over a longer stretch rather than never.
+ * Ten minutes, matching @ref SR_MIN_WINDOW_S, so the first reading
+ * arrives exactly when the report first has enough evidence to judge
+ * anything at all, and every later reading covers a stretch a person
+ * would call an outage rather than a moment.
  */
-#define SR_CRC_MIN_FRAMES          2000
+#define SR_INTEGRITY_WINDOW_S      600.0
 
 /** Fall in mean C/N0 from the best the window saw, dB-Hz. */
 #define SR_CNR_DROP_WARN           3.0
@@ -172,11 +175,14 @@ typedef struct {
     int      samples;
 
     int      reconnects_first, reconnects_last;
-    double   crc_worst;         /**< worst *interval* rate, not the mean */
-    uint64_t crc_base_frames;   /**< frames at the last judged interval  */
+    /* Frame integrity, per window: the lowest share of frames passing
+     * CRC over any SR_INTEGRITY_WINDOW_S of stream. */
+    double   crc_worst_pct;     /**< lowest pass share seen, percent     */
+    uint64_t crc_base_frames;   /**< frames at the window's start        */
     uint64_t crc_base_errors;   /**< errors at the same point            */
+    double   crc_base_t;        /**< stream time the window opened       */
     bool     crc_have_base;
-    int      crc_intervals;     /**< intervals judged; 0 = nothing yet   */
+    int      crc_windows;       /**< windows judged; 0 = nothing yet     */
     float    cnr_best, cnr_last;
     int      sats_min;
     float    roti_worst;

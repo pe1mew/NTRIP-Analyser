@@ -23,7 +23,7 @@ int kpi_value_decimals(int kpi_index)
 {
     switch (kpi_index) {
     case 5:  return 1;   /* median C/N0, dB-Hz                         */
-    case 6:  return 5;   /* a CRC rate: 0.00430 against a 0.001 limit  */
+    case 6:  return 3;   /* integrity: 99.743 % against a 99.9 % limit */
     default: return 0;   /* bytes/s, frames, satellites, types: counts */
     }
 }
@@ -285,22 +285,55 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         k[5].detail  = "Median C/N0 well below 40 dB-Hz";
     }
 
-    /* ── 7: CRC error rate ──────────────────────────────────────────── */
+    /* ── 7: frame integrity ─────────────────────────────────────────
+     *
+     * The share of frames passing CRC over the last KPI_SUSTAIN_S of
+     * stream, not over the session. The session figure dilutes: a burst
+     * in the first seconds is washed out by every clean second after
+     * it, and one late in a long run is washed out by everything
+     * before. Either way the verdict stops being able to move, which is
+     * what the sustain clock is meant to be timing. */
     k[6].label = "Frame integrity (CRC)";
-    k[6].value = s->crc_error_rate;
-    uint64_t checked = s->frames_ok + s->frames_crc_error;
-    if (checked < 100) {
-        k[6].verdict = KPI_PENDING;
-        k[6].detail  = "Too few frames to judge a rate";
-    } else if (s->crc_error_rate < KPI_MAX_CRC_RATE) {
-        k[6].verdict = KPI_PASS;
-        k[6].detail  = "Fewer than 1 error per 1000 frames";
-    } else if (s->crc_error_rate < KPI_MAX_CRC_RATE * 10.0) {
-        k[6].verdict = KPI_WARN;
-        k[6].detail  = "Elevated CRC error rate";
-    } else {
-        k[6].verdict = KPI_FAIL;
-        k[6].detail  = "Link is corrupting frames";
+    {
+        uint64_t frames = s->frames_ok + s->frames_crc_error;
+        uint64_t errors = s->frames_crc_error;
+
+        if (!run->crc_have_base ||
+            frames < run->crc_base_frames || errors < run->crc_base_errors) {
+            run->crc_base_frames = frames;
+            run->crc_base_errors = errors;
+            run->crc_base_t      = now;
+            run->crc_have_base   = true;
+        } else if (now - run->crc_base_t >= KPI_INTEGRITY_WINDOW_S) {
+            uint64_t d_frames = frames - run->crc_base_frames;
+            if (d_frames >= 100) {      /* a rate needs a denominator */
+                uint64_t d_errors = errors - run->crc_base_errors;
+                run->crc_pct = 100.0 * (double)(d_frames - d_errors)
+                                     / (double)d_frames;
+                run->crc_have_pct = true;
+                run->crc_base_frames = frames;
+                run->crc_base_errors = errors;
+                run->crc_base_t      = now;
+            }
+            /* Too few frames in a whole window: leave the base alone so
+             * the next one covers longer, rather than judging a rate on
+             * a handful of frames. */
+        }
+
+        k[6].value = run->crc_have_pct ? run->crc_pct : 100.0;
+        if (!run->crc_have_pct) {
+            k[6].verdict = KPI_PENDING;
+            k[6].detail  = "Too few frames to judge integrity yet";
+        } else if (run->crc_pct >= KPI_MIN_INTEGRITY_PCT) {
+            k[6].verdict = KPI_PASS;
+            k[6].detail  = "Fewer than 1 error per 1000 frames";
+        } else if (run->crc_pct >= KPI_BAD_INTEGRITY_PCT) {
+            k[6].verdict = KPI_WARN;
+            k[6].detail  = "Elevated CRC error rate";
+        } else {
+            k[6].verdict = KPI_FAIL;
+            k[6].detail  = "Link is corrupting frames";
+        }
     }
 
     /* ── 8: advertised versus actual ────────────────────────────────── */

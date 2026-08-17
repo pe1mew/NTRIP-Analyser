@@ -26,7 +26,7 @@ void sr_reset(SrState *s, bool from_capture)
     s->from_capture = from_capture;
     /* Sentinels: "worst seen" starts at the best possible value, and the
      * minima start impossibly high, so the first sample sets them. */
-    s->crc_worst  = 0.0;
+    s->crc_worst_pct = 100.0;   /* lowered by the first judged window */
     s->cnr_best   = 0.0f;
     s->cnr_last   = 0.0f;
     s->sats_min   = 1 << 30;
@@ -57,9 +57,9 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
 
     s->reconnects_last = snap->reconnects;
 
-    /* Frame integrity, per interval rather than cumulative -- see
-     * SR_CRC_MIN_FRAMES for why the snapshot's own rate cannot answer
-     * the question this metric asks. */
+    /* Frame integrity over a window of stream time -- see
+     * SR_INTEGRITY_WINDOW_S for why the snapshot's own cumulative rate
+     * cannot answer the question this metric asks. */
     {
         uint64_t frames = snap->frames_ok + snap->frames_crc_error;
         uint64_t errors = snap->frames_crc_error;
@@ -72,19 +72,23 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
             frames < s->crc_base_frames || errors < s->crc_base_errors) {
             s->crc_base_frames = frames;
             s->crc_base_errors = errors;
+            s->crc_base_t      = t_stream;
             s->crc_have_base   = true;
-        } else {
+        } else if (t_stream - s->crc_base_t >= SR_INTEGRITY_WINDOW_S) {
             uint64_t d_frames = frames - s->crc_base_frames;
-            if (d_frames >= (uint64_t)SR_CRC_MIN_FRAMES) {
+            if (d_frames > 0) {
                 uint64_t d_errors = errors - s->crc_base_errors;
-                double rate = (double)d_errors / (double)d_frames;
-                if (rate > s->crc_worst) s->crc_worst = rate;
-                s->crc_intervals++;
-                s->crc_base_frames = frames;
-                s->crc_base_errors = errors;
+                double pct = 100.0 * (double)(d_frames - d_errors)
+                                   / (double)d_frames;
+                if (s->crc_windows == 0 || pct < s->crc_worst_pct)
+                    s->crc_worst_pct = pct;
+                s->crc_windows++;
             }
-            /* Too few frames: keep the base where it is, so the next
-             * sample judges a longer interval instead of none at all. */
+            /* A window with no frames at all is a dropout, which
+             * availability reports; it is not an integrity reading. */
+            s->crc_base_frames = frames;
+            s->crc_base_errors = errors;
+            s->crc_base_t      = t_stream;
         }
     }
 
@@ -171,19 +175,19 @@ void sr_build(const SrState *s, StationReport *out)
      * A mean hides a bad ten minutes inside a good six hours. ── */
     {
         SrMetric *m = &out->metric[SR_INTEGRITY];
-        /* No judged interval means no rate -- not a rate of zero. A slow
-         * station may take several minutes to send enough frames, and
-         * "0.000 %" would claim a measurement that has not been made. */
-        if (s->crc_intervals == 0)
-            set(m, "Frame integrity", 0.0, SR_INSUFFICIENT, false, true,
-                "fewer than %d frames so far: no rate to judge",
-                SR_CRC_MIN_FRAMES);
+        /* No completed window means no reading -- not a reading of
+         * zero, and not one of a hundred per cent either. */
+        if (s->crc_windows == 0)
+            set(m, "Frame integrity", 100.0, SR_INSUFFICIENT, false, true,
+                "first %.0f min of stream not yet complete",
+                SR_INTEGRITY_WINDOW_S / 60.0);
         else
-            set(m, "Frame integrity", s->crc_worst * 100.0,
-                enough ? grade_up(s->crc_worst, SR_CRC_WARN, SR_CRC_BAD)
+            set(m, "Frame integrity", s->crc_worst_pct,
+                enough ? grade_down(s->crc_worst_pct, SR_INTEGRITY_WARN_PCT,
+                                    SR_INTEGRITY_BAD_PCT)
                        : SR_INSUFFICIENT,
-                false, true, "worst %.3f %% in any %d frames",
-                s->crc_worst * 100.0, SR_CRC_MIN_FRAMES);
+                false, true, "worst %.3f %% of frames passed CRC in %.0f min",
+                s->crc_worst_pct, SR_INTEGRITY_WINDOW_S / 60.0);
     }
 
     /* ── Signal: how far the mean C/N0 fell from the best this window
