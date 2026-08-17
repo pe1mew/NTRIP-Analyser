@@ -71,40 +71,6 @@ daemon are below, and are not affected by any of this.
 
 ---
 
-## Screenshots
-
-![NTRIP-Analyser main window](docs/images/MainScreen.png)
-
-*The main window. The Stream Health tab is flagging a real problem: this
-mountpoint advertises seven message types but one of them never arrives,
-and the station has not broadcast its position at all.*
-
-<table>
-<tr>
-<td width="50%"><img src="docs/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks"></td>
-<td width="50%"><img src="docs/images/20260810134221_SignalQuality.png" alt="Signal quality: C/N0 bars and elevation scatter"></td>
-</tr>
-<tr>
-<td valign="top"><b>Sky Plot</b> — every tracked satellite at its azimuth and
-elevation as seen from the reference station, coloured by constellation and
-trailed over the session.</td>
-<td valign="top"><b>Signal Quality</b> — C/N0 per satellite, and C/N0 against
-elevation over the whole session. A healthy antenna rises steadily from
-horizon to zenith; obstructions show as a dip.</td>
-</tr>
-<tr>
-<td width="50%"><img src="docs/images/20260810134225_SessionHistory.png" alt="Session history strip charts"></td>
-<td width="50%"><img src="docs/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap"></td>
-</tr>
-<tr>
-<td valign="top"><b>Session History</b> — throughput, message rate, CRC errors,
-satellites, C/N0 and reference drift on one shared time axis, so a dropout is
-visible instead of averaged away.</td>
-<td valign="top"><b>Coverage heatmap</b> — observed versus expected satellite
-coverage per sky sector, which reveals where the station's view is blocked.</td>
-</tr>
-</table>
-
 ## About this project
 
 The primary goal of this project is to deepen my understanding of NTRIP streams, a field where open-source tools and public information are limited. By building this analyser, I aim to explore and learn the structure and content of RTCM 3.x messages transmitted over NTRIP.
@@ -226,6 +192,38 @@ message statistics, satellite tracking and detailed message decoding.
 Built with the native Win32 API in C99, with no dependencies beyond the
 Windows SDK and GDI+. See the [GUI documentation](docs/gui.md).
 
+![NTRIP-Analyser main window](docs/images/MainScreen.png)
+
+*The main window. The Stream Health tab is flagging a real problem: this
+mountpoint advertises seven message types but one of them never arrives,
+and the station has not broadcast its position at all.*
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/20260530074532_TrackedSats.png" alt="Sky plot with satellite tracks"></td>
+<td width="50%"><img src="docs/images/20260810134221_SignalQuality.png" alt="Signal quality: C/N0 bars and elevation scatter"></td>
+</tr>
+<tr>
+<td valign="top"><b>Sky Plot</b> — every tracked satellite at its azimuth and
+elevation as seen from the reference station, coloured by constellation and
+trailed over the session.</td>
+<td valign="top"><b>Signal Quality</b> — C/N0 per satellite, and C/N0 against
+elevation over the whole session. A healthy antenna rises steadily from
+horizon to zenith; obstructions show as a dip.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/20260810134225_SessionHistory.png" alt="Session history strip charts"></td>
+<td width="50%"><img src="docs/images/20260530074537_ARP-EPG.png" alt="Observed versus expected coverage heatmap"></td>
+</tr>
+<tr>
+<td valign="top"><b>Session History</b> — throughput, message rate, CRC errors,
+satellites, C/N0 and reference drift on one shared time axis, so a dropout is
+visible instead of averaged away.</td>
+<td valign="top"><b>Coverage heatmap</b> — observed versus expected satellite
+coverage per sky sector, which reveals where the station's view is blocked.</td>
+</tr>
+</table>
+
 ### Monitoring service (`ntrip-monitord`)
 
 The unattended member of the suite: it holds one session per configured
@@ -343,10 +341,6 @@ gcc -g -o bin/ntrip-analyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.
 ```
 
 See [compilation guide](docs/compile.md) for complete build instructions.
-
-## License and disclaimer. 
-
-Please note the license at the end of this document. 
 
 # License
 

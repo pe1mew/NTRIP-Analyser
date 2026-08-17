@@ -876,10 +876,19 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     sr_reset(&sr, false, &cli_th()->sr);
     double last_srs = -1e9;   /* stream time of the last tier-2 sample */
 
+    /* Why the run stopped, and when.  A run that ends without a settled
+     * verdict must say so: printing the live roll-up as though it were
+     * a conclusion is how "RUNNING" came to be the last word of a
+     * finished report, which reads as though the program were still
+     * going.  The GUI has always worded this case; the CLI did not. */
+    const char *end_why = "ended";
+    double      el_end  = 0.0;
+
     for (;;) {
-        if (cli_stop_requested) break;   /* only set while capturing */
+        if (cli_stop_requested) { end_why = "stopped"; break; }
         bool alive = ns_pump(sess, 200) >= 0;
         double el = (double)(time(NULL) - t0);
+        el_end = el;
         const NsStatsSnapshot *snap = ns_stats(sess);
 
         /* Paced and stamped by the stream's clock rather than el, which
@@ -927,14 +936,27 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
         bool done = false;
         if (!vrs_mode) {
             done = kr.settled;
+            if (done) end_why = "the verdict settled";
         } else if (gate_started) {
             done = (vr.gate == VRS_GATE_GATED || vr.gate == VRS_GATE_NOT_GATED);
+            /* The gate test answering is what ends a network-RTK run,
+             * and it can answer before the eight checks have held their
+             * window -- which is exactly when the report must not
+             * pretend to a verdict. */
+            if (done) end_why = "the gate test finished";
         } else {
             done = vr.failed || kr.overall == KPI_RUN_FAILED;
+            if (done) end_why = "a check failed outright";
         }
         if (done) break;
-        if (!alive && !(vrs_mode && gate_started)) break;
-        if (el > 300.0) break;              /* absolute ceiling */
+        if (!alive && !(vrs_mode && gate_started)) {
+            end_why = "the stream closed";
+            break;
+        }
+        if (el > 300.0) {                   /* absolute ceiling */
+            end_why = "the 300 s limit was reached";
+            break;
+        }
     }
 
     check_print(&kr, vrs_mode ? &vr : NULL);
@@ -949,9 +971,22 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
      * station's grade is not the news the operator needs first. */
     if (cli_capture_finish(sess)) rc = EXIT_CAPTURE_FAILED;
 
-    printf("\n== %s ==", kpi_run_verdict_name(kr.overall));
+    /* A verdict is what held for the sustain window, or a failure, which
+     * is conclusive at once.  Anything else is a run that ended before
+     * it had an answer, and saying "RUNNING" at the foot of a finished
+     * report claims one it does not have. */
+    if (kr.settled)
+        printf("\n== %s ==", kpi_run_verdict_name(kr.overall));
+    else
+        printf("\n== NO VERDICT ==  %s after %.0f s", end_why, el_end);
     if (vrs_mode) printf("  [service: %s]", vrs_gate_name(vr.gate));
     printf("  exit=%d\n", rc);
+
+    /* The rows above are what was true when it ended, and are worth
+     * reading; they are simply not a verdict. */
+    if (!kr.settled)
+        printf("The checks above are the last reading, not a conclusion: "
+               "the verdict had not held for %.0f s.\n", cli_th()->kpi.sustain_s);
 
     /* Tier 2 beneath tier 1, and plainly a different question: a ~90 s
      * check will almost always report INSUFFICIENT EVIDENCE here, which
