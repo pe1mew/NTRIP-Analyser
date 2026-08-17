@@ -386,7 +386,7 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
     if (!b || !b->sess) return -1;
 
     if (!b->started) {
-        kpi_run_start(&b->run, now_s);
+        kpi_run_start(&b->run, now_s, NULL);
         kpi_watch_start(&b->w, now_s);
         b->started = true;
     }

@@ -346,7 +346,7 @@ static void report_update(MdReport *r, const NsStatsSnapshot *st,
     if (t < 0.0) return;                 /* no epochs: nothing to measure */
 
     if (!r->live[0]) {
-        sr_reset(&r->slot[0], false);
+        sr_reset(&r->slot[0], false, NULL);
         r->start[0] = t;
         r->live[0]  = true;
         r->last_sample = -1e9;
@@ -354,13 +354,13 @@ static void report_update(MdReport *r, const NsStatsSnapshot *st,
     /* The second slot is armed one window in, so that when the first is
      * retired at two windows there is already a full one behind it. */
     if (!r->live[1] && t - r->start[0] >= window_s) {
-        sr_reset(&r->slot[1], false);
+        sr_reset(&r->slot[1], false, NULL);
         r->start[1] = t;
         r->live[1]  = true;
     }
     for (int i = 0; i < 2; i++) {
         if (r->live[i] && t - r->start[i] >= 2.0 * window_s) {
-            sr_reset(&r->slot[i], false);
+            sr_reset(&r->slot[i], false, NULL);
             r->start[i] = t;
         }
     }

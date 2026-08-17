@@ -128,6 +128,46 @@ extern "C" {
 #define SR_MIN_WINDOW_S            600.0
 #define SR_MIN_SAMPLES             10
 
+/**
+ * @struct SrPolicy
+ * @brief The thresholds a report is built under.
+ *
+ * The figures above as data rather than as constants, so a user can
+ * disagree with them: a station on domestic broadband is not the same
+ * proposition as one on fibre, and `SR_RECONNECTS_WARN_PER_H` = 1.0
+ * marks the first `DEGRADED` for behaving exactly as its owner expects.
+ * See design/work-items/thresholds-track.md.
+ *
+ * **The defaults are the macros above**, so a caller that supplies no
+ * policy gets the behaviour it always had — which the test suite
+ * checks rather than assumes.
+ *
+ * Copied into @ref SrState at @ref sr_reset, so a window cannot change
+ * standard halfway through and the caller's policy need not outlive the
+ * call.
+ */
+typedef struct {
+    double reconnects_warn_per_h;  /**< @ref SR_RECONNECTS_WARN_PER_H  */
+    double reconnects_bad_per_h;   /**< @ref SR_RECONNECTS_BAD_PER_H   */
+    double integrity_warn_pct;     /**< @ref SR_INTEGRITY_WARN_PCT     */
+    double integrity_bad_pct;      /**< @ref SR_INTEGRITY_BAD_PCT      */
+    double integrity_window_s;     /**< @ref SR_INTEGRITY_WINDOW_S     */
+    double cnr_drop_warn;          /**< @ref SR_CNR_DROP_WARN          */
+    double cnr_drop_bad;           /**< @ref SR_CNR_DROP_BAD           */
+    int    sats_warn;              /**< @ref SR_SATS_WARN              */
+    int    sats_bad;               /**< @ref SR_SATS_BAD               */
+    double roti_warn;              /**< @ref IONO_ROTI_UNSETTLED       */
+    double roti_bad;               /**< @ref IONO_ROTI_DISTURBED       */
+    double offrate_warn;           /**< @ref SR_OFFRATE_WARN, a share  */
+    double offrate_bad;            /**< @ref SR_OFFRATE_BAD            */
+    double warmup_s;               /**< @ref SR_WARMUP_S               */
+    double min_window_s;           /**< @ref SR_MIN_WINDOW_S           */
+    int    min_samples;            /**< @ref SR_MIN_SAMPLES            */
+} SrPolicy;
+
+/** @brief Fill @p p with the built-in thresholds. */
+void sr_policy_defaults(SrPolicy *p);
+
 /** @brief One metric's verdict, and the report's roll-up. */
 typedef enum {
     SR_INSUFFICIENT = 0,  /**< not enough evidence yet -- a real state  */
@@ -208,6 +248,10 @@ typedef struct {
     int      sats_min;
     float    roti_worst;
     int      offrate_samples;
+
+    /** The thresholds this window is judged by; a copy, so the
+     *  caller's policy need not outlive @ref sr_reset. */
+    SrPolicy pol;
 } SrState;
 
 /**
@@ -215,8 +259,11 @@ typedef struct {
  *
  * @param from_capture true when the source is a replayed `.rtcm3`, which
  *        makes the live-only metrics unavailable rather than zero.
+ * @param pol Thresholds to judge by, copied into the state.  **NULL for
+ *        the built-in ones**, which is what every caller passed before
+ *        policies existed and what most will pass for ever.
  */
-void sr_reset(SrState *s, bool from_capture);
+void sr_reset(SrState *s, bool from_capture, const SrPolicy *pol);
 
 /**
  * @brief Add one snapshot.

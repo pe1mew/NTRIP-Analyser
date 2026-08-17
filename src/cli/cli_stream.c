@@ -299,7 +299,7 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
     /* A replay holds no arrival times and never drops, so availability
      * is reported as unavailable rather than as a clean zero it did not
      * earn.  test_station_report.c pins that distinction. */
-    sr_reset(&c->sr, cli_replay_stdin);
+    sr_reset(&c->sr, cli_replay_stdin, NULL);
 
     /* Stream time of the last tier-2 sample.  The cadence is the
      * stream's, not this host's: a six-hour capture read from disk in
@@ -725,7 +725,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
     VrsRun vrun;  VrsReport vr;
     memset(&kr, 0, sizeof(kr));
     memset(&vr, 0, sizeof(vr));
-    kpi_run_start(&krun, 0.0);
+    kpi_run_start(&krun, 0.0, NULL);
     vrs_run_start(&vrun, 0.0);
 
     time_t t0 = time(NULL);
@@ -743,7 +743,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
                 config->MOUNTPOINT, config->LATITUDE, config->LONGITUDE);
 
     SrState sr;
-    sr_reset(&sr, false);
+    sr_reset(&sr, false, NULL);
     double last_srs = -1e9;   /* stream time of the last tier-2 sample */
 
     for (;;) {

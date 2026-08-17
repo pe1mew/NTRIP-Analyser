@@ -207,11 +207,20 @@ add_executable(test_ns_stats test/test_ns_stats.c)
 target_link_libraries(test_ns_stats PRIVATE ntrip_core)
 add_test(NAME ns_stats COMMAND test_ns_stats)
 
+# Thresholds became data rather than constants, and the change is meant
+# to be invisible -- which is the most dangerous kind. This pins that
+# every default equals the constant it replaced, that no policy is the
+# default policy, and that a policy which differs actually moves the
+# verdict rather than merely being stored.
+add_executable(test_policy test/test_policy.c)
+target_link_libraries(test_policy PRIVATE ntrip_core)
+add_test(NAME policy COMMAND test_policy)
+
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
-            test_stream_clock test_ns_stats)
+            test_stream_clock test_ns_stats test_policy)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

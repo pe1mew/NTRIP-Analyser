@@ -109,6 +109,42 @@ extern "C" {
 #define KPI_COUNT 8
 
 /**
+ * @struct KpiPolicy
+ * @brief The thresholds a run is conducted under.
+ *
+ * Every figure above as data rather than as a constant, so that a user
+ * can disagree with them — a control network and a hobby base are not
+ * held to the same standard, and neither should inherit the other's
+ * numbers by accident. See design/work-items/thresholds-track.md, and
+ * docs/thresholds.md for what each one means and how well founded it
+ * is.
+ *
+ * **The defaults are the macros above**, so a program that supplies no
+ * policy behaves exactly as it always has. That equivalence is what the
+ * test suite checks; it is not an aspiration.
+ *
+ * A policy belongs to a *run*, not to a sample: it is copied into
+ * @ref KpiRun at @ref kpi_run_start so that a verdict cannot change
+ * standard halfway through, and so the caller's policy need not outlive
+ * the call.
+ */
+typedef struct {
+    double sustain_s;          /**< @ref KPI_SUSTAIN_S               */
+    double min_bytes_per_s;    /**< @ref KPI_MIN_BYTES_PER_S         */
+    double arp_deadline_s;     /**< @ref KPI_ARP_DEADLINE_S          */
+    double msm_max_dt_s;       /**< @ref KPI_MSM_MAX_DT_S            */
+    int    expect_sats[8];     /**< @ref KPI_EXPECT_SATS, by GNSS id */
+    int    expect_unknown;     /**< @ref KPI_EXPECT_UNKNOWN          */
+    double min_cnr_median;     /**< @ref KPI_MIN_CNR_MEDIAN          */
+    double min_integrity_pct;  /**< @ref KPI_MIN_INTEGRITY_PCT       */
+    double bad_integrity_pct;  /**< @ref KPI_BAD_INTEGRITY_PCT       */
+    double integrity_window_s; /**< @ref KPI_INTEGRITY_WINDOW_S      */
+} KpiPolicy;
+
+/** @brief Fill @p p with the built-in thresholds. */
+void kpi_policy_defaults(KpiPolicy *p);
+
+/**
  * @brief Decimal places @ref KpiResult::value is meaningful to.
  *
  * Six of the eight are counts -- frames, satellites, constellations,
@@ -216,6 +252,10 @@ typedef struct {
     bool     crc_have_base;
     double   crc_pct;      /**< last completed reading, percent        */
     bool     crc_have_pct;
+
+    /** The thresholds this run is judged by; a copy, so the caller's
+     *  policy need not outlive @ref kpi_run_start. */
+    KpiPolicy pol;
 } KpiRun;
 
 /** @brief A full report: the seven results plus the roll-up. */
@@ -250,8 +290,11 @@ const char *kpi_limit_text(const KpiResult *k, int kpi_index,
  *
  * @param run Run state to initialise.
  * @param now Current time, seconds; same clock as @ref kpi_update.
+ * @param pol Thresholds to judge by, copied into the run.  **NULL for
+ *            the built-in ones**, which is what every caller passed
+ *            before policies existed and what most will pass for ever.
  */
-void kpi_run_start(KpiRun *run, double now);
+void kpi_run_start(KpiRun *run, double now, const KpiPolicy *pol);
 
 /**
  * @brief Evaluate the eight KPIs against the latest snapshot.

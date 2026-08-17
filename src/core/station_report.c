@@ -19,11 +19,38 @@
 #include <stdio.h>
 #include <string.h>
 
-void sr_reset(SrState *s, bool from_capture)
+void sr_policy_defaults(SrPolicy *p)
+{
+    if (!p) return;
+    memset(p, 0, sizeof(*p));
+    p->reconnects_warn_per_h = SR_RECONNECTS_WARN_PER_H;
+    p->reconnects_bad_per_h  = SR_RECONNECTS_BAD_PER_H;
+    p->integrity_warn_pct    = SR_INTEGRITY_WARN_PCT;
+    p->integrity_bad_pct     = SR_INTEGRITY_BAD_PCT;
+    p->integrity_window_s    = SR_INTEGRITY_WINDOW_S;
+    p->cnr_drop_warn         = SR_CNR_DROP_WARN;
+    p->cnr_drop_bad          = SR_CNR_DROP_BAD;
+    p->sats_warn             = SR_SATS_WARN;
+    p->sats_bad              = SR_SATS_BAD;
+    p->roti_warn             = IONO_ROTI_UNSETTLED;
+    p->roti_bad              = IONO_ROTI_DISTURBED;
+    p->offrate_warn          = SR_OFFRATE_WARN;
+    p->offrate_bad           = SR_OFFRATE_BAD;
+    p->warmup_s              = SR_WARMUP_S;
+    p->min_window_s          = SR_MIN_WINDOW_S;
+    p->min_samples           = SR_MIN_SAMPLES;
+}
+
+void sr_reset(SrState *s, bool from_capture, const SrPolicy *pol)
 {
     if (!s) return;
     memset(s, 0, sizeof(*s));
     s->from_capture = from_capture;
+
+    /* A zeroed policy would call every station stable, so an absent one
+     * means the built-in thresholds rather than none at all. */
+    if (pol) s->pol = *pol;
+    else     sr_policy_defaults(&s->pol);
     /* Sentinels: "worst seen" starts at the best possible value, and the
      * minima start impossibly high, so the first sample sets them. */
     s->crc_worst_pct = 100.0;   /* lowered by the first judged window */
@@ -42,7 +69,7 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
      * such sample is enough to make the window's minimum meaningless --
      * which is exactly what the first live run produced: "fewest held:
      * 9" from a station that never dropped below 39. */
-    if (t_stream < SR_WARMUP_S) return;
+    if (t_stream < s->pol.warmup_s) return;
 
     if (!s->started) {
         s->started          = true;
@@ -74,7 +101,7 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
             s->crc_base_errors = errors;
             s->crc_base_t      = t_stream;
             s->crc_have_base   = true;
-        } else if (t_stream - s->crc_base_t >= SR_INTEGRITY_WINDOW_S) {
+        } else if (t_stream - s->crc_base_t >= s->pol.integrity_window_s) {
             uint64_t d_frames = frames - s->crc_base_frames;
             if (d_frames > 0) {
                 uint64_t d_errors = errors - s->crc_base_errors;
@@ -149,8 +176,8 @@ void sr_build(const SrState *s, StationReport *out)
     out->samples      = s->samples;
     out->from_capture = s->from_capture;
 
-    const bool enough = out->window_s >= SR_MIN_WINDOW_S
-                     && s->samples    >= SR_MIN_SAMPLES;
+    const bool enough = out->window_s >= s->pol.min_window_s
+                     && s->samples    >= s->pol.min_samples;
     const double hours = out->window_s / 3600.0;
 
     /* ── Availability.  Live-only: a replay never drops, so reporting a
@@ -167,7 +194,8 @@ void sr_build(const SrState *s, StationReport *out)
                 "%d reconnect(s) so far", s->reconnects_last - s->reconnects_first);
         else
             set(m, "Availability", per_h,
-                grade_up(per_h, SR_RECONNECTS_WARN_PER_H, SR_RECONNECTS_BAD_PER_H),
+                grade_up(per_h, s->pol.reconnects_warn_per_h,
+                         s->pol.reconnects_bad_per_h),
                 true, true, "%.1f reconnects per hour", per_h);
     }
 
@@ -180,14 +208,14 @@ void sr_build(const SrState *s, StationReport *out)
         if (s->crc_windows == 0)
             set(m, "Frame integrity", 100.0, SR_INSUFFICIENT, false, true,
                 "first %.0f min of stream not yet complete",
-                SR_INTEGRITY_WINDOW_S / 60.0);
+                s->pol.integrity_window_s / 60.0);
         else
             set(m, "Frame integrity", s->crc_worst_pct,
-                enough ? grade_down(s->crc_worst_pct, SR_INTEGRITY_WARN_PCT,
-                                    SR_INTEGRITY_BAD_PCT)
+                enough ? grade_down(s->crc_worst_pct, s->pol.integrity_warn_pct,
+                                    s->pol.integrity_bad_pct)
                        : SR_INSUFFICIENT,
                 false, true, "worst %.3f %% of frames passed CRC in %.0f min",
-                s->crc_worst_pct, SR_INTEGRITY_WINDOW_S / 60.0);
+                s->crc_worst_pct, s->pol.integrity_window_s / 60.0);
     }
 
     /* ── Signal: how far the mean C/N0 fell from the best this window
@@ -211,7 +239,8 @@ void sr_build(const SrState *s, StationReport *out)
                     ? "no C/N0 in this stream (MSM1-3)" : "gathering");
         else
             set(m, "Signal level", drop,
-                grade_up(drop, SR_CNR_DROP_WARN, SR_CNR_DROP_BAD), false, true,
+                grade_up(drop, s->pol.cnr_drop_warn, s->pol.cnr_drop_bad),
+                false, true,
                 "fell %.1f dB-Hz from %.1f", drop, (double)s->cnr_best);
     }
 
@@ -221,7 +250,7 @@ void sr_build(const SrState *s, StationReport *out)
         SrMetric *m = &out->metric[SR_SATELLITES];
         set(m, "Satellites held", fewest,
             (enough && fewest > 0)
-                ? grade_down(fewest, SR_SATS_WARN, SR_SATS_BAD)
+                ? grade_down(fewest, s->pol.sats_warn, s->pol.sats_bad)
                 : SR_INSUFFICIENT,
             false, true, "fewest held: %d", fewest);
     }
@@ -239,7 +268,7 @@ void sr_build(const SrState *s, StationReport *out)
                     ? "no dual-frequency pair to measure with" : "gathering");
         else
             set(m, "Ionosphere", s->roti_worst,
-                grade_up(s->roti_worst, IONO_ROTI_UNSETTLED, IONO_ROTI_DISTURBED),
+                grade_up(s->roti_worst, s->pol.roti_warn, s->pol.roti_bad),
                 false, true, "worst median ROTI %.2f TECU/min",
                 (double)s->roti_worst);
     }
@@ -250,7 +279,7 @@ void sr_build(const SrState *s, StationReport *out)
                      ? (double)s->offrate_samples / s->samples : 0.0;
         SrMetric *m = &out->metric[SR_DELIVERY];
         set(m, "Delivery rate", share * 100.0,
-            enough ? grade_up(share, SR_OFFRATE_WARN, SR_OFFRATE_BAD)
+            enough ? grade_up(share, s->pol.offrate_warn, s->pol.offrate_bad)
                    : SR_INSUFFICIENT,
             false, true, "off-rate in %.0f %% of samples", share * 100.0);
     }
@@ -263,15 +292,15 @@ void sr_build(const SrState *s, StationReport *out)
      * invisible. Indexed by name so reordering the enum cannot silently
      * pair a row with someone else's threshold. */
     {
-        static const struct { double limit; int dir; } lim[SR_METRIC_COUNT] = {
-            [SR_AVAILABILITY] = { SR_RECONNECTS_WARN_PER_H, SR_LIMIT_MAX },
-            [SR_INTEGRITY]    = { SR_INTEGRITY_WARN_PCT,    SR_LIMIT_MIN },
-            [SR_SIGNAL]       = { SR_CNR_DROP_WARN,         SR_LIMIT_MAX },
-            [SR_SATELLITES]   = { SR_SATS_WARN,             SR_LIMIT_MIN },
-            [SR_IONOSPHERE]   = { IONO_ROTI_UNSETTLED,      SR_LIMIT_MAX },
+        const struct { double limit; int dir; } lim[SR_METRIC_COUNT] = {
+            [SR_AVAILABILITY] = { s->pol.reconnects_warn_per_h, SR_LIMIT_MAX },
+            [SR_INTEGRITY]    = { s->pol.integrity_warn_pct,    SR_LIMIT_MIN },
+            [SR_SIGNAL]       = { s->pol.cnr_drop_warn,         SR_LIMIT_MAX },
+            [SR_SATELLITES]   = { s->pol.sats_warn,             SR_LIMIT_MIN },
+            [SR_IONOSPHERE]   = { s->pol.roti_warn,             SR_LIMIT_MAX },
             /* The share is graded as a fraction and shown as a per
              * cent; the limit follows the display. */
-            [SR_DELIVERY]     = { SR_OFFRATE_WARN * 100.0,  SR_LIMIT_MAX },
+            [SR_DELIVERY]     = { s->pol.offrate_warn * 100.0,  SR_LIMIT_MAX },
         };
         for (int i = 0; i < SR_METRIC_COUNT; i++) {
             out->metric[i].limit     = lim[i].limit;
@@ -297,7 +326,7 @@ void sr_build(const SrState *s, StationReport *out)
         out->overall = SR_INSUFFICIENT;
         snprintf(out->headline, sizeof(out->headline),
                  "INSUFFICIENT EVIDENCE -- %.0f s of %.0f needed, %d sample(s)",
-                 out->window_s, SR_MIN_WINDOW_S, out->samples);
+                 out->window_s, s->pol.min_window_s, out->samples);
         return;
     }
 

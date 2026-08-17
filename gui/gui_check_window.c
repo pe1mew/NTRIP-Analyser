@@ -46,7 +46,7 @@ void CheckStart(AppState *state)
     if (!state) return;
 
     double now = CheckNow();
-    kpi_run_start(&state->checkRun, now);
+    kpi_run_start(&state->checkRun, now, NULL);
     memset(&state->checkReport, 0, sizeof(state->checkReport));
     state->checkHaveReport = FALSE;
     state->checkSettled    = FALSE;

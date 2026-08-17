@@ -1,8 +1,9 @@
 # Work item — user-supplied thresholds
 
 **Status:** decision 3's first half is **built** — every row on every
-desktop screen now shows the limit it was judged against. The rest is
-proposed, and four questions at the end are the author's to answer.
+desktop screen shows the limit it was judged against. The five design
+decisions are settled (2026-08-17); the build order at the end has four
+phases, none started.
 
 The numbers that decide every verdict are `#define`s in `src/core/`, and
 [docs/thresholds.md](https://github.com/pe1mew/NTRIP-Analyser/blob/main/docs/thresholds.md)
@@ -191,24 +192,47 @@ stops meaning anything:
 | Android free | Built-in defaults only | No file picker for this; the platform limit is real and should be stated rather than worked around |
 | Android pro | Loading a policy is a reasonable paid feature | Within what the platform allows, per the editions rule |
 
-## Open questions — for the user
+## Decisions taken (2026-08-17)
 
-1. **Named policies, or one file?** A `--thresholds survey.json` /
-   `hobby.json` pair is more useful than one file people edit back and
-   forth, and it makes the name in the header meaningful. Recommend:
-   plain files, any name, with the name carried in the output.
-2. **Should the GUI edit them, or only load them?** Recommend loading
-   first. An editor is a dialog with twenty fields and needs the
-   validation above to be finished anyway.
-3. **Should a custom policy be allowed to make a verdict *stricter*
-   only, or looser too?** Looser is the honest answer — a hobby base
-   held to a control-network standard is the complaint that prompted
-   this — but it does mean `STATION OK` stops being comparable across
-   users, which is exactly why decision 3 exists.
-4. **Do the VRS assertions get the same treatment?** They are
-   protocol-behaviour tests rather than quality bars, and their values
-   are about what casters actually do. Recommend: overridable, but
-   documented as the least likely to need it.
+1. **Any named file.** `--thresholds survey.json`, `hobby.json`, named
+   by the user, each carrying a `name` field that appears in every
+   verdict and every published document. Not one fixed file people edit
+   back and forth: comparing a station against two standards should not
+   mean editing a file twice, and a screenshot must be able to say which
+   standard it was taken under.
+2. **The GUI loads, and does not edit — for now.** File > Load
+   thresholds, remembered across restarts, with the active policy named
+   in both windows. An editor is a twenty-field dialog that needs the
+   validation layer finished first; loading is the whole feature for
+   anyone who has a policy.
+3. **A policy may make a verdict looser.** A hobby base held to a
+   control-network standard is the complaint that prompted this work.
+   The cost is that `STATION OK` stops being comparable between users —
+   which is precisely why the policy name and fingerprint go into every
+   report, JSON and CSV, and why a run under a non-default policy says
+   so in its header. Comparability is not preserved by refusing the
+   feature; it is preserved by making the standard visible.
+4. **The VRS assertions are overridable too**, on the same mechanism,
+   and documented as the least likely to need it. Their five values
+   describe what casters actually do, so they are a poor thing to guess
+   at — but a network with unusual keep-alive behaviour would otherwise
+   have no recourse at all.
+
+## Build order
+
+Each phase is useful on its own and leaves the tree working.
+
+| # | Phase | What lands |
+|---|---|---|
+| 1 | **Policy structs** | `KpiPolicy` / `SrPolicy` with `*_policy_defaults()`, threaded through `kpi_update()`, `sr_feed()` and `sr_build()`. No file, no behaviour change: every caller passes the defaults, and the tests prove the verdicts are unchanged. |
+| 2 | **Loading and validation** | `thresholds.json`, partial by design, `schema_version`, the floors table, and refusal — naming the field — rather than clamping. Plus `--thresholds-print` showing every effective value and where it came from. |
+| 3 | **Provenance** | The policy name in the check and report headers; name and fingerprint in `ns_stats_to_json`, `sr_to_json` and the CSV export. A release check asserting every threshold in `docs/thresholds.md` appears in `--thresholds-print`, so the page cannot drift from the code. |
+| 4 | **Frontends** | The CLI flag, the service's `"thresholds"` key, the GUI's load-and-remember. Android keeps built-in defaults; the platform limit is stated, not worked around. |
+
+Phase 1 is the one that cannot be skipped or reordered, and it is also
+the one that touches the most call sites while changing no behaviour —
+so it is the phase where a test suite that already pins every verdict
+earns its keep.
 
 ## What this is worth
 

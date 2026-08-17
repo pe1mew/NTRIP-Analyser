@@ -437,7 +437,7 @@ int main(void)
         h.cnr_mean_all     = 45.0f;
         h.iono_roti_median = 0.2f;
 
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 60; i++) sr_feed(&st, &h, 60.0 + i * 60.0);
         sr_build(&st, &rep);
 
@@ -452,7 +452,7 @@ int main(void)
               "a count is serialised without a fractional part");
 
         /* Built from a capture, availability cannot be measured. */
-        sr_reset(&st, true);
+        sr_reset(&st, true, NULL);
         for (int i = 0; i < 60; i++) sr_feed(&st, &h, 60.0 + i * 60.0);
         sr_build(&st, &rep);
         sr_to_json(&rep, "HANESE", json, sizeof(json));

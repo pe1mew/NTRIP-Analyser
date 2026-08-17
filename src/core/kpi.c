@@ -11,13 +11,37 @@
 #include <stdio.h>     /* snprintf, into caller buffers only -- no I/O */
 #include <string.h>
 
-void kpi_run_start(KpiRun *run, double now)
+void kpi_policy_defaults(KpiPolicy *p)
+{
+    if (!p) return;
+    memset(p, 0, sizeof(*p));
+
+    static const int expect[8] = KPI_EXPECT_SATS;
+    for (int i = 0; i < 8; i++) p->expect_sats[i] = expect[i];
+
+    p->sustain_s          = KPI_SUSTAIN_S;
+    p->min_bytes_per_s    = KPI_MIN_BYTES_PER_S;
+    p->arp_deadline_s     = KPI_ARP_DEADLINE_S;
+    p->msm_max_dt_s       = KPI_MSM_MAX_DT_S;
+    p->expect_unknown     = KPI_EXPECT_UNKNOWN;
+    p->min_cnr_median     = KPI_MIN_CNR_MEDIAN;
+    p->min_integrity_pct  = KPI_MIN_INTEGRITY_PCT;
+    p->bad_integrity_pct  = KPI_BAD_INTEGRITY_PCT;
+    p->integrity_window_s = KPI_INTEGRITY_WINDOW_S;
+}
+
+void kpi_run_start(KpiRun *run, double now, const KpiPolicy *pol)
 {
     if (!run) return;
     memset(run, 0, sizeof(*run));
     run->t_start        = now;
     run->stable_since   = -1.0;
     run->stable_verdict = KPI_RUN_RUNNING;
+
+    /* A zeroed policy would pass everything, so an absent one means the
+     * built-in thresholds rather than none at all. */
+    if (pol) run->pol = *pol;
+    else     kpi_policy_defaults(&run->pol);
 }
 
 int kpi_value_decimals(int kpi_index)
@@ -107,11 +131,14 @@ static void obs_ranges(int gnss, int *lo, int *hi, int *llo, int *lhi)
  * often enough to position with, not which generation of message
  * carries them.
  *
- * @param at_rate [out] true when something in range meets
- *                @ref KPI_MSM_MAX_DT_S.
+ * @param max_dt  Slowest acceptable epoch interval, from the run's
+ *                policy rather than the macro: this is one of the
+ *                figures a user may disagree with.
+ * @param at_rate [out] true when something in range meets @p max_dt.
  * @return true when any observation message for @p gnss was seen at all.
  */
-static bool obs_present(const NsStatsSnapshot *s, int gnss, bool *at_rate)
+static bool obs_present(const NsStatsSnapshot *s, int gnss, double max_dt,
+                        bool *at_rate)
 {
     int lo, hi, llo, lhi;
     obs_ranges(gnss, &lo, &hi, &llo, &lhi);
@@ -130,7 +157,7 @@ static bool obs_present(const NsStatsSnapshot *s, int gnss, bool *at_rate)
 
         present = true;
         if (t->epochs < 3) continue;          /* one epoch has no rate yet */
-        if (t->avg_dt > 0.0 && t->avg_dt <= KPI_MSM_MAX_DT_S && at_rate)
+        if (t->avg_dt > 0.0 && t->avg_dt <= max_dt && at_rate)
             *at_rate = true;
     }
     return present;
@@ -171,7 +198,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     /* ── 1: connected and producing ─────────────────────────────────── */
     k[0].label = "Connected and producing";
     k[0].value = s->bytes_per_s;
-    k[0].limit = KPI_MIN_BYTES_PER_S;
+    k[0].limit = run->pol.min_bytes_per_s;
     k[0].limit_dir = KPI_LIMIT_MIN;
     if (!s->connected) {
         k[0].verdict = (out->elapsed_s < 10.0) ? KPI_PENDING : KPI_FAIL;
@@ -179,7 +206,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     } else if (out->elapsed_s < 10.0) {
         k[0].verdict = KPI_PENDING;
         k[0].detail  = "Measuring throughput";
-    } else if (s->bytes_per_s >= KPI_MIN_BYTES_PER_S) {
+    } else if (s->bytes_per_s >= run->pol.min_bytes_per_s) {
         k[0].verdict = KPI_PASS;
         k[0].detail  = "Authenticated, connected, data flowing";
     } else if (s->bytes_per_s > 0.0) {
@@ -212,7 +239,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
         k[2].verdict = KPI_WARN;    /* had one, currently unconfirmed */
         k[2].detail  = "ARP seen earlier this run but not confirmed now";
     } else {
-        k[2].verdict = (out->elapsed_s < KPI_ARP_DEADLINE_S)
+        k[2].verdict = (out->elapsed_s < run->pol.arp_deadline_s)
                        ? KPI_PENDING : KPI_FAIL;
         k[2].detail  = "No RTCM 1005/1006 within the 30 s allowance";
     }
@@ -230,7 +257,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     int streaming = 0, at_rate_n = 0;
     for (int g = 1; g <= 7; g++) {
         bool at_rate = false;
-        if (!obs_present(s, g, &at_rate)) continue;
+        if (!obs_present(s, g, run->pol.msm_max_dt_s, &at_rate)) continue;
         streaming++;
         if (at_rate) at_rate_n++;
     }
@@ -261,16 +288,16 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     k[4].label = "Satellites in view";
     k[4].value = (double)s->sats_total;
     {
-        static const int expect[8] = KPI_EXPECT_SATS;
+        const int *expect = run->pol.expect_sats;
         int want = 0;
         for (int g = 1; g <= 7; g++) {
             bool judged_advertised = (s->advertised_gnss != 0);
             bool counted = judged_advertised
                            ? ((s->advertised_gnss & (1u << g)) != 0)
-                           : obs_present(s, g, NULL);
+                           : obs_present(s, g, run->pol.msm_max_dt_s, NULL);
             if (counted) want += expect[g];
         }
-        if (want <= 0) want = KPI_EXPECT_UNKNOWN;
+        if (want <= 0) want = run->pol.expect_unknown;
 
         /* The number this station was actually held to, which differs
          * with the constellations it streams -- a GPS+GLONASS base is
@@ -299,7 +326,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     int cnr_sats = 0;
     double med = cnr_median_weighted(s, &cnr_sats);
     k[5].value = med;
-    k[5].limit = KPI_MIN_CNR_MEDIAN;
+    k[5].limit = run->pol.min_cnr_median;
     k[5].limit_dir = KPI_LIMIT_MIN;
     if (cnr_sats == 0) {
         /* Every MSM that carries C/N0 is now read -- 4, 5, 6 and 7 --
@@ -311,10 +338,10 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
          * stream's shape, because on a legacy station it is ours. */
         k[5].verdict = (out->elapsed_s < 15.0) ? KPI_PENDING : KPI_WARN;
         k[5].detail  = "Not measured: C/N0 is read from MSM4, 5, 6 and 7";
-    } else if (med >= KPI_MIN_CNR_MEDIAN) {
+    } else if (med >= run->pol.min_cnr_median) {
         k[5].verdict = KPI_PASS;
         k[5].detail  = "Antenna and LNA chain healthy";
-    } else if (med >= KPI_MIN_CNR_MEDIAN * 0.9) {
+    } else if (med >= run->pol.min_cnr_median * 0.9) {
         k[5].verdict = KPI_WARN;
         k[5].detail  = "Median C/N0 within 10% below threshold";
     } else {
@@ -341,7 +368,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
             run->crc_base_errors = errors;
             run->crc_base_t      = now;
             run->crc_have_base   = true;
-        } else if (now - run->crc_base_t >= KPI_INTEGRITY_WINDOW_S) {
+        } else if (now - run->crc_base_t >= run->pol.integrity_window_s) {
             uint64_t d_frames = frames - run->crc_base_frames;
             if (d_frames >= 100) {      /* a rate needs a denominator */
                 uint64_t d_errors = errors - run->crc_base_errors;
@@ -364,15 +391,15 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
          * which names frames that never arrived rather than frames that
          * arrived broken. */
         k[6].value     = run->crc_have_pct ? run->crc_pct : 100.0;
-        k[6].limit     = KPI_MIN_INTEGRITY_PCT;
+        k[6].limit     = run->pol.min_integrity_pct;
         k[6].limit_dir = KPI_LIMIT_MIN;
         if (!run->crc_have_pct) {
             k[6].verdict = KPI_PENDING;
             k[6].detail  = "Too few frames to judge integrity yet";
-        } else if (run->crc_pct >= KPI_MIN_INTEGRITY_PCT) {
+        } else if (run->crc_pct >= run->pol.min_integrity_pct) {
             k[6].verdict = KPI_PASS;
             k[6].detail  = "99.9 % or more of frames passed CRC";
-        } else if (run->crc_pct >= KPI_BAD_INTEGRITY_PCT) {
+        } else if (run->crc_pct >= run->pol.bad_integrity_pct) {
             k[6].verdict = KPI_WARN;
             k[6].detail  = "Under 99.9 % passing: elevated CRC errors";
         } else {
@@ -495,7 +522,7 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
      * claims about steadiness, so both must hold the window. */
     out->settled = (candidate == KPI_RUN_FAILED) ||
                    (candidate != KPI_RUN_RUNNING &&
-                    out->sustained_s >= KPI_SUSTAIN_S);
+                    out->sustained_s >= run->pol.sustain_s);
 
     /* OK is not claimed before it is earned; CAUTION is shown at once,
      * because a warning the user cannot see yet helps nobody. */

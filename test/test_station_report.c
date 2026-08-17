@@ -79,7 +79,7 @@ int main(void)
     /* ── 1. Too little evidence is its own answer ─────────────────── */
     {
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         feed_run(&st, &s, 5, 10.0);          /* 40 s, 5 samples */
         sr_build(&st, &r);
 
@@ -94,7 +94,7 @@ int main(void)
     /* ── 2. A long, clean run is STABLE ───────────────────────────── */
     {
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         feed_run(&st, &s, 60, 60.0);         /* 59 min, 60 samples */
         sr_build(&st, &r);
 
@@ -107,7 +107,7 @@ int main(void)
     /* ── 3. Each metric can carry the verdict alone ───────────────── */
     {
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 60; i++) {
             add_frames(&s, 6000, 120);       /* 2 %: twice the bad level */
             sr_feed(&st, &s, 60.0 + i * 60.0);
@@ -121,7 +121,7 @@ int main(void)
 
         s = healthy();
         s.sats_total = 12;
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         feed_run(&st, &s, 60, 60.0);
         sr_build(&st, &r);
         check(r.metric[SR_SATELLITES].verdict == SR_UNSTABLE,
@@ -129,7 +129,7 @@ int main(void)
 
         s = healthy();
         s.iono_roti_median = 1.5f;
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         feed_run(&st, &s, 60, 60.0);
         sr_build(&st, &r);
         check(r.metric[SR_IONOSPHERE].verdict == SR_UNSTABLE,
@@ -139,7 +139,7 @@ int main(void)
     /* ── 4. A falling signal is caught by its fall, not its level ─── */
     {
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 60; i++) {
             s.cnr_mean_all = (i < 30) ? 48.0f : 41.0f;   /* a 7 dB step */
             sr_feed(&st, &s, i * 60.0);
@@ -152,7 +152,7 @@ int main(void)
     /* ── 5. Live-only metrics are absent from a replay, never zero ── */
     {
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, true);                 /* from a capture */
+        sr_reset(&st, true, NULL);                 /* from a capture */
         feed_run(&st, &s, 60, 60.0);
         sr_build(&st, &r);
 
@@ -171,7 +171,7 @@ int main(void)
         StationReport live, fast;
         NsStatsSnapshot s = healthy();
 
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 60; i++) {       /* an hour, in real time  */
             add_frames(&s, 6000, 12);        /* 0.2 %: DEGRADED        */
             sr_feed(&st, &s, 60.0 + i * 60.0);
@@ -179,7 +179,7 @@ int main(void)
         sr_build(&st, &live);
 
         s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 60; i++) {       /* the same stream clock, */
             add_frames(&s, 6000, 12);        /* whatever the wall did  */
             sr_feed(&st, &s, 60.0 + i * 60.0);
@@ -205,7 +205,7 @@ int main(void)
         warm.cnr_mean_all = 20.0f;           /* and a partial mean     */
 
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         sr_feed(&st, &warm, 0.0);            /* inside the warm-up     */
         sr_feed(&st, &warm, 15.0);           /* still inside it        */
         for (int i = 0; i < 60; i++) sr_feed(&st, &s, 60.0 + i * 60.0);
@@ -223,7 +223,7 @@ int main(void)
     {
         NsStatsSnapshot s = healthy();
         s.cnr_mean_all = 0.0f;               /* MSM1-3 carry none */
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         feed_run(&st, &s, 60, 60.0);
         sr_build(&st, &r);
         check(r.metric[SR_SIGNAL].verdict == SR_INSUFFICIENT,
@@ -240,7 +240,7 @@ int main(void)
          * and "no dual-frequency pair to measure with" about a station
          * sending both. An empty accumulator knows nothing about the
          * station, and must say that instead. */
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         sr_build(&st, &r);
 
         check(strstr(r.metric[SR_SIGNAL].detail, "MSM1-3") == NULL,
@@ -258,7 +258,7 @@ int main(void)
         NsStatsSnapshot young = healthy();
         young.cnr_mean_all     = 0.0f;   /* not measured yet */
         young.iono_roti_median = -1.0f;  /* arcs not formed yet */
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 20; i++) sr_feed(&st, &young, 40.0 + i * 5.0);
         sr_build(&st, &r);
 
@@ -281,7 +281,7 @@ int main(void)
          * far inside the healthy band. Over the ten minutes it happened
          * in, it is one frame in seventy. */
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 600; i++) {
             add_frames(&s, 6000, i == 450 ? 900 : 0);
             sr_feed(&st, &s, 60.0 + i * 60.0);
@@ -303,7 +303,7 @@ int main(void)
          * 0.43 % and then ran clean. Seen on a live stream. */
         NsStatsSnapshot s = healthy();
         add_frames(&s, 200, 2);              /* 1 % of a tiny sample */
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         sr_feed(&st, &s, 60.0);
         for (int i = 1; i < 60; i++) {
             add_frames(&s, 6000, 0);         /* and then nothing but good */
@@ -322,7 +322,7 @@ int main(void)
          * must say that rather than publish the perfect score it would
          * have if asked to grade what it has. */
         NsStatsSnapshot s = healthy();
-        sr_reset(&st, false);
+        sr_reset(&st, false, NULL);
         for (int i = 0; i < 5; i++) {
             add_frames(&s, 6000, 0);
             sr_feed(&st, &s, 60.0 + i * 60.0);
