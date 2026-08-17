@@ -158,6 +158,35 @@ sentence's timing and a mid-run position change are all visible:
 With `send_gga` 0 the stub must print nothing at all — a mountpoint that
 does not ask for a position must not be sent one.
 
+### Producing a stream that stops, without evicting a real station
+
+KPI 1 distinguishes four states and only one of them is a healthy
+stream. The other three were found on live casters — a single-session
+caster evicting the analyser's own earlier connection — and reproducing
+them there means deliberately taking a real station's session away. The
+stub does it instead, taking a fourth argument for how the session ends:
+
+```bash
+python test/tools/stub_caster.py 2101 90 bin/some_capture.rtcm3 stop 12 &
+cd bin && ./ntrip-analyser.exe --caster 127.0.0.1 --port 2101 \
+    --mountpoint TEST --user x --password y --check
+```
+
+| Mode | What the caster does | KPI 1 must say |
+|---|---|---|
+| `flow` | streams for the whole run *(the default)* | `Authenticated, connected, data flowing` |
+| `silent` | accepts, then sends nothing at all | `Connected, but the caster has sent nothing` |
+| `stop` | streams for `feed_s`, then goes quiet with the socket open | `Data arrived for N s, then the stream stopped` |
+| `drop` | streams for `feed_s`, then closes the session | `Connection lost after N s of data` |
+
+The run's total seconds must comfortably exceed `feed_s` plus the ten
+the check needs to notice, or the stub's own deadline closes the socket
+and turns `stop` into `drop`.
+
+Point the GUI at the same stub — caster `127.0.0.1`, that port,
+mountpoint `TEST`, any credentials — to see the four states in the
+station-check window.
+
 ### Verifying where a run's *orbits* come from
 
 The same trick answers the sky view's question. `eph_probe` opens the

@@ -1,4 +1,5 @@
-"""A minimal NTRIP caster stub that reports what a client uplinks.
+"""A minimal NTRIP caster stub that reports what a client uplinks, and
+can misbehave on request.
 
 Serves two connections, which is what one bridge run makes: the
 sourcetable request the bridge sends at open (so KPI 8 has something to
@@ -6,6 +7,23 @@ compare against), and then the stream itself. On the stream it answers
 ICY 200 OK, trickles a few bytes so the client believes the stream is
 alive, and timestamps every line it receives -- which for a GGA-enabled
 session is the uplink.
+
+    python stub_caster.py [port] [seconds] [capture.rtcm3] [mode] [feed_s]
+
+The **mode** decides how the session ends, which is the other thing this
+stub is for: KPI 1 has to tell four states apart and only one of them is
+a healthy stream, so each has to be producible on demand. Reproducing
+them against a public caster would mean deliberately evicting a real
+station's session, which is why they are produced here instead.
+
+    flow    (default) keep streaming until the run is over
+    silent  answer ICY 200 OK and send nothing at all, ever
+    stop    stream for `feed_s`, then go quiet with the socket still open
+    drop    stream for `feed_s`, then close the session
+
+`silent` sends nothing rather than the usual filler: a single byte would
+make it the *stopped* case instead of the *never produced* one, which is
+exactly the distinction being tested.
 """
 import socket
 import sys
@@ -21,6 +39,12 @@ RUN_S = float(sys.argv[2]) if len(sys.argv) > 2 else 30.0
 # an uplink, useless for anything that has to reach a verdict.
 REPLAY = sys.argv[3] if len(sys.argv) > 3 else None
 REPLAY_BPS = 2000.0
+
+MODE = sys.argv[4] if len(sys.argv) > 4 else 'flow'
+FEED_S = float(sys.argv[5]) if len(sys.argv) > 5 else 15.0
+
+if MODE not in ('flow', 'silent', 'stop', 'drop'):
+    sys.exit('stub: unknown mode %r -- flow, silent, stop or drop' % MODE)
 
 TABLE = (
     "STR;TEST;Stub;RTCM 3.3;1005(10),1077(1);2;GPS;STUB;NLD;"
@@ -70,6 +94,17 @@ while time.time() < deadline:
         chunk = int(REPLAY_BPS / 4)
         pos = 0
         while not stop.is_set():
+            if MODE != 'flow' and time.time() - t0 >= FEED_S:
+                # The session has delivered what it was going to. What
+                # happens next is the whole point of the mode.
+                if MODE == 'drop':
+                    print('stub: closing the session after %.0f s'
+                          % (time.time() - t0), flush=True)
+                    c.close()
+                else:
+                    print('stub: going quiet after %.0f s, socket open'
+                          % (time.time() - t0), flush=True)
+                return
             try:
                 if payload:
                     end = pos + chunk
@@ -88,7 +123,10 @@ while time.time() < deadline:
             except OSError:
                 return
 
-    threading.Thread(target=trickle, daemon=True).start()
+    if MODE == 'silent':
+        print('stub: accepted, sending nothing', flush=True)
+    else:
+        threading.Thread(target=trickle, daemon=True).start()
 
     conn.settimeout(1.0)
     buf = b''
@@ -97,6 +135,8 @@ while time.time() < deadline:
             data = conn.recv(1024)
         except socket.timeout:
             continue
+        except OSError:
+            break            # `drop` closed it from under us, on purpose
         if not data:
             break
         buf += data
