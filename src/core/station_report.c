@@ -155,13 +155,17 @@ void sr_build(const SrState *s, StationReport *out)
         double drop = (s->cnr_best > 0.0f && s->cnr_last > 0.0f)
                     ? (double)(s->cnr_best - s->cnr_last) : 0.0;
         SrMetric *m = &out->metric[SR_SIGNAL];
-        /* "This stream carries no C/N0" is a claim about the station and
-         * must not be made before anything has been sampled -- which is
-         * what the daemon published for the first thirty seconds of
-         * every session it opened. */
+        /* "This stream carries no C/N0" is a claim about the station,
+         * and it may not be made until there is enough evidence to
+         * judge anything at all.  Gated on `samples > 0` it was still
+         * wrong: the GUI showed it at twenty-five seconds against a
+         * station that carries plenty, because the first samples land
+         * before the measurement has anything in it.  Ten minutes
+         * without a single C/N0 is a property of the stream; twenty-five
+         * seconds without one is a property of the clock. */
         if (!enough || s->cnr_best <= 0.0f)
             set(m, "Signal level", drop, SR_INSUFFICIENT, false, true,
-                (s->samples > 0 && s->cnr_best <= 0.0f)
+                (enough && s->cnr_best <= 0.0f)
                     ? "no C/N0 in this stream (MSM1-3)" : "gathering");
         else
             set(m, "Signal level", drop,
@@ -183,9 +187,13 @@ void sr_build(const SrState *s, StationReport *out)
     /* ── Ionosphere: the worst median ROTI, on iono.h's own scale. ── */
     {
         SrMetric *m = &out->metric[SR_IONOSPHERE];
+        /* Same rule, and the same defect: ROTI needs phase arcs, which
+         * take minutes to form even on a station streaming MSM7 on two
+         * frequencies.  Before the window is judgeable this says
+         * nothing about the stream. */
         if (!enough || s->roti_worst < 0.0f)
             set(m, "Ionosphere", 0.0, SR_INSUFFICIENT, false, true,
-                (s->samples > 0 && s->roti_worst < 0.0f)
+                (enough && s->roti_worst < 0.0f)
                     ? "no dual-frequency pair to measure with" : "gathering");
         else
             set(m, "Ionosphere", s->roti_worst,

@@ -225,6 +225,23 @@ int main(void)
               "nor of having no dual-frequency pair");
         check(r.overall == SR_INSUFFICIENT,
               "and the verdict is that there is not yet evidence");
+
+        /* Nor a *sampled* one, before the window is judgeable. Gating on
+         * "any samples at all" was not enough: the GUI showed both
+         * claims at twenty-five seconds against a station carrying C/N0
+         * and two frequencies, because the first samples arrive long
+         * before ROTI has arcs to work with. */
+        NsStatsSnapshot young = healthy();
+        young.cnr_mean_all     = 0.0f;   /* not measured yet */
+        young.iono_roti_median = -1.0f;  /* arcs not formed yet */
+        sr_reset(&st, false);
+        for (int i = 0; i < 20; i++) sr_feed(&st, &young, 40.0 + i * 5.0);
+        sr_build(&st, &r);
+
+        check(strstr(r.metric[SR_SIGNAL].detail, "MSM1-3") == NULL,
+              "two minutes without C/N0 is the clock, not the stream");
+        check(strstr(r.metric[SR_IONOSPHERE].detail, "dual-frequency") == NULL,
+              "and two minutes without ROTI is arcs still forming");
     }
 
     printf("\n%s\n", failures ? "FAILURES" : "all station-report cases pass");

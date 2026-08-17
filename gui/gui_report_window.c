@@ -241,6 +241,39 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
 
 /* ── Window ──────────────────────────────────────────────────────────── */
 
+/**
+ * @brief Width the verdict column needs, in this font, at this DPI.
+ *
+ * Measured, not guessed.  Two guesses had already clipped the longest
+ * value -- and "INSUFFICIENT EVIDENCE" is not a rare one: it is what
+ * every session shows for its first ten minutes, so it is the worst of
+ * the four to truncate.  A number that fits the developer's font at the
+ * developer's scaling is not a number that fits.
+ */
+static int VerdictColumnWidth(HWND hLv)
+{
+    int widest = 0;
+    HDC hdc = GetDC(hLv);
+    if (!hdc) return 190;
+
+    HFONT f = (HFONT)SendMessage(hLv, WM_GETFONT, 0, 0);
+    HFONT old = f ? (HFONT)SelectObject(hdc, f) : NULL;
+
+    for (int v = SR_INSUFFICIENT; v <= SR_UNSTABLE; v++) {
+        const char *s = sr_verdict_name(v);
+        SIZE sz;
+        if (GetTextExtentPoint32(hdc, s, (int)strlen(s), &sz) &&
+            sz.cx > widest)
+            widest = sz.cx;
+    }
+    if (old) SelectObject(hdc, old);
+    ReleaseDC(hLv, hdc);
+
+    /* The list draws a margin either side of the text, and a column
+     * exactly as wide as its content still shows an ellipsis. */
+    return widest + 24;
+}
+
 static void LayoutChildren(HWND hwnd)
 {
     RECT rc;
@@ -248,9 +281,20 @@ static void LayoutChildren(HWND hwnd)
     int w = rc.right - rc.left, h = rc.bottom - rc.top;
 
     HWND hLv = GetDlgItem(hwnd, IDC_REPORT_LIST);
-    if (hLv)
+    if (hLv) {
         MoveWindow(hLv, 0, REPORT_HEADER_H, w,
                    h - REPORT_HEADER_H - REPORT_FOOTER_H, TRUE);
+
+        /* Detail takes whatever is left, so widening the window widens
+         * the column that actually varies rather than leaving a strip of
+         * grey beside four fixed ones. */
+        int fixed = ListView_GetColumnWidth(hLv, 0)
+                  + ListView_GetColumnWidth(hLv, 1)
+                  + ListView_GetColumnWidth(hLv, 2);
+        int detail = w - fixed - GetSystemMetrics(SM_CXVSCROLL) - 4;
+        if (detail < 160) detail = 160;
+        ListView_SetColumnWidth(hLv, 3, detail);
+    }
 
     HWND hRst = GetDlgItem(hwnd, IDC_REPORT_BTN_RESET);
     if (hRst) MoveWindow(hRst, 8, h - REPORT_FOOTER_H + 6, 140, 26, TRUE);
@@ -275,12 +319,17 @@ static LRESULT CALLBACK ReportWndProc(HWND hwnd, UINT msg,
         ListView_SetExtendedListViewStyle(hLv,
             LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
-        /* Sized so the four fit the default width without a horizontal
-         * scrollbar, and so the *verdict* is never the column that
-         * clips: "INSUFFICIENT EVIDENCE" is the longest of them and the
-         * one most runs spend their first ten minutes showing. */
+        /* The font first, and then the columns: the verdict's width is
+         * measured in whatever font the list will actually draw with,
+         * and measuring before this would measure the stock system font
+         * the control is born with. */
+        HFONT f = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        SendMessage(hLv, WM_SETFONT, (WPARAM)f, TRUE);
+
+        /* The verdict's width is measured from the strings it will hold;
+         * Detail is resized to fill in LayoutChildren(). */
         struct { const char *t; int w; } cols[] = {
-            { "Stability", 150 }, { "Verdict", 170 },
+            { "Stability", 150 }, { "Verdict", VerdictColumnWidth(hLv) },
             { "Value",      70 }, { "Detail",  290 },
         };
         for (int i = 0; i < 4; i++) {
@@ -296,10 +345,8 @@ static LRESULT CALLBACK ReportWndProc(HWND hwnd, UINT msg,
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             0, 0, 10, 10, hwnd, (HMENU)IDC_REPORT_BTN_RESET, hInst, NULL);
 
-        HFONT f = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
         SendMessage(GetDlgItem(hwnd, IDC_REPORT_BTN_RESET), WM_SETFONT,
                     (WPARAM)f, TRUE);
-        SendMessage(hLv, WM_SETFONT, (WPARAM)f, TRUE);
 
         LayoutChildren(hwnd);
         RefreshRows(hwnd, state);
