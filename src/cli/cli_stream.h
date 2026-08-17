@@ -127,6 +127,25 @@ void cli_capture_apply(NsOptions *opt);
 extern bool cli_report;
 
 /**
+ * @brief `--rtcm-stdin`: read the stream from stdin instead of a caster.
+ *
+ * Offline replay of a `.rtcm3` written by `--capture`, on the same code
+ * path as a live run — the same framing, CRC, statistics and report.
+ * Two things follow, and both are the point rather than side effects:
+ *
+ * - **The window is the capture's, not the replay's.** Six hours read
+ *   from disk in two seconds is judged over six hours, because the
+ *   report is paced and stamped by @ref NsStatsSnapshot::stream_time_s.
+ * - **Availability reads `n/a`.** A file holds no arrival times and
+ *   never drops, so a clean zero would be an invention.
+ *
+ * Modes that cannot honour it reject it rather than ignore it: a flag
+ * silently dropped is how `-t 600 --rtcm-stdin` came to open a live
+ * connection to a caster instead of reading the file it was handed.
+ */
+extern bool cli_replay_stdin;
+
+/**
  * @brief Print the report a run accumulated, if `--report` asked for one.
  */
 void cli_report_print(const SrState *sr);

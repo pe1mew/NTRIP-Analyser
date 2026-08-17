@@ -259,6 +259,44 @@ To turn one into a RINEX observation file — for a base-station
 declaration, say — see
 [Declaring a base station](base-declaration.md).
 
+### 2c. Reading a capture back
+
+`--rtcm-stdin` reads the stream from standard input instead of opening a
+socket, so a capture goes back through the same framing, CRC, statistics
+and report as the live run that recorded it. It works with `-d`, `-t`,
+`-s` and `-S/--sky`.
+
+```sh
+ntrip-analyser -t 3600 --report --rtcm-stdin < 20260815131024_RFSEE01.rtcm3
+```
+
+Two things make that worth doing rather than merely possible:
+
+- **The window is the capture's, not the replay's.** Six hours read from
+  disk in a fraction of a second are judged over six hours, because the
+  report is paced and stamped by the stream's own clock. The duration
+  (`-t 3600`) bounds the *stream* analysed, so it means the same thing
+  live and offline; a shorter capture simply ends at its end.
+- **A capture keeps its verdict available.** Thresholds change, and a
+  `.rtcm3` on disk can be re-judged years later against ones that did not
+  exist when it was recorded.
+
+**Availability reads `n/a`.** A file holds no arrival times and never
+drops, so a reconnection count taken from one would be an invention.
+
+**Where a replay and the live run disagree, the difference is the
+network** — and that is information rather than error. In one 120-second
+run against a healthy station the live report recorded 29 satellites at
+its worst while the replay of that same session recorded 38, because the
+delivery stalled for seven seconds and the analyser could not see what
+had not yet arrived. The capture's epochs are consecutive: the station
+never lost a satellite. A live run answers *what am I being given*; a
+replay answers *what did the station send*.
+
+Modes that cannot honour the flag reject it rather than ignore it —
+`--check` among them, because tier 1 is a live acceptance test and a
+capture cannot answer questions about delivery.
+
 ---
 
 ### 3. Usage Examples

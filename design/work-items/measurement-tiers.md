@@ -299,9 +299,56 @@ clock at all.
 
 That also makes the offline path the interesting one: a `.rtcm3` on disk
 becomes a station's history, re-judgeable years later against thresholds
-that did not exist when it was recorded. Reporting over a replayed
-capture is now a wiring question for the CLI's offline mode, not a
-missing measurement.
+that did not exist when it was recorded.
+
+## Phase 2c — Reporting over a capture — **built**
+
+`--rtcm-stdin` now reaches `-d`, `-t` and `-s`, not only `--sky`, and
+`cli_run()` opens stdin through `ns_open_stream()` instead of a socket.
+Everything downstream is the live code path. `sr_reset(…, true)` marks
+the run as a replay, so availability reads `n/a` rather than a clean
+zero.
+
+Wiring the flag was the small part. Three things were wrong underneath
+it, and each was invisible until a capture was actually reported on:
+
+- **Every mode but `--sky` ignored the flag.** `-t 600 --rtcm-stdin`
+  opened a live connection to the configured caster and analysed *that*
+  for ten minutes while the file it had been handed sat unread on stdin
+  — a wrong answer delivered with total confidence. Unsupported modes
+  now reject it, the way `--capture` already rejects modes that cannot
+  capture.
+- **Staleness was measured against the host clock.** `sv_track` and
+  `iono` ask "how long ago was this seen", and the session passed wall
+  time. Six hours of file arrive in milliseconds, so every satellite
+  looked current and every epoch interval read 0.000 s — the
+  message-type table was empty of meaning and the delivery-rate metric
+  could not fail. `obs_clock()` now supplies arrival time live and the
+  stream clock on a replay, in one place: **live behaviour is byte for
+  byte what it was**, because there the two clocks are the same one.
+- **The replay read 8 KB a pump**, and statistics are recomputed once a
+  pump — so a station sending 1.6 KB an epoch was sampled every six
+  seconds offline against once a second live. An analysis must not be
+  coarser offline than live; the replay now reads a kilobyte at a time,
+  and the same capture yields 88 samples where the live run yielded 89.
+
+### A live report and its replay may legitimately differ
+
+The same 120-second HANESE session: live reported 29 satellites at its
+worst, the replay 38. Neither is wrong. The live run's message-type
+table shows a 7.4 s arrival gap; the capture's epochs are consecutive at
+1.000 s. The caster stalled and then delivered a burst, and for those
+seven seconds the analyser could not see satellites that had not yet
+arrived — while the station had not lost one.
+
+So the property to claim is the one the test pins: *the same snapshots*
+produce the same report at any speed. A live run additionally measures
+delivery, which no file can hold — which is exactly why availability is
+marked live-only, and is worth stating rather than leaving for a user to
+discover by comparing two reports and doubting both.
+
+Next: the daemon, which runs for months and is the natural home; then
+the GUI, for commissioning.
 
 **What it does not give is a date.** An epoch is a time *within* a week
 or a day with no week number, so it measures spans, never instants.

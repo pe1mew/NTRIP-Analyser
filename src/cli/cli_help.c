@@ -45,8 +45,10 @@ void print_help(const char *progname) {
     printf("                           stderr instead of the human-readable line; final\n");
     printf("                           {\"event\":\"stop\",\"reason\":...,\"saved\":...} on exit.\n");
     printf("      --rtcm-stdin         Read obs RTCM bytes from stdin instead of opening\n");
-    printf("                           the NTRIP socket.  Auto-stops at EOF.  Lets you do\n");
-    printf("                           offline replay:  --sky --rtcm-stdin -R nav.rnx <cap.rtcm3\n");
+    printf("                           the NTRIP socket.  Auto-stops at EOF.  Works with\n");
+    printf("                           -d, -t, -s and -S/--sky, so a capture can be re-read\n");
+    printf("                           offline:   -t 3600 --report --rtcm-stdin <cap.rtcm3\n");
+    printf("                           Windows are the capture's, not the replay's.\n");
     printf("  -q, --quiet              Suppress informational chatter.  Errors still go to\n");
     printf("                           stderr; the saved PNG path is still printed to stdout.\n");
     printf("  -v, --verbose            Verbose output (overrides decoder mute in --sky mode).\n");

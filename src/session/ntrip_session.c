@@ -55,6 +55,15 @@
 /** Largest RTCM 3.x frame: 3 header + 1023 payload + 3 CRC. */
 #define NS_FRAME_MAX   1029
 #define NS_RECV_BUF    8192
+
+/* A replay is read in small bites.  The statistics are recomputed once a
+ * pump, so the chunk size *is* the granularity at which a consumer can
+ * observe the stream: at 8 KB a station sending 1.6 KB per epoch would
+ * be sampled every six seconds, and an analysis must not be coarser
+ * offline than the same analysis is live.  A kilobyte lands under one
+ * epoch for any plausible station, and the extra freads are buffered by
+ * stdio and cost nothing measurable. */
+#define NS_REPLAY_BUF  1024
 #define NS_HEADER_MAX  4096
 
 /** How long an SV must be unseen before it leaves the tracked count. */
@@ -467,6 +476,31 @@ static void clock_feed(NtripSession *s, int msg_type,
     s->stats.stream_time_s = s->clk_elapsed_s;
 }
 
+/**
+ * @brief The clock that "currently" is measured against.
+ *
+ * Two things in this file ask how long ago something happened: which
+ * satellites are still visible (@ref sv_track, @ref iono), and how far
+ * apart a message type's epochs are.
+ *
+ * **Live, that is arrival time** and must stay arrival time.  It is the
+ * honest measure of what the rover is being given, and the whole value
+ * of the delivery-rate figure is that it reports the caster's timing
+ * rather than the base's intent.
+ *
+ * **A replay has no arrival times worth the name** -- six hours of file
+ * arrive in milliseconds -- so wall time there reports every satellite
+ * as currently visible and every epoch interval as zero.  A capture is
+ * asked instead what it *recorded*: the stream's own clock stands in, so
+ * an archived session reports the satellites it held and the intervals
+ * it saw.
+ */
+static double obs_clock(const NtripSession *s, double now)
+{
+    if (!s->is_file) return now;
+    return s->t0 + s->clk_elapsed_s;
+}
+
 /* ── Statistics ──────────────────────────────────────────────────── */
 
 /** @brief Index of a type in stats.types[], creating it if needed. */
@@ -558,12 +592,16 @@ static void stats_refresh(NtripSession *s, double now)
     /* Recomputed rather than accumulated: a satellite leaving view has to
      * lower the count, and only a fresh sweep against the staleness
      * window can do that. */
-    sv_track_summarise(&s->sv, now, SV_TRACK_STALE_S,
+    /* The same clock the tracks were fed with, or every satellite in a
+     * replayed capture looks like it arrived a moment ago. */
+    double t_obs = obs_clock(s, now);
+
+    sv_track_summarise(&s->sv, t_obs, SV_TRACK_STALE_S,
                        s->stats.gnss, NS_MAX_GNSS, &s->stats.n_gnss,
                        &s->stats.sats_total, &s->stats.cnr_mean_all);
 
     IonoSummary is;
-    iono_summarise(&s->iono, now, &is);
+    iono_summarise(&s->iono, t_obs, &is);
     s->stats.iono_verdict       = is.verdict;
     s->stats.iono_roti_median   = is.roti_median;
     s->stats.iono_roti_max      = is.roti_max;
@@ -577,10 +615,11 @@ int ns_iono_view(const NtripSession *s, IonoSatView *out, int max_out)
 {
     /* Implemented here rather than by handing the IonoState out: the
      * staleness test inside iono_sat_view() compares against the clock
-     * iono_feed() was driven with, which is this session's ns_now() --
-     * a caller using its own clock would misjudge staleness. */
+     * iono_feed() was driven with, which is this session's obs_clock()
+     * -- a caller using its own clock would misjudge staleness, and over
+     * a replay would see every arc as current. */
     if (!s) return 0;
-    return iono_sat_view(&s->iono, ns_now(), out, max_out);
+    return iono_sat_view(&s->iono, obs_clock(s, ns_now()), out, max_out);
 }
 
 static void maybe_emit_stats(NtripSession *s, double now)
@@ -683,17 +722,21 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                     uint32_t epoch = 0;
                     bool has_epoch = msm_get_epoch(s->frame + 3, payload_len,
                                                    msg_type, &epoch) != 0;
-                    bool new_epoch = stats_frame(s, msg_type, epoch,
-                                                 has_epoch, now);
+                    /* Before the statistics: this frame's epoch is part
+                     * of the clock they are measured against. */
                     clock_feed(s, msg_type, epoch, has_epoch);
+                    double t_obs = obs_clock(s, now);
+
+                    bool new_epoch = stats_frame(s, msg_type, epoch,
+                                                 has_epoch, t_obs);
 
                     /* sv_track also reads the legacy observation
                      * messages; iono ignores everything but MSM6/7.
                      * Neither needs the caller to classify. */
                     sv_track_feed(&s->sv, s->frame + 3, payload_len,
-                                  msg_type, now);
+                                  msg_type, t_obs);
                     iono_feed(&s->iono, s->frame + 3, payload_len,
-                              msg_type, now);
+                              msg_type, t_obs);
 
                     /* The broadcast reference position.  These snapshot
                      * fields existed since the schema was written but
@@ -1020,7 +1063,7 @@ int ns_pump(NtripSession *s, int timeout_ms)
     /* ── Replay ── */
     if (s->is_file) {
         if (!s->file) { emit_end(s, NS_END_EOF); return -1; }
-        unsigned char buf[NS_RECV_BUF];
+        unsigned char buf[NS_REPLAY_BUF];
         size_t n = fread(buf, 1, sizeof(buf), s->file);
         if (n == 0) {
             stats_refresh(s, now);
@@ -1223,7 +1266,10 @@ double ns_uptime(const NtripSession *s)
 int ns_sat_list(const NtripSession *s, SvTrackEntry *out, int max)
 {
     if (!s) return 0;
-    return sv_track_list(&s->sv, ns_now(), NS_SAT_STALE_S, out, max);
+    /* obs_clock(), not ns_now(): the tracks were fed with it, and over a
+     * replay the two are not the same clock. */
+    return sv_track_list(&s->sv, obs_clock(s, ns_now()), NS_SAT_STALE_S,
+                         out, max);
 }
 
 void ns_set_advertised(NtripSession *s, const SourcetableType *list, int n)

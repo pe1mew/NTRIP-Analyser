@@ -1076,6 +1076,49 @@ static int capture_resolve(const NTRIP_Config *config, Operation operation)
     return EXIT_OK;
 }
 
+/**
+ * @brief Validate `--rtcm-stdin` against the mode, and arm the replay.
+ *
+ * The sky map has always read stdin through its own path; the stream
+ * modes now read it through @ref cli_replay_stdin, which is what makes
+ * `--report` work over a capture.
+ *
+ * Every other mode **rejects** the flag rather than ignoring it. `-t 600
+ * --rtcm-stdin` used to open a live connection to the configured caster
+ * and analyse that for ten minutes while the file it was handed sat
+ * unread on stdin -- a wrong answer delivered with total confidence,
+ * which is the worst kind.
+ *
+ * @return EXIT_OK, or EXIT_BAD_ARGS with the reason on stderr.
+ */
+static int replay_resolve(Operation operation)
+{
+    if (!rtcm_stdin) return EXIT_OK;
+
+    switch (operation) {
+        case OP_DECODE_STREAM:
+        case OP_ANALYZE_TYPES:
+        case OP_ANALYZE_SATS:
+            cli_replay_stdin = true;
+            break;
+        case OP_SKY_HEATMAP:
+            break;                  /* run_sky_stdin_stream() owns it */
+        default:
+            ERR("[ERROR] --rtcm-stdin needs a mode that reads a stream:\n"
+                "        -d, -t, -s or -S/--sky.\n"
+                "        --check is a live acceptance test: a capture holds\n"
+                "        no arrival times, so it cannot answer tier 1.\n");
+            return EXIT_BAD_ARGS;
+    }
+
+#ifdef _WIN32
+    /* A text-mode handle mangles CRLF byte pairs inside RTCM payloads,
+     * which corrupts frames that were perfectly valid on disk. */
+    _setmode(_fileno(stdin), _O_BINARY);
+#endif
+    return EXIT_OK;
+}
+
 int main(int argc, char *argv[]) {
     NTRIP_Config config;
     const char *config_filename = "config.json";
@@ -1307,6 +1350,10 @@ int main(int argc, char *argv[]) {
         int rc = capture_resolve(&config, operation);
         if (rc != EXIT_OK) return rc;
     }
+    {
+        int rc = replay_resolve(operation);
+        if (rc != EXIT_OK) return rc;
+    }
 
 #ifdef _WIN32   // === Windows-specific: Initialize Winsock ===
     WSADATA wsaData;
@@ -1382,7 +1429,10 @@ int main(int argc, char *argv[]) {
 
     // === 2. Start NTRIP stream from configured mountpoint ===
     if (operation == OP_DECODE_STREAM) {
-        INFO("[DEBUG] Starting NTRIP stream from mountpoint '%s'...\n", config.MOUNTPOINT);
+        if (cli_replay_stdin)
+            INFO("[DEBUG] Replaying RTCM from stdin...\n");
+        else
+            INFO("[DEBUG] Starting NTRIP stream from mountpoint '%s'...\n", config.MOUNTPOINT);
         if (filter_count > 0) {
             INFO("[DEBUG] Filter list: ");
             for (int i = 0; i < filter_count; ++i) {

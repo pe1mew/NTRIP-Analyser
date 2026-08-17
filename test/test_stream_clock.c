@@ -269,6 +269,47 @@ int main(void)
                    "a station still sending 1004 is measurable");
     }
 
+    /* ── 11. A replay reports the intervals it recorded ────────────── */
+    {
+        /* Everything in this file arrives in microseconds, so measured
+         * against the wall a capture's epochs are all simultaneous: the
+         * message-type table read 0.000 s and the delivery-rate metric
+         * was meaningless offline.  A replay is timed by the stream it
+         * holds, so it reports the second between epochs that is
+         * actually recorded in it. */
+        n = fill_run(b, 0, 11, 1077, 100000, 1000);
+
+        FILE *f = fopen(SRC, "wb");
+        if (!f) { check(0, "could not write the source stream"); return 1; }
+        unsigned char frame[64];
+        for (int i = 0; i < n; i++) {
+            int len = build_frame(frame, b[i].msg_type, b[i].epoch);
+            fwrite(frame, 1, (size_t)len, f);
+        }
+        fclose(f);
+
+        NsOptions opt;
+        ns_options_default(&opt);
+        opt.stats_interval_s = 0.0;
+
+        NtripSession *s = ns_open_file(SRC, &opt, NULL, NULL);
+        if (!s) { check(0, "session could not be allocated"); return 1; }
+        while (ns_pump(s, 0) >= 0) { }
+
+        const NsStatsSnapshot *snap = ns_stats(s);
+        const NsTypeStats *t = (snap && snap->n_types > 0) ? &snap->types[0]
+                                                           : NULL;
+        check(t != NULL && t->epochs == 11, "the replay counted its epochs");
+        if (t) {
+            check_near(t->avg_dt, 1.0, 0.001,
+                       "a replayed epoch interval is the recorded second");
+            check_near(t->max_dt, 1.0, 0.001,
+                       "and the widest gap is the one in the file");
+        }
+        ns_close(s);
+        remove(SRC);
+    }
+
     printf("\n%s\n", failures ? "FAILURES" : "all stream-clock cases pass");
     return failures ? 1 : 0;
 }

@@ -24,6 +24,7 @@ bool cli_auto_reconnect = false;   /* set by --reconnect in main.c */
 const char *cli_capture_path      = NULL;  /* set by --capture     */
 uint64_t    cli_capture_max_bytes = 0;     /* set by --capture-max */
 bool        cli_report            = false; /* set by --report      */
+bool        cli_replay_stdin      = false; /* set by --rtcm-stdin  */
 #include "session/ntrip_session.h"
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"
@@ -38,6 +39,11 @@ bool        cli_report            = false; /* set by --report      */
  * uplink, once per second.  Kept: it is a useful heartbeat and scripts
  * may key on it. */
 #define CLI_GGA_INTERVAL_S 1
+
+/* Seconds of *stream* between tier-2 samples.  One a second matches what
+ * a 1 Hz station sends, and makes the sample count a reader can compare
+ * against the window an honest number in both directions. */
+#define CLI_REPORT_SAMPLE_S 1.0
 
 /* ── Shared context ─────────────────────────────────────────────────── */
 
@@ -243,8 +249,16 @@ bool cli_capture_finish(const NtripSession *s)
 /**
  * @brief Open a session for a CLI mode and pump it.
  *
+ * Live or replayed, on the same code path: under `--rtcm-stdin` the
+ * bytes come from stdin instead of a caster, and everything downstream
+ * -- framing, CRC, statistics, the report -- is identical, which is the
+ * only way offline analysis cannot drift from live behaviour.
+ *
  * @param seconds 0 = run until the stream ends or the process is
- *                interrupted; otherwise stop after this many seconds.
+ *                interrupted; otherwise stop after this many seconds of
+ *                **stream**.  Live that is wall time too; over a replay
+ *                it is the amount of the capture analysed, so `-t 600`
+ *                means the same thing to both.
  * @return The session, still open, so the caller can read its statistics;
  *         the caller must ns_close() it.  NULL when it could not be
  *         created.
@@ -260,7 +274,13 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
     opt.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI);
     cli_capture_apply(&opt);
 
-    NtripSession *sess = ns_open(&opt, cli_on_event, c);
+    /* stdin is not a path, so it is the one source ns_open_file() cannot
+     * express; ns_close() leaves the handle open, since we do not own
+     * it.  Capturing a replay is not a contradiction -- it rewrites the
+     * input keeping only frames with a valid CRC. */
+    NtripSession *sess = cli_replay_stdin
+        ? ns_open_stream(stdin, false, &opt, cli_on_event, c)
+        : ns_open(&opt, cli_on_event, c);
     if (!sess) {
         fprintf(stderr, "[ERROR] Out of memory opening the stream session\n");
         return NULL;
@@ -268,39 +288,52 @@ static NtripSession *cli_run(CliCtx *c, int seconds)
 
     time_t t_start   = time(NULL);
     time_t last_gga  = 0;   /* forces an immediate first GGA */
-    time_t last_srs  = 0;   /* last tier-2 sample */
 
-    /* The window comes from the stream's own clock, never from this
-     * host: the wall clock says how long the run took, and the epochs
-     * say how much stream it covered. Live the two agree except when
-     * NTP steps one of them; over a replay they do not agree at all. */
-    sr_reset(&c->sr, false);
+    /* A replay holds no arrival times and never drops, so availability
+     * is reported as unavailable rather than as a clean zero it did not
+     * earn.  test_station_report.c pins that distinction. */
+    sr_reset(&c->sr, cli_replay_stdin);
+
+    /* Stream time of the last tier-2 sample.  The cadence is the
+     * stream's, not this host's: a six-hour capture read from disk in
+     * two seconds must yield six hours of samples, not two.  Live the
+     * two cadences are the same one. */
+    double last_srs = -1e9;
 
     for (;;) {
-        time_t now = time(NULL);
         if (cli_stop_requested) break;   /* only set while capturing */
 
-        /* Sampled once a second by the wall clock -- that is a cadence,
-         * not a measurement -- and stamped with the stream's. */
-        if (cli_report && now != last_srs) {
-            last_srs = now;
-            const NsStatsSnapshot *snap = ns_stats(sess);
-            if (snap && snap->stream_time_s >= 0.0)
-                sr_feed(&c->sr, snap, snap->stream_time_s);
+        const NsStatsSnapshot *snap = ns_stats(sess);
+        double t_stream = snap ? snap->stream_time_s : NS_UNSET;
+
+        if (cli_report && t_stream >= 0.0
+            && t_stream - last_srs >= CLI_REPORT_SAMPLE_S) {
+            last_srs = t_stream;
+            sr_feed(&c->sr, snap, t_stream);
         }
 
-        if (seconds > 0 && (now - t_start) >= seconds) break;
+        if (cli_replay_stdin) {
+            /* The duration bounds the stream analysed, not the seconds
+             * spent analysing it.  A capture shorter than `seconds` ends
+             * at EOF, which ns_pump() reports below. */
+            if (seconds > 0 && t_stream >= (double)seconds) break;
+        } else {
+            time_t now = time(NULL);
+            if (seconds > 0 && (now - t_start) >= seconds) break;
 
-        if ((now - last_gga) >= CLI_GGA_INTERVAL_S) {
-            if (ns_send_gga(sess, c->config->LATITUDE,
-                            c->config->LONGITUDE)) {
-                printf("GGA ");
-                fflush(stdout);
+            if ((now - last_gga) >= CLI_GGA_INTERVAL_S) {
+                if (ns_send_gga(sess, c->config->LATITUDE,
+                                c->config->LONGITUDE)) {
+                    printf("GGA ");
+                    fflush(stdout);
+                }
+                last_gga = now;
             }
-            last_gga = now;
         }
 
-        if (ns_pump(sess, 200) < 0) break;
+        /* No wait on a replay: there is nothing to wait for, and a
+         * 200 ms poll would turn six hours of capture into a crawl. */
+        if (ns_pump(sess, cli_replay_stdin ? 0 : 200) < 0) break;
     }
     return sess;
 }
@@ -328,7 +361,11 @@ int cli_stream_decode(const NTRIP_Config *config,
 
 int cli_analyze_types(const NTRIP_Config *config, int seconds)
 {
-    printf("[INFO] Analyzing message types for %d seconds...\n", seconds);
+    if (cli_replay_stdin)
+        printf("[INFO] Replaying RTCM from stdin, analyzing message types "
+               "over %d s of stream...\n", seconds);
+    else
+        printf("[INFO] Analyzing message types for %d seconds...\n", seconds);
 
     CliCtx c;
     memset(&c, 0, sizeof(c));
@@ -378,8 +415,12 @@ int cli_analyze_types(const NTRIP_Config *config, int seconds)
 
 int cli_analyze_sats(const NTRIP_Config *config, int seconds)
 {
-    printf("Opening NTRIP stream and analyzing satellites for %d seconds...\n",
-           seconds);
+    if (cli_replay_stdin)
+        printf("Replaying RTCM from stdin and analyzing satellites over "
+               "%d s of stream...\n", seconds);
+    else
+        printf("Opening NTRIP stream and analyzing satellites for "
+               "%d seconds...\n", seconds);
 
     CliCtx c;
     memset(&c, 0, sizeof(c));
@@ -685,7 +726,7 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
 
     SrState sr;
     sr_reset(&sr, false);
-    double last_srs = -1.0;
+    double last_srs = -1e9;   /* stream time of the last tier-2 sample */
 
     for (;;) {
         if (cli_stop_requested) break;   /* only set while capturing */
@@ -693,13 +734,13 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
         double el = (double)(time(NULL) - t0);
         const NsStatsSnapshot *snap = ns_stats(sess);
 
-        /* Once a second, stamped with the stream's clock rather than el:
-         * the two agree here, and using the one that also works over a
-         * replay keeps a single rule in the codebase. */
-        if (cli_report && el != last_srs) {
-            last_srs = el;
-            if (snap && snap->stream_time_s >= 0.0)
-                sr_feed(&sr, snap, snap->stream_time_s);
+        /* Paced and stamped by the stream's clock rather than el, which
+         * is the same rule cli_run() follows: one rule, so a reader does
+         * not have to work out which clock a given report used. */
+        if (cli_report && snap && snap->stream_time_s >= 0.0
+            && snap->stream_time_s - last_srs >= CLI_REPORT_SAMPLE_S) {
+            last_srs = snap->stream_time_s;
+            sr_feed(&sr, snap, snap->stream_time_s);
         }
 
         if (vrs_mode && !gate_started && el - last_gga >= 10.0) {

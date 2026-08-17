@@ -73,6 +73,46 @@ It is also the better clock for a live run, where the two used to agree:
 a host NTP correction steps the wall clock sideways mid-session, and
 epoch counting cannot be stepped.
 
+### Added — reporting over a captured stream
+
+`--rtcm-stdin` now works with `-d`, `-t` and `-s`, not only `--sky`, so a
+`.rtcm3` written by `--capture` can be read back through the same
+framing, CRC, statistics and report as the live run that recorded it:
+
+```sh
+ntrip-analyser -t 3600 --report --rtcm-stdin < 20260815131024_RFSEE01.rtcm3
+```
+
+The window is the capture's, not the replay's — six hours read from disk
+in a fraction of a second are judged over six hours — and the duration
+bounds the stream analysed, so `-t 3600` means the same thing live and
+offline. Availability reads `n/a`, because a file holds no arrival times.
+
+Three faults underneath the flag had to be fixed for the result to be
+worth reading, and each was invisible until a capture was reported on:
+
+* **Every mode but `--sky` ignored `--rtcm-stdin`.** `-t 600
+  --rtcm-stdin` opened a live connection to the configured caster and
+  analysed that for ten minutes while the file it had been handed sat
+  unread on stdin. Unsupported modes now reject the flag rather than
+  drop it.
+* **Staleness was measured against the host clock.** Satellite tracking
+  and the ionosphere ask how long ago something was seen, and six hours
+  of file arrive in milliseconds — so offline, every satellite looked
+  current and every epoch interval read 0.000 s. A replay is now timed
+  by the stream it holds. **Live behaviour is unchanged**, because live
+  the two clocks are the same one.
+* **A replay read 8 KB per cycle**, which sampled a 1 Hz station every
+  six seconds offline against once a second live. Now a kilobyte, and
+  the same capture yields 88 samples where the live run yielded 89.
+
+**A live report and its replay may legitimately differ.** In one
+120-second run the live report recorded 29 satellites at its worst and
+the replay of that same session recorded 38 — because delivery stalled
+for seven seconds while the station's epochs ran on unbroken. A live run
+answers *what am I being given*; a replay answers *what did the station
+send*.
+
 ### Fixed — the snapshot JSON was not valid JSON
 
 A missing separator between `advertised_gnss` and `types_missing`
