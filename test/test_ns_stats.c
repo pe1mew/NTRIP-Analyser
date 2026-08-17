@@ -447,6 +447,9 @@ int main(void)
         json_check_unique(json, "and no key of it is emitted twice");
         check(strstr(json, "\"overall_name\":\"STABLE\"") != NULL,
               "the verdict is carried by name as well as by number");
+        /* A count of satellites, not 38.000 of them. */
+        check(strstr(json, "\"satellites_value\":38,") != NULL,
+              "a count is serialised without a fractional part");
 
         /* Built from a capture, availability cannot be measured. */
         sr_reset(&st, true);

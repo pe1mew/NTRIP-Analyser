@@ -256,6 +256,18 @@ const char *sr_verdict_name(int verdict)
     }
 }
 
+int sr_metric_decimals(int metric_id)
+{
+    switch (metric_id) {
+    case SR_SATELLITES:   return 0;   /* a count of satellites */
+    case SR_DELIVERY:     return 0;   /* whole percent of samples */
+    case SR_SIGNAL:       return 1;   /* dB-Hz, as the detail states  */
+    case SR_AVAILABILITY: return 2;   /* reconnects per hour          */
+    case SR_IONOSPHERE:   return 2;   /* TECU/min, as iono.h reports  */
+    default:              return 3;   /* a CRC rate is small          */
+    }
+}
+
 const char *sr_metric_key(int metric_id)
 {
     switch (metric_id) {
@@ -401,7 +413,8 @@ int sr_to_json(const StationReport *r, const char *mountpoint,
 
         snprintf(key, sizeof(key), "%s_value", k);
         o_key(&o, key);
-        if (m->available) o_num(&o, m->value, 3); else o_str(&o, "null");
+        if (m->available) o_num(&o, m->value, sr_metric_decimals(i));
+        else              o_str(&o, "null");
 
         snprintf(key, sizeof(key), "%s_detail", k);
         o_key(&o, key);

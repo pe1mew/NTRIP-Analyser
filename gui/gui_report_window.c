@@ -135,7 +135,7 @@ static void RefreshRows(HWND hwnd, AppState *state)
             SetRow(hLv, row++, name, "n/a", "--", m->detail, HEALTH_INFO);
             continue;
         }
-        snprintf(num, sizeof(num), "%.3f", m->value);
+        snprintf(num, sizeof(num), "%.*f", sr_metric_decimals(i), m->value);
         SetRow(hLv, row++, name, sr_verdict_name(m->verdict), num,
                m->detail, SeverityOf(m->verdict));
     }

@@ -181,6 +181,23 @@ const char *sr_verdict_name(int verdict);
 const char *sr_metric_key(int metric_id);
 
 /**
+ * @brief Decimal places @ref SrMetric::value is meaningful to.
+ *
+ * Satellites held is a **count**. Printed as `39.000` it invites the
+ * reader to wonder what a thousandth of a satellite is, and it
+ * contradicts its own detail line, which says "fewest held: 39".
+ *
+ * The rest are given the precision their detail already states — one
+ * decimal for dB-Hz, two for ROTI — so the two halves of a row cannot
+ * disagree about how well the thing is known.
+ *
+ * Here rather than in a frontend: the CLI, the GUI and the daemon's
+ * JSON print the same number, and a rule kept in three places is a rule
+ * kept in none.
+ */
+int sr_metric_decimals(int metric_id);
+
+/**
  * @brief Schema version of @ref sr_to_json's output.
  *
  * Separate from @ref NS_STATS_SCHEMA_VERSION: a snapshot and a report

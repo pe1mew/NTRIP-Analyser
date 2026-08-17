@@ -166,8 +166,9 @@ void cli_report_print(const SrState *sr)
                    "n/a", "--", m->detail);
             continue;
         }
-        printf("%-3d %-18s %-21s %10.3f  %s\n", i + 1, m->label,
-               sr_verdict_name(m->verdict), m->value, m->detail);
+        printf("%-3d %-18s %-21s %10.*f  %s\n", i + 1, m->label,
+               sr_verdict_name(m->verdict), sr_metric_decimals(i),
+               m->value, m->detail);
     }
 
     printf("\n== %s ==  window %.0f s, %d samples\n",

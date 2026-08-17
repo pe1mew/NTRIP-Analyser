@@ -28,6 +28,7 @@ same whichever program renders it.
 |---|---|
 | **[compile.md](compile.md)** | Building on Windows and Linux; shell completion |
 | **[jsonConfigs.md](jsonConfigs.md)** | The one JSON configuration format, which program reads how many entries, and why the passwords in it are in the clear |
+| **[thresholds.md](thresholds.md)** | Every number that decides a verdict, the rule it is used in and the reasoning behind the value — including which are settled and which are starting points |
 | **[base-declaration.md](base-declaration.md)** | From a live stream to the RINEX observation file and coordinates a network such as Centipede-RTK asks for |
 | **[licences.md](licences.md)** | What the project licenses out, what it ships, and the terms of the data services it connects to |
 | **[privacy-policy.md](privacy-policy.md)** | One policy for every program in the suite |
