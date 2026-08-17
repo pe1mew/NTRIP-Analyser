@@ -32,9 +32,12 @@ and what "done" will mean.
 | Phase | What | State |
 |---|---|---|
 | 1 | Capture the stream to a file, with reconnect | **built 2026-08-15; V5 passed 2026-08-16.** Only V6's live half remains |
-| 2 | `--rtcm-stdin` beyond `--sky` | open |
+| 2 | `--rtcm-stdin` beyond `--sky` | **built 2026-08-17** |
 | 3 | Capture the ephemeris stream | not scheduled |
-| 4 | KPI 1 blames the station when the stream stops | open, observed 2026-08-16 |
+| 4 | KPI 1 blames the station when the stream stops | open; observed 2026-08-16, and again 2026-08-17 |
+| 5 | `--report` — tier 2 in the CLI | **built 2026-08-16**, see [measurement-tiers.md](measurement-tiers.md) §2a |
+| 6 | `--thresholds`, `--thresholds-print` | **built 2026-08-17**, see [thresholds-track.md](thresholds-track.md) |
+| 7 | A run that ends without a verdict says so | **built 2026-08-17** |
 
 ---
 
@@ -302,16 +305,57 @@ capture in `gui/gui_thread.c` and the `FILE*` and critical section in
 [gui-track.md](gui-track.md) item, not this one, and it must not be
 started until this phase has shipped and been used.
 
-## Phase 2 — `--rtcm-stdin` beyond `--sky` — open
+## Phase 2 — `--rtcm-stdin` beyond `--sky` — **built 2026-08-17**
 
-`--rtcm-stdin` is `--sky`-only, so `-s` silently connects to the live
+`--rtcm-stdin` was `--sky`-only, so `-s` silently connected to the live
 caster instead of replaying the file it was handed — recorded as a
 caution in [todo.md §0.4](../todo.md) after it made an early comparison
 look like agreement by coincidence. Silently doing something other than
 what the arguments say is the worst class of defect this tool has.
 
-Phase 1 makes this sharper rather than softer: once the CLI can create
-captures, more people will feed them back in.
+It now reaches `-d`, `-t` and `-s`: `cli_run()` opens stdin through
+`ns_open_stream()` and everything downstream is the live code path. The
+duration bounds the **stream** analysed, so `-t 3600` means the same
+thing live and offline.
+
+**Rejected, not ignored.** Modes that cannot honour the flag now refuse
+it with exit 2 rather than dropping it — `--check` among them, because
+tier 1 is a live acceptance test and a capture holds no arrival times.
+This was written the moment the defect was confirmed: `-t 600
+--rtcm-stdin` opened a live connection and analysed *that* for ten
+minutes while the file sat unread on stdin.
+
+### What the flag alone did not fix
+
+Wiring it up was the small part. Two faults underneath it made the first
+replayed reports meaningless, and neither was visible until a capture
+was actually reported on:
+
+- **Staleness was measured against the host clock.** `sv_track` and
+  `iono` ask how long ago something was seen, and six hours of file
+  arrive in milliseconds — so offline, every satellite looked current
+  and every epoch interval read `0.000 s`. `obs_clock()` in
+  `ntrip_session.c` now supplies arrival time live and the stream clock
+  on a replay. **Live behaviour is unchanged**, because live the two are
+  the same clock.
+- **A replay read 8 KB a pump**, and statistics are recomputed once a
+  pump — so a station sending 1.6 KB an epoch was sampled every six
+  seconds offline against once a second live. An analysis must not be
+  coarser offline than live; the replay now reads a kilobyte at a time,
+  which took the same capture from 19 samples to 88.
+
+### A live report and its replay may legitimately differ
+
+Measured on one 120-second HANESE session: the live report recorded 29
+satellites at its worst, the replay of that same session recorded 38.
+Neither is wrong. The live message-type table shows a 7.4 s arrival gap
+while the capture's epochs are consecutive at 1.000 s — the caster
+stalled and then delivered a burst, and for those seven seconds the
+analyser could not see satellites that had not yet arrived.
+
+A live run answers *what am I being given*; a replay answers *what did
+the station send*. Stated in `docs/cli.md` §2c rather than left for a
+user to discover by comparing two reports and doubting both.
 
 ## Phase 4 — KPI 1 blames the station when the stream stops — open
 
@@ -328,6 +372,21 @@ were decoded and counted; the stream then stopped fifteen seconds in, so
 the throughput KPI 1 measures fell to zero. Its `detail` string describes
 the instantaneous state as though it were the session's history, and the
 run reads as a station that never delivered.
+
+**Seen again on 2026-08-17**, against Centipede's `NEAR`, in exactly the
+same shape:
+
+```
+1  Connected and producing  FAIL  0 B/s  Connected but no data arriving
+2  RTCM 3.x format          PASS  289    CRC-valid RTCM 3.x frames decoded
+```
+
+Same cause as the first sighting, too: three connections to that caster
+within a few minutes, the last of which was starved after thirty
+seconds. Two independent recurrences, both of them the analyser's own
+traffic rather than a station fault, is the argument for fixing the
+wording rather than filing it as cosmetic — it has now twice produced a
+report that reads as an accusation against a healthy station.
 
 The verdict itself is right and should not change. `--check` disables
 auto-reconnect on purpose — "a drop is a finding here, not a nuisance to
@@ -367,6 +426,55 @@ not overflow the GUI's column.
 The `EPH_CASTER` block opens a second session, and nothing captures it.
 It would want its own path (`--capture-eph`), because merging two streams
 into one file would produce something neither program can replay.
+
+## Phases 5–7 — what the CLI gained afterwards
+
+Three surfaces landed after this track was written. Each is designed on
+another track; recorded here so the CLI's own surface is described in
+one place.
+
+### Phase 5 — `--report` (tier 2), built 2026-08-16
+
+Rides on the modes that already run for a duration — `-t`, `-s`, `-d`,
+`--check` — rather than becoming a mode of its own, because tier 2 is a
+second reading of the same session rather than a different activity. It
+**never changes the exit code**: `--check` owns that, and two verdicts
+competing for one exit status is how an automation surface becomes
+unusable. Design in [measurement-tiers.md](measurement-tiers.md) §2a.
+
+### Phase 6 — `--thresholds` and `--thresholds-print`, built 2026-08-17
+
+A policy file judges the run instead of the built-in numbers, and
+`--thresholds-print` says what is in force field by field, with
+provenance, needing no config and no network. A run under a non-default
+policy names it and its fingerprint above the verdict, because once
+verdicts can come from different standards, `STATION OK` means nothing
+between two people unless each says which standard produced it. Design
+and the five decisions behind it in
+[thresholds-track.md](thresholds-track.md).
+
+### Phase 7 — a run that ends without a verdict says so, built 2026-08-17
+
+Found by running `--check-vrs` against a live nearest-base service: the
+gate test can answer *before* the eight checks have held their sustain
+window, so the run ended with `== RUNNING ==` as the last line of a
+finished report. There was no verdict, and the live roll-up was being
+printed as though it were one.
+
+```
+== NO VERDICT ==  the gate test finished after 211 s  exit=6
+The checks above are the last reading, not a conclusion: the verdict had not held for 60 s.
+```
+
+Five endings are each named — the verdict settled, a check failed
+outright, the gate test finished, the stream closed, the 300 s limit was
+reached — and the sustain figure comes from the policy in force, so it
+is right even when a file has changed it. The GUI had worded this case
+since it was built (§13.7a of [gui-design.md](../gui-design.md)); the
+CLI had not, which is the sort of divergence that only shows up when
+someone runs both.
+
+---
 
 ## Decisions
 
@@ -451,6 +559,16 @@ None blocking. Three to revisit after it ships:
   currently gets it from the operator's memory.
 
 ## Outcome
+
+Phases 1, 2, 5, 6 and 7 built. Phase 1's verification table is below;
+the later phases were each verified against a live caster or a real
+capture as they landed, and the evidence is in their sections above.
+
+**The CLI's surface now**, in the order a user meets it: `--capture` and
+`--capture-max` to record, `--rtcm-stdin` to read a recording back
+through the identical code path, `--check` / `--check-vrs` for tier 1,
+`--report` for tier 2, and `--thresholds` / `--thresholds-print` to
+judge by a standard of one's own and to ask what that standard is.
 
 Phase 1 built 2026-08-15. What the plan said would happen, and what did:
 

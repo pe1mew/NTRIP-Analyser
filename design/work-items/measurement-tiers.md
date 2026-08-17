@@ -29,11 +29,26 @@ does not exist yet.
 | Phase | What | State |
 |---|---|---|
 | 0 | Declared position versus broadcast ARP — a second tier-1 candidate | specified 2026-08-16, evidence-backed |
-| 1 | Latency, and KPI 9 | specified; **blocked** until free clears closed testing |
-| 2 | The report skeleton, from metrics that already exist | **built 2026-08-16**; no frontend shows it yet |
+| 1 | Latency, and KPI 9 | specified; **the block has changed shape** — see below |
+| 2 | The report skeleton, from metrics that already exist | **built 2026-08-16** |
+| 2a–2e | The CLI, the stream clock, replay, the daemon, the GUI | **all built 2026-08-16/17** |
 | 3 | Sky visibility as a number | after phase 2 |
 | 4 | Cycle-slip rate from lock time | after phase 2 |
 | 5 | Observable retention → multipath RMS **and** a RINEX writer | deferred by decision |
+
+**Tier 2 is now in every desktop program.** The report is built in
+`src/core/station_report.c`, shown by the CLI's `--report`, published by
+the daemon as `<mountpoint>.report.json`, and drawn by the GUI's
+Stability window. Android has tier 1 only.
+
+**Phase 1's block has changed shape, not lifted.** It was "wait until
+free clears closed testing", so that the published claim of *eight
+checks* was not moving during review. The free edition
+[went live on 2026-08-17](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free),
+so the question is no longer about review risk: adding a ninth check now
+means updating a store listing and the five other surfaces that state
+the number. That is a decision to take deliberately rather than a
+condition to wait for.
 
 ---
 
@@ -477,6 +492,86 @@ expensive:
 - **Thresholds in `src/core`**, beside `kpi.h`, never in a frontend.
 - **Per-metric replay derivability** — see the decision below.
 
+## After the tiers shipped — three changes to the tiers themselves
+
+Recorded here because each altered what a tier *means*, not merely where
+it is shown.
+
+### Frame integrity was redefined, twice, and the second time by measurement
+
+As built, tier 2's frame integrity took the **maximum of the snapshot's
+cumulative CRC rate**. Its own documentation said it reported the worst
+rate rather than the average "because an average hides a bad ten minutes
+inside a good six hours" — but the cumulative rate *is* an average, and
+the extreme of a running mean fails in both directions:
+
+- **The first seconds decide it.** Two errors against a small early
+  denominator read 0.93 % and stayed the "worst" for the rest of the run,
+  against a station that settled at 0.43 % and then ran clean.
+- **Later damage is invisible.** Six hours in, fifty corrupted frames
+  move a 130 000-frame denominator by 0.04 % — far below whatever was
+  banked early, so the maximum never notices. The bad ten minutes the
+  metric exists to catch was precisely what it could not see.
+
+Both were observed on one live stream, in the same screenshot.
+
+It is now the **share of frames that passed CRC**, over a window of
+stream time: 100 % is clean and the figure falls as frames fail, which
+is how the question is actually asked. Tier 1 reads the last 60 s — its
+own sustain window, because a check must be able to change within the
+run or the sustain clock is timing a number that can no longer move —
+and tier 2 the last 600 s. One pair of thresholds serves both: 99.9 % to
+warn, 99.0 % to fail, the same standard as tier 1's old one-error-in-a-
+thousand.
+
+The window has a cost, stated in `docs/thresholds.md` rather than
+discovered: a bad *minute* inside a good ten is diluted tenfold, so it
+is caught as `DEGRADED` rather than `UNSTABLE`.
+
+**On the name**: this is deliberately not called FER. Consistent with
+BER that would be Frame *Error* Rate — the complement of what is shown —
+and in codec usage an erasure is a frame that never arrived, which here
+is a dropout and is reported by availability and delivery rate instead.
+Neither RTCM 10403.x nor NTRIP defines such a metric; the field's term
+for the complement is *CRC error rate*, which is what the detail lines
+say when they describe the failing side.
+
+### Both tiers' thresholds became data
+
+Every figure in `kpi.h`, `station_report.h` and `vrs_check.h` is now the
+**default** of a policy the run carries, loadable from a file by the
+CLI, the service and the GUI. This does not change any verdict by
+itself — the test suite asserts that a report built with no policy is
+identical to one built with the defaults — but it changes what a tier
+*is*: a standard a user can disagree with, rather than a number the
+program asserts. Design, the five decisions and the four build phases
+are in [thresholds-track.md](thresholds-track.md).
+
+Two consequences land inside this track:
+
+- **The evidence rules are policy too** — `warmup_s`, `min_window_s`,
+  `min_samples`, `sustain_s`. They are floored, because below them a
+  verdict stops meaning anything, and the floors are refused rather than
+  clamped.
+- **Detail strings stopped quoting thresholds.** *"Fewer than 1 error per
+  1000 frames"* and *"Corrections flowing within 10 s of the GGA"* were
+  true only while the built-in numbers were in force.
+
+### Every row shows the limit it was judged against
+
+`KpiResult` and `SrMetric` carry `limit` and `limit_dir`, set where the
+verdict is decided, formatted in core, and shown by the CLI and both GUI
+windows. A verdict without the number behind it cannot be argued with,
+and this is the half of that promise that does not depend on a user
+loading anything.
+
+It also states something no fixed string could: KPI 5's expectation is
+the sum over the constellations a station streams, so a GPS+GLONASS base
+reads `min 14` where a five-system one reads `min 29` — the number that
+station was actually held to.
+
+---
+
 ## Phase 3 — Sky visibility as a number
 
 `SkyRenderSector` already holds `observed` and `expected` per sector,
@@ -597,4 +692,31 @@ None outstanding. The next decisions belong to phase 2's design.
 
 ## Outcome
 
-Nothing built yet.
+**Tier 2 exists, in every desktop program, from one engine.** Built
+2026-08-16 and 17: the report in `src/core/station_report.c`, the CLI's
+`--report`, the daemon's `<mountpoint>.report.json` over a rolling
+window, and the GUI's Stability window. Six measurements, none of them
+new — every one derived from fields the snapshot already carried, which
+was the point: prove the shape before funding new measurement.
+
+What it cost, and what it found:
+
+| | |
+|---|---|
+| New core modules | `station_report.{c,h}`, `thresholds.{c,h}` |
+| New session capability | `stream_time_s` — elapsed time from the observation epochs |
+| Tests | `test_station_report.c`, `test_stream_clock.c`, `test_ns_stats.c`, `test_policy.c` — the suite went from 6 to 10 |
+| Release checks | 42 → 47: three that no snapshot field goes unfilled and untracked, two that every threshold is documented and every policy field settable |
+| Defects found *by* building it | the warm-up minimum, two premature claims about a stream, a frame-integrity metric that could not see what it existed to catch, a replay path that emitted no statistics, a wall-clock emit gate, an invalid snapshot JSON, and a check that said `RUNNING` at the end of a finished run |
+
+**The property that makes it worth having** is that a replay reproduces
+a live run: the window comes from the stream's own clock, so a six-hour
+capture read from disk in a fraction of a second is judged over six
+hours. Verified against a real capture — 117 s of HANESE replayed in
+2 ms reporting a 117-second window, and a live run and its replay both
+reporting an 87 s window from the same session.
+
+**What is still open**: phase 0 (declared position versus broadcast ARP,
+specified and evidence-backed), phase 1 (latency and KPI 9, now a
+listing decision rather than a wait), phases 3 and 4, and phase 5 which
+was deferred by decision. Android has tier 1 only.
