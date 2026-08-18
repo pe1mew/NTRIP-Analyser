@@ -35,10 +35,10 @@ Free, no advertising, no account, and nothing leaves the phone but the
 NTRIP connection you configure — see the
 [privacy policy](https://pe1mew.github.io/NTRIP-Analyser/privacy-policy.html).
 
-**Testers are still wanted.** Google requires **twelve testers who stay
+**Testers are wanted.** Google requires **twelve testers who stay
 opted in for fourteen days** before a new developer account may go to
 production, so joining the test is a genuine help rather than a
-formality:
+formality. Submit an issue with your request and we will add you to the test-group.
 
 **→ [Join the test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)**
 

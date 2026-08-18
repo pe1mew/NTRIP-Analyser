@@ -183,6 +183,15 @@ The run's total seconds must comfortably exceed `feed_s` plus the ten
 the check needs to notice, or the stub's own deadline closes the socket
 and turns `stop` into `drop`.
 
+`stop` also turns itself into `drop` after `stall_timeout_s` — 60
+seconds of silence by default — because that is exactly what the
+dead-man's switch is for. Inside that window KPI 1 reads
+`Data arrived for N s, then the stream stopped`; past it the session
+has given up on the socket and it reads `Connection lost after N s of
+data`. Both are true of the same stub, at different moments, so a run
+made to demonstrate one of them wants `feed_s` and the run length
+chosen with the timeout in mind.
+
 Point the GUI at the same stub — caster `127.0.0.1`, that port,
 mountpoint `TEST`, any credentials — to see the four states in the
 station-check window.

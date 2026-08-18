@@ -127,6 +127,8 @@ struct NtripSession {
     double     last_stats_t;
     double     last_gga_t;
     double     reconnect_at;   /**< monotonic time of the next attempt */
+    double     last_rx_t;      /**< last byte off the socket; the
+                                *   dead-man's switch reads this        */
     int        backoff_s;
 
     /* Handshake accumulation. */
@@ -855,7 +857,37 @@ static void do_connect(NtripSession *s)
     s->header_len  = 0;
     s->header_done = false;
     s->backoff_s   = 0;
+    s->last_rx_t   = ns_now();   /* silence is counted from here */
     s->stats.connected = true;
+}
+
+/**
+ * @brief Take the connection down and decide whether to try again.
+ *
+ * The two ways a stream stops -- the caster closes, or the caster goes
+ * quiet without closing -- differ only in how they are noticed and what
+ * they are called.  Everything after that is the same, so it is written
+ * once: a session that reconnects from a close and not from a stall
+ * would be a bug nobody sees until the stall happens.
+ *
+ * @param why    Logged as a warning; the caller's words, not this one's.
+ * @param reason Reported to @ref emit_end when there is no reconnect.
+ */
+static void drop_connection(NtripSession *s, double now,
+                            const char *why, NsEndReason reason)
+{
+    closesocket(s->sock);
+    s->sock = NS_INVALID_SOCK;
+    s->connected = false;
+    s->stats.connected = false;
+    emit_log(s, NS_LOG_WARN, "%s", why);
+
+    if (!s->opt.auto_reconnect) { emit_end(s, reason); return; }
+
+    s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
+    if (s->backoff_s > s->opt.reconnect_backoff_max_s)
+        s->backoff_s = s->opt.reconnect_backoff_max_s;
+    s->reconnect_at = now + s->backoff_s;
 }
 
 /**
@@ -956,6 +988,7 @@ void ns_options_default(NsOptions *opt)
     opt->stats_interval_s       = 1.0;
     opt->gga_interval_s         = 1.0;
     opt->reconnect_backoff_max_s = 60;
+    opt->stall_timeout_s        = 60.0;
 }
 
 static NtripSession *alloc_session(const NsOptions *opt, NsEventFn cb, void *user)
@@ -1103,23 +1136,32 @@ int ns_pump(NtripSession *s, int timeout_ms)
     unsigned char buf[NS_RECV_BUF];
     int n = sock_recv(s->sock, buf, sizeof(buf), timeout_ms);
     if (n == 0) {
+        /* Nothing this time round is ordinary; nothing for long enough
+         * is the fault that has no other symptom.  Checked here, on the
+         * empty read, because that is the only place a stream which has
+         * gone quiet without closing ever arrives. */
+        double quiet = now - s->last_rx_t;
+        if (s->opt.stall_timeout_s > 0.0 && quiet > s->opt.stall_timeout_s) {
+            char why[96];
+            snprintf(why, sizeof why,
+                     "No data for %ld s -- treating the connection as dead",
+                     (long)quiet);
+            drop_connection(s, now, why, NS_END_STALLED);
+            if (s->ended) return -1;
+            return 0;
+        }
         stats_refresh(s, now);
         maybe_emit_stats(s, now);
         return 0;                    /* timeout: normal, keep pumping */
     }
     if (n < 0) {
-        closesocket(s->sock);
-        s->sock = NS_INVALID_SOCK;
-        s->connected = false;
-        s->stats.connected = false;
-        emit_log(s, NS_LOG_WARN, "Connection closed by the caster");
-        if (!s->opt.auto_reconnect) { emit_end(s, NS_END_EOF); return -1; }
-        s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
-        if (s->backoff_s > s->opt.reconnect_backoff_max_s)
-            s->backoff_s = s->opt.reconnect_backoff_max_s;
-        s->reconnect_at = now + s->backoff_s;
+        drop_connection(s, now, "Connection closed by the caster",
+                        NS_END_EOF);
+        if (s->ended) return -1;
         return 0;
     }
+
+    s->last_rx_t = now;              /* the dead-man's switch, reset */
 
     int off = 0;
     if (!s->header_done) {

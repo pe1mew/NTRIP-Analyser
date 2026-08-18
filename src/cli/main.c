@@ -710,6 +710,13 @@ static int run_sky_obs_stream(const NTRIP_Config *config,
             if (ctx.end_reason == NS_END_EOF) {
                 fprintf(stderr, "\n[OBS] Caster closed the connection\n");
                 *reason = STOP_REASON_EOF;
+            } else if (ctx.end_reason == NS_END_STALLED) {
+                /* An error, not an end: the caster never said it was
+                 * finished, it simply stopped.  Saying so is the whole
+                 * point -- silence is what makes this fault invisible. */
+                fprintf(stderr, "\n[OBS] Caster stopped sending; "
+                                "the connection was still open\n");
+                *reason = STOP_REASON_ERROR;
             } else {
                 *reason = STOP_REASON_ERROR;
             }

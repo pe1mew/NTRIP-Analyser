@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed — a stream can stop without anything closing, and nothing noticed
+
+On 18 August 2026 a monitored mountpoint had delivered nothing for
+**14 h 10 min** while reporting itself connected. Two independent
+measurements agreed: the socket's own `lastrcv` stood at 51,058,080 ms,
+and `uptime_s − stream_time_s` came to 50,986 s. The caster had gone
+quiet on a live TCP connection without closing it.
+
+Nothing in the session could see that. `recv` returns "nothing yet" for
+an idle socket and for a dead one alike, so the connection stayed
+established, `connected` stayed true, and the reconnect logic — which
+only ever ran on a close — was never reached. A monitor that rides out
+drops does not ride out this, because to it nothing happened.
+
+Sessions now carry a dead-man's switch: `NsOptions::stall_timeout_s`,
+60 seconds by default, `0` to wait forever, settable per mountpoint in
+the daemon's config as `stall_timeout_s`. Expiry is treated exactly as
+a drop — same path, so a session that reconnects from a close cannot
+fail to reconnect from a stall — and is reported as `NS_END_STALLED`,
+its own reason because nothing closed and nothing failed. The CLI says
+`Caster stopped sending; the connection was still open` rather than
+ending quietly.
+
+Silence is counted in bytes, not frames: a stream sending something the
+framer cannot use is a different fault and must not be blamed on this
+one. The timer starts when the socket connects, so a caster that
+accepts and then never sends is caught by the same rule.
+
+**Tested by being the fault.** `test/test_stall.c` runs a real listener
+on an ephemeral loopback port that accepts, answers `ICY 200 OK`, and
+then behaves badly on purpose — because what distinguishes this from
+every other failure is a socket that is open and idle, which only a
+socket can be. Four cases: a stream that stops, one that never starts,
+the timeout switched off, and — the half that keeps this from being a
+timer that always fires — a caster that keeps sending, which must
+survive three times its own timeout untouched. With the check removed
+the first four assertions fail; with it, twelve tests pass.
+
+One thing this does **not** fix: tier 2 published `"headline":"STABLE
+over 1.7 h"` throughout those fourteen hours, because its window is
+measured in *stream* time and stream time had stopped along with the
+stream. A report whose window has not advanced in wall-clock time
+should refuse to publish a verdict. Still open.
+
 ### Added — a second tier of measurement: has this station *been* fit?
 
 The eight checks answer whether a station is fit **now**, in about ninety

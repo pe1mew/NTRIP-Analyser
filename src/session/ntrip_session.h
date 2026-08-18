@@ -93,6 +93,12 @@ typedef enum {
      *  An unattended run whose purpose is the file must not continue
      *  for another twenty hours writing nothing. */
     NS_END_WRITE_ERROR,
+    /** The socket stayed open and the caster stopped sending.  Its own
+     *  reason rather than @ref NS_END_EOF, because nothing closed and
+     *  nothing failed: the connection is still there, and only the
+     *  clock says it is dead.  A caller reporting why a session ended
+     *  should be able to say which of the two happened. */
+    NS_END_STALLED,
 } NsEndReason;
 
 /** @brief Severity of an @ref NS_EV_LOG event. */
@@ -146,6 +152,30 @@ typedef struct {
     bool   auto_reconnect;        /**< reconnect with backoff after a drop   */
     int    reconnect_backoff_max_s;
     const char *user_agent;       /**< NULL selects a default                */
+
+    /**
+     * @brief Give up on a connected but silent socket after this long;
+     *        0 = wait forever.  Default 60 s.
+     *
+     * A caster can stop sending without closing anything.  The socket
+     * stays established, `recv` keeps returning "nothing yet", and a
+     * session with no clock of its own will sit there reporting itself
+     * connected for as long as the process lives -- which is how one
+     * monitored stream delivered nothing for fourteen hours while every
+     * status it published said it was fine.
+     *
+     * Silence is measured in bytes, not frames: a stream sending
+     * something the framer cannot use is a different fault, and this
+     * one must not be blamed for it.  The timer starts when the socket
+     * is connected, so a caster that accepts and then never sends is
+     * caught by the same rule.
+     *
+     * Expiry is treated exactly as a drop -- @ref auto_reconnect applies
+     * -- and reported as @ref NS_END_STALLED.  The default is long
+     * enough that no healthy mountpoint reaches it: a base station that
+     * sends nothing at all for a minute has stopped.
+     */
+    double stall_timeout_s;
 
     /**
      * @brief Write every CRC-valid frame to this path; NULL = no capture.

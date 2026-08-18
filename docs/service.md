@@ -140,7 +140,8 @@ should be readable by the service group and nobody else.
       "password": "password",
       "send_gga": false,
       "latitude": 52.0,
-      "longitude": 6.0
+      "longitude": 6.0,
+      "stall_timeout_s": 60
     }
   ]
 }
@@ -163,6 +164,14 @@ should be readable by the service group and nobody else.
   `INSUFFICIENT EVIDENCE`.
 - `send_gga: true` enables a periodic GGA uplink at the configured
   position — required by VRS / network mountpoints, harmless elsewhere.
+- `stall_timeout_s` is how long a connected but silent socket is
+  tolerated before the stream counts as dead and the daemon reconnects;
+  60 seconds by default, `0` waits forever. A caster can stop sending
+  without closing anything, and nothing else in the daemon notices: the
+  socket stays established and every published status keeps saying the
+  stream is fine. Raise it for a mountpoint that broadcasts only
+  occasionally; a 1 Hz observation stream that sends nothing for a
+  minute has stopped.
 - Up to 16 mountpoints; the daemon round-robins them on one thread.
 
 This is deliberately **not** the interactive tools' `config.json`: that

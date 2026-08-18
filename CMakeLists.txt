@@ -182,6 +182,15 @@ add_executable(test_capture test/test_capture.c)
 target_link_libraries(test_capture PRIVATE ntrip_session)
 add_test(NAME capture COMMAND test_capture)
 
+# A caster that stops sending without closing has no symptom of its own,
+# so the only way to test for it is to be one: a loopback listener that
+# accepts, answers, and then goes quiet.  Includes the case that must
+# NOT fire, since a dead-man's switch that kills healthy streams is the
+# worse fault of the two.
+add_executable(test_stall test/test_stall.c)
+target_link_libraries(test_stall PRIVATE ntrip_session)
+add_test(NAME stall COMMAND test_stall)
+
 # Tier 2's three load-bearing decisions -- "not enough evidence" as a
 # verdict, live-only metrics absent rather than zero, and windows in
 # stream time so a replay reproduces exactly. Each would erode quietly
@@ -229,7 +238,8 @@ add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
-            test_stream_clock test_ns_stats test_policy test_kpi_stopped)
+            test_stream_clock test_ns_stats test_policy test_kpi_stopped
+            test_stall)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

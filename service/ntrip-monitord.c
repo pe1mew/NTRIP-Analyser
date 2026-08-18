@@ -309,6 +309,12 @@ static bool load_md_config(const char *path, MdConfig *cfg)
             o->config.LATITUDE = s->valuedouble;
         if ((s = cJSON_GetObjectItem(mp, "longitude")) && cJSON_IsNumber(s))
             o->config.LONGITUDE = s->valuedouble;
+        /* Seconds of silence on an open socket before the stream counts
+         * as dead; 0 waits forever.  Per mountpoint, because the leash
+         * that suits a 1 Hz observation stream is not the one that suits
+         * an occasional broadcast. */
+        if ((s = cJSON_GetObjectItem(mp, "stall_timeout_s")) && cJSON_IsNumber(s))
+            o->stall_timeout_s = s->valuedouble;
 
         if (!o->config.NTRIP_CASTER[0] || !o->config.MOUNTPOINT[0]) {
             fprintf(stderr, "ntrip-monitord: mountpoint entry %d lacks "
