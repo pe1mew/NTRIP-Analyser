@@ -113,6 +113,45 @@ a bad path as an error rather than silently not capturing, honours a
 size cap, and ends the session `NS_END_WRITE_ERROR` when a write fails.
 The GUI's own version had none of that.
 
+## Wish list — parked
+
+### Tab navigation into the output tabs — parked 2026-08-18
+
+Tab reaches every input field and button (built 2026-08-18: `WS_TABSTOP`
+was always there, the message loop simply never offered the message to
+`IsDialogMessage`). It does **not** reach the output half of the window:
+the tab control and all four ListViews are created without
+`WS_TABSTOP`, so the keyboard cannot switch tabs, cannot get into the
+mountpoint list, and cannot pick a mountpoint at all — that is
+double-click only. The list already handles Ctrl+A and Ctrl+C, so it
+expects keyboard use it cannot be given.
+
+Three parts, deliberately separate:
+
+| | What | Cost |
+|---|---|---|
+| 1 | `WS_TABSTOP` on the tab control | Nearly free. Left/Right then change tabs on their own and fire `TCN_SELCHANGE`, which is already handled. |
+| 2 | `WS_TABSTOP` on the four ListViews | Adds exactly **one** stop, whichever tab is open: `OnTabSelChange` hides the other three and the dialog manager skips hidden controls. |
+| 3 | Enter on a highlighted mountpoint row | The reason this is not a one-line change — see below. |
+
+**The trap, which is why this is written down rather than just done.**
+`IsDialogMessage` takes Enter before the message is dispatched, and a
+ListView asks for arrows and characters, not all keys — so Enter never
+reaches it and becomes `IDOK`, which the window maps to Open Stream.
+The moment the lists become tab stops: arrow down to a station, press
+Enter, and the GUI opens a stream on whatever mountpoint was already in
+the field, ignoring the highlighted row. Plausible-looking and wrong.
+
+The fix belongs in the `IDOK` case, not in the ListView: if focus is on
+the mountpoint list, do what double-click does — copy the row's
+mountpoint into the field — otherwise open the stream. One place
+decides, and Enter goes on meaning "act on what I am looking at".
+
+Not included, and a separate ~10 lines if ever wanted: **Ctrl+Tab** to
+cycle tabs from anywhere. A standalone tab control is not a property
+sheet, so nothing implements that for you; it needs intercepting in the
+message loop ahead of `IsDialogMessage`.
+
 ## Open questions
 
 - Is this order right? Phase 2 is nearly finished and Phase 1 is
@@ -123,4 +162,8 @@ The GUI's own version had none of that.
 
 ## Outcome
 
-Nothing landed from this track yet.
+Phase 4 landed on 2026-08-18: the GUI's private capture is gone and the
+session writes the file, which is also what made the keyboard work
+possible to check — the same live run showed the Log tab had never
+carried a line when the program was started from Explorer. Phases 1, 2
+and 3 are still open, and the wish list above is parked.
