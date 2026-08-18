@@ -10,6 +10,9 @@
        memory index as an "if X, then Y" pattern (Promote)
      - When the root cause is fixed, mark [RESOLVED] IN THE HEADING (Retire) —
        curation reads headings, not bodies. Same for a recurrence count: [x3].
+       "Fixed" means code or procedure changed. An entry retired on advice
+       alone is not retired: the v3.4.0 tag gotcha was marked [RESOLVED] with
+       "check the tag first" as its fix, and recurred identically in three days.
      - Record promotions in the "Promoted" table below.
 
      Template for new entries:
@@ -151,8 +154,10 @@
 **Fix**: `LocalOverscrollConfiguration provides null` around the pager — the stretch is worth less than the gesture. A nested-scroll parent only sees what every child declines to take.
 **Lesson**: A gesture built on leftover deltas is a gesture built on what nobody else wanted, and that changes by platform version. Test navigation gestures on the newest Android available, not the oldest.
 
-### An edition looked broken because its install was an hour old (2026-08-14) [x2]
+### An edition looked broken because its install was an hour old (2026-08-14) [x3]
 *Recurred 2026-08-16 on the VPS: the tree was rebuilt to 3.4.0 and the binary in `/usr/local/bin` was still 3.3.0, because the build and the install were two commands and only the first was run. Not an Android property — any deployed artefact.*
+
+*Recurred 2026-08-18 without any install being involved: after bumping to 3.5.0, `cmake --build build --target test_all` passed 12/12 while `bin/ntrip-analyser --version` still printed **3.4.0** — that target does not build the CLI, so the binary beside the tests was the previous one. Green tests are evidence about the targets that were built, and say nothing about an artefact that was not. Build the default target before believing a version.*
 
 **Problem**: Two defects fixed in free were reported as still present in pro — the same two, on the same handset.
 **Root cause**: Both fixes live in shared `src/main`; pro had them in source the moment they were written. The APK on the phone was built at 16:26 and the fix at 17:45.
@@ -201,7 +206,9 @@
 **Root cause**: `service/Makefile` lists its sources by hand and never gained `src/net/ntrip_handler.c`. CMake keeps its own list and built the daemon happily, so the failure was invisible to everyone except a packager or a VPS deployment.
 **Fix**: Wildcard the shared directories (`src/core`, `src/net`, `src/session` are shared *by definition*; anything platform-specific lives elsewhere). **If two build systems describe the same sources, CI must run both** — the same gap the GUI's `build-gui.bat` still has.
 
-### A tag on a tree whose bump was never committed (2026-08-15) [RESOLVED]
+### A tag on a tree whose bump was never committed (2026-08-15) [x2]
+*Recurred 2026-08-18, identically, with `v3.5.0`: same staged-not-committed bump, same failed run, same message with the numbers changed. It had been marked `[RESOLVED]` three days earlier — wrongly, because the recorded fix was **advice** ("check `git show <tag>:version.h` first"), and advice is not a mechanism. What actually works is already in place and worked twice: `CheckReleaseTag.cmake` failed the run before anything was published. Retiring an entry needs a change to the code or the procedure, not a resolution to be careful.*
+
 **Problem**: `v3.4.0` was tagged and pushed; the release workflow failed at packaging with "tag v3.4.0, version.h 3.3.0".
 **Root cause**: The version bump was *staged*, not committed, so the tag landed on the previous commit. Staged changes look identical to committed ones in an editor and in `git status --short`'s left column.
 **Fix**: `git show <tag>:src/core/version.h` before trusting a tag. The guard worked exactly as designed and cost one failed run instead of a mislabelled release — this is what `cmake/CheckReleaseTag.cmake` is for.
@@ -263,6 +270,16 @@
 **Root cause**: `jekyll-theme-minimal` gives content a **500 px** column — right for a project page with three paragraphs, far too narrow for ninety-column diagrams and wide tables.
 **Fix**: `docs/assets/css/style.scss` widens the column to 1080 px above 960 px viewport and leaves the theme's mobile behaviour alone. Verified by measuring `scrollWidth` against `clientWidth` per element rather than by eye: seven `<pre>` blocks, none clipped.
 
+### A GUI log window that had never worked when the program is started normally (2026-08-18) [RESOLVED]
+**Problem**: Checking a change in the GUI's Log tab, nothing from the worker appeared at all — not the capture lines under test, not the untouched handshake lines. Only the UI thread's own lines and the ephemeris worker's showed.
+**Root cause**: Started from Explorer the process has no console, so `stdout` has no descriptor: `_fileno` returns negative, every `_dup2` in the redirect fails silently, and the pipe is created and pumped for the whole session with nothing ever written into it. Every previous check of that window had been launched from a shell — including mine — where the streams already have a descriptor.
+**Fix**: Attach the streams to `NUL` before redirecting. **Verify a GUI from the launcher its users use**; a terminal-launched Win32 GUI is a different program in every respect that touches stdio.
+
+### Making a channel work exposes what it was hiding (2026-08-18) [RESOLVED]
+**Problem**: With the log pipe finally carrying text, the window filled with one run-on line of message-type numbers, burying every event.
+**Root cause**: Two faults that had been latent behind the dead pipe. The pipe is text-mode at *both* ends, so the write side's `\n`→`\r\n` is folded straight back by the read side and an EDIT control — which breaks only on CR LF — renders a whole session as one line. And a per-frame type trace plus a `Sent GGA` every few seconds had never been seen by anyone.
+**Fix**: Expand at the single point pipe text enters the control; delete the traces. **A dead channel hides every bug downstream of it** — expect a queue of them when it starts working, and budget for that rather than treating them as new regressions.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -280,4 +297,6 @@
 | 2026-08-15 | Two build systems over one source set: CI must run both | **2** — `build-gui.bat` (open), `service/Makefile` (found broken 2026-08-15) | `memory/MEMORY.md` active decisions |
 | 2026-08-16 | A snapshot field nothing fills is worse than a missing one | **3** — ARP fields (until a live run tripped over them), `latency_s` and `sourcetable_offset_m` (both found 2026-08-16) | `memory/MEMORY.md` active decisions |
 | 2026-08-16 | A green verdict is not a correct registration — read the sourcetable | **2** — 3.3 km transposition and a 25 km paste, both STATION OK, 2026-08-16 | `memory/MEMORY.md` active decisions; specified as measurement-tiers phase 0 |
-| 2026-08-16 | What is installed is not what was built — on any platform | **2** — pro's APK 2026-08-14, the VPS binary 2026-08-16 | `memory/MEMORY.md` active decisions (generalised from Android) |
+| 2026-08-16 | What is installed is not what was built — on any platform | **3** — pro's APK 2026-08-14, the VPS binary 2026-08-16, `test_all` green beside a stale `bin/` 2026-08-18 | `memory/MEMORY.md` active decisions (generalised from Android) |
+| 2026-08-18 | A tag points at a commit, not at your working tree | **2** — v3.4.0 2026-08-15, v3.5.0 2026-08-18, both staged-not-committed, both caught by the packaging guard | `docs/RUNBOOK.md` release sequence, with the `git show <tag>:` check |
+| 2026-08-18 | An entry is only `[RESOLVED]` when code or procedure changed | **1** — the v3.4.0 tag gotcha was retired on advice alone and recurred in three days | this log's header, promotion lifecycle |

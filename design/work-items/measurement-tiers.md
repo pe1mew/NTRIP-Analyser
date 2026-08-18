@@ -492,7 +492,7 @@ expensive:
 - **Thresholds in `src/core`**, beside `kpi.h`, never in a frontend.
 - **Per-metric replay derivability** — see the decision below.
 
-## After the tiers shipped — three changes to the tiers themselves
+## After the tiers shipped — four changes to the tiers themselves
 
 Recorded here because each altered what a tier *means*, not merely where
 it is shown.
@@ -569,6 +569,28 @@ It also states something no fixed string could: KPI 5's expectation is
 the sum over the constellations a station streams, so a GPS+GLONASS base
 reads `min 14` where a five-system one reads `min 29` — the number that
 station was actually held to.
+
+### A window measured in stream time can stop without ending
+
+Tier 2's windows are stream time, which is what makes a replay reproduce
+a live run exactly. The cost of that only became visible when a stream
+stopped: the window stopped with it, the samples kept arriving unchanged,
+and the report went on publishing `STABLE over 1.7 h` for the fourteen
+hours after a station's last observation. Every figure true, none of it
+current — and from inside stream time, a window 1.7 h long and one that
+ended 1.7 h into a session now half a day old are indistinguishable.
+
+The tier now keeps the host's clock beside the stream's, not to measure
+with but to tell whether the stream clock is still running, and declines
+to judge after `SR_STALE_S` (120 s) without movement. It reuses
+`INSUFFICIENT EVIDENCE` rather than adding a fifth word to a vocabulary
+already longer than tier 1's; it is checked before the minimum-window
+test, since a stopped window will never reach the length it is short of;
+and it is live-only, because a replay's host clock measures disk speed.
+
+That this needed a fourth change is itself the lesson: the property that
+makes a measurement reproducible offline is the same property that makes
+it unable to notice it has stopped.
 
 ---
 

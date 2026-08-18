@@ -53,8 +53,25 @@
 
 ## Current State
 
-<!-- 2026-08-14, second session -->
+<!-- 2026-08-18 -->
 
+- **v3.5.0 tagged and built** (2026-08-18): a stream that stops without
+  <!-- verify: grep -q 'NTRIP_VERSION_STRING  "3.5.0"' src/core/version.h -->
+  closing is now noticed. `NsOptions::stall_timeout_s` (60 s, `0` disables,
+  per-mountpoint in the daemon's config) treats silence on an open socket
+  as a drop and reports `NS_END_STALLED`; tier 2 stops standing behind a
+  window whose stream clock has not moved for `stale_s` (120 s) and reverts
+  to `INSUFFICIENT EVIDENCE`. Both came from one live fault: a monitored
+  mountpoint delivering nothing for 14 h 10 min while every status it
+  published said it was fine. Twelve tests, `test_stall.c` among them,
+  built on a real loopback caster that misbehaves on purpose.
+  **The GitHub release is still a draft** — assets attached (Linux by CI,
+  Windows by hand), notes written, not published.
+- **The daemon on shuttle2 runs 3.5.0** (2026-08-18), installed from a
+  <!-- verify: manual — needs ssh to shuttle2; check sha256 of /usr/local/sbin/ntrip-monitord -->
+  clean `git archive` of the tagged commit, with the previous binary kept
+  beside it as `ntrip-monitord.3.4.0-aug17`. Its source checkout at
+  `~/NTRIP-Analyser` is **still at 3.3.0** and no longer matches what runs.
 - **v3.4.0 released** (2026-08-15), the first release whose Linux assets were
   <!-- verify: grep -q '^## \[3.4.0\]' changelog.md -->
   built and attached by CI from the tag rather than by hand. Verified from
@@ -272,6 +289,16 @@ Supplementing CLAUDE.md's list with paths found during work:
   verification (`CLAUDE.md`).
 - **One measurement core, four frontends** — no threshold or verdict in any
   UI layer (`design/architecture.md`).
+- **Verify a GUI from the launcher its users use.** Started from Explorer a
+  Win32 GUI has no console, so `stdout` has no descriptor and anything built
+  on it fails silently; started from a shell the same binary behaves
+  differently in every respect touching stdio. The Log tab had never carried
+  a worker line in normal use, and no shell-launched check could have found
+  it (2026-08-18).
+- **A dead channel hides every bug downstream of it.** Fixing the log pipe
+  immediately surfaced two more faults it had been masking — bare LF against
+  an EDIT control, and traces nobody had ever seen. Expect a queue when a
+  broken channel starts working; they are not new regressions (2026-08-18).
 - **Android ships as two Play listings, not one app with an in-app unlock** —
   entitlement is the installed APK, which works in the field with no signal
   (`android/design/editions.md`).

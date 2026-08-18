@@ -456,6 +456,20 @@ the tag and let the Linux assets arrive by themselves. Tag and header
 must agree — `cmake/CheckReleaseTag.cmake` fails the packaging otherwise,
 which is the whole reason it exists.
 
+**Commit the bump before tagging, and read the tag rather than the tree
+to check it.** A tag points at a commit; a staged bump is not in one, and
+staged and committed changes are indistinguishable in an editor and in
+the left column of `git status --short`. This has now failed twice, at
+v3.4.0 and again at v3.5.0, in exactly the same way — both times caught
+by the packaging guard at the cost of one failed run:
+
+```bash
+git show v3.5.0:src/core/version.h | grep NTRIP_VERSION_STRING
+```
+
+If that disagrees with the tag, move the tag rather than editing history:
+delete it locally and on the remote, re-tag the bump commit, push again.
+
 Version comes from `src/core/version.h` and nothing else — every build
 system parses it, Gradle included: `versionName` and `versionCode` are
 both derived there (`android/app/build.gradle.kts`), so the header is the
