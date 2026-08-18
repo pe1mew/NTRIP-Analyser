@@ -129,6 +129,41 @@ uplink already does. Calling into the session from the UI thread while
 frames are being written is not something any lock in this program
 covers.
 
+### Fixed — the GUI's Log tab, empty whenever the program was started from Explorer
+
+Verifying the change above meant reading the log, and the log was empty
+of everything the worker had to say — no handshake, no capture line, not
+one of the ~200 `printf` calls behind it. What did appear came from the
+UI thread, or from the ephemeris worker, which posts its lines as
+messages instead of printing them.
+
+**Started from Explorer there is no console**, so `stdout` and `stderr`
+have no descriptor: `_fileno` returns a negative number and every
+`_dup2` in the redirect fails without saying so. The pipe was then
+created and pumped faithfully for the whole session with nothing ever
+written into it. Attaching the streams to the null device first gives
+them something to redirect. Started from a terminal the streams already
+have a descriptor, which is why every previous check of this window —
+all of them launched from a shell — looked fine.
+
+Making the pipe carry text exposed two more faults it had been hiding:
+
+* **A session in one line.** An EDIT control breaks a line on CR LF and
+  nothing else, while everything behind the pipe writes `\n`. The pipe
+  does not bridge that — both its ends are text-mode, so the expansion
+  the write side performs the read side folds straight back. Expanded
+  now at the single point where pipe text enters the control.
+* **Three sources of noise, drowning the events.** A per-frame message
+  type (`1087 1097 1117 …`, which replay already refused to print), a
+  `[GGA] Sent GGA` every few seconds, and the caster's version mismatch
+  narrated by both the session and the GUI. All three gone: Msg Stats
+  lists every type with a live count, Stream Health holds the GGA count
+  and last-send time, a *change* of position still logs, and the version
+  mismatch is left to the session that read the answer.
+
+Six log strings also carried a UTF-8 em dash into an ANSI control and
+arrived as `â€"`; they use `--` now, like the rest of the log.
+
 ### Fixed — a check that accused a station of never producing
 
 One report, two lines, in direct contradiction:

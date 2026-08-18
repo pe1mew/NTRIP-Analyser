@@ -115,8 +115,6 @@ typedef struct {
     bool decode_active;      /* true once a supported format is confirmed */
     bool unsupported_logged;
     bool first_data_check;   /* true until the first data byte is checked */
-    bool print_types;        /* live prints "1077 1087 ..."; replay would
-                              * flood the log at disk speed, so it doesn't */
     long frames;             /* accepted frames, for the replay summary */
 } ObsCtx;
 
@@ -184,7 +182,7 @@ static void ObsSniffFormat(ObsCtx *c, const unsigned char *data, int n)
             switch (c->detected_format) {
             case FMT_RTCM3:
                 c->decode_active = true;
-                printf("[INFO] RTCM 3.x stream detected — decoding active\n");
+                printf("[INFO] RTCM 3.x stream detected -- decoding active\n");
                 fflush(stdout);
                 break;
             default:
@@ -204,7 +202,7 @@ static void ObsSniffFormat(ObsCtx *c, const unsigned char *data, int n)
         case FMT_RT27: name = "Trimble RT27";   break;
         case FMT_LB2:  name = "Leica LB2";      break;
         }
-        printf("[INFO] %s stream detected — decoding not yet supported\n", name);
+        printf("[INFO] %s stream detected -- decoding not yet supported\n", name);
         fflush(stdout);
         c->unsupported_logged = true;
 
@@ -244,7 +242,7 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
         c->decode_active   = true;
         InterlockedExchange(&state->streamFormat, FMT_RTCM3);
         PostMessage(state->hMain, WM_APP_STREAM_INFO, 0, 0);
-        printf("[INFO] RTCM 3.x stream confirmed — decoding active\n");
+        printf("[INFO] RTCM 3.x stream confirmed -- decoding active\n");
         fflush(stdout);
     }
 
@@ -441,10 +439,6 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
     }
 
     c->frames++;
-    if (c->print_types) {
-        printf("%d ", msg_type);
-        fflush(stdout);
-    }
 }
 
 /** @brief Session events → the GUI's counters, log lines and messages. */
@@ -470,10 +464,9 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
             while (*eol == '\r' || *eol == '\n') eol++;
             hp = eol;
         }
-        if (state->handshake.version == NS_PROTO_V1) {
-            printf("[INFO] Caster answered NTRIP 1.0 (ICY) although "
-                   "Ntrip-Version: Ntrip/2.0 was requested.\n");
-        }
+        /* The version mismatch is not remarked on here: the session says
+         * it already, from the code that read the answer, and two
+         * wordings of one fact is one wording too many. */
         if (state->handshake.status == 200)
             printf("[INFO] Stream started\n");
         fflush(stdout);
@@ -709,7 +702,6 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
     ctx.state            = state;
     ctx.detected_format  = FMT_NONE;
     ctx.first_data_check = true;
-    ctx.print_types      = true;
 
     /* ── Pre-seed format from the sourcetable ─────────────────────────
      * RAW streams (RT27, LB2) are wrapped inside RTCM 3.x framing, so
@@ -718,7 +710,7 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
         const char *fmt = state->sourceFormat;
         const char *det = state->sourceDetails;
 
-        printf("[INFO] Sourcetable — Format: \"%s\", Details: \"%s\"\n", fmt, det);
+        printf("[INFO] Sourcetable -- Format: \"%s\", Details: \"%s\"\n", fmt, det);
         fflush(stdout);
 
         #define CONTAINS_CI(haystack, needle) (stristr((haystack), (needle)) != NULL)
@@ -728,14 +720,14 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
             ctx.decode_active = true;
             InterlockedExchange(&state->streamFormat, FMT_RT27);
             PostMessage(state->hMain, WM_APP_STREAM_INFO, 0, 0);
-            printf("[INFO] RAW Trimble RT27 stream (RTCM framing) — decoding active\n");
+            printf("[INFO] RAW Trimble RT27 stream (RTCM framing) -- decoding active\n");
             fflush(stdout);
         } else if (CONTAINS_CI(fmt, "LB2") || CONTAINS_CI(det, "LB2")) {
             ctx.detected_format = FMT_LB2;
             ctx.decode_active = true;
             InterlockedExchange(&state->streamFormat, FMT_LB2);
             PostMessage(state->hMain, WM_APP_STREAM_INFO, 0, 0);
-            printf("[INFO] RAW Leica LB2 stream (RTCM framing) — decoding active\n");
+            printf("[INFO] RAW Leica LB2 stream (RTCM framing) -- decoding active\n");
             fflush(stdout);
         } else if (CONTAINS_CI(fmt, "SBF") || CONTAINS_CI(det, "SBF") ||
                    CONTAINS_CI(fmt, "Septentrio")) {
@@ -832,8 +824,10 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
             }
             if (ns_send_gga(sess, cur_lat, cur_lon)) {
                 CheckNoteGga(state, cur_lat, cur_lon);
-                printf("[GGA] Sent GGA\n");
-                fflush(stdout);
+                /* Not logged: an uplink every few seconds says the same
+                 * thing forever and buries the events that differ.  The
+                 * count and the time of the last one are on the Stream
+                 * Health tab, and a change of position still logs. */
                 InterlockedIncrement(&state->ggaSendCount);
                 InterlockedExchange(&state->ggaLastSendUnix,
                                     (LONG)time(NULL));
@@ -1038,7 +1032,6 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
     ctx.state           = state;
     ctx.detected_format = FMT_RTCM3;   /* a capture is RTCM by definition */
     ctx.decode_active   = true;
-    ctx.print_types     = false;       /* disk-speed replay would flood the log */
 
     /* Status-bar label, even though no caster is involved. */
     InterlockedExchange(&state->streamFormat, FMT_RTCM3);

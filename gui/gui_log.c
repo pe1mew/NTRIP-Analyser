@@ -18,6 +18,49 @@
 #include <io.h>
 #include <fcntl.h>
 
+/* Append text to the log control at the end, leaving the caret there. */
+static void EditAppend(HWND hEdit, const char *text)
+{
+    int len = GetWindowTextLength(hEdit);
+    SendMessage(hEdit, EM_SETSEL, (WPARAM)len, (LPARAM)len);
+    SendMessage(hEdit, EM_REPLACESEL, FALSE, (LPARAM)text);
+}
+
+/**
+ * @brief Append pipe text to the log control, giving it line breaks.
+ *
+ * An EDIT control breaks a line on CR LF and on nothing else, while
+ * everything behind the pipe writes plain "\n" as C has always done.
+ * The pipe does not bridge that: both of its ends are text-mode, so the
+ * expansion the write side performs the read side folds straight back,
+ * and the control receives bare LF -- which it renders as no break at
+ * all, running a whole session's log into one line.
+ *
+ * Expanding here, at the single point where pipe text enters the
+ * control, is what keeps the ~200 printf calls behind it free of it.
+ */
+static void EditAppendLf(HWND hEdit, const char *text)
+{
+    char   out[4096];
+    size_t o = 0;
+
+    for (const char *p = text; *p; p++) {
+        if (*p == '\n' && (o == 0 || out[o - 1] != '\r'))
+            out[o++] = '\r';
+        out[o++] = *p;
+
+        if (o >= sizeof(out) - 2) {          /* room for CR LF and NUL */
+            out[o] = '\0';
+            EditAppend(hEdit, out);
+            o = 0;
+        }
+    }
+    if (o) {
+        out[o] = '\0';
+        EditAppend(hEdit, out);
+    }
+}
+
 /* Documented in gui_state.h -- the contract lives with the declaration.
  *
  * Creates a pipe, saves the original stdout/stderr descriptors,
@@ -25,6 +68,20 @@
  */
 void LogRedirectStart(AppState *state)
 {
+    /* Started from Explorer -- which is how the program is normally
+     * started -- there is no console, so stdout and stderr have no
+     * descriptor at all: _fileno returns a negative number and every
+     * _dup2 below fails without saying so.  The pipe is then created
+     * and pumped faithfully for the whole session with nothing ever
+     * written into it, which is how a session's entire worker output
+     * once went missing while the posted [EPH] lines came through.
+     *
+     * Attaching the streams to the null device first gives them a real
+     * descriptor to redirect.  With a console present the streams
+     * already have one and this costs nothing. */
+    if (_fileno(stdout) < 0 && !freopen("NUL", "w", stdout)) return;
+    if (_fileno(stderr) < 0 && !freopen("NUL", "w", stderr)) return;
+
     /* Create a pipe: pipeFds[0]=read, pipeFds[1]=write */
     if (_pipe(state->pipeFds, 8192, _O_TEXT) != 0) {
         return;  /* pipe creation failed */
@@ -78,11 +135,7 @@ void LogRedirectStop(AppState *state)
             int n = _read(state->pipeFds[0], buf, sizeof(buf) - 1);
             if (n <= 0) break;
             buf[n] = '\0';
-
-            /* Append to log */
-            int len = GetWindowTextLength(state->hEditLog);
-            SendMessage(state->hEditLog, EM_SETSEL, (WPARAM)len, (LPARAM)len);
-            SendMessage(state->hEditLog, EM_REPLACESEL, FALSE, (LPARAM)buf);
+            EditAppendLf(state->hEditLog, buf);
         }
 
         _close(state->pipeFds[0]);
@@ -108,11 +161,7 @@ void LogPumpTimer(AppState *state)
         int n = _read(state->pipeFds[0], buf, toRead);
         if (n <= 0) break;
         buf[n] = '\0';
-
-        /* Append to log edit control */
-        int len = GetWindowTextLength(state->hEditLog);
-        SendMessage(state->hEditLog, EM_SETSEL, (WPARAM)len, (LPARAM)len);
-        SendMessage(state->hEditLog, EM_REPLACESEL, FALSE, (LPARAM)buf);
+        EditAppendLf(state->hEditLog, buf);
 
         /* Re-check for more data */
         avail = 0;

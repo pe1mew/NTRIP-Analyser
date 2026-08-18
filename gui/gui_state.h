@@ -988,6 +988,10 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param);
  * Silently does nothing if the pipe cannot be created; the program still
  * runs, it just shows no decoder output.
  *
+ * Works whether or not the process has a console: without one the
+ * standard streams have no descriptor to redirect, so they are attached
+ * to the null device first.
+ *
  * @param state Application state; receives the pipe descriptors.
  */
 void LogRedirectStart(AppState *state);
