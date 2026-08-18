@@ -293,6 +293,120 @@ int main(void)
               "nothing was streamed -- the run stops in its first second");
     }
 
+    /* ── 6. Refusing a capture aimed at a file that exists ─────────────
+     *
+     * Case 4 refuses the same thing at open, where ending the session is
+     * the only sane answer: a run whose whole purpose was the file must
+     * not carry on writing nothing.  @ref ns_capture_start is the other
+     * door -- the one the GUI's File menu opens -- and it has to answer
+     * differently, because the stream was there before anyone asked for
+     * a capture and has every right to still be there afterwards.
+     *
+     * What is tested is therefore mostly what the refusal leaves behind:
+     * the file intact, no capture running, and a stream that finishes
+     * the way it would have if nobody had touched the menu. */
+    {
+        const char *taken = "test_capture_taken.rtcm3";
+        remove(taken);
+        FILE *f = fopen(taken, "wb");
+        if (f) { fputs("a previous run", f); fclose(f); }
+
+        Seen seen;
+        memset(&seen, 0, sizeof(seen));
+
+        NsOptions opt;
+        ns_options_default(&opt);
+        opt.stats_interval_s = 0.0;      /* no capture_path: menu-driven */
+
+        NtripSession *s = ns_open_file(src, &opt, on_event, &seen);
+        if (!s) {
+            check(0, "session could not be allocated");
+        } else {
+            check(ns_capture_start(s, taken) != 0,
+                  "a capture aimed at an existing file is refused");
+            check(ns_capture_status(s, NULL, NULL) == NULL,
+                  "and no capture is left running after the refusal");
+            check(!ns_capture_failed(s),
+                  "a refused start is not a capture failure");
+
+            long n = 0;
+            unsigned char *got = slurp(taken, &n);
+            check(n == 14, "the file it was aimed at is untouched");
+            free(got);
+
+            while (ns_pump(s, 0) >= 0) { /* the stream carries on */ }
+            check(seen.frames == N_FRAMES,
+                  "and the stream ran to the end regardless");
+            check(seen.end_reason == NS_END_EOF,
+                  "ending for its own reason, not the capture's");
+            ns_close(s);
+        }
+        remove(taken);
+    }
+
+    /* ── 7. Refusing a second capture over a running one ───────────────
+     *
+     * A double-click on Start Capture, or a second window.  The refusal
+     * itself is the easy half; what matters is that the capture already
+     * in progress is not disturbed by it, which is why the check is that
+     * the finished file is still byte-identical to its source.  A
+     * refusal that closed the first capture, or reopened it, or dropped
+     * the frames written while the menu was open, would all show up
+     * there and nowhere else. */
+    {
+        const char *second = "test_capture_second.rtcm3";
+        remove(second);
+        remove(out);
+
+        Seen seen;
+        memset(&seen, 0, sizeof(seen));
+
+        NsOptions opt;
+        ns_options_default(&opt);
+        opt.stats_interval_s = 0.0;
+
+        NtripSession *s = ns_open_file(src, &opt, on_event, &seen);
+        if (!s) {
+            check(0, "session could not be allocated");
+        } else {
+            check(ns_capture_start(s, out) == 0, "a free path is accepted");
+
+            /* One pump, so the refusal lands on a capture that is
+             * genuinely mid-file rather than on one not yet used. */
+            check(ns_pump(s, 0) > 0, "the capture has begun writing");
+
+            check(ns_capture_start(s, second) != 0,
+                  "a second capture over a running one is refused");
+            const char *still = ns_capture_status(s, NULL, NULL);
+            check(still && strcmp(still, out) == 0,
+                  "and the first one is still the capture in progress");
+
+            while (ns_pump(s, 0) >= 0) { /* to the end of the replay */ }
+
+            uint64_t bytes = 0, frames = 0;
+            ns_capture_status(s, &bytes, &frames);
+            check(!ns_capture_failed(s),
+                  "the refusal was never a write failure");
+            check(frames == (uint64_t)N_FRAMES,
+                  "every frame still reached the disk");
+            ns_close(s);
+
+            check(files_identical(src, out),
+                  "and the capture is byte-identical: the refusal cost it nothing");
+
+            /* Refusing has to mean nothing was created -- not that
+             * something was created and then abandoned. */
+            long dn = -1;
+            unsigned char *dgot = slurp(second, &dn);
+            check(dgot == NULL && dn == -1,
+                  "the path the second request named was never created");
+            free(dgot);
+
+            remove(second);
+            remove(out);
+        }
+    }
+
     remove(src);
     remove(dirty);
 

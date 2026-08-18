@@ -193,6 +193,16 @@ one; it reports an unwritable path as an error instead of capturing
 nothing silently; it honours a size cap; and a failed write ends the
 session `NS_END_WRITE_ERROR`. The GUI's own version had none of that.
 
+**Both menu refusals are now pinned**, and mostly by what they leave
+behind. A capture refused because the file exists must leave the file at
+its original fourteen bytes, start nothing, and let the stream run to
+its own end — a menu action is not the session's purpose, unlike the
+same refusal at open, which ends the run. A second capture refused over
+a running one must leave the first byte-identical to its source, which
+is where a refusal that closed it, reopened it, or dropped the frames
+written while the dialog was up would show and nowhere else. Fourteen
+assertions; with the two guards removed, twelve of them fail.
+
 **Proved before it was deleted, by a test that could fail.** The
 verification on the books — a GUI capture and a CLI capture of the same
 stream, compared frame counts — had no failing mode: the GUI never
