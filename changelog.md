@@ -115,6 +115,14 @@ first menu-driven capture after the deletion replays byte-identical and
 its size resolves exactly — 44 x 1626 + 2 x 25 = 71,594 — so every epoch
 was written whole.
 
+**Said once, by whoever knows.** Both layers announced the start and the
+stop, so the log read them twice — and two lines about one event are two
+lines that can disagree. The session's are kept, because they come from
+the code that opens, writes and closes the file; the GUI's are gone. The
+one exception carries something the session cannot know: when a capture
+ends because the stream ended rather than because anyone asked, the GUI
+says so, and leaves the totals to the session's line below it.
+
 **A note on threads.** The session belongs to the worker, so the menu
 leaves a request and the pump loop acts on it between pumps, as the GGA
 uplink already does. Calling into the session from the UI thread while

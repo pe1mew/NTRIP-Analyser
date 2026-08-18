@@ -594,8 +594,9 @@ static void CaptureService(AppState *state, NtripSession *sess)
             state->capturePath[sizeof(state->capturePath) - 1] = '\0';
             state->captureBytes = 0;
             LeaveCriticalSection(&state->csRtcmDump);
-            printf("[INFO] RTCM capture started -> %s\n", path);
-            fflush(stdout);
+            /* Nothing logged here: the session has already said
+             * "Capturing frames to <path>", from the code that opened
+             * the file.  Saying it twice invites the two to disagree. */
         } else {
             EnterCriticalSection(&state->csRtcmDump);
             state->captureActive = FALSE;
@@ -605,17 +606,13 @@ static void CaptureService(AppState *state, NtripSession *sess)
     }
 
     if (req == 2) {
-        ns_capture_stop(sess);
-        uint64_t bytes = 0, frames = 0;
-        const char *p = ns_capture_status(sess, &bytes, &frames);
+        ns_capture_stop(sess);   /* logs the totals itself, as it closes */
+        uint64_t bytes = 0;
+        ns_capture_status(sess, &bytes, NULL);
         EnterCriticalSection(&state->csRtcmDump);
         state->captureActive = FALSE;
         state->captureBytes  = (unsigned long)bytes;
         LeaveCriticalSection(&state->csRtcmDump);
-        printf("[INFO] RTCM capture stopped: %llu frames, %llu bytes -> %s\n",
-               (unsigned long long)frames, (unsigned long long)bytes,
-               p ? p : "(none)");
-        fflush(stdout);
         return;
     }
 
@@ -647,17 +644,18 @@ static void CaptureFinish(AppState *state, NtripSession *sess)
     LeaveCriticalSection(&state->csRtcmDump);
     if (!was_active) return;
 
+    /* The one thing the session cannot say, because it does not know it:
+     * that nobody asked for this stop.  The totals follow from
+     * @ref ns_capture_stop, so they are not repeated here. */
+    printf("[INFO] Stream ended -- closing the RTCM capture\n");
+    fflush(stdout);
+
     ns_capture_stop(sess);
-    uint64_t bytes = 0, frames = 0;
-    const char *p = ns_capture_status(sess, &bytes, &frames);
+    uint64_t bytes = 0;
+    ns_capture_status(sess, &bytes, NULL);
     EnterCriticalSection(&state->csRtcmDump);
     state->captureBytes = (unsigned long)bytes;
     LeaveCriticalSection(&state->csRtcmDump);
-    printf("[INFO] RTCM capture auto-stopped on stream close: "
-           "%llu frames, %llu bytes -> %s\n",
-           (unsigned long long)frames, (unsigned long long)bytes,
-           p ? p : "(none)");
-    fflush(stdout);
 }
 
 DWORD WINAPI WorkerOpenStream(LPVOID param)
