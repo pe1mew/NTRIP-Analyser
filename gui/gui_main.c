@@ -106,6 +106,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     /* ── Message loop ─────────────────────────────────────────── */
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
+        /* Tab between the fields, arrow keys within a group, Enter and
+         * Escape as commands: all of it is the dialog manager's work,
+         * and none of it happens in a plain window unless the loop
+         * offers it the message first.  The controls have carried
+         * WS_TABSTOP since they were written; only this was missing.
+         *
+         * Messages belonging to the detail, sky and report windows pass
+         * through untouched -- they are top-level windows of their own,
+         * not children of this one, so IsDialogMessage declines them. */
+        if (IsDialogMessage(hwnd, &msg)) continue;
+
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }

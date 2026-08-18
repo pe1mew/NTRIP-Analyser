@@ -129,6 +129,21 @@ uplink already does. Calling into the session from the UI thread while
 frames are being written is not something any lock in this program
 covers.
 
+### Added — the keyboard reaches the connection fields
+
+Tab now moves from Caster to Port to Mountpoint and on through the
+form, arrow keys move within a group, space toggles Auto-reconnect, and
+Enter opens the stream — but only while Open Stream is available, since
+a key must not do what a click cannot. Escape is swallowed: there is
+nothing on this window to cancel.
+
+Every control has carried `WS_TABSTOP` since it was written. What was
+missing is that all of this is the dialog manager's work, and a plain
+window never sees it unless the message loop offers it the message
+first, which is the one line this took. The detail, sky and report
+windows are unaffected: they are top-level windows of their own, so
+`IsDialogMessage` declines their messages.
+
 ### Fixed — the GUI's Log tab, empty whenever the program was started from Explorer
 
 Verifying the change above meant reading the log, and the log was empty

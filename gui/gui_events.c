@@ -2968,6 +2968,25 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             OnOpenStream(hwnd, state);
             return 0;
 
+        /* ── Keyboard, via the dialog manager ────────────────
+         *
+         * Enter arrives as IDOK because the window declares no default
+         * pushbutton, and Escape as IDCANCEL.  Enter opens the stream,
+         * which is what the fields above it are for -- but only while
+         * the button itself is available: with a stream running it is
+         * disabled, and a key must not do what a click cannot.
+         *
+         * Escape is swallowed rather than left to fall through: there
+         * is nothing on this window to cancel, and unhandled it would
+         * beep. */
+        case IDOK:
+            if (IsWindowEnabled(state->hBtnOpenStream))
+                OnOpenStream(hwnd, state);
+            return 0;
+
+        case IDCANCEL:
+            return 0;
+
         case IDM_CONN_CLOSE_STREAM:
         case IDC_BTN_CLOSE_STREAM:
             OnCloseStream(hwnd, state);
