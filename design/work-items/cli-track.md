@@ -38,6 +38,7 @@ and what "done" will mean.
 | 5 | `--report` — tier 2 in the CLI | **built 2026-08-16**, see [measurement-tiers.md](measurement-tiers.md) §2a |
 | 6 | `--thresholds`, `--thresholds-print` | **built 2026-08-17**, see [thresholds-track.md](thresholds-track.md) |
 | 7 | A run that ends without a verdict says so | **built 2026-08-17** |
+| 8 | A caster that stops sending is noticed, not waited on | **built 2026-08-18**, released in 3.5.0; found on a live monitor, not designed |
 
 ---
 
@@ -583,11 +584,12 @@ The `EPH_CASTER` block opens a second session, and nothing captures it.
 It would want its own path (`--capture-eph`), because merging two streams
 into one file would produce something neither program can replay.
 
-## Phases 5–7 — what the CLI gained afterwards
+## Phases 5–8 — what the CLI gained afterwards
 
-Three surfaces landed after this track was written. Each is designed on
-another track; recorded here so the CLI's own surface is described in
-one place.
+Four surfaces landed after this track was written. The first three are
+designed on another track; the fourth was not designed at all, and came
+from a stream that stopped. Recorded here so the CLI's own surface is
+described in one place.
 
 ### Phase 5 — `--report` (tier 2), built 2026-08-16
 
@@ -630,6 +632,53 @@ since it was built (§13.7a of [gui-design.md](../gui-design.md)); the
 CLI had not, which is the sort of divergence that only shows up when
 someone runs both.
 
+### Phase 8 — a caster that stops sending, built 2026-08-18
+
+Not planned. A monitored mountpoint had delivered nothing for **14 h
+10 min** while reporting itself connected, and two independent readings
+agreed on the same number: the socket's `lastrcv` at 51,058,080 ms, and
+`uptime_s − stream_time_s` at 50,986 s. The caster had gone quiet on a
+live TCP connection without closing it.
+
+Nothing in the CLI or the session could see that. `recv` on an idle
+socket and on a dead one return the same thing — nothing yet — so the
+connection stayed established, and every path that leads to a reconnect
+begins with a close that never came. `--reconnect` cannot ride out a
+fault whose defining property is that nothing happened.
+
+The session now carries a dead-man's switch, `stall_timeout_s`, 60 s by
+default and `0` to wait for ever. What the CLI shows for it:
+
+```
+[OBS] Caster stopped sending; the connection was still open
+```
+
+Three decisions worth keeping:
+
+- **Expiry takes the same path a close takes.** A session that
+  reconnects from a drop and not from a stall would be a defect nobody
+  sees until the stall happens, so both go through one function.
+- **`NS_END_STALLED` is its own end reason**, not `NS_END_EOF`. Nothing
+  closed and nothing failed; a frontend reporting why a session ended
+  should be able to say which of the two occurred.
+- **Silence is counted in bytes, not frames.** A stream sending
+  something the framer cannot use is a different fault and must not be
+  blamed on this one. The timer starts at connect, so a caster that
+  accepts and then never sends is caught by the same rule.
+
+Pinned by `test/test_stall.c`, which is a real caster on the loopback
+interface rather than a fed buffer — what distinguishes these cases is a
+socket that is open and idle, and only a socket can be that. Four cases,
+including the one that must **not** fire: a caster that keeps sending
+survives three times its own timeout, because a dead-man's switch that
+kills healthy streams is the worse fault of the two. Verified failing
+with the check disabled before it was believed.
+
+Tier 2 needed the matching change — a window in stream time stops when
+the stream does, and went on publishing `STABLE over 1.7 h` throughout
+those fourteen hours. That half is in
+[measurement-tiers.md](measurement-tiers.md), "After the tiers shipped".
+
 ---
 
 ## Decisions
@@ -655,6 +704,9 @@ decide; where a choice was close, the losing option is named.
 | **The GUI keeps its own capture until V6 passes** | Byte-identity must be demonstrated against the thing it claims parity with, not assumed, before the reference implementation is deleted | Migrating in the same change |
 | **V6 rewritten rather than run as written** | As specified it had no failing mode: the GUI writes frames the session framed, so it compared one code path with itself. One stream through both paths at once can fail, and is the claim the deletion rests on | Running it anyway and recording the pass |
 | **Counters on the session, not in `NsStatsSnapshot`** | That struct is serialised to the daemon's Munin JSON and the GUI's CSV export; a field added there changes formats other tooling reads, to report something that is not a property of the stream | Adding two fields where the other counters live, which is where they look like they belong |
+| **A stall is a drop, and takes the drop's code path** (phase 8) | A session that reconnects from a close but not from a silence would be a defect invisible until the silence happens. One `drop_connection`, two ways in | Detecting the stall where it is noticed and reconnecting there, which duplicates the backoff |
+| **The stall timer counts bytes, not frames** (phase 8) | A stream sending something the framer cannot use is a different fault, and this rule must not be the one that reports it | Frames, which reads as "is it producing anything useful" and conflates two faults |
+| **60 s default, and settable per mountpoint** | A base station silent for a minute has stopped; but the leash that suits a 1 Hz observation stream is not the one that suits an occasional broadcast, and the daemon watches both | One global value; or `0` by default, which leaves every existing deployment exactly as exposed as before |
 
 ### What this is not
 
@@ -717,15 +769,23 @@ None blocking. Three to revisit after it ships:
 
 ## Outcome
 
-Phases 1, 2, 5, 6 and 7 built. Phase 1's verification table is below;
-the later phases were each verified against a live caster or a real
-capture as they landed, and the evidence is in their sections above.
+Phases 1, 2, 5, 6, 7 and 8 built, and released in **3.5.0**
+(2026-08-18). Phase 1's verification table is below; the later phases
+were each verified against a live caster or a real capture as they
+landed, and the evidence is in their sections above.
 
 **The CLI's surface now**, in the order a user meets it: `--capture` and
 `--capture-max` to record, `--rtcm-stdin` to read a recording back
 through the identical code path, `--check` / `--check-vrs` for tier 1,
 `--report` for tier 2, and `--thresholds` / `--thresholds-print` to
 judge by a standard of one's own and to ask what that standard is.
+
+Phase 8 added no flag at all, which is the point of recording it here: a
+run now ends and says why when a caster goes quiet without closing,
+where before it would have waited for ever reporting itself connected.
+The behaviour every mode already had — reconnect, verdict, exit code —
+did not change; what changed is that a fault which produced no event now
+produces one.
 
 Phase 1 built 2026-08-15. What the plan said would happen, and what did:
 

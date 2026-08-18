@@ -43,6 +43,8 @@ or forms a verdict; that rule is what makes the next row true.
 |---|---|---|---|---|---|---|
 | Eight-KPI acceptance test | A bounded ~90 s verdict: connected, RTCM 3, ARP, observations, satellites, C/N0, CRC, advertised-versus-actual. Every KPI must hold for 60 continuous seconds, so a lucky second cannot pass a station. **Identical in the four products that have it** — a free STATION OK means exactly what a paid one means. The daemon links `kpi.c` but never calls it, and no KPI appears in the snapshot schema: it reports measurements and leaves the verdict to whoever reads them. | ● | ● | ● | ● | ○ |
 | VRS / network-RTK assertions | Five further checks and the gate test: stop the GGA and classify the service by how the stream reacts. Single-base checks actively mislead on a VRS, where a moving 1005 is correct operation. | ● | ● | ⋯ | ⋯ | ○ |
+| Stability over hours (tier 2) | The question ninety seconds cannot reach at any price: has this station *been* fit? Six metrics — availability, frame integrity, signal level, satellites held, ionosphere, delivery rate — over a window of **stream** time, so a replay reproduces a live run exactly. Its own vocabulary, never tier 1's: `STABLE` / `DEGRADED` / `UNSTABLE`, with `INSUFFICIENT EVIDENCE` a real verdict rather than a failure — below ten minutes, and again once the stream clock stops moving. It never touches the exit code; `--check` owns that. Absent from Android because `station_report.c` is not in that build's source list: the measurement exists, the runtime to sustain a ten-minute run on a phone does not. | ● | ● | ○ | ○ | ● |
+| Thresholds as data, not constants | Every limit either tier judges by, settable from a policy file, with a name and an FNV-1a fingerprint printed above the verdict. Once verdicts can come from different standards, `STATION OK` means nothing between two people unless each says which standard produced it. `--thresholds` and `--thresholds-print` in the CLI, `File → Load thresholds` in the GUI, a `thresholds` key in the daemon's config. Android judges by the built-in numbers only — `thresholds.c` is not in that build either, so there is no policy to load and no limit to show beside a row. | ● | ● | ○ | ○ | ● |
 | Message-type census | Counts and per-epoch intervals per type. Epoch-based, so an MSM message split across frames is not reported at a multiple of its true rate. | ● | ● | ○ | ◐ | ● |
 | Satellites per constellation | Unique SVs, from MSM1–7 and the legacy 1001–1012 families both. | ● | ● | ● | ● | ● |
 | C/N0 per satellite and band | Resolution follows the message family — 6-bit whole dB in MSM4/5, 1/16 dB in MSM6/7, ¼ dB in the legacy messages. That property has twice been reported as an application defect. | ○ | ● | ● | ● | ● |
@@ -93,6 +95,15 @@ will judge; pro is a *monitor* that answers over time and in the field.
 Every paid capability is more of something, never a different verdict.
 The entitlement is the installed APK rather than an in-app unlock,
 because that works in a field with no signal.
+
+That intent is ahead of the build. Answering *over time* is tier 2, and
+tier 2 is in neither edition — `station_report.c` and `thresholds.c` are
+absent from the Android source list, so both were invisible to the
+roadmap until these rows existed. They are the clearest paid/free line
+the product has, precisely because they leave the ninety-second verdict
+untouched: the free `STATION OK` stays exactly as free and exactly as
+trustworthy. What they need is not measurement work but a phone that can
+hold a ten-minute run — foreground service, doze, battery.
 
 **CLI against GUI.** They diverge by role rather than by rank. The GUI is
 the analysis instrument — ionosphere, history, VRS monitor and signal
