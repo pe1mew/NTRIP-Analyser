@@ -31,7 +31,7 @@ and what "done" will mean.
 
 | Phase | What | State |
 |---|---|---|
-| 1 | Capture the stream to a file, with reconnect | **built 2026-08-15; V5 passed 2026-08-16.** Only V6's live half remains |
+| 1 | Capture the stream to a file, with reconnect | **complete 2026-08-18**: built 2026-08-15, V5 passed 08-16, V6 passed 08-18 and the GUI's duplicate is retired |
 | 2 | `--rtcm-stdin` beyond `--sky` | **built 2026-08-17** |
 | 3 | Capture the ephemeris stream | not scheduled |
 | 4 | KPI 1 blames the station when the stream stops | **built 2026-08-17**; observed 2026-08-16 and again 2026-08-17 |
@@ -205,7 +205,7 @@ Each of these is a real feature and none of them is this one:
 | V3 | Capture to an unwritable path, and to a stream that fails mid-write; assert the session ends `NS_END_WRITE_ERROR` and the message names the path | ctest |
 | V4 | Windows: confirm V1 passes with the output handle opened `"wb"` and **fails** with `"w"` — the guard is the point, so prove it guards | manual, once |
 | V5 | A live 6 h run with `--reconnect`, then `convbin`, then a CSRS-PPP submission that returns a solution | manual, acceptance |
-| V6 | A GUI capture and a CLI capture of the same stream, same minute, compared frame-count and type-histogram | manual, once |
+| V6 | One stream written by the GUI's own capture **and** the session's at once, compared byte for byte | manual, once |
 
 V1 is the strongest test available and it is nearly free: for an input
 that is already all-valid frames, capture-of-replay is the identity
@@ -299,11 +299,86 @@ warning goes away), `design/todo.md` §2.2 (Phase 1 is no longer open),
 stream: the two programs must produce the same frames from the same
 minute, or "byte-identical" was a claim rather than a fact.
 
-**Step 5 — retire the duplicate.** Once V6 passes, the GUI's private
-capture in `gui/gui_thread.c` and the `FILE*` and critical section in
-`gui/gui_state.h` are dead weight over the session's version. That is a
-[gui-track.md](gui-track.md) item, not this one, and it must not be
-started until this phase has shipped and been used.
+*V6 was rewritten before it was run*, because as specified it could not
+have failed. See "V6, and why the test had to change" below.
+
+**Step 5 — retire the duplicate.** **Done 2026-08-18.** The GUI's
+private capture is gone: the per-frame `fwrite`, the `FILE*`, the byte
+counter, `close_rtcm_capture_if_active` and both menu handlers'
+file-opening, replaced by `ns_capture_start` / `ns_capture_stop` /
+`ns_capture_status`.
+
+## V6, and why the test had to change — **passed 2026-08-18**
+
+V6 was written to gate step 5: prove the session's capture is a faithful
+replacement for the GUI's before deleting the GUI's. As specified — two
+clients on the same stream in the same minute, frame counts and type
+histograms compared — **it could not have failed**, and one attempt at
+running it made that plain.
+
+**Why it could not fail.** The GUI has no framing of its own. Its
+capture was a single `fwrite` in `ObsProcessFrame`, handed frames the
+*session* had already framed and CRC-validated. Two clients therefore
+compare one code path with itself, plus about forty lines of file-handle
+bookkeeping — and the part that could differ is not the part being
+measured. Worse, two live captures open at different instants and can
+never be byte-compared, so the comparison could only ever be
+statistical: two histograms that look alike, from a test with no failing
+mode.
+
+**The attempt that showed it.** A GUI capture and a CLI capture, taken
+2026-08-17, missed each other entirely: the GUI stamps its filename when
+the *Save dialog opens*, so `20260817171639` was 33 seconds after the
+CLI's window had closed. Two adjacent windows rather than one shared
+minute — and the fact that the result still looked reasonable is the
+complaint about the test in miniature.
+
+It was not wasted. The two files reconcile exactly:
+
+    150,040 = 89 epochs x 1685 + 3 x 25      (CLI)
+     82,590 = 49 epochs x 1685 + 1 x 25      (GUI)
+
+Solved as simultaneous equations, they give whole numbers with no
+remainder — 1685 bytes per epoch, 25 per 1005, which is exactly a
+19-byte 1005 payload plus its header and CRC. Two files can only
+reconcile like that if both programs wrote complete frames and neither
+added nor lost a byte. Evidence for the conclusion; not proof of it.
+
+**The test that replaced it.** Write *one* stream through *both* paths
+at once, and compare byte for byte. Same frames, same instants, nothing
+to align — and a difference of one byte names the defect instead of
+disappearing into a histogram. Behind a temporary
+`NTRIP_CAPTURE_COMPARE=<base>` in the environment, one session wrote
+`<base>.gui.rtcm3` through the GUI's `fwrite` and `<base>.session.rtcm3`
+through `NsOptions::capture_path`. Both started with the session rather
+than from the menu, deliberately: a menu-driven start would race the
+pump and leave the files a frame apart for a reason that is not a
+defect.
+
+    81c065e623e7a362b0c886e7cad44372881b87aca948e70e5238bc4dd02260ab  v6.gui.rtcm3
+    81c065e623e7a362b0c886e7cad44372881b87aca948e70e5238bc4dd02260ab  v6.session.rtcm3
+
+121,467 bytes each, 435 frames, 72 epochs of six MSM7s at 1.000 s and
+3 x 1005 at 30.000 s. And 121,467 = 72 x 1685 + 3 x 25 — the same
+arithmetic the two adjacent captures had already solved to.
+
+**Then the retirement, then the same check again through the menu.** The
+first capture taken after the duplicate was deleted — the menu path, on
+a live stream — is 266 frames and 71,594 bytes, replays byte-identical,
+and solves to 44 x 1626 + 2 x 25 with no remainder. The per-epoch figure
+is 1626 rather than 1685 because the station was tracking a different
+number of satellites that day; what carries the meaning is that it
+divides exactly, which is what says every epoch was written whole and
+nothing was clipped at either end.
+
+The flag and the double write were deleted with the duplicate they
+existed to judge.
+
+**The lesson worth keeping**: a verification written at design time is
+written before anyone knows what the code will look like. This one named
+two programs when the thing worth comparing turned out to be two
+functions inside one. A test that cannot fail is worse than no test,
+because it is recorded as evidence.
 
 ## Phase 2 — `--rtcm-stdin` beyond `--sky` — **built 2026-08-17**
 
@@ -578,6 +653,7 @@ decide; where a choice was close, the losing option is named.
 | **`--capture` does not imply `--reconnect`** | Flags that quietly turn on other flags are how a tool stops being predictable. The documentation pairs them; the code does not | Implying it |
 | **The daemon gets the capability but no flag** | It comes free once the session owns it; a permanent rolling capture is a different feature (retention, rotation) and needs its own thinking | Wiring it now |
 | **The GUI keeps its own capture until V6 passes** | Byte-identity must be demonstrated against the thing it claims parity with, not assumed, before the reference implementation is deleted | Migrating in the same change |
+| **V6 rewritten rather than run as written** | As specified it had no failing mode: the GUI writes frames the session framed, so it compared one code path with itself. One stream through both paths at once can fail, and is the claim the deletion rests on | Running it anyway and recording the pass |
 | **Counters on the session, not in `NsStatsSnapshot`** | That struct is serialised to the daemon's Munin JSON and the GUI's CSV export; a field added there changes formats other tooling reads, to report something that is not a property of the stream | Adding two fields where the other counters live, which is where they look like they belong |
 
 ### What this is not
@@ -660,7 +736,7 @@ Phase 1 built 2026-08-15. What the plan said would happen, and what did:
 | V3 | a capture that cannot be written is fatal | **pass** — refusing to overwrite and an unopenable path both end `NS_END_WRITE_ERROR`; the CLI returns 7 |
 | V4 | binary mode is what makes V1 work | not run as a build variant; the `"wb"` is in one place and commented |
 | V5 | 6 h live → `convbin` → CSRS-PPP | **passed 2026-08-16.** See below |
-| V6 | GUI and CLI agree | **half done.** Offline: identical on the GUI's file. Live, side by side on one stream: outstanding, and it gates the GUI track's Phase 4 |
+| V6 | the GUI's capture and the session's agree | **passed 2026-08-18**, after the test was rewritten to one it could fail: one stream written through both paths at once is byte-identical, SHA-256 `81c065e6...`, 121,467 bytes |
 
 Live behaviour, 30 s against the Kadaster caster: 159 frames, 62,503
 bytes, and the frame count matches the message census type for type
@@ -707,6 +783,10 @@ from this shell, so that wiring is by inspection until somebody presses
 the key.
 
 Cost: the shared layer grew ~120 lines, the CLI ~60, the test 260. The
-GUI's duplicate — about 40 lines — is still there by design until V6
-completes, so the tree is temporarily one implementation heavier, exactly
-as [What this is not](#what-this-is-not) said it would be.
+GUI's duplicate — about 40 lines — stayed by design until V6 completed,
+so the tree was temporarily one implementation heavier, exactly as
+[What this is not](#what-this-is-not) said it would be. **It came out on
+2026-08-18**, and took more with it than it added: 90 lines out of
+`gui_events.c` against 138 in `gui_thread.c`, most of the latter being
+the two functions that drive the session's capture from the worker
+thread and the comments explaining why they must live there.

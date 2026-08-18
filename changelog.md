@@ -84,6 +84,43 @@ account still applies, so the
 [tester opt-in](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)
 remains open and joining it genuinely helps.
 
+### Changed — the GUI's capture is the session's capture
+
+The GUI wrote captured frames itself, one `fwrite` per frame, although
+the session layer it already drives can write the same frames on its
+own. That duplicate is gone: the write, the `FILE*`, the byte counter,
+the auto-close helper and the file-opening in both menu handlers,
+replaced by `ns_capture_start` / `ns_capture_stop` / `ns_capture_status`.
+The menu items and the Save dialog are unchanged.
+
+**What the GUI gains by losing the code.** The session refuses to
+overwrite an existing capture and refuses a second one over a running
+one; it reports an unwritable path as an error instead of capturing
+nothing silently; it honours a size cap; and a failed write ends the
+session `NS_END_WRITE_ERROR`. The GUI's own version had none of that.
+
+**Proved before it was deleted, by a test that could fail.** The
+verification on the books — a GUI capture and a CLI capture of the same
+stream, compared frame counts — had no failing mode: the GUI never
+framed anything, it wrote frames the session had already framed and
+CRC-checked, so it compared one code path with itself, and two live
+captures can only be compared statistically. Replaced by writing **one**
+stream through **both** paths at once:
+
+    81c065e6...  v6.gui.rtcm3
+    81c065e6...  v6.session.rtcm3
+
+Identical SHA-256, 121,467 bytes, 435 frames, from one session. The
+first menu-driven capture after the deletion replays byte-identical and
+its size resolves exactly — 44 x 1626 + 2 x 25 = 71,594 — so every epoch
+was written whole.
+
+**A note on threads.** The session belongs to the worker, so the menu
+leaves a request and the pump loop acts on it between pumps, as the GGA
+uplink already does. Calling into the session from the UI thread while
+frames are being written is not something any lock in this program
+covers.
+
 ### Fixed — a check that accused a station of never producing
 
 One report, two lines, in direct contradiction:

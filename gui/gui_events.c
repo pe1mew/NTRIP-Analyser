@@ -140,7 +140,6 @@ static void TrayRestore(HWND hwnd, AppState *state)
 }
 static void MsgStatsSeedAdvertised(AppState *state);
 static double geo_distance_m(double lat1, double lon1, double lat2, double lon2);
-static void close_rtcm_capture_if_active(AppState *state);
 
 /* ── Generic ListView sort state ──────────────────────────── */
 static int  g_sortColumn    = -1;   /* currently sorted column (-1 = none) */
@@ -1478,8 +1477,9 @@ static void OnCloseStream(HWND hwnd, AppState *state)
     AppendLog(state->hEditLog, "\r\n[INFO] Closing stream...\r\n");
     SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Closing...");
 
-    /* Flush any active RTCM capture before the worker stops writing. */
-    close_rtcm_capture_if_active(state);
+    /* An active capture is closed by the worker as it leaves its pump
+     * loop, which is also the thread that was writing it -- so there is
+     * nothing to flush from here, only a worker to wait for. */
 
     /* Wait for both workers to notice their stop flags via SO_RCVTIMEO */
     if (state->hWorkerThread) {
@@ -1510,31 +1510,6 @@ static void OnCloseStream(HWND hwnd, AppState *state)
 
 /* ── Stream Done (worker finished naturally) ──────────────── */
 
-/* Close any active RTCM capture (called from OnCloseStream / OnStreamDone). */
-static void close_rtcm_capture_if_active(AppState *state)
-{
-    FILE *f_to_close = NULL;
-    LONG  total = 0;
-    char  path[MAX_PATH] = "";
-    EnterCriticalSection(&state->csRtcmDump);
-    if (state->hRtcmDump) {
-        f_to_close = state->hRtcmDump;
-        total = state->rtcmDumpBytes;
-        strncpy(path, state->rtcmDumpPath, sizeof(path) - 1);
-        path[sizeof(path) - 1] = '\0';
-        state->hRtcmDump = NULL;
-    }
-    LeaveCriticalSection(&state->csRtcmDump);
-    if (f_to_close) {
-        fclose(f_to_close);
-        char msg[MAX_PATH + 96];
-        snprintf(msg, sizeof(msg),
-            "[INFO] RTCM capture auto-stopped on stream close: %ld bytes -> %s\r\n",
-            (long)total, path);
-        AppendLog(state->hEditLog, msg);
-    }
-}
-
 static void OnStreamDone(HWND hwnd, AppState *state)
 {
     /* Close all open detail windows */
@@ -1563,8 +1538,8 @@ static void OnStreamDone(HWND hwnd, AppState *state)
         state->hWorkerThread = NULL;
     }
 
-    /* Flush any active RTCM capture so the file is complete. */
-    close_rtcm_capture_if_active(state);
+    /* The capture is already closed and logged: the worker does it on
+     * its way out, before the message that brought us here. */
 
     /* Tear down the eph worker too — obs stream is the master lifecycle */
     if (state->bWorkerRunningEph) {
@@ -2758,7 +2733,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
 
         case IDM_FILE_RTCM_START: {
-            if (state->hRtcmDump) {
+            if (state->captureActive) {
                 AppendLog(state->hEditLog,
                     "[INFO] RTCM capture already running.\r\n");
                 return 0;
@@ -2795,27 +2770,16 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             ofn.lpstrDefExt  = "rtcm3";
             if (!GetSaveFileName(&ofn)) return 0;
 
-            FILE *f = fopen(filename, "wb");
-            if (!f) {
-                char err[600];
-                snprintf(err, sizeof(err),
-                    "[ERROR] Failed to open RTCM dump for writing:\r\n  %s\r\n",
-                    filename);
-                AppendLog(state->hEditLog, err);
-                return 0;
-            }
+            /* The worker owns the session, so it opens the file: this
+             * only leaves the request.  Whether it started -- and why
+             * not, if the path exists or cannot be written -- comes back
+             * through the log, from the session itself. */
             EnterCriticalSection(&state->csRtcmDump);
-            state->hRtcmDump      = f;
-            state->rtcmDumpBytes  = 0;
-            strncpy(state->rtcmDumpPath, filename,
-                    sizeof(state->rtcmDumpPath) - 1);
-            state->rtcmDumpPath[sizeof(state->rtcmDumpPath) - 1] = '\0';
+            strncpy(state->captureReqPath, filename,
+                    sizeof(state->captureReqPath) - 1);
+            state->captureReqPath[sizeof(state->captureReqPath) - 1] = '\0';
+            state->captureReq = 1;
             LeaveCriticalSection(&state->csRtcmDump);
-
-            char msg[600];
-            snprintf(msg, sizeof(msg),
-                "[INFO] RTCM capture started -> %s\r\n", filename);
-            AppendLog(state->hEditLog, msg);
             return 0;
         }
 
@@ -2906,31 +2870,17 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
 
         case IDM_FILE_RTCM_STOP: {
-            FILE *f_to_close = NULL;
-            LONG  total_bytes = 0;
-            char  path[MAX_PATH] = "";
-
+            BOOL running;
             EnterCriticalSection(&state->csRtcmDump);
-            if (state->hRtcmDump) {
-                f_to_close = state->hRtcmDump;
-                total_bytes = state->rtcmDumpBytes;
-                strncpy(path, state->rtcmDumpPath, sizeof(path) - 1);
-                path[sizeof(path) - 1] = '\0';
-                state->hRtcmDump = NULL;
-            }
+            running = state->captureActive;
+            if (running) state->captureReq = 2;
             LeaveCriticalSection(&state->csRtcmDump);
 
-            if (!f_to_close) {
+            if (!running)
                 AppendLog(state->hEditLog,
                     "[INFO] No RTCM capture is running.\r\n");
-                return 0;
-            }
-            fclose(f_to_close);
-            char msg[MAX_PATH + 96];
-            snprintf(msg, sizeof(msg),
-                "[INFO] RTCM capture stopped: %ld bytes -> %s\r\n",
-                (long)total_bytes, path);
-            AppendLog(state->hEditLog, msg);
+            /* The worker closes the file and logs the byte count: it is
+             * the one that knows what was actually written. */
             return 0;
         }
 

@@ -94,8 +94,9 @@ It shares the same core library with the CLI application:
   pipeline.
 
 All three workers post Windows messages; no worker touches an `HWND`
-directly. The ephemeris cache and RTCM-capture file handle are
-serialised with `CRITICAL_SECTION`s.
+directly. The ephemeris cache is serialised with a `CRITICAL_SECTION`,
+as is the capture request the menu leaves for the worker — the session
+writes the capture file, and the session belongs to the worker thread.
 
 ## Building the GUI
 
@@ -538,10 +539,15 @@ without needing the caster.
 **Capture:**
 1. With a stream open, menu **File → Start RTCM Capture...**
 2. Choose a filename (default: `YYYYMMDDHHmmss_<mountpoint>.rtcm3`).
-3. Every parsed frame's raw bytes are written to the file under a
-   `CRITICAL_SECTION`-guarded handle.
-4. **File → Stop RTCM Capture** closes the file. The file is also
-   flushed automatically when the stream is closed.
+3. Every CRC-valid frame's raw bytes are written to the file — by the
+   session layer, the same code the CLI's `--capture` uses, so a file
+   from either program is the same file.
+4. **File → Stop RTCM Capture** closes it and reports the frame and byte
+   count. Closing the stream closes an open capture too.
+
+An existing filename is **refused, not overwritten**, as is a second
+capture over a running one; a path that cannot be written says so in the
+log rather than capturing nothing silently.
 
 **Replay:**
 1. Menu **File → Replay RTCM File...** and pick a `.rtcm3` file.

@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdlib.h>    /* getenv, for the temporary capture comparison */
 #include <time.h>
 #include <ctype.h>
 
@@ -234,17 +235,8 @@ static void ObsProcessFrame(ObsCtx *c, const unsigned char *frame,
      * output, which the log tab shows. */
     analyze_rtcm_message(frame, frame_len, true, &state->config);
 
-    /* RTCM stream capture: raw frame bytes to disk if enabled.  The
-     * critical section guards against the UI thread closing the FILE*
-     * mid-write. */
-    if (state->csRtcmDumpInit) {
-        EnterCriticalSection(&state->csRtcmDump);
-        if (state->hRtcmDump) {
-            size_t w = fwrite(frame, 1, (size_t)frame_len, state->hRtcmDump);
-            state->rtcmDumpBytes += (LONG)w;
-        }
-        LeaveCriticalSection(&state->csRtcmDump);
-    }
+    /* The capture used to be written here, frame by frame.  The session
+     * layer writes it now -- see CaptureService in the pump loop. */
 
     /* Confirm RTCM 3.x on the first successful frame. */
     if (c->detected_format == FMT_NONE) {
@@ -562,6 +554,112 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
     }
 }
 
+/**
+ * @brief Carry out whatever the capture menu asked for, and report back.
+ *
+ * The session writes the capture file, and the session belongs to this
+ * thread -- so the menu leaves a request behind and the pump loop acts
+ * on it between pumps, exactly as the GGA uplink is driven.  Doing it
+ * from the UI thread instead would mean two threads inside one session
+ * while frames are being written, which no lock in this program covers.
+ *
+ * Called once per pump, so it must stay cheap: one critical section and,
+ * when nothing was asked, one status read.
+ */
+static void CaptureService(AppState *state, NtripSession *sess)
+{
+    int  req = 0;
+    char path[MAX_PATH] = "";
+
+    if (!state->csRtcmDumpInit) return;
+
+    EnterCriticalSection(&state->csRtcmDump);
+    req = state->captureReq;
+    state->captureReq = 0;
+    if (req == 1) {
+        strncpy(path, state->captureReqPath, sizeof(path) - 1);
+        path[sizeof(path) - 1] = '\0';
+    }
+    LeaveCriticalSection(&state->csRtcmDump);
+
+    if (req == 1) {
+        /* A refusal -- the path exists, or is unwritable -- has already
+         * been logged by the session as an NS_EV_LOG error, so all that
+         * is left here is not to claim a capture that did not start. */
+        if (ns_capture_start(sess, path) == 0) {
+            EnterCriticalSection(&state->csRtcmDump);
+            state->captureActive = TRUE;
+            strncpy(state->capturePath, path,
+                    sizeof(state->capturePath) - 1);
+            state->capturePath[sizeof(state->capturePath) - 1] = '\0';
+            state->captureBytes = 0;
+            LeaveCriticalSection(&state->csRtcmDump);
+            printf("[INFO] RTCM capture started -> %s\n", path);
+            fflush(stdout);
+        } else {
+            EnterCriticalSection(&state->csRtcmDump);
+            state->captureActive = FALSE;
+            LeaveCriticalSection(&state->csRtcmDump);
+        }
+        return;
+    }
+
+    if (req == 2) {
+        ns_capture_stop(sess);
+        uint64_t bytes = 0, frames = 0;
+        const char *p = ns_capture_status(sess, &bytes, &frames);
+        EnterCriticalSection(&state->csRtcmDump);
+        state->captureActive = FALSE;
+        state->captureBytes  = (unsigned long)bytes;
+        LeaveCriticalSection(&state->csRtcmDump);
+        printf("[INFO] RTCM capture stopped: %llu frames, %llu bytes -> %s\n",
+               (unsigned long long)frames, (unsigned long long)bytes,
+               p ? p : "(none)");
+        fflush(stdout);
+        return;
+    }
+
+    /* No request: publish the running total, which is all the UI reads. */
+    if (state->captureActive) {
+        uint64_t bytes = 0;
+        ns_capture_status(sess, &bytes, NULL);
+        EnterCriticalSection(&state->csRtcmDump);
+        state->captureBytes = (unsigned long)bytes;
+        LeaveCriticalSection(&state->csRtcmDump);
+    }
+}
+
+/**
+ * @brief Close the books on a capture the stream ended under.
+ *
+ * @ref ns_close flushes the file on its own; what it cannot do is tell
+ * the menu, which would otherwise still offer Stop Capture for a
+ * capture that is over.
+ */
+static void CaptureFinish(AppState *state, NtripSession *sess)
+{
+    if (!state->csRtcmDumpInit) return;
+
+    BOOL was_active;
+    EnterCriticalSection(&state->csRtcmDump);
+    was_active = state->captureActive;
+    state->captureActive = FALSE;
+    LeaveCriticalSection(&state->csRtcmDump);
+    if (!was_active) return;
+
+    ns_capture_stop(sess);
+    uint64_t bytes = 0, frames = 0;
+    const char *p = ns_capture_status(sess, &bytes, &frames);
+    EnterCriticalSection(&state->csRtcmDump);
+    state->captureBytes = (unsigned long)bytes;
+    LeaveCriticalSection(&state->csRtcmDump);
+    printf("[INFO] RTCM capture auto-stopped on stream close: "
+           "%llu frames, %llu bytes -> %s\n",
+           (unsigned long long)frames, (unsigned long long)bytes,
+           p ? p : "(none)");
+    fflush(stdout);
+}
+
 DWORD WINAPI WorkerOpenStream(LPVOID param)
 {
     AppState *state = (AppState *)param;
@@ -745,9 +843,15 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
             last_gga_time = now_t;
         }
 
+        CaptureService(state, sess);
+
         if (ns_pump(sess, 200) < 0)
             break;
     }
+
+    /* ns_close flushes an open capture, but the menu's own state has to
+     * be told, or "Stop Capture" would still offer itself afterwards. */
+    CaptureFinish(state, sess);
 
     ns_close(sess);
 
@@ -921,7 +1025,8 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
  *
  * Lifetime is shared with WorkerOpenStream via hWorkerThread /
  * bWorkerRunning / bStopRequested so Close Stream stops replay.  The eph
- * worker and capture-to-disk are not started during replay.
+ * worker is not started during replay, and no capture is started for
+ * you -- though one asked for from the menu is honoured.
  */
 DWORD WINAPI WorkerReplayRtcm(LPVOID param)
 {
@@ -965,9 +1070,18 @@ DWORD WINAPI WorkerReplayRtcm(LPVOID param)
     ReportReset(state, TRUE);
 
     while (!state->bStopRequested) {
+        /* Capture during a replay is not started for you, but it is
+         * allowed: the menu is live while a replay runs, and re-writing
+         * a capture through the framer is the identity function this
+         * program's first test is built on.  Serviced here so the menu
+         * does not silently do nothing. */
+        CaptureService(state, sess);
+
         if (ns_pump(sess, 0) < 0)
             break;
     }
+
+    CaptureFinish(state, sess);
 
     unsigned long long total = ns_stats(sess)->bytes_total;
     ns_close(sess);

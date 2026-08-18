@@ -110,16 +110,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
         DispatchMessage(&msg);
     }
 
-    /* ── Cleanup ──────────────────────────────────────────────── */
-    if (state->csRtcmDumpInit) {
-        EnterCriticalSection(&state->csRtcmDump);
-        if (state->hRtcmDump) {
-            fclose(state->hRtcmDump);
-            state->hRtcmDump = NULL;
-        }
-        LeaveCriticalSection(&state->csRtcmDump);
+    /* ── Cleanup ──────────────────────────────────────────────────────
+     * No capture file to close here any more: the session owns it and
+     * the worker closes it as it leaves, which has already happened by
+     * the time the message loop ends. */
+    if (state->csRtcmDumpInit)
         DeleteCriticalSection(&state->csRtcmDump);
-    }
     free(state);
     WSACleanup();
 

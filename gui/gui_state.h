@@ -727,15 +727,22 @@ typedef struct {
      * when a window opens, cleared by the window's WM_CLOSE handler. */
     HWND hSvDetailWnds[SV_EPH_MAX_GNSS][SV_EPH_MAX_SATS_PER_GNSS];
 
-    /* RTCM stream capture.  When @ref hRtcmDump is non-NULL the worker
-     * thread writes each raw frame to the file.  Access serialised
-     * through @ref csRtcmDump so the UI thread can fclose() safely
-     * even while a write is in flight. */
-    FILE             *hRtcmDump;
+    /* RTCM stream capture.  The **session layer** writes the file --
+     * ns_capture_start / ns_capture_stop -- and the session belongs to
+     * the worker thread, so the menu cannot call them directly.  These
+     * carry the request across and the answer back, the same way the
+     * GGA uplink is driven from worker-read state.
+     *
+     * Proven interchangeable with the GUI's own former fwrite: one
+     * stream written by both produced byte-identical files
+     * (SHA-256 81c065e6..., 121,467 bytes) -- cli-track.md, V6. */
     CRITICAL_SECTION  csRtcmDump;
     BOOL              csRtcmDumpInit;       /* TRUE after InitializeCS */
-    char              rtcmDumpPath[MAX_PATH];
-    LONG              rtcmDumpBytes;        /* updated under the CS */
+    int               captureReq;           /* 0 idle, 1 start, 2 stop  */
+    char              captureReqPath[MAX_PATH];  /* the path to start   */
+    BOOL              captureActive;        /* the worker's answer      */
+    char              capturePath[MAX_PATH];
+    unsigned long     captureBytes;
 
     /* RTCM file replay.  Set by the File menu before launching
      * WorkerReplayRtcm; the worker reads frames from this path. */

@@ -22,6 +22,7 @@ records yet. The order below is a proposal, not a decision.
 | 1 | Sky-view labels collide | open, cause understood |
 | 2 | Finish and land the VRS monitor | mostly done, partly untracked |
 | 3 | The GUI is outside CI | known and deliberate; still a risk |
+| 4 | Retire the GUI's private capture | **built 2026-08-18**, once V6 was made a test that could fail |
 
 ---
 
@@ -78,20 +79,39 @@ invoking `build-gui.bat`, with no test and no artefact: enough to catch
 a missing include or a changed core signature, which is the class of
 breakage that actually happens.
 
-## Phase 4 — Retire the GUI's private capture — blocked on the CLI track
+## Phase 4 — Retire the GUI's private capture — **built 2026-08-18**
 
-Once [cli-track.md](cli-track.md) Phase 1 puts capture-to-file in the
-session layer — where [architecture.md §3.3](../architecture.md) has
-always said it belongs — the GUI's own version becomes a duplicate: the
-`fwrite` in `gui/gui_thread.c`, the `FILE*` and its critical section in
-`gui/gui_state.h`. The menu items and the Save dialog stay; only the
-plumbing beneath them changes, to `ns_capture_start()` / `ns_capture_stop()`.
+[cli-track.md](cli-track.md) Phase 1 put capture-to-file in the session
+layer — where [architecture.md §3.3](../architecture.md) has always said
+it belongs — which made the GUI's own version a duplicate. It is now
+gone: the `fwrite` in `gui/gui_thread.c`, the `FILE*`, its byte counter,
+`close_rtcm_capture_if_active`, and the file-opening in both menu
+handlers. The menu items and the Save dialog are unchanged, exactly as
+this phase said; only the plumbing beneath them is
+`ns_capture_start()` / `ns_capture_stop()` / `ns_capture_status()`.
 
-**Do not start this before V6 of that phase passes** — a GUI capture and
-a CLI capture of the same stream, in the same minute, agreeing frame for
-frame. The GUI is the reference implementation here, and deleting the
-reference before the replacement is proved against it would leave nothing
-to compare with.
+**The gate held, but not in the shape written here.** The rule was: do
+not start before V6 passes, V6 being a GUI capture and a CLI capture of
+the same stream in the same minute, agreeing frame for frame. Attempting
+it showed the test could not have failed — the GUI has no framing of its
+own, it writes frames the session already framed and CRC-checked, so two
+clients compare one code path with itself, and two live captures can
+only ever be compared statistically. V6 was rewritten to write **one**
+stream through both paths at once and compare byte for byte; that is
+what passed, and it is a test that could have failed. The reasoning is
+in cli-track.md, "V6, and why the test had to change".
+
+**Two threads, one session.** The session belongs to the worker thread,
+so the menu cannot call `ns_capture_start` itself. It leaves a request
+behind and the pump loop acts on it between pumps — the pattern the GGA
+uplink already uses. The alternative was two threads inside one session
+while frames are being written, which nothing in this program locks.
+
+**What the GUI gained by losing code**: the session refuses to overwrite
+an existing capture and refuses a second one over a running one, reports
+a bad path as an error rather than silently not capturing, honours a
+size cap, and ends the session `NS_END_WRITE_ERROR` when a write fails.
+The GUI's own version had none of that.
 
 ## Open questions
 
