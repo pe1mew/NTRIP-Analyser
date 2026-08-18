@@ -44,11 +44,61 @@ timer that always fires — a caster that keeps sending, which must
 survive three times its own timeout untouched. With the check removed
 the first four assertions fail; with it, twelve tests pass.
 
-One thing this does **not** fix: tier 2 published `"headline":"STABLE
-over 1.7 h"` throughout those fourteen hours, because its window is
-measured in *stream* time and stream time had stopped along with the
-stream. A report whose window has not advanced in wall-clock time
-should refuse to publish a verdict. Still open.
+The second half of the same failure — tier 2 publishing `STABLE over
+1.7 h` throughout those fourteen hours — is the entry below.
+
+### Fixed — a report that stood behind a window which had stopped moving
+
+Through the fourteen hours above, tier 2 published:
+
+```json
+{"window_s":6120.000,"overall_name":"STABLE",
+ "headline":"STABLE over 1.7 h"}
+```
+
+Every figure in it was true. None of it was current. Tier 2 measures in
+*stream* time — the property that lets a replay reproduce a live run
+exactly — so when the stream stopped, the window stopped with it. The
+daemon kept sampling every ten seconds, every sample carried the same
+stream time as the one before, and the report went on describing a
+period that had ended. From inside that arithmetic a window 1.7 h long
+and a window that ended 1.7 h into a session now half a day old are the
+same thing.
+
+They differ only against the clock on the wall, so the report now keeps
+that clock beside the stream's — not to measure anything with, since
+every window here stays stream time, but to answer the one question the
+stream's own clock cannot: whether it is still running. After
+`SR_STALE_S` (**120 s**, settable as `stale_s`) with no movement, the
+verdict reverts to `INSUFFICIENT EVIDENCE` and says how long it has
+been.
+
+Three decisions inside that:
+
+* **It reuses `INSUFFICIENT EVIDENCE` rather than inventing a fifth
+  word.** In both cases the report is declining to judge, and the
+  vocabulary on this tier is already one word longer than tier 1's.
+  The headline carries the difference: `the stream clock has not
+  advanced for 300 s; this window ended then`.
+* **It is checked before the length test**, because a window that has
+  stopped will never reach the length it is short of — `600 s needed`
+  would be a promise nothing is going to keep.
+* **Live only.** A replay's host clock measures how fast the disk is,
+  which has nothing to say about the station; a capture read in four
+  seconds would otherwise look stale from its first sample.
+
+120 s sits deliberately above `stall_timeout_s` (60 s): a stream that
+merely stopped is now caught by the session and reconnected long before
+this fires. What reaches here is the case reconnecting cannot fix — a
+caster that accepts, is reconnected to, and still sends no observations.
+
+Four cases pin it: an hour of healthy stream is `STABLE` while the
+clocks agree and `INSUFFICIENT EVIDENCE` once they do not, a pause
+shorter than the limit leaves the verdict standing, a replay is judged
+on its stream rather than on how fast it was read, and a snapshot
+carrying no uptime is judged exactly as it always was. With the rule
+removed, three assertions fail and the headline reads `STABLE over
+1.0 h` — the shuttle2 wording, reproduced.
 
 ### Added — a second tier of measurement: has this station *been* fit?
 

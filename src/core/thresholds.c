@@ -87,6 +87,8 @@ static const ThField FIELDS[] = {
     "evidence required before any verdict is offered" },
   { "min_samples", TH_TIER2, TH_INT, S(min_samples), 10, 100000, "", 0,
     "samples required before any verdict is offered" },
+  { "stale_s", TH_TIER2, TH_DOUBLE, S(stale_s), 0, 86400, "s", 0,
+    "silence of the stream clock after which no verdict is offered" },
 
   /* ── The network-RTK assertions ─────────────────────────────────
    * Deadlines describing what a caster does, not what a station

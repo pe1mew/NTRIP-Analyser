@@ -349,6 +349,7 @@ a minute's data.
 | `SR_WARMUP_S` | **30 s** | Tier 2 ignores the first 30 s of a session. `sats_total` describes the last five seconds, so a sample taken while the first epoch is still arriving sees a partial constellation. Found the hard way: a station that never dropped below 39 satellites was reported as holding 9. |
 | `SR_MIN_WINDOW_S` | **600 s** | No tier-2 verdict at all below ten minutes. |
 | `SR_MIN_SAMPLES` | **10** | And not without ten samples, however long the window claims to be. |
+| `SR_STALE_S` | **120 s** | Wall-clock silence of the *stream* clock after which tier 2 offers no verdict at all. Every window here is stream time, which is what makes a replay reproduce a live run — and also means that when a stream stops, its window stops with it: the samples keep arriving, the numbers never change, and the report describes a period that ended. One station published `STABLE over 1.7 h` for fourteen hours after its last observation on exactly that arithmetic. Two minutes sits above `stall_timeout_s` (60 s) so the session reconnects first; what reaches here is the case reconnecting cannot fix. |
 | `KPI_INTEGRITY_WINDOW_S` | **60 s** | Stream each tier-1 integrity reading covers, and deliberately `KPI_SUSTAIN_S`: a check has to be able to change within the run, or the sustain clock is timing a number that can no longer move. At least 100 frames must arrive in it. |
 | `SR_INTEGRITY_WINDOW_S` | **600 s** | Stream each tier-2 integrity reading covers, matching `SR_MIN_WINDOW_S` so the first arrives when the report can first judge. |
 | Sampling cadence | **1 s of stream** | Tier 2 samples once per second *of stream time*, in every program. A replay at disk speed therefore produces the same number of samples as the live run did. |
@@ -385,7 +386,7 @@ than it is:
 |---|---|
 | **Well founded** — conventional, or checked against real streams | KPI 6 (40 dB-Hz), KPI 5's per-constellation table, KPI 7 (1 in 1000), the ROTI scale |
 | **Reasoned, not measured** — defensible, but no study behind the exact value | KPI 1 (100 B/s), KPI 3 (30 s), KPI 4 (2 s), the whole of tier 2's six pairs, all five VRS assertions |
-| **Learned from a defect** — the value exists because something was wrong without it | `SR_WARMUP_S` (30 s), `KPI_SUSTAIN_S` (60 s), the 300 s ceiling |
+| **Learned from a defect** — the value exists because something was wrong without it | `SR_WARMUP_S` (30 s), `KPI_SUSTAIN_S` (60 s), `SR_STALE_S` (120 s), the 300 s ceiling |
 
 The middle row is the honest answer to "are these correct?": they are
 plausible, they behave sensibly against the stations this project has

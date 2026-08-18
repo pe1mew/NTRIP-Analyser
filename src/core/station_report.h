@@ -129,6 +129,29 @@ extern "C" {
 #define SR_MIN_SAMPLES             10
 
 /**
+ * Wall-clock seconds the stream clock may fail to advance before the
+ * report stops standing behind what it measured.
+ *
+ * Every window on this tier is measured in *stream* time, which is what
+ * makes a replay reproduce a live run exactly. It also means that when
+ * a stream stops the window stops with it: samples keep arriving, the
+ * numbers never change, and the report describes a period that ended.
+ * One monitored station published `STABLE over 1.7 h` for fourteen
+ * hours after its last observation on precisely that arithmetic — every
+ * figure in it true, and none of it current.
+ *
+ * So the report watches the host's clock as well, and declines to judge
+ * once the two have disagreed for this long. Two minutes sits above
+ * `NsOptions::stall_timeout_s` (60 s), deliberately: a stream that
+ * merely stopped is caught by the session and reconnected well before
+ * this fires. What reaches here is the case the session cannot fix — a
+ * caster that accepts, is reconnected to, and still sends no
+ * observations — where the report would otherwise go on publishing a
+ * verdict from evidence that has stopped being about now.
+ */
+#define SR_STALE_S                 120.0
+
+/**
  * @struct SrPolicy
  * @brief The thresholds a report is built under.
  *
@@ -163,6 +186,7 @@ typedef struct {
     double warmup_s;               /**< @ref SR_WARMUP_S               */
     double min_window_s;           /**< @ref SR_MIN_WINDOW_S           */
     int    min_samples;            /**< @ref SR_MIN_SAMPLES            */
+    double stale_s;                /**< @ref SR_STALE_S                */
 } SrPolicy;
 
 /** @brief Fill @p p with the built-in thresholds. */
@@ -234,6 +258,12 @@ typedef struct {
     bool     from_capture;
     double   t_first, t_last;   /**< stream time, seconds                */
     int      samples;
+
+    /* The host's clock beside the stream's, which is the only way to
+     * tell a window that is short from one that has stopped moving. */
+    bool     have_uptime;       /**< a sample carried an uptime          */
+    double   up_last;           /**< uptime at the latest sample         */
+    double   up_advance;        /**< uptime when stream time last moved  */
 
     int      reconnects_first, reconnects_last;
     /* Frame integrity, per window: the lowest share of frames passing

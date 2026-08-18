@@ -45,6 +45,15 @@ be perfectly healthy this second and have been unstable all week; those
 are not contradictions, and giving them one file and one vocabulary would
 make them look like one.
 
+The report's windows are measured in *stream* time, which is what lets a
+replay reproduce a live run — and means that a stopped stream freezes the
+window rather than shortening it. After `stale_s` (120 s by default) with
+no movement of the stream clock, `overall_name` reverts to `INSUFFICIENT
+EVIDENCE` and the headline says how long it has been, rather than
+standing behind a window that ended. Watch for that as well as for
+`DEGRADED`: a station whose report stops changing is a station that has
+stopped.
+
 ```json
 {"report_schema_version":1,"mountpoint":"HANESE","window_s":3600.000,
  "samples":3598,"overall":1,"overall_name":"STABLE",

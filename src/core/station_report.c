@@ -39,6 +39,7 @@ void sr_policy_defaults(SrPolicy *p)
     p->warmup_s              = SR_WARMUP_S;
     p->min_window_s          = SR_MIN_WINDOW_S;
     p->min_samples           = SR_MIN_SAMPLES;
+    p->stale_s               = SR_STALE_S;
 }
 
 void sr_reset(SrState *s, bool from_capture, const SrPolicy *pol)
@@ -79,8 +80,22 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
     /* Stream time only moves forward.  A replay driven faster than real
      * time still produces the same window, which is the property that
      * makes a captured session reproduce its report. */
-    if (t_stream > s->t_last || s->samples == 0) s->t_last = t_stream;
+    bool advanced = (t_stream > s->t_last) || s->samples == 0;
+    if (advanced) s->t_last = t_stream;
     s->samples++;
+
+    /* The host's clock, kept beside the stream's.  Not to measure
+     * anything with -- every window here is stream time and stays that
+     * way -- but to answer one question the stream's own clock cannot:
+     * whether it is still running.  A stopped stream reports the same
+     * stream time for ever, and the difference between "this window is
+     * 1.7 h" and "this window ended 14 hours ago" is visible only from
+     * outside it. */
+    if (snap->uptime_s > 0.0) {
+        s->up_last = snap->uptime_s;
+        if (advanced || !s->have_uptime) s->up_advance = snap->uptime_s;
+        s->have_uptime = true;
+    }
 
     s->reconnects_last = snap->reconnects;
 
@@ -320,6 +335,25 @@ void sr_build(const SrState *s, StationReport *out)
         if (!m->available) continue;              /* live-only, offline */
         if (m->verdict == SR_INSUFFICIENT) { any_insufficient = true; continue; }
         if (m->verdict > worst) { worst = m->verdict; culprit = m; }
+    }
+
+    /* ── Has the window stopped moving? ──────────────────────────────
+     *
+     * Checked before the length test, and for the same reason it exists
+     * at all: a window that has stopped will never reach the length it
+     * is short of, so "600 s needed" would be a promise nothing is
+     * going to keep.
+     *
+     * Live only.  A replay's host clock measures how fast the disk is,
+     * which has nothing to say about the station. */
+    double stale = (s->have_uptime && !s->from_capture)
+                 ? s->up_last - s->up_advance : 0.0;
+    if (s->pol.stale_s > 0.0 && stale > s->pol.stale_s) {
+        out->overall = SR_INSUFFICIENT;
+        snprintf(out->headline, sizeof(out->headline),
+                 "INSUFFICIENT EVIDENCE -- the stream clock has not advanced "
+                 "for %.0f s; this window ended then", stale);
+        return;
     }
 
     if (!enough) {

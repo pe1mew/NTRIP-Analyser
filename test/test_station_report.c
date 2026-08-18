@@ -335,6 +335,88 @@ int main(void)
               "and the report says which window it is waiting for");
     }
 
+    /* ── 13. A window that has stopped moving is not a verdict ─────
+     *
+     * The defect this covers published `STABLE over 1.7 h` for fourteen
+     * hours after a station's last observation. Every figure in it was
+     * true and none of it was current: tier 2 measures in stream time,
+     * so when the stream stopped its window stopped with it. A report
+     * cannot tell a window that is 1.7 h long from one that ended 1.7 h
+     * into a session now half a day old -- unless it also watches the
+     * clock on the wall. */
+    {
+        NsStatsSnapshot s = healthy();
+        sr_reset(&st, false, NULL);
+
+        /* An hour of stream, the host's clock keeping step with it. */
+        for (int i = 0; i < 60; i++) {
+            s.uptime_s = 60.0 + i * 60.0;
+            sr_feed(&st, &s, i * 60.0);
+        }
+        sr_build(&st, &r);
+        check(r.overall == SR_STABLE,
+              "an hour of healthy stream is STABLE while the clocks agree");
+
+        /* The stream stops.  The daemon keeps publishing every ten
+         * seconds, as it did throughout the fourteen hours, and every
+         * sample carries the same stream time as the one before. */
+        for (int i = 1; i <= 30; i++) {
+            s.uptime_s = 3600.0 + i * 10.0;
+            sr_feed(&st, &s, 59 * 60.0);
+        }
+        sr_build(&st, &r);
+
+        check(r.overall == SR_INSUFFICIENT,
+              "once the stream clock stops, no verdict is offered");
+        check(strstr(r.headline, "not advanced") != NULL,
+              "the headline says the window stopped, not that it is short");
+        check(strstr(r.headline, "STABLE") == NULL,
+              "a stopped stream is never reported STABLE");
+        printf("      headline: \"%s\"\n", r.headline);
+    }
+
+    /* ── 14. And the three ways that rule must not fire ───────────── */
+    {
+        /* A pause shorter than the limit.  Streams hiccup, and a report
+         * that withdrew its verdict whenever one did would be useless. */
+        NsStatsSnapshot s = healthy();
+        sr_reset(&st, false, NULL);
+        for (int i = 0; i < 60; i++) {
+            s.uptime_s = 60.0 + i * 60.0;
+            sr_feed(&st, &s, i * 60.0);
+        }
+        for (int i = 1; i <= 6; i++) {       /* 60 s quiet, limit is 120 */
+            s.uptime_s = 3600.0 + i * 10.0;
+            sr_feed(&st, &s, 59 * 60.0);
+        }
+        sr_build(&st, &r);
+        check(r.overall == SR_STABLE,
+              "a pause shorter than the limit leaves the verdict standing");
+
+        /* A replay.  Its host clock measures how fast the disk is, which
+         * says nothing about the station -- and a capture read in a few
+         * seconds would otherwise look stale from the first sample. */
+        NsStatsSnapshot c = healthy();
+        sr_reset(&st, true, NULL);
+        for (int i = 0; i < 60; i++) {
+            c.uptime_s = 0.1 + i * 0.05;     /* disk speed */
+            sr_feed(&st, &c, i * 60.0);
+        }
+        sr_build(&st, &r);
+        check(r.overall == SR_STABLE,
+              "a replay is judged on its stream, not on how fast it was read");
+
+        /* A caller that publishes no uptime at all.  The protection is
+         * lost, which is the honest outcome -- but a report must not
+         * become unjudgeable because a field was left at zero. */
+        NsStatsSnapshot n = healthy();
+        sr_reset(&st, false, NULL);
+        feed_run(&st, &n, 60, 60.0);         /* uptime_s stays 0 */
+        sr_build(&st, &r);
+        check(r.overall == SR_STABLE,
+              "a snapshot without an uptime is judged as it always was");
+    }
+
     printf("\n%s\n", failures ? "FAILURES" : "all station-report cases pass");
     return failures ? 1 : 0;
 }

@@ -161,6 +161,14 @@ Four things about it are deliberate:
   wants. That is the honest answer, and the alternative — grading an
   hour's question on a minute's data — is a mistake the eight checks
   already made three times before their sustain window was added.
+- **It withdraws its verdict when the stream stops.** Every window here
+  is measured in *stream* time, so when a stream stops its window stops
+  with it — the samples keep arriving, the numbers never change, and the
+  report goes on describing a period that ended. After two minutes with
+  no movement of the stream clock the verdict reverts to `INSUFFICIENT
+  EVIDENCE`, saying how long it has been. One monitored station
+  published `STABLE over 1.7 h` for fourteen hours on the old
+  arithmetic.
 - **It never uses the check's words.** `STABLE`, `DEGRADED`, `UNSTABLE`,
   never `STATION OK`. A station can be fit right now and have been
   unstable all week; both statements are true and neither contradicts the
