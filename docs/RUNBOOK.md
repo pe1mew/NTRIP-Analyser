@@ -478,6 +478,18 @@ was kept by hand; it has not been for some time.)
 
 **The agent never publishes.** Prepare the assets, then hand off.
 
+"Publishes" covers **uploading**, not just the moment a draft goes
+public: `gh release upload`, `gh release create`, `gh release edit
+--draft=false`, and pushing a tag are all the author's, whichever of them
+happens to be reversible. Attaching a binary to a draft is putting a
+binary on the project's release page under the author's name — the draft
+status is a detail of timing, not a difference in kind. Crossed on
+2026-08-18, when the assets for v3.5.0 were uploaded on the strength of
+"let's add the Windows artefacts"; that is a request for the assets to
+exist, which is `cmake --build build --target release`, and stops there.
+Written down because the line was genuinely ambiguous until it was
+crossed.
+
 ### Post-deploy verification
 
 There is no server here, so "deployed" means an artefact someone
