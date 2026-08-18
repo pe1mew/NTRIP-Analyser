@@ -40,17 +40,17 @@
  * this file disagree (cmake/CheckReleaseTag.cmake).
  */
 #define NTRIP_VERSION_MAJOR   3
-#define NTRIP_VERSION_MINOR   4
+#define NTRIP_VERSION_MINOR   5
 #define NTRIP_VERSION_PATCH   0
 
 /** Human-readable version.  Keep in step with the three numbers above. */
-#define NTRIP_VERSION_STRING  "3.4.0"
+#define NTRIP_VERSION_STRING  "3.5.0"
 
 /** Comma-separated form required by the Win32 VERSIONINFO resource. */
-#define NTRIP_VERSION_RC      3,4,0,0
+#define NTRIP_VERSION_RC      3,5,0,0
 
 /** Dotted four-part form for the Win32 resource string fields. */
-#define NTRIP_VERSION_RC_STR  "3.4.0.0"
+#define NTRIP_VERSION_RC_STR  "3.5.0.0"
 
 /*
  * Android's versionCode is NOT defined here.

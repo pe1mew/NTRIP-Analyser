@@ -56,7 +56,7 @@
 <!-- 2026-08-14, second session -->
 
 - **v3.4.0 released** (2026-08-15), the first release whose Linux assets were
-  <!-- verify: grep -q 'NTRIP_VERSION_STRING  "3.4.0"' src/core/version.h -->
+  <!-- verify: grep -q '^## \[3.4.0\]' changelog.md -->
   built and attached by CI from the tag rather than by hand. Verified from
   the packaged binary, not the build tree: `--version`, a live capture, and
   `--check` returning STATION OK against `ntrip.kadaster.nl/APEL00NLD0`.
