@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.unit.dp
 
 /**
  * @file Navigation.kt
@@ -121,6 +122,16 @@ class NavStack internal constructor(initial: List<Dest>) {
         )
     }
 }
+
+/**
+ * How far a sideways drag must run before it navigates.
+ *
+ * One value for every edge, so the gesture feels the same wherever it is
+ * made -- into analysis from the hub, and back out of the first page of
+ * the pager. It lives here rather than in either screen because it
+ * describes the navigation, not the thing being navigated away from.
+ */
+internal val SwipeThreshold = 96.dp
 
 /**
  * A back stack that survives rotation and process death.

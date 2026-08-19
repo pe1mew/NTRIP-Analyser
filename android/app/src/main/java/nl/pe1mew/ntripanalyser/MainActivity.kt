@@ -10,45 +10,26 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -462,172 +443,29 @@ fun MainScreen() {
      * The same threshold governs every edge, so the gesture feels the
      * same wherever it is made.
      */
-    val swipePx = with(LocalDensity.current) { 96.dp.toPx() }
+    val swipePx = with(LocalDensity.current) { SwipeThreshold.toPx() }
     val analysisReachable = runState.running ||
         (liveDoc != null && liveDoc.sats.isNotEmpty())
 
     if (nav.current == Dest.Analysis) {
-        val footer = liveDoc?.stats?.let { st ->
-            buildString {
-                append(st.mountpoint)
-                if (st.arpValid && st.arpLat != null && st.arpLon != null) {
-                    append("  ARP: %.6f, %.6f".format(st.arpLat, st.arpLon))
-                }
-            }
-        }.orEmpty()
-
-        // One page per view, so a swipe moves between them with the
-        // content following the finger rather than cutting.
-        val pagerState = rememberPagerState(initialPage = tab.ordinal) {
-            AnalysisTab.entries.size
-        }
-        // Kept in step both ways: the tab row still selects a page, and
-        // a swipe still moves the selected tab.
-        LaunchedEffect(tab) {
-            if (pagerState.currentPage != tab.ordinal)
-                pagerState.animateScrollToPage(tab.ordinal)
-        }
-        LaunchedEffect(pagerState.currentPage) {
-            tab = AnalysisTab.entries[pagerState.currentPage]
-        }
-
-        // Dragging the first view further right has nowhere to go inside
-        // the pager, so what it does not consume comes back here and
-        // means "out of this screen" -- the mirror of the swipe that
-        // opened it.
-        val leaveAnalysis = remember(swipePx) {
-            object : NestedScrollConnection {
-                var carried = 0f
-                override fun onPostScroll(
-                    consumed: Offset, available: Offset, source: NestedScrollSource,
-                ): Offset {
-                    if (pagerState.currentPage == 0 && available.x > 0f) {
-                        carried += available.x
-                        if (carried > swipePx) {
-                            carried = 0f
-                            nav.pop()
-                        }
-                    } else if (available.x < 0f) {
-                        carried = 0f
-                    }
-                    return Offset.Zero
-                }
-            }
-        }
-
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.mode_analysis)) },
-                    navigationIcon = {
-                        TextButton(onClick = { nav.pop() }) {
-                            Text(stringResource(R.string.action_back))
-                        }
-                    },
-                    // Both views on this screen are drawn from satellite
-                    // positions, and neither can say where those came
-                    // from once it is drawn. The badge says it here, for
-                    // both of them at once, and leads to the page that
-                    // explains what to do about it.
-                    actions = {
-                        OrbitSourceBadge(
-                            source = skySource(usedOrbits, liveDoc, haveLocation),
-                            rinexAgeS = rinexAgeS,
-                            onClick = { uriHandler.openUri(ORBITS_URL) },
-                        )
-                    },
-                )
-            }
-        ) { pad ->
-            Column(Modifier.padding(pad).fillMaxSize()) {
-
-                // Pro runs analysis as its own session; free shows what
-                // the station check captured, frozen at its end.
-                if (Features.HAS_WATCH) {
-                    Row(
-                        Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Button(onClick = {
-                            if (runState.running) MonitorService.stop(context)
-                            else MonitorService.start(context, settings, watch = true)
-                        }) {
-                            Text(stringResource(
-                                if (runState.running) R.string.action_stop
-                                else R.string.action_analyse
-                            ))
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        liveDoc?.watch?.let { w ->
-                            Text(
-                                stringResource(R.string.analysis_running, dur(w.elapsedS)),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                } else {
-                    Text(
-                        stringResource(R.string.analysis_static),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    )
-                }
-
-                // No watch card here. It is absent when the screen opens
-                // and appears a second later, shoving the plot down the
-                // moment the user has started reading it. The elapsed
-                // time is beside the Stop button already; the rest of the
-                // long-run picture belongs on the station screen, where
-                // nothing moves under it.
-
-                TabRow(selectedTabIndex = tab.ordinal) {
-                    AnalysisTab.entries.forEach { t ->
-                        Tab(
-                            selected = tab == t,
-                            onClick = { tab = t },
-                            text = {
-                                Text(stringResource(when (t) {
-                                    AnalysisTab.SKY -> R.string.view_sky
-                                    AnalysisTab.SIGNAL -> R.string.view_bars
-                                    AnalysisTab.ELEVATION -> R.string.view_elev
-                                }))
-                            },
-                        )
-                    }
-                }
-
-                Box(Modifier.weight(1f).nestedScroll(leaveAnalysis)) {
-                  // No overscroll on this pager, or the gesture above
-                  // never happens. From Android 12 the stretch effect
-                  // *consumes* the drag that runs past the first page --
-                  // the very leftover this screen reads as "leave" -- so
-                  // the swipe worked on the Android 10 handset, where the
-                  // older glow only draws, and did nothing on the S23.
-                  // A stretch animation is a fair price for the gesture
-                  // that navigates.
-                  CompositionLocalProvider(
-                      LocalOverscrollConfiguration provides null
-                  ) {
-                    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                      when (AnalysisTab.entries[page]) {
-                        AnalysisTab.SKY -> SkyView(
-                            sats = plotted,
-                            missing = ((liveDoc?.sats?.size ?: 0) - plotted.size)
-                                .coerceAtLeast(0),
-                            source = skySource(usedOrbits, liveDoc, haveLocation),
-                            footer = footer,
-                        )
-                        AnalysisTab.SIGNAL ->
-                            SignalBars(signal, liveValues = live)
-                        AnalysisTab.ELEVATION ->
-                            ElevationView(elevSamples, elevRevision)
-                      }
-                    }
-                  }
-                }
-            }
-        }
+        AnalysisScreen(
+            doc = liveDoc,
+            running = runState.running,
+            plotted = plotted,
+            usedOrbits = usedOrbits,
+            signal = signal,
+            elevSamples = elevSamples,
+            elevRevision = elevRevision,
+            haveLocation = haveLocation,
+            rinexAgeS = rinexAgeS,
+            tab = tab,
+            onTab = { tab = it },
+            onToggleWatch = {
+                if (runState.running) MonitorService.stop(context)
+                else MonitorService.start(context, settings, watch = true)
+            },
+            onLeave = { nav.pop() },
+        )
         return
     }
 

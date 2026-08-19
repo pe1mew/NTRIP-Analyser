@@ -224,15 +224,35 @@ nothing. It lands with `VrsPanel`.
 The scratchpad's own path is long enough that ninja fails inside the
 native build on Windows before it reaches a compiler.
 
-### P1.4 — Analysis unchanged
+### P1.4 — Analysis unchanged — **done 2026-08-19, one check outstanding**
 
 Re-parent the pager as a destination. Three tabs, same order, same exit
 gesture. No tab is added in phase 1 and none is added in phase 2 either —
 tracks are drawn inside the sky canvas.
 
-**Done when** the Android 12+ stretch-overscroll gesture still leaves the
-screen on a modern handset. That gesture broke once before; it is the
-first thing to re-test, not the last.
+Re-parenting was already true after P1.1 (`Dest.Analysis`, pushed and
+popped), so the work here was the other half of the shell reduction: the
+pager moved out of `MainScreen` into `AnalysisScreen.kt`, taking what it
+draws as parameters instead of closing over the shell's state. It no
+longer knows about `MonitorService`, the settings or the back stack — it
+is handed `onToggleWatch` and `onLeave` and decides nothing.
+
+`MainActivity.kt` is now **638 lines**, from 2,143 before GUI v2: the
+shell, the theme and `MainScreen`'s state.
+
+The 96 dp swipe threshold moved to `SwipeThreshold` in `Navigation.kt`,
+because it was written twice — once for the swipe into analysis and once
+for the drag that leaves it — and a gesture that must feel the same at
+both edges should not have its distance stated in two places.
+
+**Verified on the device**: the screen renders as before, and the
+right-swipe on the first page still leaves it.
+
+**Outstanding, and it needs the S23.** The handset here runs Android 10,
+where the old overscroll glow only draws and the gesture always worked.
+The case that broke before — Android 12+ consuming the leftover drag
+with the stretch effect — cannot be reproduced on this device at all.
+Until that is checked, this step is done but not proved.
 
 ### P1.4a — The landscape defect P1.1 exposed
 
