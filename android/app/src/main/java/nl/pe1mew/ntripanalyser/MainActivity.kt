@@ -20,6 +20,8 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -131,6 +133,7 @@ fun MainScreen() {
     var showSettings by remember { mutableStateOf(!store.current.isComplete) }
     var showPicker by remember { mutableStateOf(false) }
     var showSourcetable by remember { mutableStateOf(false) }
+    val shareLabel = stringResource(R.string.action_share)
     val nav = rememberNavStack()
     // Saveable for the same reason the stack is: coming back to the app
     // on the tab you left is the behaviour, and losing it is a bug that
@@ -504,7 +507,12 @@ fun MainScreen() {
                 // run to describe: sharing "nothing has been measured"
                 // helps nobody.
                 actions = {
-                    TextButton(
+                    // A glyph, not an icon asset: the menu beside it is
+                    // "☰" for the same reason, and neither is worth a
+                    // dependency on the Material icon set. The label
+                    // stays as the accessibility description, so a
+                    // screen reader says "Share" rather than an arrow.
+                    IconButton(
                         onClick = {
                             shareReport(
                                 context,
@@ -521,7 +529,19 @@ fun MainScreen() {
                             )
                         },
                         enabled = runState.document != null,
-                    ) { Text(stringResource(R.string.action_share)) }
+                    ) {
+                        Text(
+                            // Larger than the menu's "☰": this glyph
+                            // draws thin strokes in a corner of its box,
+                            // so at the same point size it reads smaller
+                            // than the bars do.
+                            "⤴",
+                            fontSize = 28.sp,
+                            modifier = Modifier.semantics {
+                                contentDescription = shareLabel
+                            },
+                        )
+                    }
                 },
             )
         }

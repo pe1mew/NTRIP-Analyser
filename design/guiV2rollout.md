@@ -279,14 +279,34 @@ rotation, which is the same shape as the Log tab and the stdout pipe
 earlier this month: a dead channel hides every bug downstream of it, and
 fixing it delivers them all at once.
 
-Two candidate fixes, to be chosen against the device rather than in the
-abstract: give the plot a minimum size and let the screen scroll, or lay
-the header and legend beside the plot when the viewport is short and
-wide. `SignalBars` and `ElevationView` want checking in landscape at the
-same time — nobody has seen those either.
+**Done 2026-08-19, and the author picked the fix.** Both candidates were
+tried on the device. Laying the words beside the plot was built first and
+was better than nothing — the plot became visible rather than a dot — but
+it stayed small, because in landscape the binding constraint is height
+and putting the text to one side does not add any. **The chosen fix is
+the other one: give the plot a size worth reading and let the screen
+scroll.**
 
-**Done when** all three analysis views are usable in landscape on a
-handset, and P1.7's landscape pass covers them.
+`PlotLayout` in `Views.kt` now holds that decision once, for all three
+views:
+
+* Tall enough (≥ 400 dp) — stack, exactly as before, so **portrait is
+  unchanged**.
+* Shorter — keep the plot at 340 dp and scroll the column.
+
+`SignalBars` and `ElevationView` were checked at the same time, and the
+elevation plot turned out worse than the sky view: about ten pixels
+tall, its axis labels a single illegible blob. Nobody had ever seen it,
+for the same reason nobody had seen the sky view — the state did not
+survive rotation, so the screen could not be reached.
+
+One further change the small plot needed: **markers and labels now scale
+with the plot radius** rather than being fixed at 7 dp and 11 sp. Forty
+satellites drawn at full size on a plot a third the size is a heap, not
+a picture.
+
+**Verified on the device**: all three views usable in landscape and
+scrolling, and portrait unchanged.
 
 ### P1.5 — The registries, and the More in Pro card — **done 2026-08-19**
 

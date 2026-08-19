@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.cos
@@ -94,35 +95,113 @@ fun SkyView(
     val surface = MaterialTheme.colorScheme.surface
     val density = LocalDensity.current
 
-    Column(modifier.fillMaxSize()) {
-        Text(
-            stringResource(
-                R.string.sky_header, sats.size, sats.size + missing,
-                sourceName(source),
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
-        if (missing > 0) {
+    PlotLayout(
+        modifier = modifier,
+        above = {
             Text(
-                stringResource(R.string.sky_missing, missing, sourceName(source)),
+                stringResource(
+                    R.string.sky_header, sats.size, sats.size + missing,
+                    sourceName(source),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            if (missing > 0) {
+                Text(
+                    stringResource(R.string.sky_missing, missing, sourceName(source)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = faint,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+            ConstellationLegend(
+                sats.map { it.gnss }.distinct().sorted(),
+                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        },
+        plot = { m -> SkyCanvas(sats, onSurface, faint, surface, density, m.padding(12.dp)) },
+        below = {
+            Text(
+                footer,
                 style = MaterialTheme.typography.bodySmall,
                 color = faint,
-                modifier = Modifier.padding(horizontal = 16.dp),
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
+        },
+    )
+}
+
+/**
+ * Words and a plot, arranged for the shape of the screen.
+ *
+ * A stacked column always, as all three views have always been — but
+ * when the viewport is too short to give the plot a usable share, the
+ * plot keeps its size and the screen scrolls instead. Squeezing it into
+ * whatever the words left over is what made the sky view a dot and the
+ * C/N0 plot a line in landscape.
+ *
+ * Shared by all three analysis views: the same bug had three instances,
+ * and fixing it three times is how they start behaving differently.
+ */
+@Composable
+internal fun PlotLayout(
+    above: @Composable ColumnScope.() -> Unit,
+    plot: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
+    below: @Composable ColumnScope.() -> Unit = {},
+) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        if (maxHeight >= TALL_ENOUGH) {
+            // Tall enough to stack: exactly what all three views always
+            // did, so portrait is unchanged.
+            Column(Modifier.fillMaxSize()) {
+                above()
+                plot(Modifier.weight(1f).fillMaxWidth())
+                below()
+            }
+        } else {
+            // Short: keep the plot readable and let the screen scroll,
+            // rather than squeezing it into what the words left over.
+            // Landscape on a phone gave the sky plot about a fifth of
+            // the height it needs -- rings collapsed to a dot, the
+            // C/N0 plot to a line.
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                above()
+                plot(Modifier.fillMaxWidth().height(MIN_PLOT))
+                below()
+            }
         }
+    }
+}
 
-        ConstellationLegend(
-            sats.map { it.gnss }.distinct().sorted(),
-            Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
+/** Below this the screen scrolls instead of squeezing the plot. */
+private val TALL_ENOUGH = 400.dp
 
-        Canvas(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
+/** What a plot needs to stay readable: rings, labels and all. */
+private val MIN_PLOT = 340.dp
+
+/**
+ * The plot itself: rings, cardinals, satellites, elevation numbers.
+ *
+ * Separated from [SkyView] so the drawing is one thing and the layout
+ * around it another, rather than the two being tangled and the plot
+ * existing twice.
+ */
+@Composable
+private fun SkyCanvas(
+    sats: List<PlottedSat>,
+    onSurface: Color,
+    faint: Color,
+    surface: Color,
+    density: Density,
+    modifier: Modifier = Modifier,
+) {
+        Canvas(modifier) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             val radius = min(cx, cy) - with(density) { 18.dp.toPx() }
@@ -146,7 +225,13 @@ fun SkyView(
 
             drawCardinals(cx, cy, radius, onSurface, density.density)
 
-            val markerR = with(density) { 7.dp.toPx() }
+            // Markers and their labels scale with the plot, not with the
+            // screen. In landscape the whole plot is about a third the
+            // size it is in portrait, and fixed 7 dp markers with 11 sp
+            // labels turned it into a heap: forty satellites drawn at
+            // full size on a plot too small to separate them.
+            val markerR = minOf(with(density) { 7.dp.toPx() }, radius * 0.075f)
+            val labelPx = minOf(with(density) { 11.sp.toPx() }, radius * 0.11f)
             for (s in sats) {
                 val (x, y) = polar(cx, cy, radius, s.azimuthDeg, s.elevationDeg,
                                    markerR)
@@ -159,7 +244,7 @@ fun SkyView(
                 drawContext.canvas.nativeCanvas.apply {
                     val paint = android.graphics.Paint().apply {
                         color = onSurface.toArgb()
-                        textSize = with(density) { 11.sp.toPx() }
+                        textSize = labelPx
                         isAntiAlias = true
                     }
                     drawText(Gnss.name(s.gnss, s.prn),
@@ -172,15 +257,6 @@ fun SkyView(
             // elevation axis and have to stay readable.
             drawElevationNumbers(cx, cy, radius, faint, surface, density.density)
         }
-
-        Text(
-            footer,
-            style = MaterialTheme.typography.bodySmall,
-            color = faint,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-        )
-    }
 }
 
 /**
@@ -309,7 +385,7 @@ fun SignalBars(
         compareBy({ it.gnss }, { it.prn })
     )
 
-    Column(modifier.fillMaxSize()) {
+    PlotLayout(modifier = modifier, above = {
         val meanPower = if (shown.isEmpty()) 0f else
             10f * log10(shown.map { 10f.pow(it.cn0 / 10f) }.average().toFloat())
 
@@ -338,10 +414,9 @@ fun SignalBars(
             modifier = Modifier.padding(start = 16.dp, top = 6.dp),
         )
 
+    }, plot = { plotModifier ->
         Canvas(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
+            plotModifier
                 .padding(start = 40.dp, end = 12.dp, top = 4.dp, bottom = 26.dp)
         ) {
             if (shown.isEmpty()) return@Canvas
@@ -386,6 +461,7 @@ fun SignalBars(
             }
         }
 
+    }, below = {
         Text(
             stringResource(R.string.axis_sat),
             style = MaterialTheme.typography.labelSmall,
@@ -397,7 +473,7 @@ fun SignalBars(
             shown.map { it.gnss }.distinct().sorted(),
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
-    }
+    })
 }
 
 // ── 3. C/N0 versus elevation ─────────────────────────────────────────
@@ -522,7 +598,7 @@ fun ElevationView(
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
     val density = LocalDensity.current
 
-    Column(modifier.fillMaxSize()) {
+    PlotLayout(modifier = modifier, above = {
         Text(
             stringResource(R.string.elev_header, samples.total),
             style = MaterialTheme.typography.bodyMedium,
@@ -542,10 +618,9 @@ fun ElevationView(
             modifier = Modifier.padding(start = 16.dp, top = 6.dp),
         )
 
+    }, plot = { plotModifier ->
         Canvas(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
+            plotModifier
                 .padding(start = 40.dp, end = 12.dp, top = 4.dp, bottom = 26.dp)
         ) {
             val lo = 20f
@@ -600,6 +675,7 @@ fun ElevationView(
             }
         }
 
+    }, below = {
         Text(
             stringResource(R.string.axis_elev),
             style = MaterialTheme.typography.labelSmall,
@@ -611,7 +687,7 @@ fun ElevationView(
             samples.constellations,
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
-    }
+    })
 }
 
 private fun sourceName(s: PositionSource): String = when (s) {
