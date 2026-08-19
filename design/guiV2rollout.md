@@ -246,7 +246,18 @@ for the drag that leaves it — and a gesture that must feel the same at
 both edges should not have its distance stated in two places.
 
 **Verified on the device**: the screen renders as before, and the
-right-swipe on the first page still leaves it.
+right-swipe on the first page still leaves it. A full run then passed
+end to end through the refactored path — `STATION OK`, held 60 s,
+finished after 180 s, all eight rows — which is the evidence that
+matters, because it exercises the hub, the registry, the analysis screen
+and the service together rather than one of them at a time.
+
+An earlier attempt in the same session failed with `Data arrived for
+63 s, then the stream stopped`. That was a poor wifi link, not a
+regression and not the caster: the same build passed on the next run,
+and the 180 s to settle is the sustain window declining to pass a
+station while the link wobbled. Worth recording because the failure
+looked exactly like something the refactor had broken.
 
 **Outstanding, and it needs the S23.** The handset here runs Android 10,
 where the old overscroll glow only draws and the gesture always worked.
