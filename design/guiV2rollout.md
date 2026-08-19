@@ -436,11 +436,21 @@ offering one.
 * **Navigation**: hub → each detail → back, back out of analysis, system
   back at the hub, rotation and process death on every destination.
 * **Small screens**: the hub scrolls and the cards read at 360 dp; the
-  tab strip is untouched but must still fit.
+  tab strip is untouched but must still fit. **Passed 2026-08-19**, and
+  more cheaply than expected — the test handset is 1080 px at density
+  480, which *is* 360 dp, so every check in this phase was already run
+  at the target width. Squeezed further to **320 dp** (`wm density 540`)
+  as the case that would actually break: KPI rows and tab labels wrap to
+  two lines and nothing is clipped or truncated. Density reset
+  afterwards.
 * **Landscape**, on every destination and all three analysis views —
   newly reachable since P1.1, and newly worth testing for that reason
   (P1.4a).
 * **Both themes**, since the mockups assume the app's own palette.
+  **Not testable on the test handset**: its EMUI build ignores
+  `cmd uimode night yes` and `settings put secure ui_night_mode 2`,
+  reporting `Night mode: no` either way. Needs the phone's own display
+  setting, by hand, or the S23.
 * **Rotation and process death on every destination** — the hand-rolled
   stack has to restore where you were, and nothing in the app does that
   today. *Developer options → Don't keep activities* is the check.
