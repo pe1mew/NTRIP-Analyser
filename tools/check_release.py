@@ -120,12 +120,19 @@ def check_urls():
     # and this check went quietly looking for names that were no longer
     # there -- reporting two failures about the app rather than one about
     # itself. A checker pinned to a filename has an expiry date.
-    pkg = os.path.join(ROOT, "android", "app", "src", "main", "java",
-                       "nl", "pe1mew", "ntripanalyser")
-    kt = "\n".join(
-        open(os.path.join(pkg, f), encoding="utf-8").read()
-        for f in sorted(os.listdir(pkg)) if f.endswith(".kt")
-    )
+    # Both editions, not only the shared code: free carries PRO_URL in
+    # its More in Pro card, because the paid build should not ship an
+    # address for advertising itself. A link only one edition can open
+    # is still a link that can 404.
+    sources = []
+    for flavour in ("main", "free", "pro"):
+        pkg = os.path.join(ROOT, "android", "app", "src", flavour, "java",
+                           "nl", "pe1mew", "ntripanalyser")
+        if not os.path.isdir(pkg):
+            continue
+        sources += [os.path.join(pkg, f)
+                    for f in sorted(os.listdir(pkg)) if f.endswith(".kt")]
+    kt = "\n".join(open(f, encoding="utf-8").read() for f in sources)
     urls = dict(re.findall(
         r'(?:private|internal) const val (\w+_URL)\s*(?:=|=\s*\n\s*)\s*"([^"]+)"',
         kt))

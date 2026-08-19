@@ -288,15 +288,48 @@ same time — nobody has seen those either.
 **Done when** all three analysis views are usable in landscape on a
 handset, and P1.7's landscape pass covers them.
 
-### P1.5 — The registries, and the More in Pro card
+### P1.5 — The registries, and the More in Pro card — **done 2026-08-19**
 
 Two `Registry.kt` files, one per flavor, listing the panels that flavor
 contains. Free's list ends with the **More in Pro** card; pro's does not
 contain that card at all.
 
-**Done when** building both flavors produces two apps whose UI sources
-differ in exactly one file, and the free app names the paid capabilities
-in one place and nowhere else.
+The card names what pro does **today** — several saved connections, a
+mountpoint chosen by tapping it, watch mode, the ephemeris side-stream,
+per-message statistics, config import and export — and says the eight
+checks are identical in both. Not what is planned: advertising a
+capability that does not exist yet is how a listing stops being
+believed. The wording answers to
+`docs/wiki/What-the-paid-edition-adds.md`, so the card and the page
+cannot drift; `PRO_URL` leads there and lives in the card's own file,
+because the paid build should not carry an address for advertising
+itself.
+
+It sits at the bottom, below the run controls. Somebody using the free
+app came to grade a station; the advert should be what they find after
+that is done, not what greets them.
+
+**The gate had to be restated, and this is the correction.** It said
+"the two flavors' UI sources differ in exactly one file". That was
+already false once free gained the card, and it would have been false
+again at every phase-2 panel — the real invariant is not *one file*, it
+is *no two implementations of the same thing*:
+
+```
+free: Features.kt  MoreInProPanel.kt  Registry.kt
+pro:  Features.kt                     Registry.kt
+      ^^^^^^^^^^^ same name in both, and both are lists or flags
+```
+
+So the gate is now: **`checkEditionParity` passes**, which enforces
+exactly that — a flavor file must be `Features.kt`, `Registry.kt`, a
+`*Panel.kt` in pro or `MoreInProPanel.kt` in free, and may never shadow
+a name in `src/main`. Everything that *arranges* panels stayed shared,
+which is the property the original wording was reaching for.
+
+**Done**: both flavors build, the guard passes, and `PRO_URL` is checked
+against the published wiki page like every other link the app can open
+(48 release checks now, up from 47).
 
 ### P1.6 — Share
 

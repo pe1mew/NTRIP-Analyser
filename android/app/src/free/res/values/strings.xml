@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Free-edition strings.
+
+  The app name, and the one card that names what the paid edition adds.
+  They live here rather than in src/main so the paid build does not
+  carry an advertisement for itself, and so nobody translating pro is
+  ever asked to translate one.
+
+  The wording answers to docs/wiki/What-the-paid-edition-adds.md: claims
+  about the paid edition now exist in two places, a Play listing and
+  this card, and both follow that page rather than each other.
+-->
 <resources>
     <string name="app_name">NTRIP Analyser</string>
+
+    <string name="pro_title">More in the paid edition</string>
+    <string name="pro_body">Several saved connections, a mountpoint chosen by tapping it, watch mode for runs lasting hours, a second stream for a complete sky view, per-message statistics, and import and export of the shared configuration file. The eight checks and their verdicts are identical in both editions.</string>
+    <string name="pro_more">What the paid edition adds</string>
 </resources>
