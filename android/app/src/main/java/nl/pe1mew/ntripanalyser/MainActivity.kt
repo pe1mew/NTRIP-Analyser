@@ -499,6 +499,30 @@ fun MainScreen() {
                         onAbout = { menuOpen = false; showAbout = true },
                     )
                 },
+                // The report is text the panels wrote themselves, in the
+                // order they appear below. Offered only once there is a
+                // run to describe: sharing "nothing has been measured"
+                // helps nobody.
+                actions = {
+                    TextButton(
+                        onClick = {
+                            shareReport(
+                                context,
+                                buildReport(
+                                    hubPanels,
+                                    HubState(runState, settings, rinexName,
+                                             rinexAgeS, plotted.size - usedOrbits),
+                                    context.getString(R.string.share_header,
+                                                      BuildConfig.VERSION_NAME),
+                                ),
+                                context.getString(R.string.share_subject,
+                                                  settings.mountpoint),
+                                context.getString(R.string.share_chooser),
+                            )
+                        },
+                        enabled = runState.document != null,
+                    ) { Text(stringResource(R.string.action_share)) }
+                },
             )
         }
     ) { padding ->

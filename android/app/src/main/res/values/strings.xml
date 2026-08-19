@@ -15,6 +15,12 @@
     <string name="action_watch">Watch</string>
     <string name="action_stop">Stop</string>
     <string name="action_browse">Browse mountpoints…</string>
+    <string name="action_share">Share</string>
+    <!-- The report's first line: what measured it, so a report that
+         outlives the phone still says where it came from. -->
+    <string name="share_header">NTRIP Analyser %1$s — station report</string>
+    <string name="share_subject">Station report: %1$s</string>
+    <string name="share_chooser">Share this report</string>
     <string name="action_sky">Sky coverage…</string>
     <string name="sky_title">Sky coverage</string>
     <string name="sky_waiting">Waiting for a station position and orbits (%1$d ephemerides so far)…</string>

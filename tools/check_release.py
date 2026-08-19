@@ -483,9 +483,53 @@ def check_snapshot_fields():
             print("       %-22s %s" % (f, SNAPSHOT_KNOWN_GAPS.get(f, "?")))
 
 
+# ── What may leave the phone ──────────────────────────────────────────
+# The shared report is a document about somebody's station going to
+# somebody else. It may name the station; it may not carry the way in.
+
+def check_share_sections():
+    print("what the shared report may contain")
+    pkg = os.path.join(ROOT, "android", "app", "src")
+    bodies, files = [], []
+    for root, _dirs, names in os.walk(pkg):
+        for n in names:
+            if not n.endswith(".kt"):
+                continue
+            src = open(os.path.join(root, n), encoding="utf-8").read()
+            # every shareSection implementation, to its closing brace at
+            # the same indent -- crude, and crude is right here: a match
+            # that is too greedy fails safe by checking more code.
+            for m in re.finditer(
+                    r"override fun shareSection\(.*?\n(    \}|\})", src, re.S):
+                bodies.append(m.group(0))
+                files.append(n)
+
+    check(bool(bodies), "the report is assembled from panel sections",
+          "%d section(s)" % len(bodies))
+
+    # A password reaching a report is not a bug to be found in testing;
+    # it is a disclosure. So the check is on the source, and it fails the
+    # build rather than a test somebody might not run.
+    leaks = [f for f, b in zip(files, bodies)
+             if re.search(r"\b(password|username)\b", b, re.I)]
+    check(not leaks,
+          "no share section can carry a username or a password",
+          ", ".join(sorted(set(leaks))) or "none reference either")
+
+    # The phone's own position is read under a permission granted for the
+    # sky view. A configured position may appear -- the user typed it --
+    # but the live fix stays on the device.
+    fixes = [f for f, b in zip(files, bodies)
+             if re.search(r"\b(ggaLat|ggaLon|phoneFix|fix\.)\b", b)]
+    check(not fixes,
+          "no share section reads the phone's own position",
+          ", ".join(sorted(set(fixes))) or "none reference it")
+
+
 def main():
     ver = check_version()
     check_urls()
+    check_share_sections()
     check_claims()
     check_listing()
     check_generated()

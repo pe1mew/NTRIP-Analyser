@@ -43,6 +43,15 @@ object VerdictPanel : Panel {
             state.settings.isComplete,
         )
     }
+
+    override fun shareSection(state: HubState): ShareSection? {
+        val k = state.doc?.kpi ?: return null
+        return ShareSection("Verdict", listOf(
+            k.overallName,
+            "held %.0f s of %.0f required".format(k.sustainedS, k.sustainTargetS),
+            "run lasted %.0f s".format(k.elapsedS),
+        ))
+    }
 }
 
 /**
@@ -58,6 +67,21 @@ object ConnectionPanel : Panel {
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
         ConfigSummary(state.settings) { actions.editConnection() }
+    }
+
+    /**
+     * The subject of the measurement, and **only** the subject.
+     *
+     * Caster, port and mountpoint: what a reader needs to know which
+     * station this report is about. Never the username, never the
+     * password — a report is a document that leaves the phone, and the
+     * one thing it must not carry is the way back in.
+     */
+    override fun shareSection(state: HubState): ShareSection {
+        val s = state.settings
+        return ShareSection("Stream", listOf(
+            "${s.caster}:${s.port}/${s.mountpoint}",
+        ))
     }
 }
 
@@ -84,6 +108,18 @@ object ChipsPanel : Panel {
     override fun Content(state: HubState, actions: HubActions) {
         state.doc?.let { StreamChips(it) }
     }
+
+    override fun shareSection(state: HubState): ShareSection? {
+        val st = state.doc?.stats ?: return null
+        val lines = mutableListOf<String>()
+        st.bytesPerS?.let { lines += "%.0f B/s".format(it) }
+        lines += "${st.satsTotal} satellites"
+        lines += "${st.framesOk} frames"
+        if (st.arpValid && st.arpLat != null && st.arpLon != null) {
+            lines += "ARP %.6f, %.6f".format(st.arpLat, st.arpLon)
+        }
+        return ShareSection("Measured", lines)
+    }
 }
 
 /** Whatever went wrong, in the user's way rather than in a log. */
@@ -96,6 +132,10 @@ object ErrorPanel : Panel {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
     }
+
+    /** What went wrong belongs in the report; it is usually the reason for it. */
+    override fun shareSection(state: HubState): ShareSection? =
+        state.run.error?.let { ShareSection("Error", listOf(it)) }
 }
 
 /** How long this station has been watched, and what happened in it. */
@@ -105,6 +145,18 @@ object WatchPanel : Panel {
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
         state.doc?.watch?.let { WatchCard(it) }
+    }
+
+    override fun shareSection(state: HubState): ShareSection? {
+        val w = state.doc?.watch ?: return null
+        val lines = mutableListOf(
+            "watched for ${dur(w.elapsedS)}",
+            "worst seen: ${w.worstName}",
+            "${w.degradations} degradation(s)",
+            "longest good streak ${dur(w.bestStreakS)}",
+        )
+        w.availability?.let { lines += "availability %.2f %%".format(it) }
+        return ShareSection("Over time", lines)
     }
 }
 
@@ -118,6 +170,21 @@ object KpiPanel : Panel {
         doc.kpi.items.forEachIndexed { i, item ->
             KpiRow(i + 1, item, doc.stats, doc.arp)
         }
+    }
+
+    /**
+     * The eight, with the words the screen used.
+     *
+     * `verdictName` and `detail` come from the C engine, so the report
+     * says what the app said -- not a second wording of the same
+     * judgement, which is how two descriptions of one measurement start
+     * disagreeing.
+     */
+    override fun shareSection(state: HubState): ShareSection? {
+        val items = state.doc?.kpi?.items?.takeIf { it.isNotEmpty() } ?: return null
+        return ShareSection("The eight checks", items.mapIndexed { i, it ->
+            "${i + 1}. ${it.label}: ${it.verdictName} — ${it.detail}"
+        })
     }
 }
 
@@ -185,6 +252,21 @@ object EphemerisPanel : Panel {
         state.doc?.eph?.let {
             EphCard(it, state.rinexName, state.rinexAgeS, state.phonePlaced)
         }
+    }
+
+    /**
+     * Where the sky plot's positions came from.
+     *
+     * A plot is only as good as its orbits, and a report that shows
+     * satellites without saying how they were placed invites the reader
+     * to trust a picture drawn from the phone's own almanac.
+     */
+    override fun shareSection(state: HubState): ShareSection? {
+        val e = state.doc?.eph ?: return null
+        val lines = mutableListOf("${e.cached} orbit(s) cached")
+        if (state.phonePlaced > 0) lines += "${state.phonePlaced} placed from this phone"
+        state.rinexName?.let { lines += "navigation file: $it" }
+        return ShareSection("Orbits", lines)
     }
 }
 

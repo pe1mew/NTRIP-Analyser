@@ -357,9 +357,47 @@ the user typed it and can see it on screen. The **phone's** position
 never does: it is read for the sky view under a permission granted for
 that, and it stays on the device.
 
-**Done when** a shared report opens legibly in a mail client and in a
-text editor, its order matches the hub, and it contains nothing the user
-did not put in.
+**Done 2026-08-19.** Verified by sharing a real run out of the app and
+reading what arrived:
+
+```
+NTRIP Analyser 3.5.0 — station report
+2026-08-19 20:27:46
+
+Verdict            FAILED · held 0 s of 60 required · run lasted 70 s
+Stream             rfsee.net:2101/RFSEE01
+Measured           0 B/s · 44 satellites · 404 frames · ARP 52,211516, 5,983710
+The eight checks   1..8, each in the engine's own words
+Orbits             140 cached · navigation file: APEL00NLD_R_...rnx.gz
+```
+
+In hub order, legible in a text editor, and the Stream section names the
+caster and mountpoint and nothing else — from the one panel that holds
+the settings and therefore had every opportunity.
+
+**The credentials rule is enforced statically, not by a test, and that
+is a compromise worth naming.** The plan said "one test asserts it of
+the assembled output". The Android module has **no test infrastructure
+at all** — no JUnit, no `src/test` — and adding it is a dependency
+decision this plan never took. So `tools/check_release.py` reads every
+`shareSection` in all three source sets and fails if one mentions a
+username, a password, or the phone's own fix. It was proved by injecting
+`"as ${s.username} / ${s.password}"` into `ConnectionPanel` and watching
+the check fail, then removing it.
+
+Static beats runtime here in one respect and loses in another: it cannot
+be skipped, and it runs in CI on every push — but it reads source rather
+than output, so a section that assembled a credential from parts would
+pass it. **If JUnit is added later, this becomes a real assertion on
+`buildReport`'s output**, and the static check stays as the cheap
+backstop. 51 release checks now, up from 48.
+
+**Deferred, as decided**: attachments. The plot as a PNG needs a
+`FileProvider` the app does not have, and it arrives with whichever
+needs one first — the sky plot or statistics export. Analysis therefore
+has no share action yet: its natural artefact is an image, and offering
+a button that silently emits text instead would be worse than not
+offering one.
 
 ### P1.7 — Test (the gate)
 
