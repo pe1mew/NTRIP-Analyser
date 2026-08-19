@@ -24,6 +24,7 @@ order of work.
 | **One framework, two registries** — the shell is identical in both editions and only the panel *list* differs | Maintainability: a navigation or share fix is made once in `main/`, and the editions have nothing to drift apart with. Recorded in [android/design/editions.md](../android/design/editions.md) |
 | **A hand-rolled back stack**, not `androidx.navigation-compose` | D is a stack two deep, not a graph. See below for the two conditions attached and the one thing that would reverse it |
 | **Share is a socket**, not a one-off — each panel contributes its own section, text first | Statistics export is already phase 2 item 4, so the second consumer is committed rather than hypothetical |
+| **The swipes are gone** — moves are controls, back is Back (2026-08-19) | Study option D never called for retiring them; the author did, after seeing the built app. See P1.7 |
 
 ## The rest, settled 2026-08-18
 
@@ -124,6 +125,8 @@ registry entries — swapping the mechanism touches the shell only.
 **Done when** the app behaves exactly as before, with the pager and its
 swipe-to-leave gesture intact; a detail destination can be pushed and
 popped; and the open destination survives rotation and process death.
+*(The gesture was still in the app at this step; it was removed at
+P1.7.)*
 
 ### P1.2 — The panel contract
 
@@ -224,11 +227,14 @@ nothing. It lands with `VrsPanel`.
 The scratchpad's own path is long enough that ninja fails inside the
 native build on Windows before it reaches a compiler.
 
-### P1.4 — Analysis unchanged — **done 2026-08-19, one check outstanding**
+### P1.4 — Analysis re-parented — **done 2026-08-19**
 
-Re-parent the pager as a destination. Three tabs, same order, same exit
-gesture. No tab is added in phase 1 and none is added in phase 2 either —
-tracks are drawn inside the sky canvas.
+Re-parent the pager as a destination. Three tabs, same order. No tab is
+added in phase 1 and none is added in phase 2 either — tracks are drawn
+inside the sky canvas.
+
+*This step originally said "same exit gesture". The gesture was removed
+in P1.7; what leaves the screen now is Back.*
 
 Re-parenting was already true after P1.1 (`Dest.Analysis`, pushed and
 popped), so the work here was the other half of the shell reduction: the
@@ -240,13 +246,12 @@ is handed `onToggleWatch` and `onLeave` and decides nothing.
 `MainActivity.kt` is now **638 lines**, from 2,143 before GUI v2: the
 shell, the theme and `MainScreen`'s state.
 
-The 96 dp swipe threshold moved to `SwipeThreshold` in `Navigation.kt`,
-because it was written twice — once for the swipe into analysis and once
-for the drag that leaves it — and a gesture that must feel the same at
-both edges should not have its distance stated in two places.
+The 96 dp swipe threshold was hoisted into `Navigation.kt` here, because
+it was stated twice — once per edge. It has since been deleted along with
+the gestures themselves (P1.7).
 
-**Verified on the device**: the screen renders as before, and the
-right-swipe on the first page still leaves it. A full run then passed
+**Verified on the device**: the screen renders as before. A full run then
+passed
 end to end through the refactored path — `STATION OK`, held 60 s,
 finished after 180 s, all eight rows — which is the evidence that
 matters, because it exercises the hub, the registry, the analysis screen
@@ -259,11 +264,13 @@ and the 180 s to settle is the sustain window declining to pass a
 station while the link wobbled. Worth recording because the failure
 looked exactly like something the refactor had broken.
 
-**Outstanding, and it needs the S23.** The handset here runs Android 10,
-where the old overscroll glow only draws and the gesture always worked.
-The case that broke before — Android 12+ consuming the leftover drag
-with the stretch effect — cannot be reproduced on this device at all.
-Until that is checked, this step is done but not proved.
+**The S23 check that was outstanding here is now moot.** It was to
+confirm that the over-swipe out of the pager still worked where
+Android 12+ consumes the leftover drag with its stretch effect. That
+gesture no longer exists (P1.7), the pager has its own overscroll back,
+and the whole class of defect went with it — a navigation that depends
+on a drag nobody else claimed was always at the mercy of the next
+platform release.
 
 ### P1.4a — The landscape defect P1.1 exposed
 
@@ -437,14 +444,53 @@ offering one.
 * **Rotation and process death on every destination** — the hand-rolled
   stack has to restore where you were, and nothing in the app does that
   today. *Developer options → Don't keep activities* is the check.
-* **The gesture**, on the newest Android available — Android 12 changed
-  overscroll once already.
+* **No gesture navigates.** There is nothing left to test here, which is
+  the point: see the decision below.
 * **Share**, into at least mail, a notes app and a file manager — from
   the hub *and* from a detail screen, since they emit different things.
 * **No credentials in the share output**, asserted by a test over the
   assembled report and not by reading it once (P1.6).
 
 **Done when** all of the above pass on two handsets, one of them recent.
+
+### Two things the test pass changed, 2026-08-19
+
+**The gestures are gone, and navigation is controls and Back.** The swipe
+into analysis, the over-swipe out of it, and the threshold that fed both.
+Study option D never asked for this — "gestures retired" was option C's
+line — so it is a decision taken after using the built app, not a
+correction. What remains is the structure the D diagram draws: the
+**Analysis button** opens the pager, a card with a screen behind it opens
+on a tap, and the app bar's Back, the system back key and `NavStack.pop`
+are one thing. Verified on the device: button in, Back out, Back again
+minimises.
+
+Three consequences, and the second is why this is worth more than tidiness:
+
+* The pager gets its **overscroll back**. It was suppressed only to feed
+  a gesture that read the drag the stretch effect consumed.
+* **The S23 check is moot** rather than outstanding. A navigation that
+  depends on a drag nobody else claimed is at the mercy of every platform
+  release; there is now nothing there to break.
+* Removing the swipe **exposed what it had been absorbing**: a horizontal
+  drag across the hub now reaches the card underneath, so dragging over
+  the connection card opens the profile picker. That also explains a
+  mountpoint that appeared to change by itself during testing — it was
+  swipes landing on that card. Small, and open: the hub could absorb
+  stray horizontal drags.
+
+**The drill-down was wired here, having been declared but dead.**
+`Panel.destination()` existed since P1.2 and *nothing referenced it* — a
+phase-2 panel could have returned a `Dest` and the app would have ignored
+it. Found by the author asking where the drill-down was. Now:
+`Dest.Detail(key)` names a panel rather than a screen the shell knows,
+`StationHub` makes a card tappable exactly when its panel has a
+destination, and `DetailScreen` owns the back bar so no panel has to
+remember to offer one. A phase-2 capability is one file and one registry
+line, which was the claim all along and is now true.
+
+Nothing drills down *yet*, because the three cards that do — VRS,
+hand-over, stability — are phase 2. The frame is what phase 1 owed.
 
 ### P1.8 — Release free
 

@@ -19,13 +19,25 @@
  */
 package nl.pe1mew.ntripanalyser
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 /**
@@ -79,6 +91,8 @@ class HubActions(
     val startCheck: () -> Unit,
     val stopRun: () -> Unit,
     val openAnalysis: () -> Unit,
+    /** Drill into a panel's own screen. The shell owns the stack. */
+    val openDetail: (Dest) -> Unit,
 )
 
 /**
@@ -102,8 +116,29 @@ interface Panel {
     @Composable
     fun Content(state: HubState, actions: HubActions)
 
-    /** The screen this card drills into, if it has one. */
+    /**
+     * The screen this card drills into, if it has one.
+     *
+     * Return `Dest.Detail(key)` and the card becomes tappable, the shell
+     * pushes it, the system back key pops it, and [Detail] is asked to
+     * draw. Nothing else needs editing — that is the whole point of the
+     * contract, and it is why this is wired before any panel uses it.
+     */
     fun destination(): Dest? = null
+
+    /**
+     * That screen's content, drawn under a back bar the shell provides.
+     *
+     * Only called when [destination] is non-null. A panel with no detail
+     * never implements it.
+     */
+    @Composable
+    fun Detail(state: HubState, actions: HubActions) {
+    }
+
+    /** The detail screen's title. */
+    @Composable
+    fun detailTitle(): String = ""
 
     /** This panel's part of the shared report, if it has anything to add. */
     fun shareSection(state: HubState): ShareSection? = null
@@ -125,7 +160,58 @@ fun StationHub(
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         panels.forEach { panel ->
-            key(panel.key) { panel.Content(state, actions) }
+            key(panel.key) {
+                val dest = panel.destination()
+                if (dest == null) {
+                    panel.Content(state, actions)
+                } else {
+                    // A card with a screen behind it is tappable, and
+                    // the tap is added here rather than inside every
+                    // such panel -- so a capability cannot ship a card
+                    // that drills nowhere because its author forgot.
+                    Box(Modifier.clickable { actions.openDetail(dest) }) {
+                        panel.Content(state, actions)
+                    }
+                }
+            }
         }
+    }
+}
+
+/**
+ * A panel's own screen, with the back bar the shell owns.
+ *
+ * Title and content come from the panel; the way back does not, so every
+ * detail screen leaves the same way and no panel has to remember to
+ * offer it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DetailScreen(
+    panel: Panel,
+    state: HubState,
+    actions: HubActions,
+    onBack: () -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(panel.detailTitle()) },
+                navigationIcon = {
+                    TextButton(onClick = onBack) {
+                        Text(stringResource(R.string.action_back))
+                    }
+                },
+            )
+        }
+    ) { pad ->
+        Column(
+            Modifier
+                .padding(pad)
+                .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) { panel.Detail(state, actions) }
     }
 }

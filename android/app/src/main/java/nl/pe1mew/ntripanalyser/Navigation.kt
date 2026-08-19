@@ -53,7 +53,22 @@ sealed interface Dest {
     data object Hub : Dest { override val route = "hub" }
     data object Analysis : Dest { override val route = "analysis" }
 
+    /**
+     * The screen behind a hub card.
+     *
+     * Identified by the panel's own key rather than by a name the shell
+     * knows, which is what lets a capability arrive as one file and one
+     * registry line: the shell finds the panel whose destination this
+     * is and asks *it* to draw. Nothing here has to learn what a VRS
+     * assertion or a hand-over is.
+     */
+    data class Detail(val key: String) : Dest {
+        override val route = "$DETAIL_PREFIX$key"
+    }
+
     companion object {
+        private const val DETAIL_PREFIX = "detail/"
+
         /**
          * @return the destination for [route], or null if this build has
          *         no such destination.
@@ -64,9 +79,15 @@ sealed interface Dest {
          * of crashing on the first frame. Unknown routes are dropped and
          * the stack falls back to [Hub].
          */
-        fun of(route: String): Dest? = when (route) {
-            Hub.route -> Hub
-            Analysis.route -> Analysis
+        fun of(route: String): Dest? = when {
+            route == Hub.route -> Hub
+            route == Analysis.route -> Analysis
+            // A detail whose panel this edition does not contain simply
+            // has no key that matches at render time, and the shell
+            // sends the user to the hub -- the same outcome as an
+            // unknown route, without a special case for it.
+            route.startsWith(DETAIL_PREFIX) ->
+                Detail(route.removePrefix(DETAIL_PREFIX))
             else -> null
         }
     }
@@ -123,15 +144,12 @@ class NavStack internal constructor(initial: List<Dest>) {
     }
 }
 
-/**
- * How far a sideways drag must run before it navigates.
+/* There is no swipe threshold here any more.
  *
- * One value for every edge, so the gesture feels the same wherever it is
- * made -- into analysis from the hub, and back out of the first page of
- * the pager. It lives here rather than in either screen because it
- * describes the navigation, not the thing being navigated away from.
- */
-internal val SwipeThreshold = 96.dp
+ * A drag distance was the whole of the old navigation between the
+ * station and the analysis views, in both directions. It is gone (GUI
+ * v2, P1.7): moves are controls and back is Back, so nothing in this
+ * app navigates by how far a finger travelled. */
 
 /**
  * A back stack that survives rotation and process death.

@@ -10,9 +10,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -435,20 +432,52 @@ fun MainScreen() {
     BackHandler(enabled = nav.canGoBack) { nav.pop() }
 
     /*
-     * Swiping between the screens, in both directions.
+     * Every move is a control, and every way back is Back.
      *
-     * The two screens are one sequence to the user -- the station, then
-     * the three views of it -- so the phone's own idiom applies: swipe
-     * left to go deeper, right to come back. The buttons and the tab row
-     * stay exactly as they were; this is another way in, not a
-     * replacement, and nothing is reachable only by gesture.
-     *
-     * The same threshold governs every edge, so the gesture feels the
-     * same wherever it is made.
+     * The swipe between the station and the analysis views is gone (GUI
+     * v2, P1.7): the Analysis button opens the pager, a card with a
+     * screen behind it opens on a tap, and the app bar's Back and the
+     * system back key both pop the stack. One way in, one way out, the
+     * same at every level -- where the gesture was a second, invisible
+     * way that existed only between two particular screens and broke on
+     * an Android release nobody could have predicted.
      */
-    val swipePx = with(LocalDensity.current) { SwipeThreshold.toPx() }
-    val analysisReachable = runState.running ||
-        (liveDoc != null && liveDoc.sats.isNotEmpty())
+
+    // One set of verbs for the hub and for every detail screen behind
+    // it, so a panel is handed the same actions wherever it is drawn.
+    val hubActions = HubActions(
+        editConnection = {
+            // One slot means the tile is a shortcut to its settings;
+            // several mean it is the way to choose between them.
+            if (Features.MAX_MOUNTPOINTS > 1) showPicker = true
+            else showSettings = true
+        },
+        browseSourcetable = { showSourcetable = true },
+        startCheck = { MonitorService.start(context, settings, watch = false) },
+        stopRun = { MonitorService.stop(context) },
+        openAnalysis = { openSky = true },
+        openDetail = { nav.push(it) },
+    )
+
+    // A panel's own screen. Which panel is decided by the key in the
+    // route, so the shell never learns what any of them contains -- and
+    // a route whose panel this edition lacks simply matches nothing and
+    // falls back to the hub.
+    (nav.current as? Dest.Detail)?.let { d ->
+        val panel = hubPanels.firstOrNull { it.destination() == d }
+        if (panel == null) {
+            nav.pop()
+        } else {
+            DetailScreen(
+                panel = panel,
+                state = HubState(runState, settings, rinexName, rinexAgeS,
+                                 plotted.size - usedOrbits),
+                actions = hubActions,
+                onBack = { nav.pop() },
+            )
+            return
+        }
+    }
 
     if (nav.current == Dest.Analysis) {
         AnalysisScreen(
@@ -546,11 +575,6 @@ fun MainScreen() {
             )
         }
     ) { padding ->
-        // Horizontal only: the column scrolls vertically, and the two
-        // gestures do not compete.  Nothing happens when there is
-        // nothing to analyse yet -- the same condition that disables the
-        // button, rather than a screen that opens onto an empty plot.
-        var carried by remember { mutableStateOf(0f) }
         StationHub(
             panels = hubPanels,
             state = HubState(
@@ -560,31 +584,11 @@ fun MainScreen() {
                 rinexAgeS = rinexAgeS,
                 phonePlaced = plotted.size - usedOrbits,
             ),
-            actions = HubActions(
-                editConnection = {
-                    // One slot means the tile is a shortcut to its
-                    // settings; several mean it is the way to choose
-                    // between them.
-                    if (Features.MAX_MOUNTPOINTS > 1) showPicker = true
-                    else showSettings = true
-                },
-                browseSourcetable = { showSourcetable = true },
-                startCheck = { MonitorService.start(context, settings, watch = false) },
-                stopRun = { MonitorService.stop(context) },
-                openAnalysis = { openSky = true },
-            ),
+            actions = hubActions,
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
                 .fillMaxSize()
-                .draggable(
-                    state = rememberDraggableState { carried += it },
-                    orientation = Orientation.Horizontal,
-                    onDragStopped = {
-                        if (carried < -swipePx && analysisReachable) openSky = true
-                        carried = 0f
-                    },
-                )
                 .verticalScroll(rememberScrollState()),
         )
     }

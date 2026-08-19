@@ -1,11 +1,14 @@
 /**
  * @file AnalysisScreen.kt
- * @brief The three live views, and the gesture out of them.
+ * @brief The three live views.
  *
  * A destination of its own (GUI v2, P1.4), taking what it draws as
- * parameters rather than reaching into the shell's state. Nothing about
- * the screen changed in the move: same three tabs in the same order,
- * same pager, and the same nested-scroll trick for leaving it.
+ * parameters rather than reaching into the shell's state: same three
+ * tabs in the same order, same pager.
+ *
+ * Reached by the Analysis button and left by Back -- the swipe that used
+ * to do both was removed in P1.7, so every move in this app is a control
+ * and every way back is Back.
  *
  * No tab is added here in phase 1, and none in phase 2 either --
  * satellite tracks are drawn inside the sky canvas, not beside it.
@@ -17,7 +20,6 @@
 package nl.pe1mew.ntripanalyser
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,15 +39,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -78,7 +75,6 @@ fun AnalysisScreen(
     onLeave: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
-    val swipePx = with(LocalDensity.current) { SwipeThreshold.toPx() }
 
     val footer = doc?.stats?.let { st ->
         buildString {
@@ -102,30 +98,6 @@ fun AnalysisScreen(
     }
     LaunchedEffect(pagerState.currentPage) {
         onTab(AnalysisTab.entries[pagerState.currentPage])
-    }
-
-    // Dragging the first view further right has nowhere to go inside
-    // the pager, so what it does not consume comes back here and
-    // means "out of this screen" -- the mirror of the swipe that
-    // opened it.
-    val leaveAnalysis = remember(swipePx) {
-        object : NestedScrollConnection {
-            var carried = 0f
-            override fun onPostScroll(
-                consumed: Offset, available: Offset, source: NestedScrollSource,
-            ): Offset {
-                if (pagerState.currentPage == 0 && available.x > 0f) {
-                    carried += available.x
-                    if (carried > swipePx) {
-                        carried = 0f
-                        onLeave()
-                    }
-                } else if (available.x < 0f) {
-                    carried = 0f
-                }
-                return Offset.Zero
-            }
-        }
     }
 
     Scaffold(
@@ -207,18 +179,11 @@ fun AnalysisScreen(
                 }
             }
 
-            Box(Modifier.weight(1f).nestedScroll(leaveAnalysis)) {
-              // No overscroll on this pager, or the gesture above
-              // never happens. From Android 12 the stretch effect
-              // *consumes* the drag that runs past the first page --
-              // the very leftover this screen reads as "leave" -- so
-              // the swipe worked on the Android 10 handset, where the
-              // older glow only draws, and did nothing on the S23.
-              // A stretch animation is a fair price for the gesture
-              // that navigates.
-              CompositionLocalProvider(
-                  LocalOverscrollConfiguration provides null
-              ) {
+            // The pager keeps its own overscroll now. It was suppressed
+            // to feed a leave-gesture that read the drag the stretch
+            // effect consumed; with the gesture gone, the platform's
+            // own behaviour is the right one.
+            Box(Modifier.weight(1f)) {
                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
                   when (AnalysisTab.entries[page]) {
                     AnalysisTab.SKY -> SkyView(
@@ -234,7 +199,6 @@ fun AnalysisScreen(
                         ElevationView(elevSamples, elevRevision)
                   }
                 }
-              }
             }
         }
     }
