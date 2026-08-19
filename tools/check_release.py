@@ -115,10 +115,20 @@ def check_version():
 
 def check_urls():
     print("urls the app can open")
-    kt = read("android", "app", "src", "main", "java", "nl", "pe1mew",
-              "ntripanalyser", "MainActivity.kt")
+    # The whole package, not one file: these constants moved from
+    # MainActivity.kt to Links.kt when the shell was split (GUI v2, P1.1)
+    # and this check went quietly looking for names that were no longer
+    # there -- reporting two failures about the app rather than one about
+    # itself. A checker pinned to a filename has an expiry date.
+    pkg = os.path.join(ROOT, "android", "app", "src", "main", "java",
+                       "nl", "pe1mew", "ntripanalyser")
+    kt = "\n".join(
+        open(os.path.join(pkg, f), encoding="utf-8").read()
+        for f in sorted(os.listdir(pkg)) if f.endswith(".kt")
+    )
     urls = dict(re.findall(
-        r'private const val (\w+_URL)\s*(?:=|=\s*\n\s*)\s*"([^"]+)"', kt))
+        r'(?:private|internal) const val (\w+_URL)\s*(?:=|=\s*\n\s*)\s*"([^"]+)"',
+        kt))
 
     privacy = urls.get("PRIVACY_URL", "")
     wiki_privacy = read("docs", "wiki", "Privacy-and-support.md")

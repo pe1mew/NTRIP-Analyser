@@ -179,8 +179,22 @@ if (!haveKeystore) {
  * answering differently about the same station, and the difference is
  * invisible until someone runs both against one caster.
  *
- * So: nothing but Features.kt may live in an edition's source set. Any
- * other Kotlin file there fails the build, naming itself.
+ * So an edition's source set carries almost nothing, and what it may
+ * carry is enumerated here rather than left to judgement:
+ *
+ *   - **Features.kt** -- the flags themselves, in both.
+ *   - **Registry.kt** -- the list of panels an edition contains (GUI v2,
+ *     P1.2). A list is not an implementation: both editions render it
+ *     with the same code in src/main, which is what stops them drifting
+ *     while still letting one contain less.
+ *   - **`*Panel.kt` in pro** -- a paid capability's own file, which must
+ *     not be compiled into free at all. Free's single exception is
+ *     MoreInProPanel.kt, the card that names what the paid edition adds.
+ *
+ * And the rule that catches the original sin directly: a flavor file
+ * that **shadows a name in src/main** is always a stray, whatever it is
+ * called. That is what "copied into src/free to just change this one
+ * thing" actually looks like on disk.
  *
  * Resources are exempt on purpose: the launcher icon and the app name
  * are what an edition is *allowed* to differ in.
@@ -194,19 +208,36 @@ val checkEditionParity by tasks.registering {
     }
     inputs.files(flavorSources.values.map { fileTree(it) })
 
+    val mainNames = file("src/main/java").let { dir ->
+        if (!dir.exists()) emptySet()
+        else dir.walkTopDown().filter { it.isFile && it.extension == "kt" }
+            .map { it.name }.toSet()
+    }
+
     doLast {
+        fun allowed(flavor: String, name: String): Boolean = when {
+            name in mainNames -> false          // shadows shared code
+            name == "Features.kt" -> true
+            name == "Registry.kt" -> true
+            flavor == "pro" && name.endsWith("Panel.kt") -> true
+            flavor == "free" && name == "MoreInProPanel.kt" -> true
+            else -> false
+        }
+
         val strays = flavorSources.flatMap { (flavor, dir) ->
             if (!dir.exists()) emptyList()
             else dir.walkTopDown()
                 .filter { it.isFile && it.extension == "kt" }
-                .filter { it.name != "Features.kt" }
+                .filter { !allowed(flavor, it.name) }
                 .map { "$flavor: ${it.relativeTo(dir)}" }
                 .toList()
         }
         if (strays.isNotEmpty()) {
             throw GradleException(
-                "An edition may only carry Features.kt; everything else is " +
-                    "shared (android/design/editions.md). Found:\n  " +
+                "An edition may carry only Features.kt, Registry.kt, its " +
+                    "own *Panel.kt (pro) or MoreInProPanel.kt (free), and " +
+                    "nothing that shadows a name in src/main; everything " +
+                    "else is shared (android/design/editions.md). Found:\n  " +
                     strays.joinToString("\n  ")
             )
         }

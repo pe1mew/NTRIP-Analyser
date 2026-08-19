@@ -177,6 +177,16 @@ Three consequences, all decided here:
   text; the provider arrives with the plot PNG or with export, whichever
   comes first.
 
+**The build already had an opinion about this.** `checkEditionParity`
+allowed an edition to carry `Features.kt` and nothing else, so the two
+`Registry.kt` files failed the build on their first compile — the guard
+doing exactly its job. It was widened in step with the decision rather
+than switched off: `Features.kt`, `Registry.kt`, a `*Panel.kt` in pro,
+`MoreInProPanel.kt` in free, and a new rule that catches the original
+sin directly — **a flavor file that shadows a name in `src/main` is
+always a stray**, whatever it is called. Both rejections were re-proved
+against the widened task before it was accepted.
+
 **Done when** the existing cards — verdict, config summary, chips, KPI
 rows, ephemeris, watch — are registered panels rather than inline
 composables, the screen is unchanged to the eye, and share emits a report
@@ -200,6 +210,29 @@ tracks are drawn inside the sky canvas.
 **Done when** the Android 12+ stretch-overscroll gesture still leaves the
 screen on a modern handset. That gesture broke once before; it is the
 first thing to re-test, not the last.
+
+### P1.4a — The landscape defect P1.1 exposed
+
+Rotating in Analysis now keeps the user there, and the first thing that
+does is show a bug nobody could reach before: **the sky plot collapses
+to a dot in landscape**, header and legend taking the full width while
+the polar plot is squeezed into what vertical space is left. Reproduced
+on an SNE-LX1 at 2340x1080 with a live stream, 2026-08-19.
+
+It is not a regression — `SkyView` has always sized itself from the
+available height — but it becomes visible the moment the state survives
+rotation, which is the same shape as the Log tab and the stdout pipe
+earlier this month: a dead channel hides every bug downstream of it, and
+fixing it delivers them all at once.
+
+Two candidate fixes, to be chosen against the device rather than in the
+abstract: give the plot a minimum size and let the screen scroll, or lay
+the header and legend beside the plot when the viewport is short and
+wide. `SignalBars` and `ElevationView` want checking in landscape at the
+same time — nobody has seen those either.
+
+**Done when** all three analysis views are usable in landscape on a
+handset, and P1.7's landscape pass covers them.
 
 ### P1.5 — The registries, and the More in Pro card
 
@@ -252,6 +285,9 @@ did not put in.
   back at the hub, rotation and process death on every destination.
 * **Small screens**: the hub scrolls and the cards read at 360 dp; the
   tab strip is untouched but must still fit.
+* **Landscape**, on every destination and all three analysis views —
+  newly reachable since P1.1, and newly worth testing for that reason
+  (P1.4a).
 * **Both themes**, since the mockups assume the app's own palette.
 * **Rotation and process death on every destination** — the hand-rolled
   stack has to restore where you were, and nothing in the app does that

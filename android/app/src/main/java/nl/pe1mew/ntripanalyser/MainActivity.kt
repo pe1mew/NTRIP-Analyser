@@ -669,8 +669,29 @@ fun MainScreen() {
         // nothing to analyse yet -- the same condition that disables the
         // button, rather than a screen that opens onto an empty plot.
         var carried by remember { mutableStateOf(0f) }
-        Column(
-            Modifier
+        StationHub(
+            panels = hubPanels,
+            state = HubState(
+                run = runState,
+                settings = settings,
+                rinexName = rinexName,
+                rinexAgeS = rinexAgeS,
+                phonePlaced = plotted.size - usedOrbits,
+            ),
+            actions = HubActions(
+                editConnection = {
+                    // One slot means the tile is a shortcut to its
+                    // settings; several mean it is the way to choose
+                    // between them.
+                    if (Features.MAX_MOUNTPOINTS > 1) showPicker = true
+                    else showSettings = true
+                },
+                browseSourcetable = { showSourcetable = true },
+                startCheck = { MonitorService.start(context, settings, watch = false) },
+                stopRun = { MonitorService.stop(context) },
+                openAnalysis = { openSky = true },
+            ),
+            modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
                 .fillMaxSize()
@@ -683,101 +704,7 @@ fun MainScreen() {
                     },
                 )
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val doc = runState.document
-
-            VerdictBadge(doc, runState.running, runState.outcome, settings.isComplete)
-
-            // What this run is pointed at, always: a measurement whose
-            // subject is off screen is a measurement of nothing in
-            // particular, and hiding it mid-run made the one tap into
-            // the caster settings disappear with it. Tapping opens them.
-            // One slot means the tile is a shortcut to its settings;
-            // several mean it is the way to choose between them.
-            ConfigSummary(settings) {
-                if (Features.MAX_MOUNTPOINTS > 1) showPicker = true
-                else showSettings = true
-            }
-
-            if (settings.caster.isNotBlank() && !runState.running) {
-                OutlinedButton(
-                    onClick = { showSourcetable = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.action_browse)) }
-            }
-
-            doc?.let { StreamChips(it) }
-
-            runState.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
-
-            doc?.watch?.let { WatchCard(it) }
-
-            doc?.kpi?.items?.forEachIndexed { i, item ->
-                KpiRow(i + 1, item, doc.stats, doc.arp)
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Two ways to run, chosen at the moment of running: grade the
-            // station once, or watch it.  Neither is a caster setting.
-            if (runState.running) {
-                // Analysis must stay reachable during a run: watching a
-                // check unfold is the point of having the views, and
-                // hiding the way in until it finishes made a running
-                // test unobservable.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { MonitorService.stop(context) },
-                        modifier = Modifier.weight(1f),
-                    ) { Text(stringResource(R.string.action_stop)) }
-                    OutlinedButton(
-                        onClick = { openSky = true },
-                        modifier = Modifier.weight(1f),
-                    ) { Text(stringResource(R.string.mode_analysis)) }
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { MonitorService.start(context, settings, watch = false) },
-                        enabled = settings.isComplete,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(stringResource(
-                            if (doc != null) R.string.action_again else R.string.action_run
-                        ))
-                    }
-                    // Analysis is a mode, not a second kind of run. In
-                    // pro it starts its own session; in free it shows
-                    // what this check captured.
-                    OutlinedButton(
-                        onClick = { openSky = true },
-                        enabled = doc != null && doc.sats.isNotEmpty(),
-                        modifier = Modifier.weight(1f),
-                    ) { Text(stringResource(R.string.mode_analysis)) }
-                }
-            }
-
-            // Where the orbits stand: incompleteness and age are shown,
-            // never left implicit.
-            if (!runState.running) {
-                doc?.eph?.let {
-                    EphCard(it, rinexName, rinexAgeS,
-                            phonePlaced = plotted.size - usedOrbits)
-                }
-            }
-
-
-
-            if (!settings.isComplete) {
-                Text(
-                    stringResource(R.string.hint_configure),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
+        )
     }
 
     if (showSourcetable) {

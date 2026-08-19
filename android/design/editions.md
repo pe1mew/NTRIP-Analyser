@@ -332,6 +332,16 @@ both:
   have it. The editions cannot drift apart, because the only per-flavor
   UI file is a list.
 
+**The build enforces this**, because a rule only a person checks is a
+rule that drifts. `checkEditionParity` in `android/app/build.gradle.kts`
+fails the build unless every file in a flavor is one of: `Features.kt`,
+`Registry.kt`, a `*Panel.kt` in **pro**, or `MoreInProPanel.kt` in
+**free** — and it rejects outright any flavor file that **shadows a name
+in `src/main`**, which is what "copied into src/free to change one
+thing" looks like on disk. The task was widened from "only Features.kt"
+when the registries arrived (GUI v2, P1.2), deliberately and in step
+with this section.
+
 One deliberate exception: free registers a **More in Pro** card naming
 what the paid edition adds. It is a single entry at the bottom of the
 hub, and it is the *only* place free mentions a capability it does not
