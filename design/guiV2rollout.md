@@ -192,14 +192,37 @@ rows, ephemeris, watch — are registered panels rather than inline
 composables, the screen is unchanged to the eye, and share emits a report
 whose order matches the hub.
 
-### P1.3 — The hub
+### P1.3 — The hub — **done 2026-08-19**
 
 Rebuild the station screen from the registry. Everything that ships today
 keeps its position and order; the rule labelled *beyond the eight checks*
 marks where phase-2 cards will land, so nothing above it moves later.
 
-**Done when** a side-by-side against the current build shows no
-difference above the rule.
+**Verified twice, and the second one is the one that counts.**
+
+*Structurally*: the order of card calls in the station body at `v3.5.0`
+was extracted from the tag and compared against pro's `Registry.kt`.
+Identical, all ten, in sequence — verdict, connection, browse, chips,
+error, watch, KPI, run controls, ephemeris, hint.
+
+*Visually*: the pre-P1.2 commit was built from a `git archive` export,
+installed, photographed, then the current build was installed over it and
+photographed again — same handset, same app data, same screen. The two
+PNGs are **pixel-identical**; `ImageChops.difference` returns no bounding
+box at all. A screenshot pair proves what a structural comparison cannot:
+that the spacing survived the move of `Arrangement.spacedBy(12.dp)` and
+the modifier chain from the old `Column` to the `StationHub` call site.
+
+**The rule itself is deferred to the first phase-2 panel**, deliberately.
+A separator above nothing is noise, and both registries are the same
+today — there is nothing yet for *beyond the eight checks* to be beyond.
+Pro's `Registry.kt` records the insertion point in a comment instead, so
+the position is fixed without drawing a line that divides one thing from
+nothing. It lands with `VrsPanel`.
+
+*Method note for later phases*: build the reference from a short path.
+The scratchpad's own path is long enough that ninja fails inside the
+native build on Windows before it reaches a compiler.
 
 ### P1.4 — Analysis unchanged
 
