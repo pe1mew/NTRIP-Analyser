@@ -19,7 +19,11 @@
     <!-- The report's first line: what measured it, so a report that
          outlives the phone still says where it came from. -->
     <string name="share_header">NTRIP Analyser %1$s — station report</string>
-    <string name="share_subject">Station report: %1$s</string>
+    <!-- Doubles as the file name in file-oriented targets: Drive uses
+         the subject verbatim. No colon, therefore: Windows will not
+         accept one in a name, so a report saved from Drive to a PC
+         would arrive mangled or not at all. -->
+    <string name="share_subject">Station report %1$s</string>
     <string name="share_chooser">Share this report</string>
     <string name="action_sky">Sky coverage…</string>
     <string name="sky_title">Sky coverage</string>

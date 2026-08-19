@@ -446,18 +446,47 @@ offering one.
 * **Landscape**, on every destination and all three analysis views —
   newly reachable since P1.1, and newly worth testing for that reason
   (P1.4a).
-* **Both themes**, since the mockups assume the app's own palette.
-  **Not testable on the test handset**: its EMUI build ignores
-  `cmd uimode night yes` and `settings put secure ui_night_mode 2`,
-  reporting `Night mode: no` either way. Needs the phone's own display
-  setting, by hand, or the S23.
+* **Both themes** — **passed 2026-08-19**, dark checked across the hub,
+  the verdict badge, the cards and all three analysis views. The fixed
+  colour literals survive the swap, which was the risk: the verdict
+  greens, ambers and reds and the constellation colours are stated in
+  hex rather than taken from the scheme, so they had to be looked at on
+  a dark ground rather than assumed.
+
+  *Adb cannot set this on the test handset* — its EMUI build ignores
+  both `cmd uimode night yes` and `settings put secure ui_night_mode 2`,
+  reporting `Night mode: no` either way. It was toggled by hand.
+
+  *Still worth one look on the S23*: `AppTheme` sets
+  `isAppearanceLightStatusBars`/`NavigationBars` because the system
+  icons once vanished into the app's own background, and that only
+  happens where the app draws behind the bars — Android 16 at
+  `targetSdk 36`, which an Android 10 phone cannot exercise. On the
+  Huawei the system bars stay light in dark mode, managed by EMUI rather
+  than by us.
 * **Rotation and process death on every destination** — the hand-rolled
   stack has to restore where you were, and nothing in the app does that
   today. *Developer options → Don't keep activities* is the check.
 * **No gesture navigates.** There is nothing left to test here, which is
   the point: see the decision below.
-* **Share**, into at least mail, a notes app and a file manager — from
-  the hub *and* from a detail screen, since they emit different things.
+* **Share** — **passed 2026-08-19** into a mail client, a notes app and
+  Google Drive. The mail client showed the subject and the body in hub
+  order, legible in dark mode, with `Stream` reading
+  `rfsee.net:2101/RFSEE01` **and stopping there** — the credentials rule
+  confirmed on real output rather than only in the source check. Nothing
+  was sent; the recipient stayed empty.
+
+  **Drive found a defect the other two could not.** A file-oriented
+  target uses `EXTRA_SUBJECT` as the *file name*, and the subject was
+  `Station report: RFSEE01` — a colon, which Windows will not accept in
+  a name. A report uploaded and then fetched to a PC would have arrived
+  mangled or refused. The subject is now `Station report RFSEE01`, which
+  reads no worse in an inbox. Worth remembering when any later share
+  gains a file: **the subject is a filename somewhere.**
+
+  Not from a detail screen, because there are none yet: the three cards
+  that drill down are phase 2, and the analysis screen deliberately has
+  no share action until the plot can go with it.
 * **No credentials in the share output**, asserted by a test over the
   assembled report and not by reading it once (P1.6).
 
