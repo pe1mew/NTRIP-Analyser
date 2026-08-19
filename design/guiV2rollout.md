@@ -22,21 +22,22 @@ order of work.
 | **Phase 2 order** | Tracks → VRS → hand-over → export → tier 2 → TLS, as listed by the author |
 | **Free names what pro adds, once** — a single *More in Pro* card, no greyed rows | Chosen over five disabled cards: free advertises without shipping UI it cannot run |
 | **One framework, two registries** — the shell is identical in both editions and only the panel *list* differs | Maintainability: a navigation or share fix is made once in `main/`, and the editions have nothing to drift apart with. Recorded in [android/design/editions.md](../android/design/editions.md) |
+| **A hand-rolled back stack**, not `androidx.navigation-compose` | D is a stack two deep, not a graph. See below for the two conditions attached and the one thing that would reverse it |
+| **Share is a socket**, not a one-off — each panel contributes its own section, text first | Statistics export is already phase 2 item 4, so the second consumer is committed rather than hypothetical |
 
-## Open decisions
+## The rest, settled 2026-08-18
 
-Each blocks the step named. Recommendations are the plan's assumption if
-no answer is given; where the plan proceeds on an assumption, it says so
-at the step.
+Nothing in this plan is waiting on an answer. These four were carried as
+open questions and were accepted as proposed; they are recorded here
+rather than folded away, because each is a judgement someone could
+reasonably have made differently.
 
-| # | Decision | Blocks | Recommendation |
-|---|---|---|---|
-| **D2** | What does share emit, and does it carry position? | P1.6 | Plain text + the current plot as PNG; **position only when the user typed it**, never the phone's |
-| **D3** | Back stack: hand-rolled, or `androidx.navigation-compose`? | P1.1 | Hand-rolled list of destinations — no new dependency |
-| **D4** | Does the phase-1 free build go through the running closed test? | P1.8 | Yes, same track; a layout overhaul is exactly what testers should see |
-| **D5** | Does "frozen" allow crash and security fixes? | The freeze | Yes — freeze means *no features*, not *no maintenance* |
-| **D6** | Is share built as the plug-in socket, or a one-off? | P1.2 | Socket. It is first on the roadmap, which is what makes it cheap to make it the integration point |
-| **D7** | Version for the overhaul: minor or major? | P1.8 | Minor. `version.h` is shared by four programs and only one of them changes |
+| Question | Settled as | Why that way |
+|---|---|---|
+| **What share emits, and whether it carries a position** | Plain text in phase 1, the plot as PNG once a `FileProvider` exists. A **configured** position may appear; the **phone's** position never does | The user typed the configured one and can see it on screen. The live fix is something the app was trusted to read for the sky view, and it stays on the device |
+| **Whether the phase-1 free build goes to the running closed test** | Yes, the same track | A layout overhaul is precisely what testers are for. The twelve-for-fourteen-days clock counts testers staying opted in, not builds, so a new build does not reset it |
+| **What "frozen" means** | No features. Crash and security fixes continue | A freeze that blocks a crash fix is not a freeze, it is an outage waiting for a schedule |
+| **Version for the overhaul** | Minor | `version.h` is shared by the CLI, the GUI, the daemon and both editions; one of the five changes, and semver describes the repository, not the excitement |
 
 ### How free and pro differ, given that the framework does not
 
@@ -81,13 +82,48 @@ so the shell owns navigation and nothing else. Introduce an explicit
 destination stack — today `Screen` is an enum of two and back is a single
 `BackHandler`, which cannot express *hub → detail → back*.
 
-*Assumes D3.* A hand-rolled `List<Destination>` in state is about thirty
-lines and adds no dependency; `navigation-compose` is more capable and
-brings deep links, which nothing here needs yet.
+**A hand-rolled stack, decided 2026-08-18.** What D needs is five
+destinations, two deep, with no arguments beyond *which detail*, no deep
+links and one back stack. That is a stack, not a graph, and it is about
+thirty lines:
+
+```kotlin
+@Serializable sealed interface Dest { ... }    // Hub, Analysis, Vrs, Handover, Tier2
+var stack by rememberSaveable(stateSaver = DestListSaver) {
+    mutableStateOf(listOf<Dest>(Dest.Hub))
+}
+BackHandler(enabled = stack.size > 1) { stack = stack.dropLast(1) }
+```
+
+`androidx.navigation-compose` was weighed and set aside. It is **not** a
+dependency-count objection — the library makes no network requests, so
+the reasoning that keeps a map SDK out (`MapPick.kt`) does not transfer,
+and R8 would shrink most of its size away. It is that its three real
+advantages do not apply yet: deep links, arguments, and multiple back
+stacks. It also sits outside the Compose BOM, so its version becomes one
+more thing to track.
+
+Two conditions come with the decision, and they are the price of it:
+
+* **`rememberSaveable` from the first commit.** The app uses it nowhere
+  today, so rotation already loses the current screen — invisible at one
+  level, a filed bug the moment a detail screen can be open. This is
+  fixing an existing defect, not building a feature.
+* **Predictive back is deferred, and recorded as deferred.** At
+  `targetSdk = 36` a plain `BackHandler` still works but shows no back
+  preview, which on a current handset reads as an app nobody has
+  maintained. `PredictiveBackHandler` plus a preview animation is the
+  eventual answer; skipping it silently is not.
+
+**What would reverse this:** deciding that bottom navigation (study
+option C) is likely rather than a fallback. Per-destination back stacks
+are exactly what `navigation-compose` is for and exactly what is
+miserable by hand. The switch stays cheap because destinations are
+registry entries — swapping the mechanism touches the shell only.
 
 **Done when** the app behaves exactly as before, with the pager and its
-swipe-to-leave gesture intact, and a detail destination can be pushed and
-popped.
+swipe-to-leave gesture intact; a detail destination can be pushed and
+popped; and the open destination survives rotation and process death.
 
 ### P1.2 — The panel contract
 
@@ -95,13 +131,56 @@ One file per capability, each contributing up to three things: a **hub
 card**, a **destination**, and a **share section**. A registry lists the
 panels; the source set decides which lines it contains.
 
-*Assumes D6.* This is what makes phase 2 additive: a feature is one file
-and one registry line, and it appears in the share output without editing
-a share function.
+```kotlin
+data class ShareSection(val title: String, val lines: List<String>)
+
+interface Panel {
+    fun card(doc: BridgeDocument): @Composable () -> Unit
+    fun destination(): Dest?
+    fun shareSection(doc: BridgeDocument): ShareSection?   // null = nothing to say
+}
+```
+
+**Share is a socket, decided 2026-08-18.** The usual objection to a
+plug-in point — one consumer does not justify a contract — does not hold
+here, because the second consumer is already committed: *statistics
+export* is item 4 of phase 2. The alternative is a `shareReport()` in the
+shell that each of the five phase-2 panels edits in turn, which is how
+`MainActivity.kt` reached 2,147 lines in the first place.
+
+It costs perhaps forty lines more than the one-off and buys a property
+that is otherwise hard to get: sections come out in registry order, which
+is hub order, **so the emailed report reads in the same order as the
+screen it came from**.
+
+`ShareSection` is deliberately stupid — a title and lines of text. Three
+of its five producers do not exist yet, and a dumb type is cheap to be
+wrong about; anything richer (units, severity, structure) waits until a
+second consumer actually asks for it.
+
+Three consequences, all decided here:
+
+* **Only the human-readable report needs panels.** A machine-readable
+  export is `bridgeJson.encodeToString(doc)` — `BridgeDocument` is
+  already a complete `@Serializable` snapshot — so data export needs no
+  per-panel work at all. The socket exists for the prose, which is the
+  part no model field knows how to write.
+* **Share means *what you are looking at*.** On the hub, every section;
+  on a detail screen, that panel's section alone. That is what the
+  roadmap's wording asks for and what a user pressing share on the VRS
+  screen expects.
+* **Text first; attachments when something needs one.** There is no
+  `FileProvider` in the manifest — `ConfigFile.kt` writes through SAF,
+  which `ACTION_SEND` cannot reuse — so a PNG or a file attachment means
+  adding a provider entry, `file_paths.xml`, a cache write and a URI
+  permission grant. Plain-text share needs none of it. Phase 1 ships
+  text; the provider arrives with the plot PNG or with export, whichever
+  comes first.
 
 **Done when** the existing cards — verdict, config summary, chips, KPI
 rows, ephemeris, watch — are registered panels rather than inline
-composables, and the screen is unchanged to the eye.
+composables, the screen is unchanged to the eye, and share emits a report
+whose order matches the hub.
 
 ### P1.3 — The hub
 
@@ -137,17 +216,30 @@ in one place and nowhere else.
 An app-bar action on the hub and on every detail screen, emitting via
 `ACTION_SEND` so mail and everything else receive it.
 
-*Assumes D2.* The share output is assembled from the registered panels'
-sections: verdict and the eight rows, stream identity, and — from a plot
-screen — the plot as a PNG. **Position is a privacy decision, not a
-formatting one**: the app's data-safety answer is "no data collected or
-shared", which is about what *the app* transmits, but a share sheet is
-the user handing a document to another app. The plan's assumption is that
-a configured position may appear because the user typed it, and the
-phone's live position never does.
+The output is assembled from the registered panels' sections, in registry
+order (P1.2), and emitted as `text/plain` in phase 1.
+
+**Credentials cannot leave, and that is structural rather than careful.**
+`BridgeDocument` carries no credentials at all — they live in
+`CasterSettings` — so a report built from the document cannot contain a
+password by construction. The one panel that reaches outside it is the
+config summary, which needs the caster and mountpoint names. The rule is
+therefore: a section may name **caster and mountpoint, never username or
+password**, and one test asserts it of the assembled output. With a
+socket that test has one place to sit; with five hand-edited additions it
+would need five.
+
+**Position is a privacy decision, not a formatting one**: the app's
+data-safety answer is "no data collected or shared", which is about what
+*the app* transmits, while a share sheet is the user handing a document
+to another app. A **configured** position may appear in a report, because
+the user typed it and can see it on screen. The **phone's** position
+never does: it is read for the sky view under a permission granted for
+that, and it stays on the device.
 
 **Done when** a shared report opens legibly in a mail client and in a
-text editor, and contains nothing the user did not put in.
+text editor, its order matches the hub, and it contains nothing the user
+did not put in.
 
 ### P1.7 — Test (the gate)
 
@@ -161,22 +253,43 @@ text editor, and contains nothing the user did not put in.
 * **Small screens**: the hub scrolls and the cards read at 360 dp; the
   tab strip is untouched but must still fit.
 * **Both themes**, since the mockups assume the app's own palette.
+* **Rotation and process death on every destination** — the hand-rolled
+  stack has to restore where you were, and nothing in the app does that
+  today. *Developer options → Don't keep activities* is the check.
 * **The gesture**, on the newest Android available — Android 12 changed
   overscroll once already.
-* **Share**, into at least mail, a notes app and a file manager.
+* **Share**, into at least mail, a notes app and a file manager — from
+  the hub *and* from a detail screen, since they emit different things.
+* **No credentials in the share output**, asserted by a test over the
+  assembled report and not by reading it once (P1.6).
 
 **Done when** all of the above pass on two handsets, one of them recent.
 
 ### P1.8 — Release free
 
-*Assumes D4 and D7.* A minor version bump, the same closed-test track,
-and the release notes describing a layout change rather than a feature
-list.
+A **minor** version bump — `version.h` is shared by four programs and one
+of them changes — onto the **same closed-test track** the free edition is
+already in. A new build does not restart the twelve-testers-for-fourteen-
+days clock, which counts testers staying opted in; a broken one costs
+testers, which is what P1.7 is for.
+
+Release notes describe a layout change, not a feature list. The one new
+capability is share; everything else is the same measurement in a
+different frame, and saying otherwise invites testers to look for
+features that are not there.
 
 ### P1.9 — Freeze
 
-*Assumes D5.* No new features in free until TLS lands. Crash and security
-fixes continue.
+No new features in free until TLS lands. **Crash and security fixes
+continue** — a freeze that blocks a crash fix is not a freeze, it is an
+outage waiting for a schedule.
+
+The freeze has a definite end rather than a vague one: TLS ships in both
+editions on the same day ([feature-matrix.md](feature-matrix.md)), so
+phase 2's last item is also what releases free from the freeze. If TLS
+slips, the freeze slips with it, and that is the cost to weigh when
+ordering phase 2 — not a reason to let free drift out of step with pro
+in the meantime.
 
 ## Phase 2 — the paid capabilities
 
