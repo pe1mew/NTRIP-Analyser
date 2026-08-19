@@ -305,6 +305,39 @@ android/app/src/
   pro/    Features.kt (unlimited), app label
 ```
 
+### The framework is shared; only the list differs
+
+**Decided 2026-08-18, with GUI v2**
+([guiV2rollout.md](../../design/guiV2rollout.md)). The shell, the
+navigation stack, the hub, the panel contract and the share socket all
+live in `main/` and are identical in both editions. What a flavor
+supplies is a **registry** — the list of panels it contains — and, for
+the paid ones, the panel files themselves:
+
+```
+  main/   panel contract · shell · hub · share socket   (identical)
+  free/   Registry.kt  ->  6 panels + MoreInPro
+  pro/    Registry.kt  -> 11 panels
+          VrsPanel.kt, HandoverPanel.kt, Tier2Panel.kt, ...
+```
+
+Two properties pull in opposite directions, and this arrangement gets
+both:
+
+* **Nothing paid is compiled into free.** A pro panel's file lives in
+  `src/pro/`, so the free APK contains neither its screen, nor its
+  strings, nor its measurement — the position stated above, unchanged.
+* **There is one framework, not two.** A layout fix, a share-format
+  change or a navigation bug is fixed once in `main/` and both editions
+  have it. The editions cannot drift apart, because the only per-flavor
+  UI file is a list.
+
+One deliberate exception: free registers a **More in Pro** card naming
+what the paid edition adds. It is a single entry at the bottom of the
+hub, and it is the *only* place free mentions a capability it does not
+have — no greyed rows, no disabled controls, nothing that looks broken
+to someone who has not paid.
+
 Build and install a specific edition:
 
 ```bash

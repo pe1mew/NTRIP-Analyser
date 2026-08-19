@@ -1,0 +1,1397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where New Measurements Go — GUI v2 study</title>
+<!--
+  A study, not a specification.  Drawn from the code on main at 3.5.0 to
+  decide where the roadmap's measurements land in the Android app; the
+  decision it fed is design/guiV2rollout.md.  Self-contained: every mockup
+  is CSS and inline SVG, no images and no external requests.
+-->
+</head>
+<body>
+<title>Where New Measurements Go</title>
+<style>
+  :root {
+    --ground:   #eef1f5;
+    --surface:  #ffffff;
+    --sunken:   #e3e8ef;
+    --ink:      #14181f;
+    --muted:    #5b6675;
+    --faint:    #8a94a3;
+    --line:     #cfd6e0;
+    --hair:     #e2e7ee;
+    --accent:   #b01e6a;
+    --accent-w: #fae6f0;
+    --ok:       #0d6e63;
+    --risk:     #9c1f3d;
+
+    /* The app's own colours, lifted from Gnss.kt and MainActivity.kt.
+       One set for both themes, because the app has one set. */
+    --v-pass:    #46af5a;
+    --v-warn:    #e6a014;
+    --v-fail:    #d72828;
+    --v-pending: #9e9e9e;
+    --v-running: #5a7daf;
+    --gps:       #2e9e3e;
+    --glonass:   #d32f2f;
+    --galileo:   #1e56c8;
+    --qzss:      #9c27b0;
+    --beidou:    #ef8a17;
+    --sbas:      #7a7a7a;
+    --navic:     #00b8b8;
+    --shadow:   0 1px 2px rgba(20, 24, 31, .06), 0 8px 24px rgba(20, 24, 31, .05);
+
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:  ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:   #12151b;
+      --surface:  #191d25;
+      --sunken:   #0d1015;
+      --ink:      #e7ebf1;
+      --muted:    #a3adbb;
+      --faint:    #6d7787;
+      --line:     #2e3542;
+      --hair:     #242a34;
+      --accent:   #f284b6;
+      --accent-w: #3d1428;
+      --ok:       #43c4b4;
+      --risk:     #e8607f;
+      --gnss1:    #78a6ee;
+      --gnss2:    #ec8582;
+      --gnss3:    #63c295;
+      --gnss4:    #b48fd8;
+      --shadow:   0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:   #12151b;
+    --surface:  #191d25;
+    --sunken:   #0d1015;
+    --ink:      #e7ebf1;
+    --muted:    #a3adbb;
+    --faint:    #6d7787;
+    --line:     #2e3542;
+    --hair:     #242a34;
+    --accent:   #e6a441;
+    --accent-w: #3a2c14;
+    --ok:       #43c4b4;
+    --risk:     #e8607f;
+    --shadow:   0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 20px 80px; }
+  .prose { max-width: 68ch; }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(30px, 5vw, 46px);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(22px, 3vw, 30px);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  h3 { font-size: 17px; margin: 0 0 6px; letter-spacing: -0.005em; }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 8px;
+  }
+  .lede { font-size: 18px; color: var(--muted); margin-bottom: 28px; }
+
+  section { margin-top: 56px; }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 0 0 28px; }
+
+  code, .mono { font-family: var(--mono); font-size: .88em; }
+  code { background: var(--sunken); padding: 1px 5px; border-radius: 3px; }
+
+  /* ---- constraint strip ---- */
+  .constraints { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 22px; }
+  .constraint {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 14px 16px;
+  }
+  .constraint h3 { font-size: 15px; }
+  .constraint p { margin: 0; font-size: 14px; color: var(--muted); }
+  .src { font-family: var(--mono); font-size: 11.5px; color: var(--faint); display: block; margin-top: 8px; }
+
+  /* ---- tables ---- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 520px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--hair); vertical-align: top; }
+  th {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--faint); font-weight: 400;
+    border-bottom: 1px solid var(--line);
+  }
+  tr:last-child td { border-bottom: 0; }
+  td.tight { white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+
+  /* ---- option cards ---- */
+  .options { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .opt {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 14px;
+    box-shadow: var(--shadow);
+  }
+  .opt.lean { border-color: var(--accent); }
+  .opt-head { display: flex; align-items: baseline; gap: 10px; }
+  .tag {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    color: var(--accent); letter-spacing: .08em;
+  }
+  .badge {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 3px;
+    background: var(--accent-w); color: var(--accent); border: 1px solid var(--accent);
+    margin-left: auto; white-space: nowrap;
+  }
+  .verdicts { list-style: none; margin: 0; padding: 0; font-size: 14px; display: grid; gap: 7px; }
+  .verdicts li { display: flex; gap: 9px; align-items: flex-start; }
+  .mark { font-family: var(--mono); font-size: 13px; line-height: 1.5; flex: 0 0 auto; }
+  .mark.plus { color: var(--ok); }
+  .mark.minus { color: var(--risk); }
+
+  /* ---- phone mockup ---- */
+  .phone {
+    width: 224px; margin: 0 auto;
+    border: 1.5px solid var(--line);
+    border-radius: 18px;
+    background: var(--sunken);
+    padding: 7px 6px 9px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink);
+    user-select: none;
+  }
+  .p-status { display: flex; justify-content: space-between; font-size: 8.5px; color: var(--faint); padding: 0 6px 4px; }
+  .p-screen { background: var(--surface); border-radius: 11px; overflow: hidden; border: 1px solid var(--hair); }
+  .p-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 8px; border-bottom: 1px solid var(--hair);
+    font-size: 11px; font-weight: 700;
+  }
+  .p-bar .dots { margin-left: auto; color: var(--faint); letter-spacing: 1px; }
+  .p-tabs { display: flex; border-bottom: 1px solid var(--hair); font-size: 9.5px; }
+  .p-tabs span { padding: 6px 0; flex: 1; text-align: center; color: var(--faint); white-space: nowrap; }
+  .p-tabs span.on { color: var(--accent); border-bottom: 2px solid var(--accent); }
+  .p-tabs.cut { position: relative; }
+  .p-tabs.cut::after {
+    content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 34px;
+    background: linear-gradient(to right, transparent, var(--surface));
+  }
+  .p-body { padding: 8px; display: grid; gap: 6px; min-height: 152px; align-content: start; }
+  .p-card {
+    border: 1px solid var(--hair); border-radius: 4px; padding: 6px 7px;
+    display: flex; align-items: center; gap: 6px; background: var(--surface);
+  }
+  .p-card.new { border-color: var(--accent); background: var(--accent-w); }
+  .p-card .chev { margin-left: auto; color: var(--faint); }
+  .p-verdict {
+    border-radius: 4px; padding: 7px; text-align: center; font-weight: 700;
+    background: var(--sunken); color: var(--v-pass); border: 1px solid var(--hair);
+  }
+  .p-plot {
+    height: 96px; border: 1px solid var(--hair); border-radius: 4px;
+    background:
+      radial-gradient(circle at 50% 52%, transparent 0 30%, var(--hair) 30% 31%, transparent 31%),
+      radial-gradient(circle at 50% 52%, transparent 0 56%, var(--hair) 56% 57%, transparent 57%);
+    position: relative;
+  }
+  .p-plot i { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .p-plot i.trk { width: 2px; height: 2px; background: var(--faint); }
+  .p-nav {
+    display: flex; border-top: 1px solid var(--hair); font-size: 8.5px; text-align: center;
+  }
+  .p-nav span { flex: 1; padding: 7px 0 6px; color: var(--faint); }
+  .p-nav span.on { color: var(--accent); font-weight: 700; }
+  .p-nav span em { display: block; font-style: normal; font-size: 11px; line-height: 1.1; }
+  .p-caption { font-family: var(--mono); font-size: 11px; color: var(--faint); text-align: center; margin-top: 9px; }
+
+  /* ---- option D expansion ---- */
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; margin: 20px 0 24px; font-size: 13px; color: var(--muted); }
+  .key { display: flex; align-items: center; gap: 7px; }
+  .sw { width: 22px; height: 0; border-top: 2px solid var(--ink); display: inline-block; }
+  .sw.pl { border-color: var(--accent); }
+  .sw.ds { border-top-style: dashed; border-color: var(--accent); }
+  .pill {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    padding: 1px 5px; border-radius: 2px; border: 1px solid currentColor;
+  }
+  .pill.pro { color: var(--accent); }
+
+  .dmock { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .minis { display: flex; flex-wrap: wrap; gap: 20px; }
+  .phone.tall .p-body { min-height: 0; }
+  .phone.mini { width: 168px; padding: 6px 5px 7px; font-size: 9.5px; }
+  .phone.mini .p-bar { font-size: 10px; padding: 6px 7px; }
+  .phone.mini .p-body { min-height: 132px; padding: 6px; }
+  .p-bar .act { color: var(--accent); font-size: 12px; margin-left: auto; }
+  .p-bar .act + .dots { margin-left: 8px; }
+  .p-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+  .p-chips span {
+    border: 1px solid var(--hair); border-radius: 10px; padding: 2px 6px;
+    font-size: 8.5px; color: var(--muted);
+  }
+  .p-rows { display: grid; gap: 3px; }
+  .p-rows span {
+    border-left: 2px solid var(--v-pass); padding: 3px 6px; font-size: 9px;
+    background: var(--sunken); border-radius: 0 3px 3px 0;
+  }
+  .p-rows span.el { border-left-color: var(--hair); color: var(--faint); font-style: italic; }
+  .p-sep {
+    font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); border-top: 1px solid var(--hair); padding-top: 6px; margin-top: 2px;
+  }
+  .p-enu {
+    height: 92px; border: 1px solid var(--hair); border-radius: 4px; position: relative;
+    background:
+      linear-gradient(var(--hair), var(--hair)) 50% 0 / 1px 100% no-repeat,
+      linear-gradient(var(--hair), var(--hair)) 0 50% / 100% 1px no-repeat;
+  }
+  .p-enu i { position: absolute; width: 6px; height: 6px; border-radius: 50%; }
+  .p-enu i.me { left: 50%; top: 50%; margin: -3px 0 0 -3px; background: var(--ink); }
+  .p-enu i.arp { background: var(--accent); }
+  .p-enu b.scale { position: absolute; left: 8px; bottom: 7px; width: 34px; height: 2px; background: var(--muted); }
+
+  /* ---- analysis view mockups ---- */
+  .subhead {
+    font-family: var(--serif); font-size: 21px; letter-spacing: -0.01em;
+    margin: 34px 0 8px;
+  }
+  .c1 { --sat: var(--gps); }     .c2 { --sat: var(--glonass); }
+  .c3 { --sat: var(--galileo); } .c4 { --sat: var(--beidou); }
+  .c5 { --sat: var(--qzss); }    .c6 { --sat: var(--navic); }
+
+  .p-sky {
+    height: 104px; position: relative; border-radius: 4px;
+    border: 1px solid var(--hair);
+  }
+  .p-sky::before, .p-sky::after {
+    content: ""; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%); border: 1px solid var(--hair); border-radius: 50%;
+  }
+  .p-sky::before { width: 88px; height: 88px; }
+  .p-sky::after  { width: 46px; height: 46px; }
+  .p-sky span {
+    position: absolute; font-size: 8px; color: var(--faint);
+  }
+  .p-sky .n { left: 50%; top: 1px; transform: translateX(-50%); }
+  .p-sky .s { left: 50%; bottom: 1px; transform: translateX(-50%); }
+  .p-sky .e { right: 2px; top: 50%; transform: translateY(-50%); }
+  .p-sky .w { left: 2px; top: 50%; transform: translateY(-50%); }
+  .p-sky .deg {
+    position: absolute; left: 50%; top: 50%; margin: -30px 0 0 2px;
+    font-size: 7.5px; font-style: normal; color: var(--faint);
+  }
+  .p-sky i {
+    position: absolute; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--sat); margin: -3.5px 0 0 -3.5px;
+  }
+  .p-sky b.trail {
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: var(--accent); opacity: .55; margin: -1.5px 0 0 -1.5px;
+  }
+
+  .p-bars {
+    height: 104px; border: 1px solid var(--hair); border-radius: 4px;
+    display: flex; align-items: flex-end; gap: 3px; padding: 6px 7px;
+  }
+  .p-bars i { flex: 1; background: var(--sat); border-radius: 1px 1px 0 0; }
+
+  .p-scatter {
+    height: 104px; border: 1px solid var(--hair); border-radius: 4px;
+    position: relative; padding: 6px;
+  }
+  .p-scatter i {
+    position: absolute; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--sat);
+  }
+  .p-scatter em {
+    position: absolute; font-size: 7.5px; font-style: normal; color: var(--faint);
+  }
+  .p-scatter .ax { left: 4px; top: 3px; }
+  .p-scatter .x0 { left: 6px; bottom: 2px; }
+  .p-scatter .x1 { right: 6px; bottom: 2px; }
+
+  .p-leg { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .p-leg span {
+    font-size: 7.5px; color: var(--muted); display: flex; align-items: center; gap: 3px;
+  }
+  .p-leg span::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--sat);
+  }
+
+  /* ---- card states ---- */
+  .states { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .scard {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--line); border-radius: 4px;
+    background: var(--surface); padding: 11px 13px;
+    font-family: var(--mono); font-size: 12px;
+  }
+  .scard.run { border-color: var(--v-running); }
+  .scard .sv { margin-left: auto; font-size: 11px; }
+  .sv.pend { color: var(--v-pending); }
+  .sv.run  { color: var(--v-running); }
+  .sv.pass { color: var(--v-pass); }
+  .sv.warn { color: var(--v-warn); }
+  .states .p-caption { text-align: left; }
+
+  /* ---- figures ---- */
+  figure { margin: 0; }
+  figure svg { width: 100%; height: auto; display: block; color: var(--ink); }
+  .figwrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 20px 18px 14px; }
+  figcaption { font-size: 13.5px; color: var(--muted); margin-top: 12px; max-width: 74ch; }
+
+  /* ---- questions ---- */
+  .qs { display: grid; gap: 14px; counter-reset: q; }
+  .q {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+    padding: 16px 18px; display: grid; gap: 4px;
+    grid-template-columns: auto 1fr; column-gap: 14px;
+  }
+  .q::before {
+    counter-increment: q; content: counter(q);
+    font-family: var(--mono); font-size: 13px; color: var(--accent);
+    grid-row: span 2; padding-top: 2px;
+  }
+  .q h3 { margin: 0; }
+  .q p { margin: 0; font-size: 14.5px; color: var(--muted); }
+
+  .foot { margin-top: 56px; font-size: 13.5px; color: var(--faint); }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">NTRIP Analyser · Android · information architecture</p>
+  <h1>Where new measurements go</h1>
+  <p class="lede prose">
+    Six roadmap items want space on two screens. This is what the code already
+    decides for us, four ways to arrange the rest, and the three questions that
+    pick one.
+  </p>
+
+  <section>
+    <p class="eyebrow">Read from the source, not the roadmap</p>
+    <h2>Three constraints already in the app</h2>
+    <div class="constraints">
+      <div class="constraint">
+        <h3>The way out of Analysis is a gesture</h3>
+        <p>
+          You leave the pager by over-swiping page&nbsp;0, and a nested-scroll
+          handler reads the leftover drag. It broke once already on Android&nbsp;12's
+          stretch overscroll. Reorder or prepend a tab and the exit changes meaning.
+        </p>
+        <span class="src">MainActivity.kt:508</span>
+      </div>
+      <div class="constraint">
+        <h3>The app deliberately carries no map</h3>
+        <p>
+          No tile requests from this process, so Play data safety stays “no data
+          collected or shared”; no OSM tile-policy exposure; no attribution to
+          maintain. Maps are handed to an app the user already has.
+        </p>
+        <span class="src">MapPick.kt:11</span>
+      </div>
+      <div class="constraint">
+        <h3>The foreground service exists</h3>
+        <p>
+          <span class="mono">MonitorService</span> already owns the run, because
+          60 continuous seconds outlasts a backgrounded activity. Tier&nbsp;2 is not
+          building one — it is making this one survive hours.
+        </p>
+        <span class="src">MonitorService.kt:34</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <h2 class="prose">Only three items actually want a view</h2>
+    <p class="prose">
+      The tab strip feels crowded because report-shaped results are being
+      imagined into a pager built for plots. Sorted by what each item needs, the
+      pressure is smaller than the list suggests.
+    </p>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Roadmap item</th><th>Edition</th><th>What it needs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Share on-screen results</td><td class="tight">free + pro</td><td>An app-bar action. No screen.</td></tr>
+          <tr><td>Tracks on sky view</td><td class="tight">pro</td><td>A drawing change inside the tab that exists.</td></tr>
+          <tr><td>VRS / network-RTK assertions</td><td class="tight">pro</td><td><strong>A view</strong> — but list-shaped, like the KPI rows.</td></tr>
+          <tr><td>Rover-to-ARP distance and hand-over</td><td class="tight">pro</td><td><strong>A view</strong>, and the only genuinely geographic one.</td></tr>
+          <tr><td>Tier 2 + thresholds</td><td class="tight">pro</td><td><strong>A view</strong>, plus a run that lasts hours.</td></tr>
+          <tr><td>TLS to the caster</td><td class="tight">free + pro</td><td>Nothing. Invisible when it works.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <h2 class="prose">Four arrangements</h2>
+    <p class="prose">
+      Each mockup shows the same moment — a finished run with VRS, hand-over and
+      tier&nbsp;2 present. Pink marks what the option adds.
+    </p>
+
+    <div class="options">
+
+      <div class="opt">
+        <div class="opt-head"><span class="tag">A</span><h3>Scrollable tab strip</h3></div>
+        <div class="phone">
+          <div class="p-status"><span>09:41</span><span>▮▮▮</span></div>
+          <div class="p-screen">
+            <div class="p-bar"><span>Analysis</span><span class="dots">⋮</span></div>
+            <div class="p-tabs cut">
+              <span class="on">SKY</span><span>SIGNAL</span><span>ELEV</span><span>VRS</span><span>TIE</span>
+            </div>
+            <div class="p-body">
+              <div class="p-plot">
+                <i style="left:38%;top:30%"></i><i style="left:62%;top:44%"></i>
+                <i style="left:47%;top:66%"></i><i class="trk" style="left:41%;top:34%"></i>
+                <i class="trk" style="left:44%;top:38%"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">tabs 4 and 5 sit off-screen</p>
+        <ul class="verdicts">
+          <li><span class="mark plus">+</span><span>Smallest possible diff; nothing structural moves.</span></li>
+          <li><span class="mark minus">−</span><span>At 360&nbsp;dp about three labels fit. The rest are undiscoverable.</span></li>
+          <li><span class="mark minus">−</span><span>Reports live in a pager of plots, and the exit gesture still hangs off page&nbsp;0.</span></li>
+        </ul>
+      </div>
+
+      <div class="opt">
+        <div class="opt-head"><span class="tag">B</span><h3>Split by kind</h3></div>
+        <div class="phone">
+          <div class="p-status"><span>09:41</span><span>▮▮▮</span></div>
+          <div class="p-screen">
+            <div class="p-bar"><span>Report</span><span class="dots">⋮</span></div>
+            <div class="p-tabs">
+              <span class="on">VRS</span><span>TIER 2</span><span>ARP</span>
+            </div>
+            <div class="p-body">
+              <div class="p-card"><span>1 · Gate test</span><span class="chev">pass</span></div>
+              <div class="p-card"><span>2 · 1005 moves</span><span class="chev">pass</span></div>
+              <div class="p-card"><span>3 · Rate holds</span><span class="chev">pass</span></div>
+              <div class="p-card"><span>4 · MSM present</span><span class="chev">pass</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">plots keep their own three tabs</p>
+        <ul class="verdicts">
+          <li><span class="mark plus">+</span><span>Groups honestly: plots swipe, reports read.</span></li>
+          <li><span class="mark plus">+</span><span>Analysis keeps its gesture untouched.</span></li>
+          <li><span class="mark minus">−</span><span>A third top-level screen needs a second hand-rolled way in.</span></li>
+        </ul>
+      </div>
+
+      <div class="opt">
+        <div class="opt-head"><span class="tag">C</span><h3>Bottom navigation</h3></div>
+        <div class="phone">
+          <div class="p-status"><span>09:41</span><span>▮▮▮</span></div>
+          <div class="p-screen">
+            <div class="p-bar"><span>Station</span><span class="dots">⋮</span></div>
+            <div class="p-body" style="min-height:118px">
+              <div class="p-verdict">STATION OK</div>
+              <div class="p-card"><span>rfsee.net / RFSEE01</span></div>
+              <div class="p-card"><span>8 checks · held 60 s</span></div>
+            </div>
+            <div class="p-nav">
+              <span class="on"><em>◉</em>Station</span>
+              <span><em>◍</em>Analysis</span>
+              <span><em>▤</em>Report</span>
+              <span><em>⌖</em>Map</span>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">free would show two of the four</p>
+        <ul class="verdicts">
+          <li><span class="mark plus">+</span><span>Idiomatic and always visible; replaces the fragile gestures.</span></li>
+          <li><span class="mark plus">+</span><span>Scales to five destinations without crowding.</span></li>
+          <li><span class="mark minus">−</span><span>A two-item bar in free reads as a mistake, not a design.</span></li>
+        </ul>
+      </div>
+
+      <div class="opt lean">
+        <div class="opt-head"><span class="tag">D</span><h3>Hub and drill-down</h3><span class="badge">leaning</span></div>
+        <div class="phone">
+          <div class="p-status"><span>09:41</span><span>▮▮▮</span></div>
+          <div class="p-screen">
+            <div class="p-bar"><span>Station</span><span class="dots">⋮</span></div>
+            <div class="p-body">
+              <div class="p-verdict">STATION OK</div>
+              <div class="p-card"><span>rfsee.net / RFSEE01</span></div>
+              <div class="p-card new"><span>VRS · 5 of 5</span><span class="chev">›</span></div>
+              <div class="p-card new"><span>Hand-over · 2</span><span class="chev">›</span></div>
+              <div class="p-card new"><span>Stable · 1.7 h</span><span class="chev">›</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">a summary line each; tap for the detail</p>
+        <ul class="verdicts">
+          <li><span class="mark plus">+</span><span>Degrades perfectly: a card not compiled in is simply absent.</span></li>
+          <li><span class="mark plus">+</span><span>Scales without limit, and the answer is visible before the drill-down.</span></li>
+          <li><span class="mark minus">−</span><span>Station screen grows long; needs a real back stack, not one <span class="mono">BackHandler</span>.</span></li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <h2 class="prose">The four shapes, side by side</h2>
+    <div class="figwrap">
+      <figure>
+        <svg viewBox="0 0 1000 300" role="img" aria-label="Four navigation hierarchies compared: a flat tab strip, a split between plots and reports, four bottom-bar destinations, and a hub with drill-down detail screens.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- A -->
+          <text x="10" y="20" font-family="monospace" font-size="12" fill="currentColor" opacity=".55">A · FLAT</text>
+          <rect x="60" y="38" width="110" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="115" y="55" font-size="12" text-anchor="middle" fill="currentColor">Analysis</text>
+          <line x1="115" y1="64" x2="115" y2="84" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="20" y1="84" x2="210" y2="84" stroke="currentColor" stroke-width="1.2"/>
+          <g font-size="11" text-anchor="middle" fill="currentColor">
+            <line x1="30" y1="84" x2="30" y2="100" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="8" y="100" width="44" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="30" y="115">Sky</text>
+            <line x1="82" y1="84" x2="82" y2="100" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="60" y="100" width="44" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="82" y="115">Sig</text>
+            <line x1="134" y1="84" x2="134" y2="100" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="112" y="100" width="44" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="134" y="115">Elev</text>
+          </g>
+          <g font-size="11" text-anchor="middle">
+            <line x1="186" y1="84" x2="186" y2="100" style="stroke: var(--accent)" stroke-width="1.2"/>
+            <rect x="164" y="100" width="44" height="22" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/><text x="186" y="115" style="fill: var(--accent)">VRS</text>
+            <line x1="238" y1="84" x2="238" y2="100" style="stroke: var(--accent)" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <rect x="216" y="100" width="44" height="22" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4" stroke-dasharray="3 3"/><text x="238" y="115" style="fill: var(--accent)">T2</text>
+          </g>
+          <line x1="210" y1="84" x2="238" y2="84" style="stroke: var(--accent)" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <text x="10" y="146" font-size="11.5" style="fill: var(--risk)">off-screen ▸</text>
+          <text x="10" y="164" font-size="11.5" fill="currentColor" opacity=".6">exit gesture still on page 0</text>
+
+          <!-- B -->
+          <text x="290" y="20" font-family="monospace" font-size="12" fill="currentColor" opacity=".55">B · BY KIND</text>
+          <rect x="330" y="38" width="80" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="370" y="55" font-size="12" text-anchor="middle" fill="currentColor">Station</text>
+          <line x1="370" y1="64" x2="370" y2="80" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="300" y1="80" x2="452" y2="80" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="300" y1="80" x2="300" y2="96" stroke="currentColor" stroke-width="1.2"/>
+          <rect x="262" y="96" width="76" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="300" y="112" font-size="11.5" text-anchor="middle" fill="currentColor">Analysis</text>
+          <text x="300" y="140" font-size="11" text-anchor="middle" fill="currentColor" opacity=".65">sky · sig · elev</text>
+          <line x1="452" y1="80" x2="452" y2="96" style="stroke: var(--accent)" stroke-width="1.2"/>
+          <rect x="414" y="96" width="76" height="24" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/>
+          <text x="452" y="112" font-size="11.5" text-anchor="middle" style="fill: var(--accent)">Report</text>
+          <text x="452" y="140" font-size="11" text-anchor="middle" style="fill: var(--accent)">vrs · t2 · arp</text>
+          <text x="290" y="164" font-size="11.5" fill="currentColor" opacity=".6">two small tab sets, not one big one</text>
+
+          <!-- C -->
+          <text x="540" y="20" font-family="monospace" font-size="12" fill="currentColor" opacity=".55">C · BOTTOM BAR</text>
+          <rect x="540" y="38" width="180" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="630" y="55" font-size="12" text-anchor="middle" fill="currentColor">NavigationBar</text>
+          <g font-size="11" text-anchor="middle">
+            <line x1="560" y1="64" x2="560" y2="96" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="534" y="96" width="52" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="560" y="112" fill="currentColor">Station</text>
+            <line x1="620" y1="64" x2="620" y2="96" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="594" y="96" width="52" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="620" y="112" fill="currentColor">Anlys</text>
+            <line x1="680" y1="64" x2="680" y2="96" style="stroke: var(--accent)" stroke-width="1.2"/>
+            <rect x="654" y="96" width="52" height="24" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/><text x="680" y="112" style="fill: var(--accent)">Report</text>
+            <line x1="740" y1="64" x2="740" y2="96" style="stroke: var(--accent)" stroke-width="1.2"/>
+            <rect x="714" y="96" width="52" height="24" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/><text x="740" y="112" style="fill: var(--accent)">Map</text>
+          </g>
+          <text x="540" y="146" font-size="11.5" style="fill: var(--risk)">free: 2 of 4 remain</text>
+          <text x="540" y="164" font-size="11.5" fill="currentColor" opacity=".6">gestures retired</text>
+
+          <!-- D -->
+          <text x="800" y="20" font-family="monospace" font-size="12" fill="currentColor" opacity=".55">D · HUB</text>
+          <rect x="856" y="38" width="110" height="26" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="911" y="55" font-size="12" text-anchor="middle" fill="currentColor">Station hub</text>
+          <g font-size="11">
+            <line x1="870" y1="64" x2="870" y2="82" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="822" y="82" width="96" height="22" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="870" y="97" text-anchor="middle" fill="currentColor">verdict</text>
+            <line x1="870" y1="104" x2="870" y2="118" style="stroke: var(--accent)" stroke-width="1.2"/>
+            <rect x="822" y="118" width="96" height="22" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/>
+            <text x="870" y="133" text-anchor="middle" style="fill: var(--accent)">VRS · 5 of 5</text>
+            <line x1="918" y1="129" x2="948" y2="129" style="stroke: var(--accent)" stroke-width="1.2" marker-end="url(#ar)"/>
+            <rect x="948" y="118" width="46" height="22" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/>
+            <text x="971" y="133" text-anchor="middle" style="fill: var(--accent)">detail</text>
+            <line x1="870" y1="140" x2="870" y2="154" style="stroke: var(--accent)" stroke-width="1.2"/>
+            <rect x="822" y="154" width="96" height="22" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/>
+            <text x="870" y="169" text-anchor="middle" style="fill: var(--accent)">Hand-over · 2</text>
+            <line x1="918" y1="165" x2="948" y2="165" style="stroke: var(--accent)" stroke-width="1.2" marker-end="url(#ar)"/>
+            <rect x="948" y="154" width="46" height="22" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.4"/>
+            <text x="971" y="169" text-anchor="middle" style="fill: var(--accent)">detail</text>
+          </g>
+          <text x="800" y="196" font-size="11.5" fill="currentColor" opacity=".6">summary on the hub, detail one tap away</text>
+
+          <line x1="270" y1="34" x2="270" y2="210" stroke="currentColor" stroke-width="1" opacity=".18"/>
+          <line x1="520" y1="34" x2="520" y2="210" stroke="currentColor" stroke-width="1" opacity=".18"/>
+          <line x1="782" y1="34" x2="782" y2="210" stroke="currentColor" stroke-width="1" opacity=".18"/>
+
+          <text x="10" y="248" font-size="12.5" fill="currentColor" opacity=".8">Depth 1, breadth 5</text>
+          <text x="290" y="248" font-size="12.5" fill="currentColor" opacity=".8">Depth 2, breadth 2×3</text>
+          <text x="540" y="248" font-size="12.5" fill="currentColor" opacity=".8">Depth 1, breadth 4</text>
+          <text x="800" y="248" font-size="12.5" fill="currentColor" opacity=".8">Depth 2, breadth open</text>
+          <text x="10" y="270" font-size="12" fill="currentColor" opacity=".55">everything competes for one strip</text>
+          <text x="290" y="270" font-size="12" fill="currentColor" opacity=".55">kind decides where a thing lives</text>
+          <text x="540" y="270" font-size="12" fill="currentColor" opacity=".55">destinations fixed at four</text>
+          <text x="800" y="270" font-size="12" fill="currentColor" opacity=".55">new features cost one card</text>
+        </svg>
+        <figcaption>
+          The choice is really about breadth versus depth. A and C keep everything
+          one tap away and pay for it with a fixed ceiling on how many things there
+          can be; B and D accept a second level and buy room to grow. Pink is what
+          the roadmap adds to each shape.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <p class="eyebrow">Option D, drawn out</p>
+    <h2 class="prose">Everything the app has, and everything planned, in one hub</h2>
+    <p class="prose">
+      The test of a hub is whether it still reads once the existing screens are in
+      it — not just the three new cards. Below is the whole app: black is what
+      ships today, pink is planned, and <span class="pill pro">PRO</span> marks
+      what the free source set never compiles.
+    </p>
+
+    <div class="legend">
+      <span class="key"><i class="sw ex"></i>ships today</span>
+      <span class="key"><i class="sw pl"></i>planned</span>
+      <span class="key"><span class="pill pro">PRO</span>paid edition only</span>
+      <span class="key"><i class="sw ds"></i>no screen of its own</span>
+    </div>
+
+    <div class="dmock">
+      <div>
+        <div class="phone tall">
+          <div class="p-status"><span>09:41</span><span>▮▮▮</span></div>
+          <div class="p-screen">
+            <div class="p-bar">
+              <span>Station</span>
+              <span class="act">⤴</span>
+              <span class="dots">⋮</span>
+            </div>
+            <div class="p-body">
+              <div class="p-verdict">STATION OK</div>
+              <div class="p-card"><span>rfsee.net / RFSEE01</span><span class="chev">›</span></div>
+              <div class="p-chips"><span>RTCM 3.3</span><span>1.9 kB/s</span><span>39 sat</span></div>
+              <div class="p-rows">
+                <span>1 · Connected and producing</span>
+                <span>2 · RTCM 3 framing</span>
+                <span class="el">⋯ six more</span>
+                <span>8 · Advertised vs actual</span>
+              </div>
+              <div class="p-card"><span>Ephemeris · 54 cached</span></div>
+              <div class="p-card"><span>Watch · 1 h 42 m</span></div>
+              <div class="p-sep">beyond the eight checks</div>
+              <div class="p-card new"><span>VRS · 5 of 5</span><span class="chev">›</span></div>
+              <div class="p-card new"><span>Hand-over · 2 switches</span><span class="chev">›</span></div>
+              <div class="p-card new"><span>Stable · 1.7 h</span><span class="chev">›</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">the hub: one line each, in verdict order</p>
+      </div>
+
+      <div class="minis">
+        <div>
+          <div class="phone mini">
+            <div class="p-screen">
+              <div class="p-bar"><span>‹ VRS</span><span class="act">⤴</span></div>
+              <div class="p-body">
+                <div class="p-card"><span>Gate test</span><span class="chev">pass</span></div>
+                <div class="p-card"><span>1005 moves</span><span class="chev">pass</span></div>
+                <div class="p-card"><span>Rate holds</span><span class="chev">pass</span></div>
+                <div class="p-card"><span>MSM present</span><span class="chev">pass</span></div>
+                <div class="p-card"><span>Answers GGA</span><span class="chev">pass</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="p-caption">list-shaped, like the KPI rows</p>
+        </div>
+
+        <div>
+          <div class="phone mini">
+            <div class="p-screen">
+              <div class="p-bar"><span>‹ Hand-over</span><span class="act">⤴</span></div>
+              <div class="p-body">
+                <div class="p-enu">
+                  <i class="me"></i>
+                  <i class="arp" style="left:70%;top:26%"></i>
+                  <i class="arp" style="left:26%;top:70%"></i>
+                  <b class="scale"></b>
+                </div>
+                <div class="p-card"><span>12.4 km · NE</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="p-caption">metres and bearing, no basemap</p>
+        </div>
+
+        <div>
+          <div class="phone mini">
+            <div class="p-screen">
+              <div class="p-bar"><span>‹ Stability</span><span class="act">⤴</span></div>
+              <div class="p-body">
+                <div class="p-verdict">STABLE 1.7 h</div>
+                <div class="p-card"><span>Availability</span><span class="chev">0.0/h</span></div>
+                <div class="p-card"><span>Integrity</span><span class="chev">99.99%</span></div>
+                <div class="p-card"><span>Signal</span><span class="chev">−0.4 dB</span></div>
+                <div class="p-card"><span>Satellites</span><span class="chev">min 34</span></div>
+              </div>
+            </div>
+          </div>
+          <p class="p-caption">tier 2, judged by the policy in force</p>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="subhead">The other half: the three analysis views, unchanged</h3>
+    <p class="prose">
+      These ship today and keep their pager, their tabs and their exit gesture.
+      Only the sky view changes, and only inside its own canvas — tracks are drawn
+      behind the markers that are already there, so the tab strip never grows.
+    </p>
+
+    <div class="minis">
+      <div>
+        <div class="phone mini">
+          <div class="p-screen">
+            <div class="p-bar"><span>Sky</span><span class="act">⤴</span></div>
+            <div class="p-body">
+              <div class="p-sky">
+                <span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="w">W</span>
+                <em class="deg">30°</em>
+                <i class="c1" style="left:60%;top:24%"></i>
+                <i class="c1" style="left:33%;top:41%"></i>
+                <i class="c2" style="left:70%;top:58%"></i>
+                <i class="c3" style="left:44%;top:70%"></i>
+                <i class="c4" style="left:52%;top:38%"></i>
+                <b class="trail" style="left:56%;top:27%"></b>
+                <b class="trail" style="left:52%;top:30%"></b>
+                <b class="trail" style="left:48%;top:33%"></b>
+                <b class="trail" style="left:37%;top:44%"></b>
+                <b class="trail" style="left:41%;top:43%"></b>
+              </div>
+              <div class="p-leg"><span class="c1">GPS</span><span class="c2">GLONASS</span><span class="c3">Galileo</span><span class="c4">BeiDou</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">north up, rings linear in elevation<br><span style="color:var(--accent)">pink trails = planned tracks</span></p>
+      </div>
+
+      <div>
+        <div class="phone mini">
+          <div class="p-screen">
+            <div class="p-bar"><span>Signal</span><span class="act">⤴</span></div>
+            <div class="p-body">
+              <div class="p-bars">
+                <i class="c1" style="height:62%"></i><i class="c1" style="height:78%"></i>
+                <i class="c1" style="height:54%"></i><i class="c2" style="height:71%"></i>
+                <i class="c2" style="height:44%"></i><i class="c3" style="height:83%"></i>
+                <i class="c3" style="height:66%"></i><i class="c3" style="height:59%"></i>
+                <i class="c4" style="height:74%"></i><i class="c4" style="height:38%"></i>
+                <i class="c4" style="height:69%"></i>
+              </div>
+              <div class="p-leg"><span class="c1">GPS</span><span class="c2">GLONASS</span><span class="c3">Galileo</span><span class="c4">BeiDou</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">C/N0 per satellite — this epoch live,<br>session mean once stopped</p>
+      </div>
+
+      <div>
+        <div class="phone mini">
+          <div class="p-screen">
+            <div class="p-bar"><span>Elevation</span><span class="act">⤴</span></div>
+            <div class="p-body">
+              <div class="p-scatter">
+                <em class="ax">C/N0</em>
+                <i class="c1" style="left:14%;bottom:22%"></i><i class="c3" style="left:24%;bottom:31%"></i>
+                <i class="c1" style="left:33%;bottom:44%"></i><i class="c2" style="left:41%;bottom:39%"></i>
+                <i class="c4" style="left:50%;bottom:56%"></i><i class="c3" style="left:58%;bottom:61%"></i>
+                <i class="c1" style="left:67%;bottom:68%"></i><i class="c2" style="left:76%;bottom:64%"></i>
+                <i class="c4" style="left:85%;bottom:77%"></i>
+                <em class="x0">0°</em><em class="x1">90°</em>
+              </div>
+              <div class="p-leg"><span class="c1">GPS</span><span class="c2">GLONASS</span><span class="c3">Galileo</span><span class="c4">BeiDou</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="p-caption">C/N0 against elevation — the line<br>that sags when the antenna is wrong</p>
+      </div>
+    </div>
+
+    <div class="figwrap" style="margin-top:26px">
+      <figure>
+        <svg viewBox="0 0 1000 660" role="img" aria-label="The whole app arranged as a hub: an app bar carrying a new share action and the existing overflow menu, a station hub holding today's verdict, settings, chips, KPI rows, ephemeris and watch cards plus three planned cards that drill into VRS, hand-over and stability detail screens, and the existing analysis pager whose sky tab gains tracks. TLS sits under everything with no screen.">
+          <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <!-- root -->
+          <rect x="20" y="308" width="120" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/>
+          <text x="80" y="326" font-size="12.5" text-anchor="middle" fill="currentColor">App shell</text>
+          <text x="80" y="341" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">MainScreen</text>
+
+          <!-- TLS, beneath -->
+          <rect x="20" y="386" width="120" height="42" rx="4" fill="none" style="stroke: var(--accent)" stroke-width="1.4" stroke-dasharray="4 3"/>
+          <text x="80" y="404" font-size="12" text-anchor="middle" style="fill: var(--accent)">TLS</text>
+          <text x="80" y="419" font-size="10" text-anchor="middle" style="fill: var(--accent)" opacity=".8">transport · no screen</text>
+          <line x1="80" y1="386" x2="80" y2="352" style="stroke: var(--accent)" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+          <!-- spine root -> groups -->
+          <line x1="140" y1="328" x2="165" y2="328" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="165" y1="79" x2="165" y2="560" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="165" y1="79" x2="190" y2="79" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="165" y1="328" x2="190" y2="328" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="165" y1="560" x2="190" y2="560" stroke="currentColor" stroke-width="1.2"/>
+
+          <!-- group nodes -->
+          <rect x="190" y="59" width="140" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="260" y="84" font-size="12.5" text-anchor="middle" fill="currentColor">App bar</text>
+
+          <rect x="190" y="308" width="140" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="260" y="326" font-size="12.5" text-anchor="middle" fill="currentColor">Station hub</text>
+          <text x="260" y="341" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">scrolls</text>
+
+          <rect x="190" y="540" width="140" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="260" y="558" font-size="12.5" text-anchor="middle" fill="currentColor">Analysis</text>
+          <text x="260" y="573" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">pager, unchanged</text>
+
+          <!-- app bar children -->
+          <line x1="330" y1="79" x2="355" y2="79" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="355" y1="45" x2="355" y2="113" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="355" y1="45" x2="380" y2="45" style="stroke: var(--accent)" stroke-width="1.3"/>
+          <line x1="355" y1="113" x2="380" y2="113" stroke="currentColor" stroke-width="1.2"/>
+
+          <rect x="380" y="30" width="180" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+          <text x="392" y="49" font-size="12" style="fill: var(--accent)">Share ⤴</text>
+          <text x="548" y="49" font-size="9.5" text-anchor="end" style="fill: var(--accent)" opacity=".85">free + pro</text>
+
+          <rect x="380" y="98" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <text x="392" y="117" font-size="12" fill="currentColor">Overflow ⋮</text>
+
+          <!-- menu children -->
+          <line x1="560" y1="113" x2="585" y2="113" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="585" y1="30" x2="585" y2="196" stroke="currentColor" stroke-width="1.2"/>
+          <g font-size="11.5" fill="currentColor">
+            <line x1="585" y1="30" x2="610" y2="30" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="610" y="15" width="190" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="622" y="34">Settings</text>
+            <line x1="585" y1="85" x2="610" y2="85" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="610" y="70" width="190" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="622" y="89">Import RINEX</text>
+            <line x1="585" y1="140" x2="610" y2="140" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="610" y="125" width="190" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="622" y="144">Load / save config</text>
+            <line x1="585" y1="196" x2="610" y2="196" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="610" y="181" width="190" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="622" y="200">About / notices</text>
+          </g>
+          <text x="812" y="144" font-size="9.5" fill="currentColor" opacity=".65">PRO</text>
+
+          <!-- station children spine -->
+          <line x1="330" y1="328" x2="355" y2="328" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="355" y1="252" x2="355" y2="480" stroke="currentColor" stroke-width="1.2"/>
+
+          <g font-size="11.5">
+            <line x1="355" y1="252" x2="380" y2="252" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="380" y="237" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="392" y="256" fill="currentColor">Verdict · chips · config</text>
+
+            <line x1="355" y1="290" x2="380" y2="290" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="380" y="275" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="392" y="294" fill="currentColor">Eight KPI rows</text>
+
+            <line x1="355" y1="328" x2="380" y2="328" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="380" y="313" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="392" y="332" fill="currentColor">Ephemeris card</text>
+
+            <line x1="355" y1="366" x2="380" y2="366" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="380" y="351" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="392" y="370" fill="currentColor">Watch card</text>
+            <text x="548" y="370" font-size="9.5" text-anchor="end" fill="currentColor" opacity=".65">PRO</text>
+
+            <line x1="355" y1="404" x2="380" y2="404" style="stroke: var(--accent)" stroke-width="1.3"/>
+            <rect x="380" y="389" width="180" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+            <text x="392" y="408" style="fill: var(--accent)">VRS · 5 of 5</text>
+            <text x="548" y="408" font-size="9.5" text-anchor="end" style="fill: var(--accent)" opacity=".85">PRO</text>
+
+            <line x1="355" y1="442" x2="380" y2="442" style="stroke: var(--accent)" stroke-width="1.3"/>
+            <rect x="380" y="427" width="180" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+            <text x="392" y="446" style="fill: var(--accent)">Hand-over · 2</text>
+            <text x="548" y="446" font-size="9.5" text-anchor="end" style="fill: var(--accent)" opacity=".85">PRO</text>
+
+            <line x1="355" y1="480" x2="380" y2="480" style="stroke: var(--accent)" stroke-width="1.3"/>
+            <rect x="380" y="465" width="180" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+            <text x="392" y="484" style="fill: var(--accent)">Stable · 1.7 h</text>
+            <text x="548" y="484" font-size="9.5" text-anchor="end" style="fill: var(--accent)" opacity=".85">PRO</text>
+          </g>
+
+          <!-- drill-downs -->
+          <g font-size="11.5">
+            <line x1="560" y1="404" x2="606" y2="404" style="stroke: var(--accent)" stroke-width="1.3" marker-end="url(#ar3)"/>
+            <rect x="610" y="389" width="190" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+            <text x="622" y="408" style="fill: var(--accent)">Five assertions + gate</text>
+
+            <line x1="560" y1="442" x2="606" y2="442" style="stroke: var(--accent)" stroke-width="1.3" marker-end="url(#ar3)"/>
+            <rect x="610" y="427" width="190" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+            <text x="622" y="446" style="fill: var(--accent)">ARP dots, local metres</text>
+
+            <line x1="560" y1="480" x2="606" y2="480" style="stroke: var(--accent)" stroke-width="1.3" marker-end="url(#ar3)"/>
+            <rect x="610" y="465" width="190" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+            <text x="622" y="484" style="fill: var(--accent)">Six tier-2 metrics</text>
+          </g>
+
+          <!-- analysis children -->
+          <line x1="330" y1="560" x2="355" y2="560" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="355" y1="522" x2="355" y2="598" stroke="currentColor" stroke-width="1.2"/>
+          <g font-size="11.5" fill="currentColor">
+            <line x1="355" y1="522" x2="380" y2="522" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="380" y="507" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="392" y="526">Sky view</text>
+            <line x1="355" y1="560" x2="380" y2="560" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="380" y="545" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="392" y="564">Signal bars</text>
+            <line x1="355" y1="598" x2="380" y2="598" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="380" y="583" width="180" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="392" y="602">Elevation</text>
+          </g>
+          <line x1="560" y1="522" x2="606" y2="522" style="stroke: var(--accent)" stroke-width="1.3" marker-end="url(#ar3)"/>
+          <rect x="610" y="507" width="190" height="30" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <text x="622" y="526" font-size="11.5" style="fill: var(--accent)">+ satellite tracks</text>
+          <text x="812" y="526" font-size="9.5" style="fill: var(--accent)" opacity=".85">PRO</text>
+
+          <!-- share collection -->
+          <path d="M 470 30 C 470 -6 900 -6 900 20 L 900 380" fill="none" style="stroke: var(--accent)" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <line x1="900" y1="404" x2="900" y2="500" style="stroke: var(--accent)" stroke-width="1.2" stroke-dasharray="5 4"/>
+          <g style="fill: var(--accent)">
+            <circle cx="900" cy="404" r="3.5"/>
+            <circle cx="900" cy="442" r="3.5"/>
+            <circle cx="900" cy="480" r="3.5"/>
+            <circle cx="900" cy="252" r="3.5"/>
+            <circle cx="900" cy="290" r="3.5"/>
+          </g>
+          <line x1="800" y1="404" x2="896" y2="404" style="stroke: var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="800" y1="442" x2="896" y2="442" style="stroke: var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="800" y1="480" x2="896" y2="480" style="stroke: var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="560" y1="252" x2="896" y2="252" style="stroke: var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="560" y1="290" x2="896" y2="290" style="stroke: var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="916" y="322" font-size="11" style="fill: var(--accent)">share</text>
+          <text x="916" y="336" font-size="11" style="fill: var(--accent)">collects</text>
+          <text x="916" y="350" font-size="11" style="fill: var(--accent)">each</text>
+          <text x="916" y="364" font-size="11" style="fill: var(--accent)">section</text>
+
+          <text x="20" y="640" font-size="11.5" fill="currentColor" opacity=".6">
+            Existing structure untouched: the pager keeps its three tabs and its exit gesture, and no card moves.
+          </text>
+        </svg>
+        <figcaption>
+          Every planned capability enters the same way — a summary card on the hub, a
+          detail screen behind it, and a section the share action collects. Nothing
+          that ships today changes position, which is what makes this addable one
+          feature at a time rather than as a rewrite.
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="tablewrap" style="margin-top:26px">
+      <table>
+        <thead>
+          <tr><th>Capability</th><th>Hub card</th><th>Detail screen</th><th>Share section</th><th>Edition</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Eight KPI checks</td><td class="tight">ships today</td><td class="tight">—</td><td class="tight">verdict + 8 rows</td><td class="tight">free + pro</td></tr>
+          <tr><td>Ephemeris cache</td><td class="tight">ships today</td><td class="tight">—</td><td class="tight">source + count</td><td class="tight">free + pro</td></tr>
+          <tr><td>Watch mode</td><td class="tight">ships today</td><td class="tight">—</td><td class="tight">duration + gaps</td><td class="tight">pro</td></tr>
+          <tr><td>Sky / signal / elevation</td><td class="tight">—</td><td class="tight">pager, today</td><td class="tight">plot as PNG</td><td class="tight">free + pro</td></tr>
+          <tr><td>Satellite tracks</td><td class="tight">—</td><td class="tight">inside sky view</td><td class="tight">with the plot</td><td class="tight">pro</td></tr>
+          <tr><td>VRS assertions</td><td class="tight">new</td><td class="tight">new</td><td class="tight">5 lines + gate</td><td class="tight">pro</td></tr>
+          <tr><td>Rover-to-ARP, hand-over</td><td class="tight">new</td><td class="tight">new</td><td class="tight">distance + switches</td><td class="tight">pro</td></tr>
+          <tr><td>Tier 2 + thresholds</td><td class="tight">new</td><td class="tight">new</td><td class="tight">6 metrics + policy</td><td class="tight">pro</td></tr>
+          <tr><td>TLS</td><td class="tight">—</td><td class="tight">—</td><td class="tight">scheme in header</td><td class="tight">free + pro</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose" style="margin-top:16px">
+      The right-hand columns are the panel contract from further down, filled in.
+      Read the <em>Share section</em> column downward and it is the report a
+      surveyor sends — which is the argument for building share first: every row
+      added later fills its own cell instead of editing one shared function.
+    </p>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <p class="eyebrow">The dimension the mockups don't show</p>
+    <h2 class="prose">Two clocks and one continuous view</h2>
+    <p class="prose">
+      Every screen above is a <em>finished</em> run, which is the easy case. What
+      the app actually is, is a machine with states — and the roadmap adds a second
+      measurement that runs on a different clock from the first. Three things run
+      at once, and they are not the same kind of thing:
+    </p>
+
+    <div class="figwrap">
+      <figure>
+        <svg viewBox="0 0 1000 330" role="img" aria-label="A timeline: the live plots update continuously from the moment the session opens and never produce a verdict; tier 1 warms up for 30 seconds, then needs its checks to hold for a 60-second sustain window before it delivers a verdict at about 90 seconds; tier 2 reports insufficient evidence until 10 minutes of stream, then delivers a stability verdict, and withdraws it again if the stream clock stops for 120 seconds.">
+          <!-- axis -->
+          <line x1="120" y1="288" x2="960" y2="288" stroke="currentColor" stroke-width="1.2"/>
+          <g font-size="10.5" fill="currentColor" opacity=".7" text-anchor="middle">
+            <line x1="120" y1="288" x2="120" y2="294" stroke="currentColor" stroke-width="1.2"/><text x="120" y="308">0</text>
+            <line x1="205" y1="288" x2="205" y2="294" stroke="currentColor" stroke-width="1.2"/><text x="205" y="308">30 s</text>
+            <line x1="375" y1="288" x2="375" y2="294" stroke="currentColor" stroke-width="1.2"/><text x="375" y="308">90 s</text>
+            <line x1="700" y1="288" x2="700" y2="294" stroke="currentColor" stroke-width="1.2"/><text x="700" y="308">10 min</text>
+            <line x1="900" y1="288" x2="900" y2="294" stroke="currentColor" stroke-width="1.2"/><text x="900" y="308">hours</text>
+          </g>
+          <text x="540" y="325" font-size="11" fill="currentColor" opacity=".55" text-anchor="middle">time since the session opened</text>
+
+          <!-- guides -->
+          <g stroke="currentColor" stroke-width="1" opacity=".18" stroke-dasharray="3 4">
+            <line x1="205" y1="40" x2="205" y2="286"/>
+            <line x1="375" y1="40" x2="375" y2="286"/>
+            <line x1="700" y1="40" x2="700" y2="286"/>
+          </g>
+
+          <!-- band 1: live views -->
+          <text x="14" y="66" font-size="12" fill="currentColor">Live views</text>
+          <text x="14" y="81" font-size="10" fill="currentColor" opacity=".6">sky · signal · elevation</text>
+          <rect x="120" y="48" width="840" height="34" rx="4" fill="none" stroke="currentColor" stroke-width="1.3"/>
+          <text x="540" y="70" font-size="11.5" text-anchor="middle" fill="currentColor">updating every epoch — no verdict, ever</text>
+
+          <!-- band 2: tier 1 -->
+          <text x="14" y="140" font-size="12" fill="currentColor">Tier 1</text>
+          <text x="14" y="155" font-size="10" fill="currentColor" opacity=".6">eight checks</text>
+          <rect x="120" y="120" width="85" height="34" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="162" y="142" font-size="10.5" text-anchor="middle" fill="currentColor" opacity=".7">warm-up</text>
+          <rect x="205" y="120" width="170" height="34" rx="4" fill="none" style="stroke: var(--v-running)" stroke-width="1.6"/>
+          <text x="290" y="142" font-size="11.5" text-anchor="middle" style="fill: var(--v-running)">sustain window · 60 s</text>
+          <rect x="375" y="120" width="585" height="34" rx="4" fill="none" style="stroke: var(--v-pass)" stroke-width="1.6"/>
+          <text x="667" y="142" font-size="11.5" text-anchor="middle" style="fill: var(--v-pass)">STATION OK — settled, and it does not change again</text>
+
+          <!-- band 3: tier 2 -->
+          <text x="14" y="212" font-size="12" style="fill: var(--accent)">Tier 2</text>
+          <text x="14" y="227" font-size="10" style="fill: var(--accent)" opacity=".8">planned · pro</text>
+          <rect x="120" y="192" width="580" height="34" rx="4" fill="none" style="stroke: var(--v-pending)" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <text x="410" y="214" font-size="11.5" text-anchor="middle" style="fill: var(--v-pending)">INSUFFICIENT EVIDENCE — and says how much more it wants</text>
+          <rect x="700" y="192" width="180" height="34" rx="4" fill="none" style="stroke: var(--v-pass)" stroke-width="1.6"/>
+          <text x="790" y="214" font-size="11.5" text-anchor="middle" style="fill: var(--v-pass)">STABLE 1.7 h</text>
+          <rect x="880" y="192" width="80" height="34" rx="4" fill="none" style="stroke: var(--v-pending)" stroke-width="1.4" stroke-dasharray="5 4"/>
+          <text x="920" y="209" font-size="9.5" text-anchor="middle" style="fill: var(--v-pending)">stream</text>
+          <text x="920" y="220" font-size="9.5" text-anchor="middle" style="fill: var(--v-pending)">clock stops</text>
+
+          <!-- the verdict arrows -->
+          <line x1="375" y1="154" x2="375" y2="186" style="stroke: var(--v-pass)" stroke-width="1.2"/>
+          <circle cx="375" cy="120" r="3.5" style="fill: var(--v-pass)"/>
+          <circle cx="700" cy="192" r="3.5" style="fill: var(--v-pass)"/>
+          <text x="386" y="176" font-size="10.5" fill="currentColor" opacity=".65">tier 1 done — tier 2 still gathering</text>
+
+          <text x="14" y="262" font-size="11" fill="currentColor" opacity=".55">one session</text>
+          <text x="14" y="276" font-size="11" fill="currentColor" opacity=".55">feeds all three</text>
+          <line x1="112" y1="48" x2="112" y2="226" stroke="currentColor" stroke-width="1.2" opacity=".35"/>
+        </svg>
+        <figcaption>
+          One socket, three consumers. Tier 1 is bounded and settles; tier 2 is
+          open-ended and can withdraw its verdict again if the stream stops moving;
+          the plots never conclude anything at all. That mismatch is the real
+          navigation problem — not how many tabs there are.
+        </figcaption>
+      </figure>
+    </div>
+
+    <h3 class="subhead">Which means every card has four states, not one</h3>
+    <p class="prose">
+      A tab strip cannot say <em>not yet</em> — a tab is either there or it isn't,
+      and an empty one is a dead end. A card has a line of text to spend on it. This
+      is the strongest argument for the hub, and it only appears once you look at
+      the run as a sequence rather than a result.
+    </p>
+
+    <div class="states">
+      <div>
+        <div class="scard"><span>Stability</span><span class="sv pend">not started</span></div>
+        <p class="p-caption">before a run · the card is calm and explains nothing</p>
+      </div>
+      <div>
+        <div class="scard run"><span>Stability</span><span class="sv run">4 m 10 s of 10 m</span></div>
+        <p class="p-caption">gathering · its own clock, not the run's</p>
+      </div>
+      <div>
+        <div class="scard"><span>Stability</span><span class="sv pass">STABLE 1.7 h ›</span></div>
+        <p class="p-caption">settled · now it drills down</p>
+      </div>
+      <div>
+        <div class="scard"><span>Stability</span><span class="sv warn">stream stopped ›</span></div>
+        <p class="p-caption">withdrawn · the verdict it had is no longer current</p>
+      </div>
+    </div>
+
+    <p class="prose" style="margin-top:22px">
+      The fourth state is not hypothetical: tier 2 gained it in 3.5.0, after a
+      monitored station published <span class="mono">STABLE over 1.7 h</span> for
+      fourteen hours past its last observation. Whatever the navigation, the UI has
+      to be able to show a verdict being taken back — which a card does in place,
+      and a screenful of numbers does only if the reader happens to be looking at it.
+    </p>
+
+    <div class="tablewrap" style="margin-top:22px">
+      <table>
+        <thead>
+          <tr><th>Runs</th><th>Clock</th><th>Ends</th><th>Where it lives</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Tier 1 · eight checks</td>
+            <td>bounded — 60 s sustain inside ~90 s</td>
+            <td>Settles, then stops changing</td>
+            <td>Verdict badge + eight rows, today</td>
+          </tr>
+          <tr>
+            <td>Tier 2 · stability</td>
+            <td>open — ≥ 10 min of stream</td>
+            <td>Can be withdrawn if the stream clock stops</td>
+            <td>One card, one detail screen</td>
+          </tr>
+          <tr>
+            <td>Live plots</td>
+            <td>every epoch, continuously</td>
+            <td>Never — they conclude nothing</td>
+            <td>The pager, unchanged</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose" style="margin-top:16px">
+      One practical consequence for the ordering: tier 2 rides on the run that
+      already exists. Watch mode holds the session open and
+      <span class="mono">MonitorService</span> keeps it alive; tier 2 adds a reader
+      of the same snapshots, not a second connection. That is why scheduling the
+      foreground-service work <em>with</em> tier 2 rather than after it is right —
+      the two are the same piece of work seen from either end.
+    </p>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <h2 class="prose">The map, which is a separate decision</h2>
+    <p class="prose">
+      Hand-over is the only geographic item, and the question it asks is
+      <em>relative</em> — where is the ARP with respect to me, and did it jump
+      while I stood still. That can be answered without a basemap, which is the
+      difference between keeping the privacy position and reopening it.
+    </p>
+    <div class="figwrap">
+      <figure>
+        <svg viewBox="0 0 760 240" role="img" aria-label="Two ways to show hand-over: a tile-free local plot in metres drawn from data the app already has, versus an embedded basemap that adds tile requests, a data-safety change and attribution.">
+          <text x="10" y="18" font-family="monospace" font-size="12" fill="currentColor" opacity=".55">M2 · TILE-FREE, LOCAL METRES</text>
+          <rect x="10" y="30" width="330" height="150" rx="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="175" y1="45" x2="175" y2="168" stroke="currentColor" stroke-width="1" opacity=".25"/>
+          <line x1="28" y1="106" x2="322" y2="106" stroke="currentColor" stroke-width="1" opacity=".25"/>
+          <text x="175" y="43" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">N</text>
+          <circle cx="175" cy="106" r="4.5" fill="currentColor"/>
+          <text x="185" y="103" font-size="11" fill="currentColor">rover</text>
+          <circle cx="243" cy="72" r="4" style="fill: var(--accent)"/>
+          <circle cx="118" cy="141" r="4" style="fill: var(--accent)"/>
+          <line x1="175" y1="106" x2="243" y2="72" style="stroke: var(--accent)" stroke-width="1.3" stroke-dasharray="4 3"/>
+          <line x1="175" y1="106" x2="118" y2="141" style="stroke: var(--accent)" stroke-width="1.3" stroke-dasharray="4 3"/>
+          <text x="252" y="70" font-size="11" style="fill: var(--accent)">ARP 09:12</text>
+          <text x="40" y="156" font-size="11" style="fill: var(--accent)">ARP 09:31</text>
+          <line x1="28" y1="168" x2="88" y2="168" stroke="currentColor" stroke-width="1.6"/>
+          <text x="92" y="172" font-size="10.5" fill="currentColor" opacity=".7">5 km</text>
+          <text x="10" y="202" font-size="12" fill="currentColor">Answers: how far, which way, and that it switched.</text>
+          <text x="10" y="222" font-size="12" style="fill: var(--ok)" opacity=".9">No tiles · no data-safety change · reuses the sky-view canvas</text>
+
+          <line x1="380" y1="26" x2="380" y2="230" stroke="currentColor" stroke-width="1" opacity=".18"/>
+
+          <text x="410" y="18" font-family="monospace" font-size="12" fill="currentColor" opacity=".55">M3 · EMBEDDED BASEMAP</text>
+          <rect x="410" y="30" width="330" height="150" rx="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <g opacity=".3" stroke="currentColor" stroke-width="1">
+            <line x1="410" y1="67" x2="740" y2="67"/><line x1="410" y1="105" x2="740" y2="105"/>
+            <line x1="410" y1="143" x2="740" y2="143"/><line x1="492" y1="30" x2="492" y2="180"/>
+            <line x1="575" y1="30" x2="575" y2="180"/><line x1="658" y1="30" x2="658" y2="180"/>
+          </g>
+          <circle cx="575" cy="105" r="4.5" fill="currentColor"/>
+          <circle cx="643" cy="71" r="4" style="fill: var(--accent)"/>
+          <circle cx="518" cy="140" r="4" style="fill: var(--accent)"/>
+          <text x="418" y="202" font-size="12" fill="currentColor">Adds: streets behind the dots.</text>
+          <text x="418" y="222" font-size="12" style="fill: var(--risk)">Tile requests leave this process · data safety changes · attribution</text>
+        </svg>
+        <figcaption>
+          The dots and the distances are identical in both; only the ground behind
+          them differs. That is the whole trade — a basemap tells you the ARP moved
+          to <em>that village</em>, at the cost of the position recorded in
+          <span class="mono">MapPick.kt</span>.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <h2 class="prose">Layering: make the first item carry the rest</h2>
+    <p class="prose">
+      <span class="mono">MainActivity.kt</span> is 2,147 lines and already holds the
+      shell, both screens and seven cards. Five more features added the current way
+      make it four thousand. The alternative uses the mechanism that already exists
+      — compile-time <span class="mono">Features</span> constants over
+      <span class="mono">free</span> / <span class="mono">pro</span> source sets —
+      and adds one contract.
+    </p>
+    <div class="figwrap">
+      <figure>
+        <svg viewBox="0 0 760 268" role="img" aria-label="Each feature is one file contributing up to three things: a hub card, a destination, and a share section. A registry collects them, and the share action gathers every registered section automatically.">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+
+          <text x="10" y="18" font-family="monospace" font-size="11.5" fill="currentColor" opacity=".55">ONE FILE PER FEATURE</text>
+          <g font-size="11.5" text-anchor="middle">
+            <rect x="10" y="32" width="120" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="70" y="51" fill="currentColor">VrsPanel.kt</text>
+            <rect x="10" y="74" width="120" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="70" y="93" fill="currentColor">HandoverPanel.kt</text>
+            <rect x="10" y="116" width="120" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="70" y="135" fill="currentColor">Tier2Panel.kt</text>
+            <rect x="10" y="158" width="120" height="30" rx="3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3"/><text x="70" y="177" fill="currentColor" opacity=".65">next one…</text>
+          </g>
+
+          <g stroke="currentColor" stroke-width="1.2" marker-end="url(#ar2)">
+            <line x1="130" y1="47" x2="196" y2="98"/>
+            <line x1="130" y1="89" x2="196" y2="104"/>
+            <line x1="130" y1="131" x2="196" y2="112"/>
+            <line x1="130" y1="173" x2="196" y2="120"/>
+          </g>
+
+          <rect x="200" y="86" width="104" height="46" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+          <text x="252" y="105" font-size="12" text-anchor="middle" style="fill: var(--accent)">registry</text>
+          <text x="252" y="121" font-size="10.5" text-anchor="middle" style="fill: var(--accent)" opacity=".8">per source set</text>
+
+          <text x="352" y="18" font-family="monospace" font-size="11.5" fill="currentColor" opacity=".55">EACH CONTRIBUTES UP TO THREE</text>
+          <g stroke="currentColor" stroke-width="1.2" marker-end="url(#ar2)">
+            <line x1="304" y1="100" x2="368" y2="52"/>
+            <line x1="304" y1="109" x2="368" y2="109"/>
+            <line x1="304" y1="118" x2="368" y2="166"/>
+          </g>
+          <g font-size="11.5">
+            <rect x="372" y="34" width="150" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="384" y="55" fill="currentColor">a hub card</text>
+            <rect x="372" y="92" width="150" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+            <text x="384" y="113" fill="currentColor">a destination</text>
+            <rect x="372" y="150" width="150" height="34" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+            <text x="384" y="171" style="fill: var(--accent)">a share section</text>
+          </g>
+
+          <line x1="522" y1="167" x2="586" y2="167" style="stroke: var(--accent)" stroke-width="1.3" marker-end="url(#ar2)"/>
+          <rect x="590" y="146" width="158" height="42" rx="3" fill="none" style="stroke: var(--accent)" stroke-width="1.5"/>
+          <text x="669" y="164" font-size="12" text-anchor="middle" style="fill: var(--accent)">Share action</text>
+          <text x="669" y="180" font-size="10.5" text-anchor="middle" style="fill: var(--accent)" opacity=".8">gathers what is registered</text>
+
+          <text x="352" y="216" font-size="12.5" fill="currentColor">
+            Build share first and it becomes the socket every later feature plugs into —
+          </text>
+          <text x="352" y="234" font-size="12.5" fill="currentColor">
+            instead of five features each editing one share function by hand.
+          </text>
+          <text x="10" y="216" font-size="12" fill="currentColor" opacity=".6">free registers</text>
+          <text x="10" y="234" font-size="12" fill="currentColor" opacity=".6">fewer panels</text>
+        </svg>
+        <figcaption>
+          The contract is the point, not the file split: a feature is added by writing
+          one file and one registry line, and the edition difference is which lines the
+          source set contains — the same mechanism that already keeps paid screens out
+          of the free APK entirely.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <hr class="rule">
+    <h2 class="prose">Three questions decide it</h2>
+    <div class="qs">
+      <div class="q">
+        <div>
+          <h3>Is a two-destination free app acceptable?</h3>
+          <p>If yes, C becomes much stronger and I would probably switch to it — a bottom bar is what people expect, and it retires two fragile gestures. If no, D is the only option that hides paid capability without leaving a hole.</p>
+        </div>
+      </div>
+      <div class="q">
+        <div>
+          <h3>Does hand-over need streets behind the dots?</h3>
+          <p>If relative geometry is enough, M2 answers it with no new dependency and no change to the data-safety declaration. If you want a basemap, that is a deliberate reopening of a decision you already documented — worth doing on purpose, not as a side effect of one feature.</p>
+        </div>
+      </div>
+      <div class="q">
+        <div>
+          <h3>Is share the plug-in point, or a one-off?</h3>
+          <p>As a socket it costs more design now and makes every later feature cheaper. As a button it ships sooner and each feature edits it by hand. Its position at the top of the roadmap is what makes the first option attractive.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    Drawn from the code on <span class="mono">main</span> at 3.5.0 — screens from
+    <span class="mono">MainActivity.kt</span>, gates from
+    <span class="mono">Features.kt</span>, the map position from
+    <span class="mono">MapPick.kt</span>. Nothing here is decided yet; the choice
+    goes to <span class="mono">design/</span> once it is made.
+  </p>
+
+</div>
+</body>
+</html>
