@@ -27,6 +27,7 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -129,17 +130,9 @@ private fun runColour(v: RunVerdict): Color = when (v) {
     RunVerdict.RUNNING -> Color(0xFF5A7DAF)
 }
 
-/** Which full-screen destination is showing. */
-/**
- * The two modes.
- *
- * **Station** is the sixty-second check: does this station meet the
- * basic KPIs? **Analysis** is everything else -- what is it actually
- * doing? Free renders analysis from what the station check captured,
- * frozen at its end; pro runs analysis as a session of its own, started
- * and stopped at will, and that session is what watch mode measures.
- */
-enum class Screen { STATION, ANALYSIS }
+/* Where the user is now lives in Navigation.kt: `Dest` and a back stack
+ * that survives rotation, because a hub with drill-down needs more than
+ * one level and an enum cannot express "go back". */
 
 /** Which analysis view is showing. */
 enum class AnalysisTab { SKY, SIGNAL, ELEVATION }
@@ -157,8 +150,11 @@ fun MainScreen() {
     var showSettings by remember { mutableStateOf(!store.current.isComplete) }
     var showPicker by remember { mutableStateOf(false) }
     var showSourcetable by remember { mutableStateOf(false) }
-    var screen by remember { mutableStateOf(Screen.STATION) }
-    var tab by remember { mutableStateOf(AnalysisTab.SKY) }
+    val nav = rememberNavStack()
+    // Saveable for the same reason the stack is: coming back to the app
+    // on the tab you left is the behaviour, and losing it is a bug that
+    // only shows once there is somewhere to lose.
+    var tab by rememberSaveable { mutableStateOf(AnalysisTab.SKY) }
 
     // Positions come from the phone's own GNSS -- what both editions
     // share, and all the free edition has. Permission is asked when the
@@ -305,13 +301,13 @@ fun MainScreen() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         haveLocation = granted
-        if (granted) screen = Screen.ANALYSIS
+        if (granted) nav.push(Dest.Analysis)
     }
 
     LaunchedEffect(openSky) {
         if (!openSky) return@LaunchedEffect
         openSky = false
-        if (haveLocation) screen = Screen.ANALYSIS
+        if (haveLocation) nav.push(Dest.Analysis)
         else askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
@@ -452,7 +448,7 @@ fun MainScreen() {
 
     // The system back key belongs to the app while a screen is open:
     // minimising from Analysis loses the user's place for no reason.
-    BackHandler(enabled = screen != Screen.STATION) { screen = Screen.STATION }
+    BackHandler(enabled = nav.canGoBack) { nav.pop() }
 
     /*
      * Swiping between the screens, in both directions.
@@ -470,7 +466,7 @@ fun MainScreen() {
     val analysisReachable = runState.running ||
         (liveDoc != null && liveDoc.sats.isNotEmpty())
 
-    if (screen == Screen.ANALYSIS) {
+    if (nav.current == Dest.Analysis) {
         val footer = liveDoc?.stats?.let { st ->
             buildString {
                 append(st.mountpoint)
@@ -509,7 +505,7 @@ fun MainScreen() {
                         carried += available.x
                         if (carried > swipePx) {
                             carried = 0f
-                            screen = Screen.STATION
+                            nav.pop()
                         }
                     } else if (available.x < 0f) {
                         carried = 0f
@@ -524,7 +520,7 @@ fun MainScreen() {
                 TopAppBar(
                     title = { Text(stringResource(R.string.mode_analysis)) },
                     navigationIcon = {
-                        TextButton(onClick = { screen = Screen.STATION }) {
+                        TextButton(onClick = { nav.pop() }) {
                             Text(stringResource(R.string.action_back))
                         }
                     },
