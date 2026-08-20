@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
-## [3.6.0] - 2026-08-19
+## [3.6.0] - 2026-08-20
 
 ### Changed — the Android app is one screen you scroll, not two you swipe between
 

@@ -182,9 +182,10 @@
 **Fix**: App access declared as "no restricted parts", with the reasoning and a public anonymous caster in the release notes, where a human reviewer reads.
 **Lesson**: Expect automation to read the screen literally, and answer the human behind it.
 
-### Device tooling is not standard equipment (2026-08-14)
+### Device tooling is not standard equipment (2026-08-14) [x2]
 **Problem**: `screenrecord` is absent on the EMUI handset, and every `adb shell` path was rewritten — `/sdcard/f.mp4` reached the phone as `C:/Program Files/Git/sdcard/f.mp4`.
 **Fix**: Check `ls /system/bin/<tool>` before building a plan around it, and prefix `adb shell` commands carrying Unix paths with `MSYS_NO_PATHCONV=1`.
+*Recurred 2026-08-20*: `adb shell uiautomator dump /sdcard/ui.xml` answered "dumped to /Files/Git/sdcard/ui.xml" and the file was unreadable. The fix was known and written down; it was not applied because the command looked like a read, not a path.
 
 ### A measurement that could not see what it was measuring (2026-08-15) [RESOLVED]
 **Problem**: Before turning `-Wall -Wextra` on in CI, the tree was measured at **one** warning. The first CI run found **six**.
@@ -280,6 +281,21 @@
 **Root cause**: Two faults that had been latent behind the dead pipe. The pipe is text-mode at *both* ends, so the write side's `\n`→`\r\n` is folded straight back by the read side and an EDIT control — which breaks only on CR LF — renders a whole session as one line. And a per-frame type trace plus a `Sent GGA` every few seconds had never been seen by anyone.
 **Fix**: Expand at the single point pipe text enters the control; delete the traces. **A dead channel hides every bug downstream of it** — expect a queue of them when it starts working, and budget for that rather than treating them as new regressions.
 
+### A binary pulled through `adb shell` came back corrupted (2026-08-20)
+**Problem**: The shared plot PNG, pulled with `adb shell run-as … cat > plot.png`, would not open. Its signature read `89 50 4E 47 0D 0D 0A 1A` — the PNG magic with an extra `0D` — and the local file was 949 bytes larger than the one on the phone.
+**Root cause**: `adb shell` allocates a PTY, which translates `LF` to `CRLF`. Every `0x0A` in the image gained a `0x0D`. Nothing reports this: `cat` succeeds, the file arrives, only its content is wrong.
+**Fix**: `adb exec-out` for anything that is not text. Same family as the path-rewriting entry above — **the shell between you and the device edits what passes through it**, in both directions.
+
+### A recording contains only what it draws (2026-08-20)
+**Problem**: The plot shared from the analysis screen came out on a transparent background — fine in a gallery, invisible ink on a white page.
+**Root cause**: `rememberGraphicsLayer().record {}` captures the subtree it wraps. The surface behind that subtree is painted by the `Scaffold`, outside the layer, so every pixel the plot did not draw stayed clear. The screen looked right the whole time; only the export was wrong.
+**Fix**: `drawRect(surface)` inside `record {}`, before `drawContent()`. **A subtree capture is not a screenshot** — it has no background unless the recorded subtree paints one, and the on-screen appearance cannot tell you whether it does.
+
+### A tap aimed from an old screenshot hits whatever moved into the spot (2026-08-20) [x2]
+**Problem**: Driving the app over `adb`, a tap meant for the share control opened the project wiki in Chrome. Earlier in the project the same habit silently changed the active mountpoint.
+**Root cause**: Coordinates read off a screenshot taken before the layout changed. On the analysis bar, share sits at x≈603 and the orbit badge at x≈996; a verdict card growing by two lines moves everything below it.
+**Fix**: `MSYS_NO_PATHCONV=1 adb shell uiautomator dump /sdcard/ui.xml`, read the `bounds` of the node with the right `text` or `content-desc`, tap its centre — and screenshot after every tap that was supposed to change the screen.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -300,3 +316,4 @@
 | 2026-08-16 | What is installed is not what was built — on any platform | **3** — pro's APK 2026-08-14, the VPS binary 2026-08-16, `test_all` green beside a stale `bin/` 2026-08-18 | `memory/MEMORY.md` active decisions (generalised from Android) |
 | 2026-08-18 | A tag points at a commit, not at your working tree | **2** — v3.4.0 2026-08-15, v3.5.0 2026-08-18, both staged-not-committed, both caught by the packaging guard | `docs/RUNBOOK.md` release sequence, with the `git show <tag>:` check |
 | 2026-08-18 | An entry is only `[RESOLVED]` when code or procedure changed | **1** — the v3.4.0 tag gotcha was retired on advice alone and recurred in three days | this log's header, promotion lifecycle |
+| 2026-08-20 | The shell between you and the device edits what passes through it | **2** — paths rewritten by Git Bash 2026-08-14 and again 2026-08-20, a PNG CRLF-mangled by the PTY 2026-08-20 | `memory/MEMORY.md` active decisions; `MSYS_NO_PATHCONV=1` for paths, `adb exec-out` for bytes |

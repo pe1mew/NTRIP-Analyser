@@ -53,6 +53,27 @@
 
 ## Current State
 
+<!-- 2026-08-20 -->
+
+- **The Android UI is a registry of panels, and 3.6.0 carries the first
+  <!-- verify: grep -q '^## \[3.6.0\]' changelog.md -->
+  edition of it** (2026-08-20): GUI v2 phase 1, built to
+  `design/guiV2rollout.md` from the study in `design/gui-v2-study.html`.
+  A hand-rolled `NavStack` replaced the swipes -- every move is a control
+  and every way back is Back -- the station screen renders
+  `hubPanels` in order, and **the list is the layout**: one per-flavour
+  `Registry.kt` decides what an edition shows, and adding a capability in
+  phase 2 means a file plus one line. Sharing was built as the socket
+  rather than a feature: the hub sends the report assembled from each
+  panel's own `shareSection` in hub order, the analysis screen sends the
+  plot as a PNG through a new `FileProvider` that statistics export will
+  inherit. **Both editions run 3.6.0 side by side** on the test phone;
+  free is the same framework with six compile-time flags off and one
+  *More in Pro* card. Not tagged, not released, not uploaded to Play.
+- **A shared plot has an opaque background because the layer paints one**
+  (2026-08-20): a subtree capture has no background of its own, and the
+  screen cannot tell you so -- see the gotcha log.
+
 <!-- 2026-08-18 -->
 
 - **v3.5.0 tagged and built** (2026-08-18): a stream that stops without
@@ -65,13 +86,17 @@
   mountpoint delivering nothing for 14 h 10 min while every status it
   published said it was fine. Twelve tests, `test_stall.c` among them,
   built on a real loopback caster that misbehaves on purpose.
-  **The GitHub release is still a draft** — assets attached (Linux by CI,
-  Windows by hand), notes written, not published.
+  **Published 2026-08-18** with eight assets — both Windows binaries and
+  <!-- verify: test "$(gh release view v3.5.0 --json isDraft --jq .isDraft)" = false -->
+  the example config by hand, the Linux binaries, the daemon tarball, both
+  SHA256SUMS and the notices by CI.
 - **The daemon on shuttle2 runs 3.5.0** (2026-08-18), installed from a
   <!-- verify: manual — needs ssh to shuttle2; check sha256 of /usr/local/sbin/ntrip-monitord -->
   clean `git archive` of the tagged commit, with the previous binary kept
   beside it as `ntrip-monitord.3.4.0-aug17`. Its source checkout at
-  `~/NTRIP-Analyser` is **still at 3.3.0** and no longer matches what runs.
+  `~/NTRIP-Analyser` was brought up to the 3.5.0 tree afterwards, so the
+  two agree — but the checkout is not what was installed and never proves
+  what runs; the sha256 of the binary does.
 - **v3.4.0 released** (2026-08-15), the first release whose Linux assets were
   <!-- verify: grep -q '^## \[3.4.0\]' changelog.md -->
   built and attached by CI from the tag rather than by hand. Verified from
@@ -100,8 +125,10 @@
   position, so the fix needs the manufacturer rather than a
   configuration change. The sourcetable now carries the PPP coordinates;
   the receivers still broadcast the survey-in ones, and every rover
-  inherits that until the vendor responds. Parked deliberately, not
-  forgotten.
+  inherits that until the vendor responds. **The request went to the
+  vendor on 2026-08-20** -- both offsets tabulated, each backed by its
+  six-hour CSRS-PPP solution -- so this is now waiting on a reply rather
+  than on anything in this repository.
 - **The stream can be captured to a file from every frontend.** `--capture`
   <!-- verify: ctest --test-dir build -R capture --output-on-failure -->
   and `--capture-max` on the CLI, the File menu in the GUI, and the
@@ -364,5 +391,26 @@ Supplementing CLAUDE.md's list with paths found during work:
   code path for four frontends. It ships in **both editions** on the same
   day: the paid edition withholds convenience, never protection
   (`design/tls.md`).
+- **The list is the layout, and both editions share the framework.** A
+  capability is a `Panel` -- card, detail screen, share section -- named
+  once in a per-flavour `Registry.kt`; the hub renders that list in order
+  and the report is assembled from it in the same order. Free differs by
+  what its registry omits and by six compile-time flags, not by having
+  different machinery, so a phase-2 panel is a file plus a line rather
+  than an edit in three places. The back stack is hand-rolled (`Dest`,
+  `NavStack`) because the app has three destinations and
+  `navigation-compose` would add a dependency to model them
+  (`design/guiV2rollout.md`, `design/gui-v2-study.html`).
+- **Share is the socket, not a feature.** Each panel contributes its own
+  `shareSection`, so a capability joins the report by existing. Nothing
+  in a report may carry a credential -- guaranteed by the snapshot
+  holding none, and enforced by `tools/check_release.py`, which reads
+  every `shareSection` and fails on `username` or `password`. The phone's
+  own fix never leaves the device.
+- **The shell between you and the device edits what passes through it.**
+  Git Bash rewrites Unix paths in `adb shell` arguments (`MSYS_NO_PATHCONV=1`),
+  and `adb shell` allocates a PTY that turns every `LF` into `CRLF`, which
+  silently corrupts any binary read through it (`adb exec-out`). Both
+  failures look like success: the command exits 0 and a file appears.
 
 ---

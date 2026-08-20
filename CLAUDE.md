@@ -116,7 +116,10 @@ NDK, so nothing testable on a desktop belongs there.
 | `gui/gui_state.h` | `AppState` — everything the GUI knows |
 | `gui/gui_events.c` | Command dispatch, Stream Health, station classification |
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
-| `android/app/src/main/java/.../MainActivity.kt` | The whole Android UI |
+| `android/app/src/main/java/.../MainActivity.kt` | The Android shell: state, service binding, permissions |
+| `android/app/src/main/java/.../{Panel,HubPanels}.kt` | The panel contract and the ten panels that implement it. A panel owns its card, its detail screen and its slice of the shared report |
+| `android/app/src/main/java/.../Navigation.kt` | `Dest` and the hand-rolled `NavStack`. No `navigation-compose` |
+| `android/app/src/{free,pro}/.../Registry.kt` | **The list is the layout** — what an edition shows, in order, hub and report alike |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
 | `test/` | Twelve tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity, stream capture, station report, stream clock, snapshot serialisation, threshold policy, KPI 1's stopped-stream wording, stall detection |
 <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 12 -->
