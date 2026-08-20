@@ -87,7 +87,7 @@
   published said it was fine. Twelve tests, `test_stall.c` among them,
   built on a real loopback caster that misbehaves on purpose.
   **Published 2026-08-18** with eight assets — both Windows binaries and
-  <!-- verify: test "$(gh release view v3.5.0 --json isDraft --jq .isDraft)" = false -->
+  <!-- verify-net: test "$(gh release view v3.5.0 --json isDraft --jq .isDraft)" = false -->
   the example config by hand, the Linux binaries, the daemon tarball, both
   SHA256SUMS and the notices by CI.
 - **The daemon on shuttle2 runs 3.5.0** (2026-08-18), installed from a

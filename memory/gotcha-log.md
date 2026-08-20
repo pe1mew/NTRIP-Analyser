@@ -296,6 +296,11 @@
 **Root cause**: Coordinates read off a screenshot taken before the layout changed. On the analysis bar, share sits at x≈603 and the orbit badge at x≈996; a verdict card growing by two lines moves everything below it.
 **Fix**: `MSYS_NO_PATHCONV=1 adb shell uiautomator dump /sdcard/ui.xml`, read the `bounds` of the node with the right `text` or `content-desc`, tap its centre — and screenshot after every tap that was supposed to change the screen.
 
+### A claim's own check broke the build that checks claims (2026-08-20)
+**Problem**: Correcting a stale sentence in `MEMORY.md` -- the v3.5.0 release is published, not a draft -- came with a verify command that used `gh`. CI went red on a docs-only commit: *"To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN environment variable."*
+**Root cause**: `tools/verify_memory.py` has two tiers, and its own header says so: `verify:` runs on every push under `--offline`, `verify-net:` is deferred to the Monday job, which sets `GH_TOKEN`. The check was written as `verify:` without reading how checks are classified, so a network call ran in the tier that has no network credentials.
+**Fix**: `verify-net:`. Offline is now 14 pass / 0 fail with 2 network claims deferred; the full run is 16 / 0. **When adding evidence to a claim, run the harness the way CI runs it** -- `python tools/verify_memory.py --offline` -- not just the way that suits the desk you are sitting at.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
