@@ -419,12 +419,24 @@ pass it. **If JUnit is added later, this becomes a real assertion on
 `buildReport`'s output**, and the static check stays as the cheap
 backstop. 51 release checks now, up from 48.
 
-**Deferred, as decided**: attachments. The plot as a PNG needs a
-`FileProvider` the app does not have, and it arrives with whichever
-needs one first — the sky plot or statistics export. Analysis therefore
-has no share action yet: its natural artefact is an image, and offering
-a button that silently emits text instead would be worse than not
-offering one.
+**Attachments were deferred here, and then brought forward** (2026-08-19).
+The reasoning was that the `FileProvider` would arrive with the first
+phase-2 item needing one. Asking *when free gets image sharing* exposed
+the flaw: **free is frozen until TLS**, so text-only would have been
+free's share for the whole of phase 2 — and the report had already been
+described as "a start" for exactly that reason. Adding it before the
+release is not a freeze violation, because it ships *in* the release.
+
+So the provider exists now: one declared cache directory, one file
+overwritten per share, a read grant per intent, and nothing else the app
+holds reachable through it. The analysis screen sends the view you are
+looking at as a PNG, **captured as drawn rather than re-rendered**, so
+what leaves is what was on screen. Verified on the device: the share
+sheet previews the real plot, captioned `Sky view — RFSEE01`, and
+image-capable targets appear.
+
+Statistics export in phase 2 now inherits the provider instead of having
+to build it — the one attachment still outstanding.
 
 ### P1.7 — Test (the gate)
 
@@ -531,7 +543,7 @@ line, which was the claim all along and is now true.
 Nothing drills down *yet*, because the three cards that do — VRS,
 hand-over, stability — are phase 2. The frame is what phase 1 owed.
 
-### P1.8 — Release free
+### P1.8 — Release free — **prepared 2026-08-19; the upload is the author's**
 
 A **minor** version bump — `version.h` is shared by four programs and one
 of them changes — onto the **same closed-test track** the free edition is

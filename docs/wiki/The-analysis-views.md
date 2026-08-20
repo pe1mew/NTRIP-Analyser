@@ -6,8 +6,8 @@ real orbit source, amber means this phone's own receiver, red means an
 imported file too old to use. Tapping it opens
 [Satellite orbits](Orbits-and-the-ephemeris-stream).
 
-Swipe left from the main screen, or tap **Analysis**. Three views, and
-you can swipe between them; swipe right from the first to come back.
+Tap **Analysis** on the main screen. Three views, and you can swipe
+between them; **Back** returns to the station.
 
 In the free edition these show **what the station check captured**, held
 after the run ends.

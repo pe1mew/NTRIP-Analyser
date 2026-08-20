@@ -41,6 +41,28 @@
             </intent-filter>
         </activity>
 
+        <!--
+          Hands one shared plot to the app the user picked, and nothing
+          else: the declared paths are a single cache directory, and the
+          receiving app gets a one-shot read grant on the file named in
+          the intent. exported=false with grantUriPermissions is the
+          combination meaning "not open to the world, openable by
+          whoever I hand a URI to".
+
+          The authority carries the applicationId, so free and pro do
+          not collide when both are installed, which on this project's
+          test phone they are.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <service
             android:name=".MonitorService"
             android:exported="false"

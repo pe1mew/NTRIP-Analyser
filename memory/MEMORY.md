@@ -56,7 +56,7 @@
 <!-- 2026-08-18 -->
 
 - **v3.5.0 tagged and built** (2026-08-18): a stream that stops without
-  <!-- verify: grep -q 'NTRIP_VERSION_STRING  "3.5.0"' src/core/version.h -->
+  <!-- verify: grep -q '^## \[3.5.0\]' changelog.md -->
   closing is now noticed. `NsOptions::stall_timeout_s` (60 s, `0` disables,
   per-mountpoint in the daemon's config) treats silence on an open socket
   as a drop and reports `NS_END_STALLED`; tier 2 stops standing behind a

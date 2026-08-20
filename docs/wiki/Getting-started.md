@@ -45,8 +45,8 @@ fill in as the evidence arrives. A verdict is only claimed once it has
 held for a full minute, so a station that flickers cannot pass by being
 healthy at the right moment.
 
-While it runs you can swipe left into the analysis views and watch, then
-swipe right to come back.
+While it runs you can tap **Analysis** to watch the views, and **Back**
+to return to the verdict.
 
 ## 3. Read the answer
 

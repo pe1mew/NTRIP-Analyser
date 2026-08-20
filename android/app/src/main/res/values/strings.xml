@@ -25,6 +25,11 @@
          would arrive mangled or not at all. -->
     <string name="share_subject">Station report %1$s</string>
     <string name="share_chooser">Share this report</string>
+    <!-- The plot goes out as a picture with a line of context: a
+         screenshot of a graph nobody can date or attribute is worth
+         much less than the same picture with its station on it. -->
+    <string name="share_plot_subject">%1$s %2$s</string>
+    <string name="share_plot_caption">%1$s — %2$s</string>
     <string name="action_sky">Sky coverage…</string>
     <string name="sky_title">Sky coverage</string>
     <string name="sky_waiting">Waiting for a station position and orbits (%1$d ephemerides so far)…</string>

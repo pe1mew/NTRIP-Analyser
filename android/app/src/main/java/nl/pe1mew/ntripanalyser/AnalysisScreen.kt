@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -39,14 +40,24 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /**
  * @param doc          the latest snapshot, or null before anything ran.
@@ -75,6 +86,13 @@ fun AnalysisScreen(
     onLeave: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // What the share action sends: whatever the pager is showing,
+    // recorded as it is drawn rather than re-rendered, so the picture
+    // that leaves is the picture that was on screen.
+    val plotLayer = rememberGraphicsLayer()
+    val surface = MaterialTheme.colorScheme.surface
 
     val footer = doc?.stats?.let { st ->
         buildString {
@@ -115,6 +133,39 @@ fun AnalysisScreen(
                 // both of them at once, and leads to the page that
                 // explains what to do about it.
                 actions = {
+                    // Share what is on screen: the plot, as it is drawn.
+                    // A plot's natural artefact is a picture, which is
+                    // why this screen sends one and the hub sends text.
+                    val shareLabel = stringResource(R.string.action_share)
+                    val viewName = stringResource(when (tab) {
+                        AnalysisTab.SKY -> R.string.view_sky
+                        AnalysisTab.SIGNAL -> R.string.view_bars
+                        AnalysisTab.ELEVATION -> R.string.view_elev
+                    })
+                    IconButton(onClick = {
+                        scope.launch {
+                            val bitmap = plotLayer.toImageBitmap().asAndroidBitmap()
+                            sharePlot(
+                                context,
+                                bitmap,
+                                caption = context.getString(
+                                    R.string.share_plot_caption, viewName,
+                                    doc?.stats?.mountpoint.orEmpty()),
+                                subject = context.getString(
+                                    R.string.share_plot_subject,
+                                    doc?.stats?.mountpoint.orEmpty(), viewName),
+                                chooser = context.getString(R.string.share_chooser),
+                            )
+                        }
+                    }) {
+                        Text(
+                            "⤴",
+                            fontSize = 28.sp,
+                            modifier = Modifier.semantics {
+                                contentDescription = shareLabel
+                            },
+                        )
+                    }
                     OrbitSourceBadge(
                         source = skySource(usedOrbits, doc, haveLocation),
                         rinexAgeS = rinexAgeS,
@@ -183,7 +234,25 @@ fun AnalysisScreen(
             // to feed a leave-gesture that read the drag the stretch
             // effect consumed; with the gesture gone, the platform's
             // own behaviour is the right one.
-            Box(Modifier.weight(1f)) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .drawWithContent {
+                        // The surface is painted by the Scaffold behind
+                        // this layer, not inside it, so a recording of
+                        // the content alone comes out on transparency --
+                        // a plot that looks fine in a gallery and turns
+                        // into invisible ink on a white page. Fill it
+                        // first, with the theme's own surface: white in
+                        // the light theme, and dark where the plot draws
+                        // in light ink.
+                        plotLayer.record {
+                            drawRect(surface)
+                            this@drawWithContent.drawContent()
+                        }
+                        drawLayer(plotLayer)
+                    }
+            ) {
                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
                   when (AnalysisTab.entries[page]) {
                     AnalysisTab.SKY -> SkyView(

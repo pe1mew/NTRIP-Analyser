@@ -4,6 +4,92 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [3.6.0] - 2026-08-19
+
+### Changed — the Android app is one screen you scroll, not two you swipe between
+
+**This release adds one capability and rearranges everything else.** The
+eight checks, their thresholds and their verdicts are untouched: the same
+`src/core/kpi.c` decides, and a station that passed in 3.5.0 passes here
+with the same words. What changed is where the answers sit and how you
+reach them.
+
+**The station screen is a hub.** It is built from a list of panels rather
+than a hand-written column — verdict, connection, stream chips, the eight
+rows, ephemeris, watch — and the list *is* the layout. That sounds like
+an internal detail and is the whole point of the release: a capability
+now arrives as one file and one line, contributing a card, a screen
+behind it and a section of the shared report, instead of an edit to a
+2,143-line activity. `MainActivity.kt` is 638 lines now.
+
+**Every move is a control and every way back is Back.** The swipe between
+the station and the analysis views is gone in both directions. It was a
+second, invisible way to navigate that existed only between two
+particular screens, and it broke once already on an Android release that
+changed how overscroll consumes a drag. The Analysis button opens the
+views; Back, the app bar's and the system's alike, returns.
+
+**Rotating no longer loses your place.** The open screen and the selected
+analysis tab survive rotation and process death. They never did, which
+was invisible while there was one level to lose — and that same
+invisibility had hidden two layout faults nobody could reach: in
+landscape the sky plot collapsed to a dot at the centre, and the
+C/N0-against-elevation plot to a line about ten pixels tall. All three
+analysis views now keep a readable plot and scroll instead of squeezing,
+and their markers and labels scale with the plot rather than staying at
+full size on a third-size drawing.
+
+### Added — share the result
+
+An app-bar action on the station screen sends the run as plain text to
+mail, a notes app, a file manager, or anything else that takes text.
+
+```
+NTRIP Analyser 3.6.0 — station report
+2026-08-19 22:12:24
+
+Verdict
+  STATION OK
+  held 60 s of 60 required
+  run lasted 120 s
+
+Stream
+  rfsee.net:2101/RFSEE01
+...
+```
+
+The report is assembled from the panels that drew the screen, in the same
+order, so it reads like the screen it came from. **It cannot carry a
+username or a password**: the snapshot it is built from contains no
+credentials at all, the one panel that reaches into the settings names
+only the caster and the mountpoint, and `tools/check_release.py` fails
+the build if any section mentions either. The phone's own position never
+appears; a position you typed may.
+
+**And the plot goes with it.** On the analysis screen the same action
+sends the view you are looking at as a picture — the sky plot, the signal
+bars, or C/N0 against elevation — captioned with the view and the
+station. It is captured as drawn rather than re-rendered, so what leaves
+is what was on screen.
+
+A statistics file is the one attachment still to come; the provider it
+needs now exists.
+
+### Changed — the free edition names what the paid one adds, once
+
+A single **More in Pro** card at the bottom of the station screen, below
+the controls, listing what the paid edition does *today*. Not greyed-out
+rows in place of the real cards: a disabled control is indistinguishable
+from a broken one to somebody who has not paid. Its wording follows the
+published *What the paid edition adds* page, so the card and the page
+cannot drift.
+
+Nothing paid is compiled into the free build, as before. The editions now
+differ by a **list**: the framework is one implementation in `src/main`,
+each edition supplies the panels it contains, and `checkEditionParity`
+fails the build if a flavour carries anything else or shadows a shared
+file.
+
 ## [3.5.0] - 2026-08-18
 
 ### Fixed — a stream can stop without anything closing, and nothing noticed

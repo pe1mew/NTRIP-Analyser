@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the file provider may hand out, and nothing else.
+
+  One directory inside the app's own cache. A shared plot is a copy made
+  for the purpose of sharing it: nothing else the app holds - not the
+  configuration, not the imported navigation file, not a capture - is
+  reachable through this provider, because only this path is declared.
+
+  Cache rather than files, so the system may reclaim the copies without
+  asking. A report that has been sent does not need keeping.
+-->
+<paths>
+    <cache-path name="shared" path="shared/" />
+</paths>
