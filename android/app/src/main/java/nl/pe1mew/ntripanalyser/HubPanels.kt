@@ -18,7 +18,6 @@
  */
 package nl.pe1mew.ntripanalyser
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -202,37 +201,25 @@ object RunControlsPanel : Panel {
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
         Spacer(Modifier.height(4.dp))
+        // Analysis has left this panel. It is a way out of the screen
+        // rather than a thing to run, and the template gives it a bar of
+        // its own at the bottom -- where it stays put instead of sliding
+        // away under eight KPI rows the moment a run starts.
         if (state.run.running) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { actions.stopRun() },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.action_stop)) }
-                OutlinedButton(
-                    onClick = { actions.openAnalysis() },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.mode_analysis)) }
-            }
+            Button(
+                onClick = { actions.stopRun() },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.action_stop)) }
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { actions.startCheck() },
-                    enabled = state.settings.isComplete,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(
-                        if (state.doc != null) R.string.action_again
-                        else R.string.action_run
-                    ))
-                }
-                // Analysis is a mode, not a second kind of run. In pro it
-                // starts its own session; in free it shows what this
-                // check captured.
-                OutlinedButton(
-                    onClick = { actions.openAnalysis() },
-                    enabled = state.doc?.sats?.isNotEmpty() == true,
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.mode_analysis)) }
+            Button(
+                onClick = { actions.startCheck() },
+                enabled = state.settings.isComplete,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(
+                    if (state.doc != null) R.string.action_again
+                    else R.string.action_run
+                ))
             }
         }
     }

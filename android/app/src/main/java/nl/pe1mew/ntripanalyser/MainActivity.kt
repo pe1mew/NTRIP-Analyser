@@ -534,6 +534,16 @@ fun MainScreen() {
         },
         shareEnabled = runState.document != null,
         menu = menuActions,
+        // Pinned, so it is in the same place whatever the hub is
+        // showing. Enabled while a run is live and afterwards for as
+        // long as it left satellites behind; the permission dance stays
+        // in openAnalysis, which is the only thing that knows the sky
+        // view needs a position first.
+        analysis = AnalysisBar(
+            enabled = runState.running ||
+                      runState.document?.sats?.isNotEmpty() == true,
+            onOpen = { hubActions.openAnalysis() },
+        ),
     ) { padding ->
         StationHub(
             panels = hubPanels,

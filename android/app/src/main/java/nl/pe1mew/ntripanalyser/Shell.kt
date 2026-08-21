@@ -23,8 +23,17 @@
  */
 package nl.pe1mew.ntripanalyser
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,10 +44,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
@@ -53,6 +65,11 @@ import androidx.compose.ui.unit.sp
  * @param shareEnabled  whether there is anything to share yet. Shown but
  *                 disabled rather than hidden, so the control does not
  *                 appear and disappear as a run starts.
+ * @param analysis the analysis bar, on the one screen that has one --
+ *                 `null` everywhere else, which is how the template says
+ *                 it disappears outside the main screen. Pinned rather
+ *                 than scrolled: the way into the plots does not move
+ *                 because eight KPI rows arrived above it.
  * @param menu     what the `⋮` menu does. Not a slot: a screen says
  *                 what the rows *do* and never what they *are*, so no
  *                 screen can offer a different menu from the next one.
@@ -64,6 +81,7 @@ fun AppScaffold(
     onShare: (() -> Unit)? = null,
     shareEnabled: Boolean = true,
     menu: MenuActions? = null,
+    analysis: AnalysisBar? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val backLabel = stringResource(R.string.action_back)
@@ -109,6 +127,7 @@ fun AppScaffold(
                 },
             )
         },
+        bottomBar = { if (analysis != null) AnalysisBarRow(analysis) },
         content = content,
     )
 }
@@ -158,4 +177,48 @@ private fun OverflowMenu(actions: MenuActions) {
         onSaveConfig = { open = false; actions.saveConfig() },
         onAbout = { open = false; actions.about() },
     )
+}
+
+/**
+ * The way into the three plots.
+ *
+ * @param enabled whether there is anything to look at -- a run in
+ *                progress, or one that left results behind. Drawn either
+ *                way, muted when there is not, because a control that
+ *                comes and goes is harder to find than one that waits.
+ */
+@Immutable
+class AnalysisBar(val enabled: Boolean, val onOpen: () -> Unit)
+
+/** The bar itself: label at the left, the template's forward mark at the right. */
+@Composable
+private fun AnalysisBarRow(bar: AnalysisBar) {
+    val tint =
+        if (bar.enabled) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+
+    // Opaque: the hub scrolls underneath this, and a translucent bar
+    // would show KPI rows sliding through the word "Analysis".
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .border(1.dp, tint, RoundedCornerShape(8.dp))
+                .clickable(enabled = bar.enabled, onClick = bar.onOpen)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.mode_analysis),
+                color = tint,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            // The same mark the hub's rows will carry from P2.1: this one
+            // leads somewhere.
+            Text("▶", color = tint, fontSize = 14.sp)
+        }
+    }
 }

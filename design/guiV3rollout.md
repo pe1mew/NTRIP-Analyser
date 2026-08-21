@@ -120,7 +120,7 @@ Menu** — the template's four slots, on a second screen.
 `checkEditionParity` passes; `check_release.py` still agrees on 51
 checks.
 
-### P1.3 — The analysis bar
+### P1.3 — The analysis bar — **done 2026-08-21**
 
 **Goal.** A bar pinned to the bottom of the hub, grey when there is
 nothing to look at, emphasised with `▶` when a run is live or results
@@ -132,6 +132,24 @@ exist, and absent on every other screen.
 **Verify.** With no run: grey, inert. During a run: emphasised, opens the
 plots. On the analysis screen and on a detail screen: not drawn. Scroll
 the hub to the bottom during a run — the bar does not move.
+
+**Done.** `AppScaffold` takes an `AnalysisBar` -- enabled, and what to
+open -- and draws it in the `Scaffold`'s bottom slot. Passing `null`,
+which every screen but the hub does, is how the template's *the bar
+disappears on any other screen* is expressed: not a flag to remember,
+but a parameter no other screen fills. `RunControlsPanel` keeps Run and
+Stop, now full width, and has given up the **Analysis** button it used
+to hold.
+
+Seen on the device in all three states: muted with `▶` and inert on a
+hub with nothing measured; black-outlined and live during a run, with
+KPI rows scrolling under an opaque bar that does not move; and gone on
+the analysis screen it opens, whose controls are Back, Share and Menu
+alone.
+
+The permission dance stayed where it was. The bar calls
+`hubActions.openAnalysis()`, which is the only thing that knows the sky
+view needs a position before it can draw one.
 
 ---
 
