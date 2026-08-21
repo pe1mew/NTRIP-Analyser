@@ -33,9 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.key
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * One part of the shared report.
@@ -52,6 +54,21 @@ import androidx.compose.ui.unit.dp
  * the settings.
  */
 data class ShareSection(val title: String, val lines: List<String>)
+
+/**
+ * The mark a row wears, and the whole of what it promises.
+ *
+ * GUI v3, P2.1 (`design/guiV3spec.md` §2). The template gives every
+ * touchable row a triangle saying what touching it does, and the
+ * absence of one saying that nothing will happen. Drawn by the hub from
+ * this, never by a card: a capability that arrives later is marked
+ * because it exists, and cannot ship a row that lies about itself.
+ *
+ * `FORWARD` is *forward* rather than *configure*: the author's own
+ * mockup puts it on **Run the check** and on the analysis bar, and
+ * neither of those configures anything.
+ */
+enum class Affordance { NONE, FORWARD, EXPAND, COLLAPSE }
 
 /**
  * Everything a panel may read.
@@ -124,6 +141,20 @@ interface Panel {
     fun destination(): Dest? = null
 
     /**
+     * What this row's mark says, given what it is currently drawing.
+     *
+     * Takes the state because a panel that draws nothing must promise
+     * nothing: `BrowsePanel` disappears while a run is going, and a
+     * triangle hovering over the gap would be a control that is not
+     * there.
+     *
+     * The default is the honest one for a panel with a screen behind
+     * it. Anything that folds open in place says so itself.
+     */
+    fun affordance(state: HubState): Affordance =
+        if (destination() != null) Affordance.FORWARD else Affordance.NONE
+
+    /**
      * That screen's content, drawn under a back bar the shell provides.
      *
      * Only called when [destination] is non-null. A panel with no detail
@@ -159,16 +190,20 @@ fun StationHub(
         panels.forEach { panel ->
             key(panel.key) {
                 val dest = panel.destination()
-                if (dest == null) {
+                // A card with a screen behind it is tappable, and the
+                // tap is added here rather than inside every such panel
+                // -- so a capability cannot ship a card that drills
+                // nowhere because its author forgot. The mark it wears
+                // is added in the same place and for the same reason.
+                Box(
+                    if (dest == null) Modifier
+                    else Modifier.clickable { actions.openDetail(dest) }
+                ) {
                     panel.Content(state, actions)
-                } else {
-                    // A card with a screen behind it is tappable, and
-                    // the tap is added here rather than inside every
-                    // such panel -- so a capability cannot ship a card
-                    // that drills nowhere because its author forgot.
-                    Box(Modifier.clickable { actions.openDetail(dest) }) {
-                        panel.Content(state, actions)
-                    }
+                    AffordanceMark(
+                        panel.affordance(state),
+                        Modifier.align(Alignment.CenterEnd),
+                    )
                 }
             }
         }
@@ -226,4 +261,29 @@ fun DetailScreen(
             panel.Detail(state, actions)
         }
     }
+}
+
+/**
+ * The triangle itself.
+ *
+ * Right-aligned and vertically centred in whatever the panel drew, a
+ * fixed distance from its right edge, so eight of them line up down the
+ * screen. It draws no touch target of its own: the row is the target,
+ * and a mark that could be missed by a thumb would be a worse lie than
+ * no mark at all.
+ */
+@Composable
+private fun AffordanceMark(mark: Affordance, modifier: Modifier) {
+    val glyph = when (mark) {
+        Affordance.NONE -> return
+        Affordance.FORWARD -> "▶"
+        Affordance.EXPAND -> "▼"
+        Affordance.COLLAPSE -> "▲"
+    }
+    Text(
+        glyph,
+        modifier = modifier.padding(end = 12.dp),
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }

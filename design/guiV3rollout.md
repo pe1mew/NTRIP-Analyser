@@ -155,7 +155,7 @@ view needs a position before it can draw one.
 
 # Phase 2 — the affordance grammar
 
-### P2.1 — `Affordance` in the contract
+### P2.1 — `Affordance` in the contract — **done 2026-08-21**
 
 **Goal.** `enum class Affordance { NONE, FORWARD, EXPAND, COLLAPSE }`,
 `Panel.affordance(state)` with a default derived from `destination()`,
@@ -167,6 +167,33 @@ expected: that is the test of the default).
 **Verify.** Falsifiable: give a panel `NONE` and watch its triangle
 vanish without touching the card's own code. Screenshot the hub at
 `READY` and at `RUNNING` and compare against Dia2 and Dia4 row by row.
+
+**Done.** `Affordance { NONE, FORWARD, EXPAND, COLLAPSE }` with
+`Panel.affordance(state)` defaulting to `FORWARD` where a panel has a
+screen behind it, and `StationHub` drawing the mark in the same place it
+already adds the tap — right-aligned, vertically centred, `12.dp` in,
+with no touch target of its own.
+
+It takes the state, and that turned out to matter immediately:
+`BrowsePanel` disappears while a run is going, and a mark that did not
+know would hover over the gap where its row used to be.
+
+The falsification ran on the device and left a pixel proof. With
+`ConnectionPanel` returning `NONE` its triangle is gone while Browse
+keeps its own; restoring `FORWARD` gives a screenshot **pixel-identical**
+to the first, in the region where the mark sits. `ConfigSummary`, which
+draws that card, was never opened.
+
+Three marks were deliberately *not* set here:
+
+- **The KPI rows** carry their own `▼` inside one panel, and one mark for
+  eight rows would be a lie. Per-row marks are P2.2.
+- **Run and Stop** wear transport marks in the author's Dia4 — `▶` to
+  start, `■` to stop — which is a different vocabulary from the
+  affordance grammar and belongs on the button's own label. P2.3.
+- **More in Pro** has a link *inside* its card rather than a tappable
+  card, so it is honestly unmarked until P2.3 decides whether the whole
+  card should lead to the listing.
 
 ### P2.2 — The rows that fold
 

@@ -68,6 +68,8 @@ object ConnectionPanel : Panel {
         ConfigSummary(state.settings) { actions.editConnection() }
     }
 
+    override fun affordance(state: HubState) = Affordance.FORWARD
+
     /**
      * The subject of the measurement, and **only** the subject.
      *
@@ -97,6 +99,12 @@ object BrowsePanel : Panel {
             ) { Text(stringResource(R.string.action_browse)) }
         }
     }
+
+    // Same condition as the card above, deliberately duplicated: a mark
+    // over a row that is not drawn would be a control that is not there.
+    override fun affordance(state: HubState) =
+        if (state.settings.caster.isNotBlank() && !state.run.running)
+            Affordance.FORWARD else Affordance.NONE
 }
 
 /** Rate, satellites, mountpoint -- the stream at a glance. */
