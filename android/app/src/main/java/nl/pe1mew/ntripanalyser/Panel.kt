@@ -30,14 +30,65 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+/**
+ * The hub's one vertical distance.
+ *
+ * Between two cards, between two KPI rows, between a panel of several
+ * cards and the next panel: the same. A screen whose gaps vary reads as
+ * a screen assembled from parts, which is exactly what it is and exactly
+ * what it should not look like.
+ */
+internal val HUB_GAP = 12.dp
+
+/**
+ * How far a mark sits from the right edge of the row it belongs to.
+ *
+ * The same for a card the hub marks and for a row that marks itself, so
+ * a column of them lines up down the screen. The cards that fold pad
+ * their own contents by this much already, which is why they pass a bare
+ * modifier and the hub adds this.
+ */
+internal val HUB_MARK_INSET = 12.dp
+
+/**
+ * Which rows are folded open.
+ *
+ * Above the rows rather than inside them, and deliberately. A row's own
+ * `rememberSaveable` dies with the row, and rows do leave: when a run
+ * ends the hub is rebuilt around a finished document, and every fold the
+ * reader had opened while watching the run shut itself at the moment
+ * they wanted to read it.
+ *
+ * Cleared when a new run begins -- what a row had open belonged to the
+ * measurement underneath it -- and not before.
+ */
+internal object FoldState {
+    private val open = mutableStateMapOf<String, Boolean>()
+    private var run = 0L
+
+    fun isOpen(id: String): Boolean = open[id] == true
+
+    fun toggle(id: String) { open[id] = !isOpen(id) }
+
+    /** Called from an effect, never during composition. */
+    fun startOf(runKey: Long) {
+        if (runKey == run) return
+        run = runKey
+        open.clear()
+    }
+}
 
 /**
  * One part of the shared report.
@@ -186,7 +237,18 @@ fun StationHub(
     actions: HubActions,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // A Column would do, were it not for the panels that draw nothing:
+    // an empty one still occupies a slot, and `spacedBy` puts a gap
+    // around it, so the hub's rhythm depended on which panels happened
+    // to have something to say. This lays out only what has height, with
+    // one gap between neighbours -- the same gap the KPI rows use, so
+    // the whole screen keeps a single vertical beat.
+    // Folds belong to the run they were opened over.
+    LaunchedEffect(state.run.runId) { FoldState.startOf(state.run.runId) }
+
+    Layout(
+        modifier = modifier,
+        content = {
         panels.forEach { panel ->
             key(panel.key) {
                 val dest = panel.destination()
@@ -199,12 +261,40 @@ fun StationHub(
                     if (dest == null) Modifier
                     else Modifier.clickable { actions.openDetail(dest) }
                 ) {
-                    panel.Content(state, actions)
+                    // A Column, not the Box itself. A panel may draw
+                    // more than one card -- the eight KPI rows are one
+                    // panel -- and a Box stacks its children, which put
+                    // all eight on the same spot with the last on top.
+                    // The spacing matches the hub's own, so a panel of
+                    // several cards sits in the run of them evenly.
+                    Column(verticalArrangement = Arrangement.spacedBy(HUB_GAP)) {
+                        panel.Content(state, actions)
+                    }
                     AffordanceMark(
                         panel.affordance(state),
-                        Modifier.align(Alignment.CenterEnd),
+                        Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = HUB_MARK_INSET),
                     )
                 }
+            }
+        }
+        },
+    ) { measurables, constraints ->
+        val gap = HUB_GAP.roundToPx()
+        val drawn = measurables
+            .map { it.measure(constraints.copy(minHeight = 0)) }
+            .filter { it.height > 0 }
+        val width =
+            if (constraints.hasBoundedWidth) constraints.maxWidth
+            else drawn.maxOfOrNull { it.width } ?: 0
+        val height = drawn.sumOf { it.height } +
+            gap * (drawn.size - 1).coerceAtLeast(0)
+        layout(width, height) {
+            var y = 0
+            drawn.forEach { p ->
+                p.placeRelative(0, y)
+                y += p.height + gap
             }
         }
     }
@@ -273,7 +363,7 @@ fun DetailScreen(
  * no mark at all.
  */
 @Composable
-private fun AffordanceMark(mark: Affordance, modifier: Modifier) {
+internal fun AffordanceMark(mark: Affordance, modifier: Modifier) {
     val glyph = when (mark) {
         Affordance.NONE -> return
         Affordance.FORWARD -> "▶"
@@ -282,7 +372,7 @@ private fun AffordanceMark(mark: Affordance, modifier: Modifier) {
     }
     Text(
         glyph,
-        modifier = modifier.padding(end = 12.dp),
+        modifier = modifier,
         fontSize = 12.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

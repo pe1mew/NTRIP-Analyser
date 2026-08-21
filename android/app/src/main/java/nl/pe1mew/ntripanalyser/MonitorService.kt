@@ -63,6 +63,16 @@ class MonitorService : Service() {
          * call would go on returning its first answer for ever.
          */
         val skyAvailable: Boolean = false,
+        /**
+         * Which run this is.
+         *
+         * Stamped when a run starts and carried unchanged through every
+         * snapshot of it, so a screen can tell "the same run, one second
+         * later" from "a different run". The hub uses it to fold its
+         * rows shut when a new run begins: what a row had open belonged
+         * to the measurement underneath it.
+         */
+        val runId: Long = 0L,
     )
 
     private var worker: Thread? = null
@@ -111,7 +121,8 @@ class MonitorService : Service() {
         lastNotificationText = null
         lastSky = null            // a new run supersedes the old coverage
         lastEphCount = 0
-        _state.value = RunState(running = true, outcome = Outcome.RUNNING)
+        _state.value = RunState(running = true, outcome = Outcome.RUNNING,
+                                runId = runId)
 
         worker = thread(name = "ntrip-pump") {
             val bridge = NtripBridge.open(
@@ -123,7 +134,7 @@ class MonitorService : Service() {
             if (bridge == null) {
                 Log.e(TAG, "bridge_open returned null")
                 _state.value = RunState(running = false, error = getString(R.string.err_open),
-                                        outcome = Outcome.FINISHED)
+                                        outcome = Outcome.FINISHED, runId = runId)
                 stopSelf()
                 return@thread
             }
@@ -171,7 +182,8 @@ class MonitorService : Service() {
                         runCatching { bridgeJson.decodeFromString<BridgeDocument>(json) }
                             .onSuccess { doc ->
                                 _state.value = RunState(running, doc, null, outcome,
-                                                        skyAvailable = liveBridge != null)
+                                                        skyAvailable = liveBridge != null,
+                                                        runId = runId)
                                 updateNotification(doc)
                             }
                             .onFailure { Log.w(TAG, "snapshot decode failed", it) }
@@ -643,12 +655,26 @@ class MonitorService : Service() {
          */
         fun ephCount(): Int = liveBridge?.ephCount() ?: lastEphCount
 
+        /**
+         * Which run is current, stamped when one is asked for.
+         *
+         * In the companion rather than on the service, because a run
+         * that ends destroys the service: an instance field would read
+         * 0 again afterwards, and the hub -- which folds its rows shut
+         * when this changes -- would close them at the end of a run
+         * instead of at the start of the next.
+         */
+        @Volatile private var runId = 0L
+
         private val _state = MutableStateFlow(RunState())
 
         /** Observed by the UI; survives the activity, as the run does. */
         val state: StateFlow<RunState> = _state.asStateFlow()
 
         fun start(context: Context, s: CasterSettings, watch: Boolean = false) {
+            // Stamped where the run is asked for, so it is set before
+            // any state built from it can be published.
+            runId = SystemClock.elapsedRealtime()
             val i = Intent(context, MonitorService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_CASTER, s.caster)

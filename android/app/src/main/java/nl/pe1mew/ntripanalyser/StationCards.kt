@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -318,13 +319,19 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
 }
 
 @Composable
-internal fun KpiRow(index: Int, item: KpiItem, stats: Stats, arp: ArpInfo? = null) {
-    var expanded by remember { mutableStateOf(false) }
+internal fun KpiRow(
+    index: Int,
+    item: KpiItem,
+    stats: Stats,
+    arp: ArpInfo? = null,
+) {
+    val id = "kpi-$index"
+    val expanded = FoldState.isOpen(id)
 
     Card(
         Modifier
             .fillMaxWidth()
-            .clickable { expanded = !expanded }
+            .clickable { FoldState.toggle(id) }
     ) {
         Row(
             Modifier.padding(12.dp),
@@ -352,9 +359,9 @@ internal fun KpiRow(index: Int, item: KpiItem, stats: Stats, arp: ArpInfo? = nul
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                if (expanded) "▴" else "▾",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            AffordanceMark(
+                if (expanded) Affordance.COLLAPSE else Affordance.EXPAND,
+                Modifier,
             )
         }
 
@@ -452,16 +459,58 @@ internal fun dur(seconds: Double): String {
  * A spot check answers "does it pass?"; these lines answer "does it keep
  * passing?" -- which a 90-second check cannot see at all.
  */
+/**
+ * A card that folds.
+ *
+ * GUI v3, P2.2. The header is what the row is worth at a glance; the
+ * body is what it is worth when asked. The mark comes from the same
+ * renderer the hub uses for the rows that lead somewhere, so a screen of
+ * eight of them reads as one grammar rather than two.
+ *
+ * @param runKey which run this is showing. When it changes the card
+ *               folds shut: what was open belonged to the measurement
+ *               underneath it, and that measurement has been replaced.
+ *               Rotation does not change it, so an opened row survives
+ *               turning the phone.
+ */
+@Composable
+internal fun FoldableCard(
+    id: String,
+    header: @Composable ColumnScope.() -> Unit,
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    val open = FoldState.isOpen(id)
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .clickable { FoldState.toggle(id) }
+    ) {
+        Row(Modifier.padding(12.dp)) {
+            Column(Modifier.weight(1f)) {
+                header()
+                if (open) body()
+            }
+            AffordanceMark(
+                if (open) Affordance.COLLAPSE else Affordance.EXPAND,
+                Modifier,
+            )
+        }
+    }
+}
+
 @Composable
 internal fun WatchCard(w: Watch) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+    FoldableCard(
+        "watch",
+        header = {
             Text(
                 stringResource(R.string.watch_title),
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(6.dp))
             Text(stringResource(R.string.watch_for, dur(w.elapsedS)))
+        },
+        body = {
             w.availability?.let {
                 Text(stringResource(R.string.watch_availability, "%.1f%%".format(it * 100)))
             }
@@ -474,8 +523,8 @@ internal fun WatchCard(w: Watch) {
                 color = if (w.degradations > 0) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
+        },
+    )
 }
 
 /**
@@ -492,8 +541,9 @@ internal fun EphCard(
     rinexAgeS: Double?,
     phonePlaced: Int,
 ) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+    FoldableCard(
+        "orbits",
+        header = {
             Text(
                 stringResource(R.string.eph_title),
                 fontWeight = FontWeight.Bold,
@@ -515,6 +565,8 @@ internal fun EphCard(
                 )
             }
 
+        },
+        body = {
             // A fact about the station, not just about this app's plot:
             // an installer signing off a base wants to know it serves
             // orbits as well as observations, and a user comparing the
@@ -579,7 +631,7 @@ internal fun EphCard(
                 color = if (fileStale) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
+        },
+    )
 }
 

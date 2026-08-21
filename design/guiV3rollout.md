@@ -195,7 +195,7 @@ Three marks were deliberately *not* set here:
   card, so it is honestly unmarked until P2.3 decides whether the whole
   card should lead to the listing.
 
-### P2.2 — The rows that fold
+### P2.2 — The rows that fold — **done 2026-08-21**
 
 **Goal.** `▼` / `▲` behaviour on the KPI rows, Satellite orbits and (pro)
 Watch: fold open in place, marker flips, state survives rotation and
@@ -204,6 +204,41 @@ resets on a new run (D3).
 **Files.** `HubPanels.kt`, `StationCards.kt`.
 
 **Verify.** Rotate with three rows open; run again and see them closed.
+
+**Done.** `FoldableCard` gives the watch card and the orbits card a
+header that always shows and a body that folds; the KPI rows keep their
+own fold and now wear the same mark as everything else, from the same
+renderer.
+
+**Where the fold state lives changed twice, and the second answer is the
+one that works.** A row's own `rememberSaveable` dies with the row, and
+rows do leave: when a run ends the hub is rebuilt around a finished
+document, and every fold the reader had opened while watching the run
+shut itself at the moment they wanted to read it. `FoldState` — a map
+above the rows, keyed by row identity, cleared from an effect when a new
+run starts — survives that, and survives rotation for free.
+
+Proved on the device: one row open, watch the run end, still open;
+**Run again**, and it is shut.
+
+Three defects were found on the way, two of them mine from P2.1:
+
+- **The hub stacked every panel that drew more than one card.** P2.1
+  wrapped each panel's content in a `Box` to hang the mark on, and a Box
+  stacks its children: all eight KPI rows landed on the same spot with
+  row 8 on top. It survived P2.1's review because that screenshot was
+  taken at `READY`, where every panel draws exactly one card. The
+  content now goes in a `Column` inside that Box.
+- **The hub's rhythm depended on which panels had something to say.** An
+  empty panel still occupied a slot, and `spacedBy` put a gap around it.
+  `StationHub` is now a small `Layout` that places only children with
+  height and puts one `HUB_GAP` between neighbours — the same gap the
+  KPI rows use, so the screen keeps a single vertical beat.
+- **The marks did not line up.** `AffordanceMark` carried its own inset,
+  and two of its three callers sit inside a padded row already, so those
+  marks sat 12.dp further in. The inset moved to the hub's call site:
+  every card mark now ends at the same x, measured from the
+  accessibility tree.
 
 ### P2.3 — The rows that lead
 

@@ -208,7 +208,6 @@ object RunControlsPanel : Panel {
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        Spacer(Modifier.height(4.dp))
         // Analysis has left this panel. It is a way out of the screen
         // rather than a thing to run, and the template gives it a bar of
         // its own at the bottom -- where it stays put instead of sliding
