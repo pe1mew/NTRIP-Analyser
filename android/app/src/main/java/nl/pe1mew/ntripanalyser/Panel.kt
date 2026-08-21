@@ -188,10 +188,12 @@ fun DetailScreen(
     state: HubState,
     actions: HubActions,
     onBack: () -> Unit,
+    menu: MenuActions,
 ) {
     val context = LocalContext.current
     AppScaffold(
         onBack = onBack,
+        menu = menu,
         // A detail screen is one section of the report seen close up, so
         // its share sends the report: whoever asks for a section wants
         // the run it came out of.

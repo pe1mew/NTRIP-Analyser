@@ -57,6 +57,7 @@
     <string name="elev_explain">A healthy antenna climbs smoothly from the horizon to zenith; a flat or dented curve points at the antenna or its siting.</string>
     <string name="perm_location">The sky view places satellites using this phone\u2019s own GNSS receiver, which needs location permission.</string>
     <string name="action_back">Back</string>
+    <string name="action_menu">Menu</string>
     <string name="eph_title">Satellite orbits</string>
     <string name="eph_coverage">%1$d of %2$d tracked satellites have an orbit (%3$d cached)</string>
     <string name="eph_from_station">This station broadcasts its own orbits (%1$d received) — no ephemeris stream needed</string>

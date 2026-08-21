@@ -2,7 +2,8 @@
  * @file Shell.kt
  * @brief The frame every screen is drawn in.
  *
- * GUI v3, P1.1 (`design/guiV3rollout.md`, specification `guiV3spec.md`
+ * GUI v3, P1.1 and P1.2 (`design/guiV3rollout.md`, specification
+ * `guiV3spec.md`
  * §1). The template gives the top bar four slots and fixes what may sit
  * in each: a leading control that is either back or nothing, the app's
  * own name, share, and the overflow menu. Every screen gets that bar
@@ -29,6 +30,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -47,10 +53,9 @@ import androidx.compose.ui.unit.sp
  * @param shareEnabled  whether there is anything to share yet. Shown but
  *                 disabled rather than hidden, so the control does not
  *                 appear and disappear as a run starts.
- * @param overflow the `⋮` menu and its trigger. A slot rather than a
- *                 fixed menu while P1.2 is still to come; the trigger
- *                 lives here so that the actions row is share-then-menu
- *                 on every screen, which is the template's order.
+ * @param menu     what the `⋮` menu does. Not a slot: a screen says
+ *                 what the rows *do* and never what they *are*, so no
+ *                 screen can offer a different menu from the next one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +63,7 @@ fun AppScaffold(
     onBack: (() -> Unit)? = null,
     onShare: (() -> Unit)? = null,
     shareEnabled: Boolean = true,
-    overflow: @Composable () -> Unit = {},
+    menu: MenuActions? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val backLabel = stringResource(R.string.action_back)
@@ -100,10 +105,57 @@ fun AppScaffold(
                             )
                         }
                     }
-                    overflow()
+                    if (menu != null) OverflowMenu(menu)
                 },
             )
         },
         content = content,
+    )
+}
+
+/**
+ * What the overflow menu's rows do.
+ *
+ * The rows themselves are fixed (`AppMenu` in `Dialogs.kt`, which gates
+ * the configuration rows on the edition); this is only the wiring, held
+ * by the one screen that owns the state and the file pickers. Every
+ * other screen passes it on without knowing what is in it.
+ */
+@Immutable
+class MenuActions(
+    val settings: () -> Unit,
+    val importRinex: () -> Unit,
+    val loadConfig: () -> Unit,
+    val saveConfig: () -> Unit,
+    val about: () -> Unit,
+)
+
+/**
+ * The `⋮` and the menu under it.
+ *
+ * Its open/closed state lives here rather than in the screen: three
+ * screens showing one menu should not each carry a boolean for it, and
+ * a menu that is open on one screen is not open on another.
+ */
+@Composable
+private fun OverflowMenu(actions: MenuActions) {
+    var open by remember { mutableStateOf(false) }
+    val label = stringResource(R.string.action_menu)
+
+    IconButton(onClick = { open = true }) {
+        Text(
+            "⋮",
+            fontSize = 24.sp,
+            modifier = Modifier.semantics { contentDescription = label },
+        )
+    }
+    AppMenu(
+        open = open,
+        onDismiss = { open = false },
+        onSettings = { open = false; actions.settings() },
+        onImportRinex = { open = false; actions.importRinex() },
+        onLoadConfig = { open = false; actions.loadConfig() },
+        onSaveConfig = { open = false; actions.saveConfig() },
+        onAbout = { open = false; actions.about() },
     )
 }

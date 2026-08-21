@@ -80,6 +80,7 @@ fun AnalysisScreen(
     onTab: (AnalysisTab) -> Unit,
     onToggleWatch: () -> Unit,
     onLeave: () -> Unit,
+    menu: MenuActions,
 ) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -124,6 +125,7 @@ fun AnalysisScreen(
 
     AppScaffold(
         onBack = onLeave,
+        menu = menu,
         // Share what is on screen: the plot, as it is drawn. A plot's
         // natural artefact is a picture, which is why this screen sends
         // one and the hub sends text.

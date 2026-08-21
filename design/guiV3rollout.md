@@ -86,7 +86,7 @@ Three things fell out of it that the step did not plan for:
   Detail screens gained share as well: they send the report, since
   whoever asks for one section wants the run it came from.
 
-### P1.2 — The overflow menu
+### P1.2 — The overflow menu — **done 2026-08-21**
 
 **Goal.** `⋮` on the right of the top bar, on every screen, carrying
 Settings, Import RINEX, Load/save configuration (pro), About/notices.
@@ -102,6 +102,23 @@ keep when the list is open-ended, and this one is not.
 
 **Verify.** Both editions: the pro row is absent in free, present in pro.
 `checkEditionParity` still passes.
+
+**Done.** The menu is not a slot in the end. `AppScaffold` takes a
+`MenuActions` — five lambdas saying what the rows *do* — and builds the
+`⋮` itself, so a screen cannot offer a different menu from the next one,
+and cannot forget to offer one. The hub owns the state and the file
+pickers behind those lambdas and hands the same object to the analysis
+and detail screens. The menu's own open/closed flag moved into
+`OverflowMenu`: three screens showing one menu should not each carry a
+boolean for it.
+
+On the device, pro's menu reads *Caster settings…, Import RINEX
+navigation file…, Load configuration…, Save configuration…, About and
+help*; free's reads the same list without the two configuration rows.
+The analysis screen's accessibility tree now answers **Back, Share,
+Menu** — the template's four slots, on a second screen.
+`checkEditionParity` passes; `check_release.py` still agrees on 51
+checks.
 
 ### P1.3 — The analysis bar
 

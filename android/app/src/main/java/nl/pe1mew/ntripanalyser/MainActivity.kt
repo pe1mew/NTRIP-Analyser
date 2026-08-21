@@ -25,7 +25,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -151,7 +150,6 @@ fun MainScreen() {
     // broadcast ephemerides, and what the badge exists to show.
     var rinexAgeS by remember { mutableStateOf(Settings.rinexAgeS(context)) }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-    var menuOpen by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
 
@@ -300,6 +298,20 @@ fun MainScreen() {
     // owns its own launcher; without this the receiver would not start
     // until the next launch and a live uplink would silently send the
     // fixed position instead.
+    // The overflow menu, wired once. This screen owns the state and
+    // the file pickers behind it; the analysis and detail screens are
+    // handed the same object, which is what makes the menu identical
+    // everywhere rather than merely similar.
+    val menuActions = remember {
+        MenuActions(
+            settings = { showSettings = true },
+            importRinex = { pickRinex.launch(arrayOf("*/*")) },
+            loadConfig = { pickConfig.launch(arrayOf("application/json", "*/*")) },
+            saveConfig = { saveConfig.launch("config.json") },
+            about = { showAbout = true },
+        )
+    }
+
     LaunchedEffect(showSettings) {
         if (!showSettings) {
             haveLocation = hasLocationPermission(context)
@@ -473,6 +485,7 @@ fun MainScreen() {
                                  plotted.size - usedOrbits),
                 actions = hubActions,
                 onBack = { nav.pop() },
+                menu = menuActions,
             )
             return
         }
@@ -496,6 +509,7 @@ fun MainScreen() {
                 else MonitorService.start(context, settings, watch = true)
             },
             onLeave = { nav.pop() },
+            menu = menuActions,
         )
         return
     }
@@ -519,33 +533,7 @@ fun MainScreen() {
             )
         },
         shareEnabled = runState.document != null,
-        // One way into everything that is not a measurement: settings,
-        // files, and where to get help. The main screen stays about the
-        // station under test. P1.2 gives this the template's "⋮" and
-        // puts the same menu on every screen.
-        overflow = {
-            IconButton(onClick = { menuOpen = true }) {
-                Text("☰", fontSize = 22.sp)
-            }
-            AppMenu(
-                open = menuOpen,
-                onDismiss = { menuOpen = false },
-                onSettings = { menuOpen = false; showSettings = true },
-                onImportRinex = {
-                    menuOpen = false
-                    pickRinex.launch(arrayOf("*/*"))
-                },
-                onLoadConfig = {
-                    menuOpen = false
-                    pickConfig.launch(arrayOf("application/json", "*/*"))
-                },
-                onSaveConfig = {
-                    menuOpen = false
-                    saveConfig.launch("config.json")
-                },
-                onAbout = { menuOpen = false; showAbout = true },
-            )
-        },
+        menu = menuActions,
     ) { padding ->
         StationHub(
             panels = hubPanels,
