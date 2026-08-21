@@ -130,7 +130,6 @@ fun MainScreen() {
     var showSettings by remember { mutableStateOf(!store.current.isComplete) }
     var showPicker by remember { mutableStateOf(false) }
     var showSourcetable by remember { mutableStateOf(false) }
-    val shareLabel = stringResource(R.string.action_share)
     val nav = rememberNavStack()
     // Saveable for the same reason the stack is: coming back to the app
     // on the tab you left is the behaviour, and losing it is a bug that
@@ -501,79 +500,52 @@ fun MainScreen() {
         return
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                navigationIcon = {
-                    // One way into everything that is not a measurement:
-                    // settings, files, and where to get help. The main
-                    // screen stays about the station under test.
-                    IconButton(onClick = { menuOpen = true }) {
-                        Text("☰", fontSize = 22.sp)
-                    }
-                    AppMenu(
-                        open = menuOpen,
-                        onDismiss = { menuOpen = false },
-                        onSettings = { menuOpen = false; showSettings = true },
-                        onImportRinex = {
-                            menuOpen = false
-                            pickRinex.launch(arrayOf("*/*"))
-                        },
-                        onLoadConfig = {
-                            menuOpen = false
-                            pickConfig.launch(arrayOf("application/json", "*/*"))
-                        },
-                        onSaveConfig = {
-                            menuOpen = false
-                            saveConfig.launch("config.json")
-                        },
-                        onAbout = { menuOpen = false; showAbout = true },
-                    )
-                },
-                // The report is text the panels wrote themselves, in the
-                // order they appear below. Offered only once there is a
-                // run to describe: sharing "nothing has been measured"
-                // helps nobody.
-                actions = {
-                    // A glyph, not an icon asset: the menu beside it is
-                    // "☰" for the same reason, and neither is worth a
-                    // dependency on the Material icon set. The label
-                    // stays as the accessibility description, so a
-                    // screen reader says "Share" rather than an arrow.
-                    IconButton(
-                        onClick = {
-                            shareReport(
-                                context,
-                                buildReport(
-                                    hubPanels,
-                                    HubState(runState, settings, rinexName,
-                                             rinexAgeS, plotted.size - usedOrbits),
-                                    context.getString(R.string.share_header,
-                                                      BuildConfig.VERSION_NAME),
-                                ),
-                                context.getString(R.string.share_subject,
-                                                  settings.mountpoint),
-                                context.getString(R.string.share_chooser),
-                            )
-                        },
-                        enabled = runState.document != null,
-                    ) {
-                        Text(
-                            // Larger than the menu's "☰": this glyph
-                            // draws thin strokes in a corner of its box,
-                            // so at the same point size it reads smaller
-                            // than the bars do.
-                            "⤴",
-                            fontSize = 28.sp,
-                            modifier = Modifier.semantics {
-                                contentDescription = shareLabel
-                            },
-                        )
-                    }
-                },
+    AppScaffold(
+        // The report is text the panels wrote themselves, in the order
+        // they appear below. Offered only once there is a run to
+        // describe: sharing "nothing has been measured" helps nobody.
+        onShare = {
+            shareReport(
+                context,
+                buildReport(
+                    hubPanels,
+                    HubState(runState, settings, rinexName,
+                             rinexAgeS, plotted.size - usedOrbits),
+                    context.getString(R.string.share_header,
+                                      BuildConfig.VERSION_NAME),
+                ),
+                context.getString(R.string.share_subject, settings.mountpoint),
+                context.getString(R.string.share_chooser),
             )
-        }
+        },
+        shareEnabled = runState.document != null,
+        // One way into everything that is not a measurement: settings,
+        // files, and where to get help. The main screen stays about the
+        // station under test. P1.2 gives this the template's "⋮" and
+        // puts the same menu on every screen.
+        overflow = {
+            IconButton(onClick = { menuOpen = true }) {
+                Text("☰", fontSize = 22.sp)
+            }
+            AppMenu(
+                open = menuOpen,
+                onDismiss = { menuOpen = false },
+                onSettings = { menuOpen = false; showSettings = true },
+                onImportRinex = {
+                    menuOpen = false
+                    pickRinex.launch(arrayOf("*/*"))
+                },
+                onLoadConfig = {
+                    menuOpen = false
+                    pickConfig.launch(arrayOf("application/json", "*/*"))
+                },
+                onSaveConfig = {
+                    menuOpen = false
+                    saveConfig.launch("config.json")
+                },
+                onAbout = { menuOpen = false; showAbout = true },
+            )
+        },
     ) { padding ->
         StationHub(
             panels = hubPanels,

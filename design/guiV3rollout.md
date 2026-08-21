@@ -42,7 +42,7 @@ plan assumes the recommendation until told otherwise.
 The frame first, empty. Nothing about a panel changes in this phase; if
 it does, the phase has leaked.
 
-### P1.1 — One top bar, three callers
+### P1.1 — One top bar, three callers — **done 2026-08-21**
 
 **Goal.** A single `AppBar` composable in `main/`, used by the hub, the
 analysis screen and every detail screen, with a leading slot that is
@@ -60,6 +60,31 @@ and neither knew about the other.
 shows `←` where it showed `Back`; the hub's leading slot is empty. Prove
 the sharing is real: change the title string once and see all three
 screens change.
+
+**Done.** `Shell.kt` holds `AppScaffold`, and it takes **no title
+parameter** — the app's name is read inside it, so a caller cannot pass
+a different one. The hub, the analysis screen and `DetailScreen` all go
+through it.
+
+The falsification ran on the device: `app_name` was changed to
+`TITLE TEST PRO` in the pro flavour alone, and both reachable screens
+came up under that name — the hub and, mid-run, the analysis screen.
+Reverted, rebuilt, both editions reinstalled.
+
+Three things fell out of it that the step did not plan for:
+
+- **`DetailScreen` had no live caller.** No panel overrides
+  `destination()` at 3.6.0; it is the socket phase 2 fills. So the third
+  caller compiles and is not yet observable, and the marker for it in
+  P2.3 is where it first will be.
+- **The detail screen loses its own title**, because the bar now carries
+  the app's name on every screen. `panel.detailTitle()` becomes the first
+  line of the content instead, which is where a reader looks anyway.
+- **The orbit badge had nowhere to go.** The template's bar has four
+  slots and none of them is a badge, so it moved into the content,
+  right-aligned, until P3.2 folds what it says into the summary line.
+  Detail screens gained share as well: they send the report, since
+  whoever asks for one section wants the run it came from.
 
 ### P1.2 — The overflow menu
 

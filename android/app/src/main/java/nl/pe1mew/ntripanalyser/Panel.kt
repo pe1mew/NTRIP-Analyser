@@ -27,17 +27,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /**
@@ -185,7 +182,6 @@ fun StationHub(
  * detail screen leaves the same way and no panel has to remember to
  * offer it.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     panel: Panel,
@@ -193,17 +189,26 @@ fun DetailScreen(
     actions: HubActions,
     onBack: () -> Unit,
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(panel.detailTitle()) },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.action_back))
-                    }
-                },
+    val context = LocalContext.current
+    AppScaffold(
+        onBack = onBack,
+        // A detail screen is one section of the report seen close up, so
+        // its share sends the report: whoever asks for a section wants
+        // the run it came out of.
+        onShare = {
+            shareReport(
+                context,
+                buildReport(
+                    hubPanels, state,
+                    context.getString(R.string.share_header,
+                                      BuildConfig.VERSION_NAME),
+                ),
+                context.getString(R.string.share_subject,
+                                  state.settings.mountpoint),
+                context.getString(R.string.share_chooser),
             )
-        }
+        },
+        shareEnabled = state.doc != null,
     ) { pad ->
         Column(
             Modifier
@@ -212,6 +217,11 @@ fun DetailScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) { panel.Detail(state, actions) }
+        ) {
+            // The bar says the name of the app on every screen now, so
+            // the name of *this* screen is the first line under it.
+            Text(panel.detailTitle(), style = MaterialTheme.typography.titleLarge)
+            panel.Detail(state, actions)
+        }
     }
 }

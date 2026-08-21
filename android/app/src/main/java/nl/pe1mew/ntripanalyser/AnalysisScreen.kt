@@ -20,25 +20,23 @@
 package nl.pe1mew.ntripanalyser
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Button
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
@@ -53,8 +51,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -118,64 +114,52 @@ fun AnalysisScreen(
         onTab(AnalysisTab.entries[pagerState.currentPage])
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.mode_analysis)) },
-                navigationIcon = {
-                    TextButton(onClick = { onLeave() }) {
-                        Text(stringResource(R.string.action_back))
-                    }
-                },
-                // Both views on this screen are drawn from satellite
-                // positions, and neither can say where those came
-                // from once it is drawn. The badge says it here, for
-                // both of them at once, and leads to the page that
-                // explains what to do about it.
-                actions = {
-                    // Share what is on screen: the plot, as it is drawn.
-                    // A plot's natural artefact is a picture, which is
-                    // why this screen sends one and the hub sends text.
-                    val shareLabel = stringResource(R.string.action_share)
-                    val viewName = stringResource(when (tab) {
-                        AnalysisTab.SKY -> R.string.view_sky
-                        AnalysisTab.SIGNAL -> R.string.view_bars
-                        AnalysisTab.ELEVATION -> R.string.view_elev
-                    })
-                    IconButton(onClick = {
-                        scope.launch {
-                            val bitmap = plotLayer.toImageBitmap().asAndroidBitmap()
-                            sharePlot(
-                                context,
-                                bitmap,
-                                caption = context.getString(
-                                    R.string.share_plot_caption, viewName,
-                                    doc?.stats?.mountpoint.orEmpty()),
-                                subject = context.getString(
-                                    R.string.share_plot_subject,
-                                    doc?.stats?.mountpoint.orEmpty(), viewName),
-                                chooser = context.getString(R.string.share_chooser),
-                            )
-                        }
-                    }) {
-                        Text(
-                            "⤴",
-                            fontSize = 28.sp,
-                            modifier = Modifier.semantics {
-                                contentDescription = shareLabel
-                            },
-                        )
-                    }
-                    OrbitSourceBadge(
-                        source = skySource(usedOrbits, doc, haveLocation),
-                        rinexAgeS = rinexAgeS,
-                        onClick = { uriHandler.openUri(ORBITS_URL) },
-                    )
-                },
-            )
-        }
+    // Which of the three is on screen, named once: the share caption
+    // says it, and P3.1 will put it in the tab row's explainer band.
+    val viewName = stringResource(when (tab) {
+        AnalysisTab.SKY -> R.string.view_sky
+        AnalysisTab.SIGNAL -> R.string.view_bars
+        AnalysisTab.ELEVATION -> R.string.view_elev
+    })
+
+    AppScaffold(
+        onBack = onLeave,
+        // Share what is on screen: the plot, as it is drawn. A plot's
+        // natural artefact is a picture, which is why this screen sends
+        // one and the hub sends text.
+        onShare = {
+            scope.launch {
+                val bitmap = plotLayer.toImageBitmap().asAndroidBitmap()
+                sharePlot(
+                    context,
+                    bitmap,
+                    caption = context.getString(
+                        R.string.share_plot_caption, viewName,
+                        doc?.stats?.mountpoint.orEmpty()),
+                    subject = context.getString(
+                        R.string.share_plot_subject,
+                        doc?.stats?.mountpoint.orEmpty(), viewName),
+                    chooser = context.getString(R.string.share_chooser),
+                )
+            }
+        },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
+
+            // The orbit badge has no slot in the template's top bar, and
+            // what it says -- where these positions came from -- belongs
+            // in the summary line that P3.2 builds. Until then it keeps
+            // saying it, one row down.
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                OrbitSourceBadge(
+                    source = skySource(usedOrbits, doc, haveLocation),
+                    rinexAgeS = rinexAgeS,
+                    onClick = { uriHandler.openUri(ORBITS_URL) },
+                )
+            }
 
             // Pro runs analysis as its own session; free shows what
             // the station check captured, frozen at its end.
