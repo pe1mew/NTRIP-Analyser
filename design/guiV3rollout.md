@@ -446,7 +446,7 @@ Falsified: mapping 401 to `NS_FAIL_REJECTED` turns the suite red.
 Restored, and 13 of 13 tests pass. `CLAUDE.md`'s test list and the
 `= 12` in its verify command are now `= 13`.
 
-### P4.2 — Carrying it
+### P4.2 — Carrying it — **done 2026-08-22**
 
 **Goal.** `NsStatsSnapshot::failure` and `failure_detail`, in the JSON
 and appended to the CSV (D4); the code on the `NS_EV_DISCONNECTED` event
@@ -458,6 +458,37 @@ beside the existing `NsEndReason`.
 danger here is a field nothing fills — the gotcha log has that one three
 times — so the test asserts a **non-zero** failure for each of P4.1's six
 cases, not merely that the field serialises.
+
+**Done.** `NsStatsSnapshot` carries `failure` and `failure_detail`, in
+the JSON object and **appended** to the CSV columns; the end event
+carries the code beside `NsEndReason`, which does not move — the daemon
+has been reading end reasons since 3.5.0.
+
+The code and the sentence are written in **one** function, `set_failure`,
+and never apart. A snapshot with a code and no words, or words and no
+code, is exactly the half-filled field this log has three entries about;
+making it impossible to write one without the other is cheaper than
+remembering to.
+
+Two sites gained a classification that P4.1 had left: a stall is
+`NS_FAIL_STALLED`, and a close after bytes have flowed is
+`NS_FAIL_DROPPED` — after bytes, deliberately, because a socket that
+closes during the handshake has already been classified by what the
+caster said.
+
+`test_failure` grew from 17 assertions to **34**: every case now checks
+the session, the snapshot's code and that a sentence came with it, and
+the healthy case checks that no sentence was invented. Falsified by
+deleting the one line that fills the snapshot — the suite goes red on
+every case at once.
+
+Two things checked before changing a format with outside readers:
+`ns_stats_csv` is written by the GUI and the daemon from these same
+functions, so appending keeps every positional reader working; and the
+Android bridge parses with `ignoreUnknownKeys = true`, so the shipped
+3.6.0 app reads a 3.7.0 snapshot without noticing the new fields.
+
+13 of 13 tests pass.
 
 ### P4.3 — KPI 1 says it
 

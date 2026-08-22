@@ -130,7 +130,11 @@ typedef struct {
         struct { int reason; } bad;    /**< @ref NsBadReason             */
         const NsHandshake     *handshake;
         const NsStatsSnapshot *stats;
-        struct { int reason; } end;    /**< @ref NsEndReason             */
+        /** How it ended, and -- since 3.7.0 -- why it could not run.
+         *  The two are different questions: `reason` says the socket
+         *  closed, stalled or was refused, `failure` says which refusal
+         *  it was. `reason` has readers since 3.5.0 and does not move. */
+        struct { int reason; int failure; } end;
         struct { int level; const char *text; } log;
     } u;
 } NsEvent;

@@ -224,7 +224,8 @@ static void emit_end(NtripSession *s, int reason)
     NsEvent ev;
     memset(&ev, 0, sizeof(ev));
     ev.type = NS_EV_DISCONNECTED;
-    ev.u.end.reason = reason;
+    ev.u.end.reason  = reason;
+    ev.u.end.failure = s->failure;
     emit(s, &ev);
 }
 
@@ -833,6 +834,25 @@ NsFailure ns_failure(const NtripSession *s)
     return s ? s->failure : NS_FAIL_NONE;
 }
 
+/**
+ * @brief Record why this session cannot run, in one place.
+ *
+ * The code and the sentence are set together and never apart: a
+ * snapshot carrying a code with no words, or words with no code, is the
+ * kind of half-filled field this project has three entries in its
+ * gotcha log about.
+ */
+static void set_failure(NtripSession *s, NsFailure f)
+{
+    s->failure       = f;
+    s->stats.failure = (int)f;
+    ns_failure_text(s->stats.failure_detail,
+                    sizeof(s->stats.failure_detail), f,
+                    s->opt.config.NTRIP_CASTER,
+                    s->opt.config.NTRIP_PORT,
+                    s->opt.config.MOUNTPOINT);
+}
+
 /* ── Connection ──────────────────────────────────────────────────── */
 
 static void do_connect(NtripSession *s)
@@ -846,13 +866,8 @@ static void do_connect(NtripSession *s)
     s->sock = sock_connect(s->opt.config.NTRIP_CASTER,
                            s->opt.config.NTRIP_PORT, &fail);
     if (s->sock == NS_INVALID_SOCK) {
-        s->failure = fail;
-        char why[192];
-        ns_failure_text(why, sizeof(why), fail,
-                        s->opt.config.NTRIP_CASTER,
-                        s->opt.config.NTRIP_PORT,
-                        s->opt.config.MOUNTPOINT);
-        emit_log(s, NS_LOG_ERROR, "%s", why);
+        set_failure(s, fail);
+        emit_log(s, NS_LOG_ERROR, "%s", s->stats.failure_detail);
         if (!s->opt.auto_reconnect) { emit_end(s, NS_END_NET_ERROR); return; }
         s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
         if (s->backoff_s > s->opt.reconnect_backoff_max_s)
@@ -979,13 +994,8 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
                                                 s->handshake.status,
                                                 s->handshake.content_type);
     if (answer != NS_FAIL_NONE) {
-        s->failure = answer;
-        char why[192];
-        ns_failure_text(why, sizeof(why), answer,
-                        s->opt.config.NTRIP_CASTER,
-                        s->opt.config.NTRIP_PORT,
-                        s->opt.config.MOUNTPOINT);
-        emit_log(s, NS_LOG_ERROR, "%s (%s)", why,
+        set_failure(s, answer);
+        emit_log(s, NS_LOG_ERROR, "%s (%s)", s->stats.failure_detail,
                  s->handshake.status_line[0] ? s->handshake.status_line
                                              : "(unrecognised response)");
         closesocket(s->sock);
@@ -1191,6 +1201,7 @@ int ns_pump(NtripSession *s, int timeout_ms)
             snprintf(why, sizeof why,
                      "No data for %ld s -- treating the connection as dead",
                      (long)quiet);
+            set_failure(s, NS_FAIL_STALLED);
             drop_connection(s, now, why, NS_END_STALLED);
             if (s->ended) return -1;
             return 0;
@@ -1200,6 +1211,10 @@ int ns_pump(NtripSession *s, int timeout_ms)
         return 0;                    /* timeout: normal, keep pumping */
     }
     if (n < 0) {
+        /* Only a stream that had started counts as dropped; a socket
+         * that closes during the handshake has already been classified
+         * by what the caster said. */
+        if (s->stats.bytes_total > 0) set_failure(s, NS_FAIL_DROPPED);
         drop_connection(s, now, "Connection closed by the caster",
                         NS_END_EOF);
         if (s->ended) return -1;

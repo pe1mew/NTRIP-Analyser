@@ -217,6 +217,10 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_key(&o, "caster_software"); out_json_str(&o, s->caster_software);
     out_str(&o, ",");
     out_key(&o, "reconnects"); out_fmt(&o, "%d", s->reconnects);
+    out_str(&o, ",");
+    out_key(&o, "failure"); out_fmt(&o, "%d", s->failure);
+    out_str(&o, ",");
+    out_key(&o, "failure_detail"); out_json_str(&o, s->failure_detail);
 
     /* Volume and integrity */
     out_str(&o, ",");
@@ -367,7 +371,7 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     "arp_lat,arp_lon,arp_alt,arp_drift_m,arp_moves," \
     "sourcetable_offset_m,latency_s," \
     "iono_verdict,iono_roti_median,iono_roti_max,iono_sats_dualfreq," \
-    "iono_slips,stream_time_s"
+    "iono_slips,stream_time_s,failure,failure_detail"
 
 int ns_stats_csv_header(char *out, size_t cap)
 {
@@ -451,7 +455,12 @@ int ns_stats_to_csv_row(const NsStatsSnapshot *s, char *out, size_t cap)
     out_ch(&o, ',');
     out_fmt(&o, "%d", s->iono_sats_dualfreq);     out_ch(&o, ',');
     out_fmt(&o, "%d", s->iono_slips);             out_ch(&o, ',');
-    out_csv_num(&o, s->stream_time_s, 3);
+    out_csv_num(&o, s->stream_time_s, 3);         out_ch(&o, ',');
+    /* Appended, deliberately: a reader that counts columns from the
+     * left keeps working, and the daemon's CSV has readers outside this
+     * repository. */
+    out_fmt(&o, "%d", s->failure);                out_ch(&o, ',');
+    out_csv_str(&o, s->failure_detail);
 
     return (int)o.len;
 }

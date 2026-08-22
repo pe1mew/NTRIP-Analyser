@@ -183,14 +183,22 @@ static void options_for(NsOptions *opt, int port)
  * @param answer what the caster replies, or NULL for "no caster at all",
  *               which is how the refused case is made.
  */
-static NsFailure failure_for(const char *answer, const char *what)
+typedef struct {
+    NsFailure code;    /**< what the session says                    */
+    int       snap;    /**< what the snapshot carries                */
+    int       worded;  /**< whether the snapshot also carries words  */
+} Told;
+
+static Told failure_for(const char *answer, const char *what)
 {
+    Told told;
+    memset(&told, 0, sizeof(told));
     Caster c;
     int port;
 
     if (!caster_start(&c, answer)) {
         check(0, "the loopback caster started");
-        return NS_FAIL_NONE;
+        return told;
     }
     port = c.port;
 
@@ -208,7 +216,7 @@ static NsFailure failure_for(const char *answer, const char *what)
     if (!sess) {
         check(0, what);
         if (answer) caster_stop(&c);
-        return NS_FAIL_NONE;
+        return told;
     }
 
     for (int waited = 0; waited < 4000 && !seen.ended; waited += 20) {
@@ -217,10 +225,28 @@ static NsFailure failure_for(const char *answer, const char *what)
         sleep_ms(10);
     }
 
-    NsFailure f = ns_failure(sess);
+    /* Read through the snapshot as well as from the session. That is
+     * the path every frontend actually takes, and a field that nothing
+     * fills is this project's most-repeated gotcha: three snapshot
+     * fields have shipped declared, serialised, and never written. */
+    const NsStatsSnapshot *snap = ns_stats(sess);
+    told.code   = ns_failure(sess);
+    told.snap   = snap ? snap->failure : -1;
+    told.worded = snap && snap->failure_detail[0] != 0;
+
     ns_close(sess);
     if (answer) caster_stop(&c);
-    return f;
+    return told;
+}
+
+/** @brief The session, the snapshot and the words must agree. */
+static void agrees(Told t, NsFailure expected, const char *what)
+{
+    check(t.code == expected, what);
+    check(t.snap == (int)expected,
+          "  ... and the snapshot carries the same code");
+    check(t.worded == 1,
+          "  ... and a sentence to go with it");
 }
 
 /* ── Cases ───────────────────────────────────────────────────────── */
@@ -229,9 +255,9 @@ static void case_socket(void)
 {
     printf("\n-- the socket never got there --\n");
 
-    NsFailure f = failure_for(NULL, "a session against a dead port opened");
-    check(f == NS_FAIL_REFUSED,
-          "a port with nothing behind it is REFUSED, not a generic failure");
+    agrees(failure_for(NULL, "a session against a dead port opened"),
+           NS_FAIL_REFUSED,
+           "a port with nothing behind it is REFUSED, not a generic failure");
 
     /* The mapping itself, both platforms' spellings of the same events.
      * Checked directly as well as through a socket: the socket case can
@@ -244,36 +270,42 @@ static void case_answers(void)
 {
     printf("\n-- the caster answered, and said no --\n");
 
-    check(failure_for("HTTP/1.1 401 Unauthorized\r\n\r\n",
-                      "401 session") == NS_FAIL_AUTH,
-          "401 is the user name or the password");
+    agrees(failure_for("HTTP/1.1 401 Unauthorized\r\n\r\n",
+                      "401 session"),
+           NS_FAIL_AUTH,
+           "401 is the user name or the password");
 
-    check(failure_for("HTTP/1.1 403 Forbidden\r\n\r\n",
-                      "403 session") == NS_FAIL_FORBIDDEN,
-          "403 is the credentials being right for something else");
+    agrees(failure_for("HTTP/1.1 403 Forbidden\r\n\r\n",
+                      "403 session"),
+           NS_FAIL_FORBIDDEN,
+           "403 is the credentials being right for something else");
 
-    check(failure_for("HTTP/1.1 404 Not Found\r\n\r\n",
-                      "404 session") == NS_FAIL_NO_MOUNTPOINT,
-          "404 is a mountpoint that does not exist");
+    agrees(failure_for("HTTP/1.1 404 Not Found\r\n\r\n",
+                      "404 session"),
+           NS_FAIL_NO_MOUNTPOINT,
+           "404 is a mountpoint that does not exist");
 
     /* An NTRIP 1 caster answers an unknown mountpoint with the whole
      * sourcetable and a 200.  A client that reads only the status
      * believes it succeeded. */
-    check(failure_for("HTTP/1.1 200 OK\r\n"
+    agrees(failure_for("HTTP/1.1 200 OK\r\n"
                       "Content-Type: gnss/sourcetable\r\n\r\n"
                       "ENDSOURCETABLE\r\n",
-                      "sourcetable session") == NS_FAIL_NO_MOUNTPOINT,
-          "a sourcetable where a stream was asked for is a missing mountpoint");
+                      "sourcetable session"),
+           NS_FAIL_NO_MOUNTPOINT,
+           "a sourcetable where a stream was asked for is a missing mountpoint");
 
-    check(failure_for("HTTP/1.1 200 OK\r\n"
+    agrees(failure_for("HTTP/1.1 200 OK\r\n"
                       "Content-Type: text/html\r\n\r\n"
                       "<html><body>hello</body></html>",
-                      "web page session") == NS_FAIL_NOT_NTRIP,
-          "a web page on the port is not a caster");
+                      "web page session"),
+           NS_FAIL_NOT_NTRIP,
+           "a web page on the port is not a caster");
 
-    check(failure_for("HTTP/1.1 503 Service Unavailable\r\n\r\n",
-                      "503 session") == NS_FAIL_BUSY,
-          "503 is a caster that is full or restarting");
+    agrees(failure_for("HTTP/1.1 503 Service Unavailable\r\n\r\n",
+                      "503 session"),
+           NS_FAIL_BUSY,
+           "503 is a caster that is full or restarting");
 }
 
 static void case_healthy(void)
@@ -283,9 +315,13 @@ static void case_healthy(void)
     /* The one that must NOT fire.  A classification that finds a fault
      * in a working stream is worse than none: every message it produces
      * is an accusation against a healthy station. */
-    NsFailure f = failure_for("ICY 200 OK\r\n\r\n", "ICY session");
-    check(f == NS_FAIL_NONE,
-          "a caster that answers properly is not a failure");
+    Told t = failure_for("ICY 200 OK\r\n\r\n", "ICY session");
+    check(t.code == NS_FAIL_NONE,
+           "a caster that answers properly is not a failure");
+    check(t.snap == (int)NS_FAIL_NONE,
+          "  ... and the snapshot says so too");
+    check(t.worded == 0,
+          "  ... with no sentence, because there is nothing to explain");
 }
 
 static void case_words(void)

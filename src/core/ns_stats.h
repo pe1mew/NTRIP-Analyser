@@ -69,6 +69,7 @@ extern "C" {
 #define NS_MOUNTPOINT_LEN 64
 #define NS_CASTER_LEN     128
 #define NS_SOFTWARE_LEN   96
+#define NS_FAILURE_LEN    192
 
 /** @brief Sentinel for an unavailable double-valued measurement. */
 #define NS_UNSET (-1.0)
@@ -150,6 +151,21 @@ typedef struct {
     char     caster_software[NS_SOFTWARE_LEN];  /**< the Server: header  */
     int      reconnects;          /**< reconnections this session        */
     bool     connected;           /**< true while the socket is up       */
+
+    /* ── Why it is not working, when it is not ─────────────────────
+     *
+     * `failure` is an @ref NsFailure and `failure_detail` is the
+     * sentence the core wrote for it.  Both are carried here rather
+     * than only logged, because this snapshot is the one thing every
+     * frontend reads: the CLI, the GUI, the daemon's CSV and the
+     * Android bridge all had to be told separately why a run failed,
+     * and so none of them was.
+     *
+     * Zero and empty while a stream is healthy.  A frontend that shows
+     * the sentence whenever it is non-empty is correct by construction.
+     */
+    int      failure;             /**< @ref NsFailure                    */
+    char     failure_detail[NS_FAILURE_LEN];
 
     /* ── Volume and frame integrity ───────────────────────────────── */
     uint64_t bytes_total;
