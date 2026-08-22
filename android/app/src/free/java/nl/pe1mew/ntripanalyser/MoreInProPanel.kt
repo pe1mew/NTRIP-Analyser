@@ -25,13 +25,15 @@
  */
 package nl.pe1mew.ntripanalyser
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -61,10 +63,19 @@ internal const val PRO_URL =
 object MoreInProPanel : Panel {
     override val key = "more-in-pro"
 
+    override fun affordance(state: HubState) = Affordance.FORWARD
+
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
         val uriHandler = LocalUriHandler.current
-        Card(Modifier.fillMaxWidth()) {
+        // The whole card leads to the listing now, rather than a button
+        // inside it: the template marks a row that leads, and a row with
+        // a control buried in it is a row whose mark would be a lie.
+        Card(
+            Modifier
+                .fillMaxWidth()
+                .clickable { uriHandler.openUri(PRO_URL) }
+        ) {
             Column(Modifier.padding(12.dp)) {
                 Text(
                     stringResource(R.string.pro_title),
@@ -75,9 +86,12 @@ object MoreInProPanel : Panel {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = { uriHandler.openUri(PRO_URL) }) {
-                    Text(stringResource(R.string.pro_more))
-                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.pro_more),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }

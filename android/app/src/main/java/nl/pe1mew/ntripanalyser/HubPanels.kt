@@ -18,6 +18,8 @@
  */
 package nl.pe1mew.ntripanalyser
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,9 +29,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** The verdict, or what is standing in for one while a run is going. */
 object VerdictPanel : Panel {
@@ -212,21 +216,30 @@ object RunControlsPanel : Panel {
         // rather than a thing to run, and the template gives it a bar of
         // its own at the bottom -- where it stays put instead of sliding
         // away under eight KPI rows the moment a run starts.
+        // The marks here are the template's, and they are transport
+        // marks rather than affordances: Dia2 starts a run with ▶ and
+        // Dia4 stops one with ■. They sit inside the button, at its
+        // right edge, where the row marks sit on the cards above.
         if (state.run.running) {
             Button(
                 onClick = { actions.stopRun() },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.action_stop)) }
+                contentPadding = TRANSPORT_PADDING,
+            ) { TransportLabel(stringResource(R.string.action_stop), "■") }
         } else {
             Button(
                 onClick = { actions.startCheck() },
                 enabled = state.settings.isComplete,
                 modifier = Modifier.fillMaxWidth(),
+                contentPadding = TRANSPORT_PADDING,
             ) {
-                Text(stringResource(
-                    if (state.doc != null) R.string.action_again
-                    else R.string.action_run
-                ))
+                TransportLabel(
+                    stringResource(
+                        if (state.doc != null) R.string.action_again
+                        else R.string.action_run
+                    ),
+                    "▶",
+                )
             }
         }
     }
@@ -237,6 +250,32 @@ object RunControlsPanel : Panel {
  * implicit. Not while a run is going, when the numbers move under the
  * reader.
  */
+/**
+ * A button's own padding, trimmed on the right.
+ *
+ * Material gives a button 24.dp each side, which would put its transport
+ * mark 12.dp further in than every mark on the cards above it. The right
+ * side matches [HUB_MARK_INSET] instead, so one column of marks runs
+ * down the screen; the left keeps the button's own measure, because the
+ * label is a label and not a row of text.
+ */
+private val TRANSPORT_PADDING = PaddingValues(
+    start = 24.dp, top = 8.dp, end = HUB_MARK_INSET, bottom = 8.dp,
+)
+
+/** A button's label and its transport mark, one at each end. */
+@Composable
+private fun TransportLabel(label: String, mark: String) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label)
+        Text(mark, fontSize = 12.sp)
+    }
+}
+
 object EphemerisPanel : Panel {
     override val key = "ephemeris"
 

@@ -207,7 +207,12 @@ private fun AnalysisBarRow(bar: AnalysisBar) {
                 .clip(RoundedCornerShape(8.dp))
                 .border(1.dp, tint, RoundedCornerShape(8.dp))
                 .clickable(enabled = bar.enabled, onClick = bar.onOpen)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                // The right side matches the marks on the cards above,
+                // so one column of them runs down the whole screen.
+                .padding(
+                    start = 16.dp, end = HUB_MARK_INSET,
+                    top = 14.dp, bottom = 14.dp,
+                ),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {

@@ -240,7 +240,7 @@ Three defects were found on the way, two of them mine from P2.1:
   every card mark now ends at the same x, measured from the
   accessibility tree.
 
-### P2.3 — The rows that lead
+### P2.3 — The rows that lead — **done 2026-08-22**
 
 **Goal.** `▶` on Connection, Browse, Run/Stop, More in Pro — each already
 does something; this makes it say so.
@@ -250,6 +250,35 @@ does something; this makes it say so.
 **Verify.** Every card in both editions either carries a marker or is
 provably not clickable. A card with a click target and no marker is a bug
 this step exists to remove.
+
+**Done.** Connection and Browse were marked in P2.1; this step finished
+the two that were left and made the whole column line up.
+
+- **Run and Stop** wear the template's transport marks — `▶` to start,
+  `■` to stop, from Dia2 and Dia4 — inside the button, at its right
+  edge. These are not affordances and are not drawn by the hub: a
+  transport mark says what the control *does*, where an affordance says
+  where the row *goes*.
+- **More in Pro** became a row that leads. The link was a `TextButton`
+  buried in the card, which is a row whose mark would have been a lie;
+  the whole card opens the listing now and carries `▶` like any other
+  row that leads somewhere.
+
+**The marks did not share a column, twice over, and the author caught
+both.** A Material button pads its content by 24.dp, so the transport
+mark sat 12.dp inside every other mark; the analysis bar's own inset put
+its mark somewhere third. Both now end where the card marks do.
+
+Measured from the accessibility tree, free's hub at `READY`: the right
+edge of **every** mark on the screen — connection, browse, run, More in
+Pro and the analysis bar — is `996`, a single value across the whole
+tree.
+
+**The audit.** Seven clickable regions on free's hub: four cards, each
+marked; the two glyph controls in the top bar, which are controls rather
+than rows; and the analysis bar, marked. During a run the orbits card
+and every KPI row are marked `▼`. No card has a click target and no
+mark.
 
 ---
 
