@@ -51,6 +51,21 @@ its age, is coloured by the same judgement the badge made — green for a
 working source, red for a file too stale to place anything, amber for
 the phone — and opens the same page when tapped.
 
+**The station screen gives its height to the station.** Three faults in
+one place, found on an S23 and invisible on a handset whose window is
+smaller. The hub was laid out with `fillMaxSize()` ahead of its scroll,
+which handed it a minimum of the whole viewport: a hub with little in it
+was centred in the slack, floating in the middle of the screen, and
+could be dragged about inside it, leaving a strip of nothing under the
+title and another above the analysis bar. And its margins sat outside
+the scroll, so those strips were a frame the content could never fill —
+on every screen, for ever.
+
+The hub is now as tall as what it holds and scrolls only when that is
+more than fits; its margins are the first and last thing in the list, so
+they give breathing room at rest and scroll away when there is more to
+read. What was frame is now information.
+
 **The frame keeps clear of the system's own bars.** Targeting SDK 36 the
 app is drawn behind the status and navigation bars and cannot opt out.
 The analysis bar now takes the navigation bar's height into account —

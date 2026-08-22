@@ -306,6 +306,13 @@
 **Root cause**: `android/app/src/main/cpp/CMakeLists.txt` keeps its own list of the shared C sources. This project's promoted pattern says *where two build systems describe one source set, CI must run both*; the Android NDK build is a **third**, over the same `src/`, and "every target builds" from the desktop tree says nothing about it.
 **Fix**: the file was added to the NDK list in P5.1, where the same linker error appeared locally -- and in P6.1 the class was closed rather than remembered. `tools/check_release.py` now compares the two source lists and fails naming the file and the list it is missing from; deliberate omissions are declared there with their reason. Falsified by deleting the entry again, which reproduces the CI failure in a second instead of in a run.
 
+### A layout that reports less than it was asked for is centred (2026-08-22)
+**Problem**: The station screen drew its cards floating in the middle: a band of empty space under the title, and as much again above the analysis bar. Only on a hub with few cards, and only on a screen taller than its content -- so the phone with the smaller window never showed it.
+**Root cause**: `StationHub` is a custom `Layout` inside `Modifier.fillMaxSize().verticalScroll(...)`. In that order the scroll hands the layout a **minimum height of the whole viewport**, and the layout reported the height of its content instead. Compose centres a child that comes back smaller than the minimum it was given, which is why the slack appeared *above* the content as well as below.
+**Fix**: three attempts, and only the third was the cause. `.coerceAtLeast(constraints.minHeight)` stopped the *centring* but left the hub draggable inside its own slack -- the author reported the fault again, correctly. `fillMaxWidth()` in place of `fillMaxSize()` removed the viewport-sized minimum, so the hub is as tall as its content. And the margins moved *inside* the scroll, because outside it they are a frame the content can never fill: a strip of nothing under the app bar and another above the pinned bar, on every screen, for ever.
+
+Found by probe rather than by reading: a background colour showed the empty band was outside the hub, `onGloballyPositioned` put the hub's top at 711 px where its padding said 338, and logging the children's heights gave 860 px of content in a 1700 px viewport -- the difference, halved, was the band. **When a layout is placed somewhere unexpected, ask it where it is** rather than deducing it from the modifier chain. And when a fix is reported as not working, believe the report: twice here the symptom was still there because only part of the cause had gone.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

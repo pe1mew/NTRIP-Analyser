@@ -288,8 +288,16 @@ fun StationHub(
         val width =
             if (constraints.hasBoundedWidth) constraints.maxWidth
             else drawn.maxOfOrNull { it.width } ?: 0
-        val height = drawn.sumOf { it.height } +
-            gap * (drawn.size - 1).coerceAtLeast(0)
+        // Honour the minimum we were given.  `fillMaxSize()` sits ahead
+        // of `verticalScroll` in the caller's modifier chain, so the
+        // scroll hands this layout a minimum of the whole viewport; a
+        // layout that reports less than its minimum is centred in the
+        // slack, which put half the empty space above the first card and
+        // half below the last -- a band under the title on any screen
+        // taller than its own content.  Any slack belongs at the bottom.
+        val height = (drawn.sumOf { it.height } +
+            gap * (drawn.size - 1).coerceAtLeast(0))
+            .coerceAtLeast(constraints.minHeight)
         layout(width, height) {
             var y = 0
             drawn.forEach { p ->

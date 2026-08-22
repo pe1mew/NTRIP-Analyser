@@ -557,9 +557,23 @@ fun MainScreen() {
             actions = hubActions,
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                // Width, not size. `fillMaxSize` ahead of the scroll
+                // hands the hub a minimum height of the whole viewport,
+                // which made a short hub scrollable inside its own
+                // slack: drag it and the cards left a band under the
+                // title and another above the analysis bar. A hub is
+                // as tall as what it holds, and scrolls only when that
+                // is more than fits.
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                // Inside the scroll, deliberately. Outside it the
+                // margins are a frame the content can never fill: a
+                // strip of nothing under the app bar and another above
+                // the analysis bar, on every screen, for ever. Inside,
+                // they are the first and last thing in the list --
+                // breathing room at rest, and scrolled away when there
+                // is more to read than fits.
+                .padding(horizontal = 16.dp, vertical = 16.dp),
         )
     }
 
