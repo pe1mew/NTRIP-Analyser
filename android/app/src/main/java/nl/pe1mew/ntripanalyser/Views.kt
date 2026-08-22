@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
@@ -88,6 +90,8 @@ fun SkyView(
     missing: Int,
     source: PositionSource,
     footer: String,
+    rinexAgeS: Double?,
+    onSourceClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -101,13 +105,30 @@ fun SkyView(
         // saying it again here would be the same sentence twice.
         explainer = null,
         summary = {
+            // The provenance is in the sentence rather than in a chip
+            // beside it, coloured by the same judgement the chip made
+            // and leading to the same page. A reader looking for where
+            // the picture came from looks at the words about it.
+            val phrase = orbitSourcePhrase(source, rinexAgeS)
+            val tint = orbitSourceTint(source, rinexAgeS)
+            val line = stringResource(
+                R.string.sky_header, sats.size, sats.size + missing, phrase,
+            )
+            val at = line.lastIndexOf(phrase)
             Text(
-                stringResource(
-                    R.string.sky_header, sats.size, sats.size + missing,
-                    sourceName(source),
-                ),
+                buildAnnotatedString {
+                    append(line)
+                    if (at >= 0) {
+                        addStyle(
+                            SpanStyle(color = tint, fontWeight = FontWeight.Medium),
+                            at, at + phrase.length,
+                        )
+                    }
+                },
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .clickable(onClick = onSourceClick)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
             )
             if (missing > 0) {
                 Text(
@@ -746,105 +767,59 @@ private fun sourceName(s: PositionSource): String = when (s) {
 }
 
 /**
- * Where the sky view's positions are coming from, in the corner of the
- * Analysis screen.
+ * How healthy the orbits behind a sky plot are, as a colour.
  *
- * Both editions, one implementation, differing only in what they can
- * reach: free never has [PositionSource.EPHEMERIS], so that arm is dead
- * code there rather than a second version of this badge.
+ * This was a chip in the corner of the analysis screen until P3.2. The
+ * template has no slot for a chip, and the summary line already names
+ * the source, so the judgement moved onto those words: the reader sees
+ * *what* drew the plot and *whether to trust it* in one phrase, and can
+ * tap it for the page that explains the difference.
  *
- * The colour answers "can I trust what I am looking at?" before the
- * words are read:
+ * Order matters, and it took a handset to get it right.
  *
- * - **green** — a real orbit source: the station's own broadcast, an
- *   ephemeris stream, or a navigation file still inside the four-hour
- *   window that `sv_eph_is_valid_at()` enforces.
- * - **amber** — the phone's own GNSS. It draws a sky, but it is *this
- *   handset's* sky, not the station's; near the base they agree closely
- *   and at distance they do not.
- * - **red** — a navigation file too old to place anything. This is the
- *   state that used to be invisible: the file loads, the count is large,
- *   and every record is outside the window.
- * - **white** — nothing imported and nothing broadcast, so there is
- *   nothing to be confident or worried about yet.
+ * A working source outranks the disk: pro with a live ephemeris stream
+ * is green even though a month-old file sits in its storage, because
+ * the file has nothing to do with what is on screen.
  *
- * Tapping opens the wiki page that explains what orbits are for and
- * where to get a file, because a badge that says something is wrong owes
- * the reader the fix.
+ * Below that, a *stale file* outranks the phone. Both are true at once
+ * -- a file too old to place anything is exactly why the phone ended up
+ * doing the work -- and of the two, the file is the one the user can
+ * fix. Ordered the other way this state read amber "Phone GNSS" and the
+ * red was unreachable: the only way to place nothing from a file is to
+ * fall back to the phone.
  */
 @Composable
-fun OrbitSourceBadge(
-    source: PositionSource,
-    rinexAgeS: Double?,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+internal fun orbitSourceTint(source: PositionSource, rinexAgeS: Double?): Color {
     val fresh = rinexAgeS != null && rinexAgeS <= Settings.RINEX_FRESH_S
+    val staleFile = rinexAgeS != null && !fresh
     val green = Color(0xFF46AF5A)
     val amber = Color(0xFFE6A014)
     val red = Color(0xFFD72828)
-
-    // Order matters, and it took a handset to get it right.
-    //
-    // A working source outranks the disk: pro with a live ephemeris
-    // stream is green even though a month-old file sits in its storage,
-    // because the file has nothing to do with what is on screen.
-    //
-    // Below that, a *stale file* outranks the phone. Both are true at
-    // once -- a file too old to place anything is exactly why the phone
-    // ended up doing the work -- and of the two, the file is the one the
-    // user can fix. Ordered the other way this state read amber "Phone
-    // GNSS" and the red was unreachable: the only way to place nothing
-    // from a file is to fall back to the phone.
-    val staleFile = rinexAgeS != null && !fresh
-    val (label, colour) = when {
-        source == PositionSource.EPHEMERIS ->
-            stringResource(R.string.badge_eph_stream) to green
-        source == PositionSource.OBS_STREAM ->
-            stringResource(R.string.badge_station) to green
-        source == PositionSource.RINEX && fresh ->
-            stringResource(R.string.badge_rinex, ageShort(rinexAgeS!!)) to green
-        staleFile ->
-            stringResource(R.string.badge_rinex, ageShort(rinexAgeS!!)) to red
-        source == PositionSource.PHONE_GNSS ->
-            stringResource(R.string.badge_phone) to amber
-        rinexAgeS != null ->
-            stringResource(R.string.badge_rinex, ageShort(rinexAgeS)) to green
-        else ->
-            stringResource(R.string.badge_none) to Color.White
+    return when {
+        source == PositionSource.EPHEMERIS -> green
+        source == PositionSource.OBS_STREAM -> green
+        source == PositionSource.RINEX && fresh -> green
+        staleFile -> red
+        source == PositionSource.PHONE_GNSS -> amber
+        rinexAgeS != null -> green
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+}
 
-    // Same chip as every verdict in this app: 6 dp corners, bold
-    // monospace, white on the colour, and no outline. A border made it a
-    // different kind of object from the PASS/WARN chips it sits above,
-    // and drew the eye to its edge rather than to what it says.
-    //
-    // The one state that cannot take white text is the white chip, which
-    // is by design the quiet one: nothing is imported and nothing is
-    // wrong yet.
-    val ink = if (colour == Color.White)
-        MaterialTheme.colorScheme.onSurfaceVariant else Color.White
-
-    Surface(
-        color = colour,
-        shape = RoundedCornerShape(6.dp),
-        modifier = modifier
-            .padding(end = 12.dp)
-            .clickable(onClick = onClick)
-            // The tap target is the chip, not the glyphs: the label stays
-            // at the size the rest of the app uses and the padding does
-            // the reaching.
-            .semantics { contentDescription = label },
-    ) {
-        Text(
-            label,
-            color = ink,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        )
-    }
+/**
+ * What drew this plot, in words: the source, and how old it is where
+ * that is knowable.
+ */
+@Composable
+internal fun orbitSourcePhrase(source: PositionSource, rinexAgeS: Double?): String {
+    val name = sourceName(source)
+    // "now" is not an age -- "navigation file, now old" is what saying
+    // it like one produces. A file young enough to be called current
+    // says only what it is.
+    return if (source == PositionSource.RINEX && rinexAgeS != null &&
+               rinexAgeS >= 90.0)
+        stringResource(R.string.sky_source_age, name, ageShort(rinexAgeS))
+    else name
 }
 
 /** "3 h", "45 min" -- short enough for a badge. */

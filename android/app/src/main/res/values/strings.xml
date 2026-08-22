@@ -36,11 +36,6 @@
     <string name="sky_eph">%1$d ephemerides cached</string>
     <string name="eph_free">Ephemeris stream — available in the Pro edition. In this edition the sky view uses the station’s own orbits where it sends them, a navigation file you import, or this phone’s GNSS.</string>
     <string name="rinex_loaded_stale">Loaded %1$s: %2$d orbits, but the newest is %3$s old. Nothing can be placed from orbits over 4 hours old — import a current file.</string>
-    <string name="badge_none">No orbits</string>
-    <string name="badge_rinex">RINEX %1$s</string>
-    <string name="badge_eph_stream">Ephemeris stream</string>
-    <string name="badge_station">Station orbits</string>
-    <string name="badge_phone">Phone GNSS</string>
     <string name="eph_explain">Ephemeris stream — only for stations that do not broadcast orbits themselves. The sky plot uses the station\'s own where it sends them. Leave blank to skip.</string>
     <string name="field_eph_caster">Ephemeris caster</string>
     <string name="field_eph_port">Ephemeris port</string>
@@ -49,6 +44,7 @@
     <string name="view_bars">Signal quality</string>
     <string name="view_elev">C/N0 vs elevation</string>
     <string name="sky_header">%1$d of %2$d satellites shown · %3$s</string>
+    <string name="sky_source_age">%1$s, %2$s old</string>
     <string name="sky_missing">%1$d without a position from %2$s — measured, but not placeable</string>
     <string name="bars_header">%1$d satellites · mean %2$.1f dB-Hz · range %3$.1f to %4$.1f</string>
     <string name="bars_live">Live value, this epoch</string>

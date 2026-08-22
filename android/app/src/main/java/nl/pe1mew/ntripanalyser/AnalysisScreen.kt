@@ -166,8 +166,7 @@ fun AnalysisScreen(
 
             // Under the tabs, not above them: the template's second band
             // is the selector, and everything after it belongs to the
-            // view that selector chose. The badge rides at the right of
-            // this row until P3.2 folds what it says into the summary.
+            // view that selector chose.
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -200,11 +199,6 @@ fun AnalysisScreen(
                         )
                     }
                 }
-                OrbitSourceBadge(
-                    source = skySource(usedOrbits, doc, haveLocation),
-                    rinexAgeS = rinexAgeS,
-                    onClick = { uriHandler.openUri(ORBITS_URL) },
-                )
             }
 
             // The pager keeps its own overscroll now. It was suppressed
@@ -238,6 +232,8 @@ fun AnalysisScreen(
                             .coerceAtLeast(0),
                         source = skySource(usedOrbits, doc, haveLocation),
                         footer = footer,
+                        rinexAgeS = rinexAgeS,
+                        onSourceClick = { uriHandler.openUri(ORBITS_URL) },
                     )
                     AnalysisTab.SIGNAL ->
                         SignalBars(signal, liveValues = running)

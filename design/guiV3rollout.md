@@ -325,7 +325,7 @@ One thing the template does not show and the free edition has: the
 edition note and a per-view explainer stack as two lines of prose. In
 pro that row is a control instead, so it does not arise there.
 
-### P3.2 — The badge retires
+### P3.2 — The badge retires — **done 2026-08-22**
 
 **Goal.** `Phone GNSS` pill removed; provenance in the summary line;
 the wiki link on the words (D1).
@@ -335,6 +335,28 @@ the wiki link on the words (D1).
 **Verify.** Sky view with orbits from the stream, from RINEX and from the
 phone: three different summary lines, each naming its source, each
 leading to the orbits page.
+
+**Done.** The chip is gone, and so are the five strings that labelled it.
+What it knew did not go with it: `orbitSourceTint` keeps the judgement —
+green for a working source, red for a file too stale to place anything,
+amber for the phone, in that order and for the reasons the chip's own
+comment gave — and the sky view's summary line wears it. The source
+phrase is tinted, the whole line leads to the orbits page (**D1**), and
+the age rides in the words: *navigation file, 3 h old*.
+
+One wording bug found on the device and fixed: `ageShort` says `now` for
+a fresh file, and *navigation file, now old* is what saying that like an
+age produces. A file young enough to be called current says only what it
+is.
+
+On the device: `38 of 38 satellites shown · navigation file`, tinted,
+with no chip anywhere in the accessibility tree.
+
+**What did not survive, deliberately.** The chip appeared on all three
+tabs; the phrase appears on the sky view alone, because that is the tab
+whose picture is drawn from orbits and the only one the template gives a
+provenance line. The full story — coverage, newest orbit, file and age —
+is on the hub's orbits card, which is where a reader who wants it looks.
 
 ### P3.3 — Small screens
 
