@@ -118,6 +118,7 @@ struct NtripSession {
     bool       stopped;
     bool       ended;
     bool       connected;
+    NsFailure  failure;    /**< why this session cannot run, if it cannot */
     bool       header_done;
     bool       announced_streaming;
     bool       framing_enabled;    /**< ns_set_framing_enabled          */
@@ -306,10 +307,21 @@ static bool sock_startup(void)
     return true;
 }
 
-/** @brief Connect to host:port.  Returns NS_INVALID_SOCK on failure. */
-static ns_sock_t sock_connect(const char *host, int port)
+/**
+ * @brief Connect to host:port.  Returns NS_INVALID_SOCK on failure.
+ *
+ * @param fail Set to why it failed, which is the whole point: the
+ *             difference between a name that does not resolve and a
+ *             port with nothing behind it is the difference between two
+ *             fields the user typed, and this is where it is knowable.
+ */
+static ns_sock_t sock_connect(const char *host, int port, NsFailure *fail)
 {
-    if (!sock_startup()) return NS_INVALID_SOCK;
+    if (fail) *fail = NS_FAIL_NONE;
+    if (!sock_startup()) {
+        if (fail) *fail = NS_FAIL_UNREACHABLE;
+        return NS_INVALID_SOCK;
+    }
 
     char portstr[16];
     snprintf(portstr, sizeof(portstr), "%d", port);
@@ -319,18 +331,30 @@ static ns_sock_t sock_connect(const char *host, int port)
     hints.ai_family   = AF_UNSPEC;      /* IPv4 or IPv6 */
     hints.ai_socktype = SOCK_STREAM;
 
-    if (getaddrinfo(host, portstr, &hints, &res) != 0 || !res)
+    if (getaddrinfo(host, portstr, &hints, &res) != 0 || !res) {
+        if (fail) *fail = NS_FAIL_DNS;
         return NS_INVALID_SOCK;
+    }
 
     ns_sock_t sk = NS_INVALID_SOCK;
+    int last_err = 0;
     for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
         sk = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (sk == NS_INVALID_SOCK) continue;
         if (connect(sk, ai->ai_addr, (int)ai->ai_addrlen) == 0) break;
+        /* Read before closing: closesocket() clobbers the error on
+         * Windows, which is how the reason for a refusal disappears. */
+#ifdef _WIN32
+        last_err = WSAGetLastError();
+#else
+        last_err = errno;
+#endif
         closesocket(sk);
         sk = NS_INVALID_SOCK;
     }
     freeaddrinfo(res);
+    if (sk == NS_INVALID_SOCK && fail)
+        *fail = ns_failure_from_socket(last_err);
     return sk;
 }
 
@@ -804,6 +828,11 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
     }
 }
 
+NsFailure ns_failure(const NtripSession *s)
+{
+    return s ? s->failure : NS_FAIL_NONE;
+}
+
 /* ── Connection ──────────────────────────────────────────────────── */
 
 static void do_connect(NtripSession *s)
@@ -813,10 +842,17 @@ static void do_connect(NtripSession *s)
     ev.type = NS_EV_CONNECTING;
     emit(s, &ev);
 
-    s->sock = sock_connect(s->opt.config.NTRIP_CASTER, s->opt.config.NTRIP_PORT);
+    NsFailure fail = NS_FAIL_NONE;
+    s->sock = sock_connect(s->opt.config.NTRIP_CASTER,
+                           s->opt.config.NTRIP_PORT, &fail);
     if (s->sock == NS_INVALID_SOCK) {
-        emit_log(s, NS_LOG_ERROR, "Cannot reach %s:%d",
-                 s->opt.config.NTRIP_CASTER, s->opt.config.NTRIP_PORT);
+        s->failure = fail;
+        char why[192];
+        ns_failure_text(why, sizeof(why), fail,
+                        s->opt.config.NTRIP_CASTER,
+                        s->opt.config.NTRIP_PORT,
+                        s->opt.config.MOUNTPOINT);
+        emit_log(s, NS_LOG_ERROR, "%s", why);
         if (!s->opt.auto_reconnect) { emit_end(s, NS_END_NET_ERROR); return; }
         s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
         if (s->backoff_s > s->opt.reconnect_backoff_max_s)
@@ -939,8 +975,17 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
     ev.u.handshake = &s->handshake;
     emit(s, &ev);
 
-    if (!s->handshake.valid || s->handshake.status != 200) {
-        emit_log(s, NS_LOG_ERROR, "Caster rejected the request: %s",
+    NsFailure answer = ns_failure_from_response(s->handshake.valid,
+                                                s->handshake.status,
+                                                s->handshake.content_type);
+    if (answer != NS_FAIL_NONE) {
+        s->failure = answer;
+        char why[192];
+        ns_failure_text(why, sizeof(why), answer,
+                        s->opt.config.NTRIP_CASTER,
+                        s->opt.config.NTRIP_PORT,
+                        s->opt.config.MOUNTPOINT);
+        emit_log(s, NS_LOG_ERROR, "%s (%s)", why,
                  s->handshake.status_line[0] ? s->handshake.status_line
                                              : "(unrecognised response)");
         closesocket(s->sock);

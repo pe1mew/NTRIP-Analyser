@@ -191,6 +191,15 @@ add_executable(test_stall test/test_stall.c)
 target_link_libraries(test_stall PRIVATE ntrip_session)
 add_test(NAME stall COMMAND test_stall)
 
+# Every way of failing to open a stream used to produce one sentence, so
+# a wrong port and a wrong password were indistinguishable to the user.
+# The classification is pinned against a caster that answers as told --
+# 401, 403, 404, a sourcetable, a web page -- and against a port that was
+# listening a moment ago, which is what a wrong port number looks like.
+add_executable(test_failure test/test_failure.c)
+target_link_libraries(test_failure PRIVATE ntrip_session)
+add_test(NAME failure COMMAND test_failure)
+
 # Tier 2's three load-bearing decisions -- "not enough evidence" as a
 # verdict, live-only metrics absent rather than zero, and windows in
 # stream time so a replay reproduces exactly. Each would erode quietly
@@ -239,7 +248,7 @@ add_custom_target(test_all
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall)
+            test_stall test_failure)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

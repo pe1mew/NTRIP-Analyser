@@ -213,6 +213,17 @@ void ns_options_default(NsOptions *opt);
  *
  * @return Session handle, or NULL on allocation failure.
  */
+/**
+ * @brief Why this session cannot run, or @ref NS_FAIL_NONE.
+ *
+ * GUI v3, P4.1. The session has always known -- a name that will not
+ * resolve, a port with nothing behind it, a 401 -- and had no way to
+ * say so beyond a log line. P4.2 carries the same value in the
+ * statistics snapshot, which is how it reaches the app; this is how a
+ * caller with the session in hand reads it directly.
+ */
+NsFailure ns_failure(const NtripSession *s);
+
 NtripSession *ns_open(const NsOptions *opt, NsEventFn cb, void *user);
 
 /**

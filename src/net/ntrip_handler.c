@@ -1,4 +1,5 @@
 #include "net/ntrip_handler.h"
+#include "net/ntrip_proto.h"   /* NsFailure, shared with the session */
 #include "core/nmea_parser.h"
 #include "core/rtcm3x_parser.h"
 #include "core/version.h"
@@ -33,6 +34,48 @@
  * in src/session/ntrip_session.c, which is the same pair of platform
  * branches written once, where the stream loop that needs timing lives.
  */
+
+/* ── Socket errors, reconciled ────────────────────────────────────────
+ *
+ * The one place POSIX's `errno` and Windows's `WSAE*` numbers are turned
+ * into the same answer.  It lives here rather than in ntrip_proto.c
+ * because it needs the platform's own headers, and ntrip_proto.c is
+ * deliberately free of them -- that is what makes it testable without a
+ * network.  It lives in `src/net` rather than in any frontend because a
+ * frontend that mapped these itself would be a second opinion about what
+ * a connection failure is, and the four of them would drift.
+ *
+ * Note `WSAECONNREFUSED` and `ECONNREFUSED` are different numbers for
+ * the same event; the branches are per-platform, the answers are not.
+ */
+NsFailure ns_failure_from_socket(int err)
+{
+#ifdef _WIN32
+    switch (err) {
+        case WSAECONNREFUSED: return NS_FAIL_REFUSED;
+        case WSAETIMEDOUT:    return NS_FAIL_TIMEOUT;
+        case WSAEHOSTUNREACH:
+        case WSAENETUNREACH:
+        case WSAENETDOWN:     return NS_FAIL_UNREACHABLE;
+        case WSAHOST_NOT_FOUND:
+        case WSANO_DATA:      return NS_FAIL_DNS;
+        default: break;
+    }
+#else
+    switch (err) {
+        case ECONNREFUSED: return NS_FAIL_REFUSED;
+        case ETIMEDOUT:    return NS_FAIL_TIMEOUT;
+        case EHOSTUNREACH:
+        case ENETUNREACH:
+        case ENETDOWN:     return NS_FAIL_UNREACHABLE;
+        default: break;
+    }
+#endif
+    /* Anything else reached the network and failed there.  Reported as
+     * unreachable rather than invented into a category: it is true, and
+     * it points at the network, which is where the fault is. */
+    return err ? NS_FAIL_UNREACHABLE : NS_FAIL_NONE;
+}
 
 #define BUFFER_SIZE 4096
 #define MAX_MSG_TYPES 4096

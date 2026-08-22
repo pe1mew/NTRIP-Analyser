@@ -396,7 +396,7 @@ report the handset's own 1080x2340 at 480 again.
 No UI in this phase. It is C, it is testable without a phone, and every
 frontend gets it at once.
 
-### P4.1 — `NsFailure` and the mapping
+### P4.1 — `NsFailure` and the mapping — **done 2026-08-22**
 
 **Goal.** The enum (spec §5.2), and one `errno`/`WSAE*` → `NsFailure`
 mapping in `src/net`.
@@ -409,6 +409,42 @@ discard it), `src/net/ntrip_proto.c` (status → failure).
 `test_stall.c` already uses: refuse the connection, answer with 401, with
 403, with 404, with an `ENDSOURCETABLE`, and with a plain HTTP page.
 Six assertions, no network.
+
+**Done.** Seventeen assertions rather than six, and one correction to
+where the code lives: the spec named `src/net/ntrip_handler.c` as the
+connect path, but the session has its own `sock_connect` in
+`src/session/ntrip_session.c` — the handler is the sourcetable path the
+CLI and GUI use. So the **mapping** is in `src/net` as intended and the
+**detection** is in both connect paths:
+
+- `ns_failure_from_socket` in `ntrip_handler.c`, which already carries
+  the platform headers. `ntrip_proto.c` could not host it without
+  breaking the property its own header states — no sockets, no platform
+  headers, testable without a network.
+- `ns_failure_from_response`, `ns_failure_name` and `ns_failure_text` in
+  `ntrip_proto.c`, where they are string work.
+- `sock_connect` now reports why, reading the socket error **before**
+  `closesocket`, which clobbers it on Windows.
+
+Two codes were added to the spec's list while writing it:
+
+- **`NS_FAIL_REJECTED`** — the caster said no in words this version has
+  no sentence for. Naming it beats guessing: the status line goes in the
+  detail and the user reads what the caster actually said.
+- A **200 with `text/html`** is `NS_FAIL_NOT_NTRIP`. A port belonging to
+  a web server answers everything politely, and believing the status is
+  how a run spends its length wondering why the *RTCM* will not decode.
+
+The test is a caster on loopback that answers as told, plus one case
+with no caster at all — a port that was listening a moment ago, which is
+what a wrong port number looks like. It covers the classification, the
+sentences (each names the field at fault), the stable tokens, and the
+case that must **not** fire: a caster answering `ICY 200 OK` is not a
+failure.
+
+Falsified: mapping 401 to `NS_FAIL_REJECTED` turns the suite red.
+Restored, and 13 of 13 tests pass. `CLAUDE.md`'s test list and the
+`= 12` in its verify command are now `= 13`.
 
 ### P4.2 — Carrying it
 
