@@ -301,10 +301,10 @@
 **Root cause**: `tools/verify_memory.py` has two tiers, and its own header says so: `verify:` runs on every push under `--offline`, `verify-net:` is deferred to the Monday job, which sets `GH_TOKEN`. The check was written as `verify:` without reading how checks are classified, so a network call ran in the tier that has no network credentials.
 **Fix**: `verify-net:`. Offline is now 14 pass / 0 fail with 2 network claims deferred; the full run is 16 / 0. **When adding evidence to a claim, run the harness the way CI runs it** -- `python tools/verify_memory.py --offline` -- not just the way that suits the desk you are sitting at.
 
-### A third build system, and only one of them was checked (2026-08-22)
+### A third build system, and only one of them was checked (2026-08-22) [RESOLVED]
 **Problem**: P4.3 added `src/core/ns_failure.c` to `CMakeLists.txt`, and every desktop target built. CI went red on **Android** — `ld.lld: error: undefined symbol: ns_failure_text` — and stayed red for two commits, because the next step's verification was also desktop-only.
 **Root cause**: `android/app/src/main/cpp/CMakeLists.txt` keeps its own list of the shared C sources. This project's promoted pattern says *where two build systems describe one source set, CI must run both*; the Android NDK build is a **third**, over the same `src/`, and "every target builds" from the desktop tree says nothing about it.
-**Fix**: the file was added to the NDK list in P5.1, which is where the same linker error appeared locally. **Adding a file to `src/core` or `src/session` means adding it in two places**: the desktop `CMakeLists.txt` and the NDK one. A check that the two lists agree would end this class; until then, build one edition of the app after touching the shared C.
+**Fix**: the file was added to the NDK list in P5.1, where the same linker error appeared locally -- and in P6.1 the class was closed rather than remembered. `tools/check_release.py` now compares the two source lists and fails naming the file and the list it is missing from; deliberate omissions are declared there with their reason. Falsified by deleting the entry again, which reproduces the CI failure in a second instead of in a run.
 
 ## Promoted
 

@@ -553,6 +553,63 @@ def check_failure_codes():
         check(name == c_order[i] and int(value) == i,
            "%s is %d in both C and Kotlin" % (name, i))
 
+    # The sentences are the same in both editions because they live in
+    # main/. A flavour that redefined one would give free and pro
+    # different words for the same fault.
+    for flavour in ("free", "pro"):
+        path = os.path.join(ROOT, "android", "app", "src", flavour,
+                            "res", "values", "strings.xml")
+        text = io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        check("fail_" not in text,
+              "the %s edition does not redefine a failure sentence" % flavour)
+
+
+
+# ── One source set, three build systems ───────────────────────────────
+# CMakeLists.txt builds the desktop and the daemon; the NDK's own
+# CMakeLists builds the app from the same src/.  A file added to one and
+# not the other links on a laptop and fails at ld.lld -- which is how
+# ns_failure.c left Android red for two commits in August 2026.  The
+# lists are compared here so that the next one fails in a second rather
+# than in a CI run.
+
+# Deliberately not built for Android, with the reason:
+NDK_OMITS = {
+    "src/core/station_report.c": "tier 2 has no screen in the app yet",
+    "src/core/thresholds.c":     "the app takes the defaults; no policy file",
+}
+
+
+def check_source_lists():
+    print("shared C sources, desktop against NDK")
+
+    desktop_txt = read("CMakeLists.txt")
+    desktop = set()
+    for lib in ("ntrip_core", "ntrip_session"):
+        start = desktop_txt.index("add_library(%s" % lib)
+        desktop |= set(re.findall(r"(src/[a-z]+/[a-z0-9_]+\.c)",
+                                  desktop_txt[start:desktop_txt.index(")", start)]))
+
+    ndk = set(re.findall(r"\$\{REPO_ROOT\}/(src/[a-z]+/[a-z0-9_]+\.c)",
+                         read("android", "app", "src", "main", "cpp",
+                              "CMakeLists.txt")))
+
+    missing = sorted(desktop - ndk - set(NDK_OMITS))
+    check(not missing,
+          "every shared source the desktop builds is in the NDK list",
+          "missing from android/app/src/main/cpp/CMakeLists.txt: "
+          + ", ".join(missing) if missing else "")
+
+    extra = sorted(ndk - desktop)
+    check(not extra,
+          "the NDK builds nothing the desktop does not",
+          ", ".join(extra) if extra else "")
+
+    stale = sorted(f for f in NDK_OMITS if f not in desktop)
+    check(not stale,
+          "every documented omission still names a file that exists",
+          ", ".join(stale) if stale else "")
+
 
 def main():
     ver = check_version()
@@ -566,6 +623,7 @@ def main():
     check_thresholds()
     check_snapshot_fields()
     check_failure_codes()
+    check_source_lists()
 
     print("")
     if PROBLEMS:

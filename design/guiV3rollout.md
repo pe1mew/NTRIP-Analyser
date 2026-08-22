@@ -701,7 +701,30 @@ flowing*, 1654 B/s — which is the case that must not cry wolf.
 
 | Step | What |
 |---|---|
-| **P6.1** | `checkEditionParity` and `tools/check_release.py`: the new strings exist in both editions; no `shareSection` gained a credential; the check count is still eight |
+| **P6.1** — **done 2026-08-22** | `checkEditionParity` and `tools/check_release.py`: the new strings exist in both editions; no `shareSection` gained a credential; the check count is still eight |
+
+### P6.1 — what the guards say now
+
+`checkEditionParity` passes. `check_release.py` is at **70 checks**, up
+from 51 when this phase began, and the four the step asked for hold:
+
+- **The sentences are shared.** They live in `main/`, so both editions
+  get the same words by construction — and a new check fails if either
+  flavour redefines one, which is how they would come apart.
+- **No share section carries a credential**, and none reads the phone's
+  own position. Unchanged and still true.
+- **`kpi.h` carries 8 checks**, and six documents agree with it.
+- **The failure codes match between C and Kotlin**, name by name and
+  value by value (added with P5.2, thirteen comparisons).
+
+And one the step did not ask for, added because CI had just paid for it
+twice: **the desktop and NDK source lists are compared**. A file the
+desktop builds and the NDK does not now fails here, naming the file and
+the list it is missing from; the two files Android deliberately omits are
+declared with their reasons. Falsified by deleting `ns_failure.c` from
+the NDK list again — the exact state P4.3 shipped — which reproduces the
+red build in a second instead of in a CI run.
+
 | **P6.2** | Wiki: **Troubleshooting** gets the eleven sentences and what to do about each — it is the page a user reaches from a failure; **The analysis views** and **Getting started** get the new screenshots |
 | **P6.3** | `changelog.md` 3.7.0: the frame, the failure taxonomy, and the CSV column under a *format* heading |
 | **P6.4** | `design/gui-design.md` and `android/design/editions.md` updated so the next reader finds the template, not v2's hub description |
