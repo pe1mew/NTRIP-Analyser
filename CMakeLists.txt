@@ -88,6 +88,7 @@ target_include_directories(cjson PUBLIC lib/cJSON)
 # ── ntrip_core ────────────────────────────────────────────────────────
 add_library(ntrip_core STATIC
     src/core/ns_stats.c
+    src/core/ns_failure.c
     src/core/rtcm3x_parser.c
     src/core/sv_ephemeris.c
     src/core/sv_orbit.c

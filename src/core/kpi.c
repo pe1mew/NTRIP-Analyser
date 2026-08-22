@@ -8,6 +8,7 @@
  */
 
 #include "core/kpi.h"
+#include "core/ns_failure.h"
 #include <stdio.h>     /* snprintf, into caller buffers only -- no I/O */
 #include <string.h>
 
@@ -230,10 +231,24 @@ void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
     k[0].limit_dir = KPI_LIMIT_MIN;
     if (!s->connected) {
         k[0].verdict = (out->elapsed_s < 10.0) ? KPI_PENDING : KPI_FAIL;
+        /* Which refusal it was, when the session knows (3.7.0). "No
+         * connection to the caster" is true of a wrong host, a wrong
+         * port, a wrong password and a mountpoint that does not exist
+         * -- four different things to go and fix, behind one sentence
+         * that named none of them.  The verdict is unchanged: this
+         * says *why* it failed, not *whether* it did, so every exit
+         * code and every consumer of the verdict vocabulary is
+         * untouched.
+         *
+         * The pointer is into the snapshot, which outlives this report
+         * for the same reason the label strings do: both are read by
+         * the caller before it pumps again. */
         k[0].detail  = s->bytes_total
             ? detail_secs(run, "Connection lost after %ld s of data",
                           run->bytes_up_s)
-            : "No connection to the caster";
+            : (s->failure != NS_FAIL_NONE
+                   ? ns_failure_short((NsFailure)s->failure)
+                   : "No connection to the caster");
     } else if (out->elapsed_s < 10.0) {
         k[0].verdict = KPI_PENDING;
         k[0].detail  = "Measuring throughput";

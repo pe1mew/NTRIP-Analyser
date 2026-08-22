@@ -490,7 +490,7 @@ Android bridge parses with `ignoreUnknownKeys = true`, so the shipped
 
 13 of 13 tests pass.
 
-### P4.3 — KPI 1 says it
+### P4.3 — KPI 1 says it — **done 2026-08-22**
 
 **Goal.** Where KPI 1 says `No connection to the caster`, it says which
 of the eleven it was. Verdict words unchanged.
@@ -500,6 +500,42 @@ of the eleven it was. Verdict words unchanged.
 **Verify.** `test_kpi_stopped` extended; the CLI's exit codes are
 re-checked against a caster that refuses, to prove the verdict vocabulary
 did not move.
+
+**Done, and it moved a file.** KPI 1 is in `src/core/kpi.c`, core may not
+reach up into `net`, and the failure vocabulary was in
+`src/net/ntrip_proto.h`. Rather than reach across the layering, the
+vocabulary moved to where the snapshot that carries it lives:
+**`src/core/ns_failure.{c,h}`**. One function stayed behind —
+`ns_failure_from_socket`, which needs the platform's own error numbers —
+and is declared beside the rest so a caller sees one vocabulary.
+
+**Two forms, one switch each.** `ns_failure_text` says what to check as
+well, which is right for a message with a screen to itself and too long
+for a row in a list: the Win32 GUI's Detail column is about sixty
+characters, and *"…did not answer. The service may be down, or a
+firewall may be dropping it."* is eighty-eight. `ns_failure_short` is the
+clause KPI 1 carries. The test walks **every** code and fails if any
+clause outgrows the column — the failure mode being a sentence that fits
+when written and not when translated.
+
+The verdict is untouched: the diff sets `k[0].detail` and nothing else,
+and the test asserts `KPI_FAIL` still comes back for a rejected password.
+
+Seen in the CLI at no extra cost — `--check` against a port with nothing
+behind it now reads:
+
+```
+1   Connected and producing    ...   0 B/s min 100 B/s   Nothing is listening on that port
+```
+
+**One thing to decide later, noticed here.** That run exits **6**
+(caution) with *NO VERDICT — the stream closed after 2 s*. It is
+pre-existing behaviour and unchanged by this step, but a station that
+could not be connected to at all arguably failed rather than gave
+caution. Left alone deliberately: exit codes are a contract, and moving
+one belongs in its own change with its own reasoning.
+
+Every target builds; 13 of 13 tests pass.
 
 ### P4.4 — The other three frontends
 

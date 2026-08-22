@@ -36,6 +36,7 @@
  * License: Apache License 2.0 with Commons Clause
  */
 #include "core/kpi.h"
+#include "core/ns_failure.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -149,6 +150,45 @@ int main(void)
 
         check(strcmp(rep.kpi[0].detail, "No connection to the caster") == 0,
               "a connection that never opened says exactly that");
+    }
+
+    /* ── 4b. A refusal says which refusal it was ──────────────────
+     *
+     * "No connection to the caster" is equally true of a wrong host, a
+     * wrong port, a wrong password and a mountpoint that does not
+     * exist.  Since 3.7.0 the session classifies which, and KPI 1 says
+     * it -- without the verdict moving, because the exit codes and
+     * every reader of the verdict vocabulary depend on that. */
+    {
+        KpiRun run; KpiReport rep;
+        NsStatsSnapshot s;
+        ns_stats_init(&s);
+        s.failure = (int)NS_FAIL_AUTH;
+        kpi_run_start(&run, 0.0, NULL);
+        kpi_update(&run, &s, 20.0, &rep);
+
+        check(rep.kpi[0].verdict == KPI_FAIL,
+              "a rejected password still fails KPI 1");
+        check(strstr(rep.kpi[0].detail, "password") != NULL,
+              "and KPI 1 says it was the password");
+
+        ns_stats_init(&s);
+        s.failure = (int)NS_FAIL_NO_MOUNTPOINT;
+        kpi_run_start(&run, 0.0, NULL);
+        kpi_update(&run, &s, 20.0, &rep);
+        check(strstr(rep.kpi[0].detail, "mountpoint") != NULL,
+              "a missing mountpoint is named as one");
+
+        /* Every clause must fit the column, not just the two above:
+         * a sentence that fits when written and not when translated is
+         * the failure mode this guards. */
+        int widest = 0;
+        for (int f = NS_FAIL_NONE; f <= NS_FAIL_STALLED; f++) {
+            int len = (int)strlen(ns_failure_short((NsFailure)f));
+            if (len > widest) widest = len;
+        }
+        check(widest > 0 && widest <= 58,
+              "every failure clause fits the Detail column");
     }
 
     /* ── 5. The explanations fit the column that shows them ────────
