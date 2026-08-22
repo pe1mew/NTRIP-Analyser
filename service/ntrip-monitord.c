@@ -37,6 +37,7 @@
  */
 
 #include "session/ntrip_session.h"
+#include "core/ns_failure.h"
 #include "core/ns_stats.h"
 #include "core/station_report.h"
 #include "core/thresholds.h"
@@ -513,8 +514,9 @@ static void on_event(const NsEvent *ev, void *user)
             fprintf(stderr, "[%s] %s\n", mount, ev->u.log.text);
         break;
     case NS_EV_DISCONNECTED:
-        fprintf(stderr, "[%s] session ended (reason %d)\n",
-                mount, ev->u.end.reason);
+        fprintf(stderr, "[%s] session ended (reason %d, %s)\n",
+                mount, ev->u.end.reason,
+                ns_failure_name((NsFailure)ev->u.end.failure));
         break;
     default:
         break;

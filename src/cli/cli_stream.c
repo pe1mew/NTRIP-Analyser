@@ -981,6 +981,14 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
         printf("\n== NO VERDICT ==  %s after %.0f s", end_why, el_end);
     if (vrs_mode) printf("  [service: %s]", vrs_gate_name(vr.gate));
     printf("  exit=%d\n", rc);
+    /* And why, when the session knows.  The sentence has been in the
+     * log all along, but -q silences that, and the conclusion is the
+     * line a reader keeps. */
+    if (!kr.settled) {
+        const NsStatsSnapshot *fs = ns_stats(sess);
+        if (fs && fs->failure_detail[0])
+            printf("   %s\n", fs->failure_detail);
+    }
 
     /* The rows above are what was true when it ended, and are worth
      * reading; they are simply not a verdict. */

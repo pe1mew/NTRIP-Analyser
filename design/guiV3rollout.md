@@ -537,7 +537,7 @@ one belongs in its own change with its own reasoning.
 
 Every target builds; 13 of 13 tests pass.
 
-### P4.4 — The other three frontends
+### P4.4 — The other three frontends — **done 2026-08-22**
 
 **Goal.** CLI, Win32 GUI and daemon print the sentence (D5).
 
@@ -546,6 +546,37 @@ Every target builds; 13 of 13 tests pass.
 **Verify.** `ntrip-analyser --check` against a wrong port, a wrong
 password and a wrong mountpoint: three different messages, three
 identical exit codes.
+
+**Done, and most of it was already true.** All three frontends print
+`NS_EV_LOG` at warning level or above, and P4.1 made the session's error
+line *be* the sentence — so the CLI, the GUI's log tab and the daemon's
+journal each gained it without being touched. What was left was the two
+places that reported a fault in their own words:
+
+- **The CLI's conclusion.** The sentence was in the log all along, but
+  `-q` silences that and the conclusion is the line a reader keeps. It
+  now follows the `exit=` line, on its own.
+- **The daemon's journal.** `session ended (reason 3)` says the socket
+  was refused; `session ended (reason 3, auth)` says which refusal,
+  which is what an operator reading a journal at three in the morning
+  actually needs.
+
+Four faults, run against a listener on loopback that answers as told:
+
+| Fault | KPI 1's row | The conclusion | Exit |
+|---|---|---|---|
+| wrong port | `Nothing is listening on that port` | `Nothing is listening on 127.0.0.1:9. Check the port.` | 6 |
+| wrong password | `User name or password rejected` | `The caster rejected the user name or password.` | 6 |
+| wrong mountpoint | `No such mountpoint on this caster` | `This caster has no mountpoint "RFSEE01".` | 6 |
+| not a caster | `Answered, but not as an NTRIP caster` | `127.0.0.1:18413 answered, but not as an NTRIP caster.` | 6 |
+
+Four different messages at both levels, one exit code — the vocabulary
+moved, the contract did not.
+
+**One honest gap.** The daemon is UNIX-only and this machine is not:
+its change is syntax-checked with the project's own compiler and
+otherwise rests on CI's Linux build, which builds it through both its
+own Makefile and CMake.
 
 ---
 
