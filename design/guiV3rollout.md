@@ -284,7 +284,7 @@ mark.
 
 # Phase 3 — the analysis screens
 
-### P3.1 — Six bands
+### P3.1 — Six bands — **done 2026-08-22**
 
 **Goal.** Tabs, explainer, summary, plot, footer, legend, in that order,
 with the plot taking the slack (spec §4).
@@ -294,6 +294,36 @@ frame so the three views cannot each invent their own).
 
 **Verify.** All three tabs against Dia6, Dia7, Dia8. The tab row is
 directly under the app bar in every one.
+
+**Done.** `AnalysisBands` in `Views.kt` takes the parts and fixes the
+order — explainer, summary, plot, footer, legend — so a view supplies
+them and cannot choose where they go. That mattered more than expected:
+the three views had drifted into three orders, with the **sky view's
+legend at the top** and the other two at the bottom, and with the
+explainer under the summary on two of them where the template puts it
+above.
+
+The tab row moved out from under the prose to directly beneath the app
+bar, which is the template's second band. What used to sit above it —
+free's *showing what the check captured* note, pro's Analyse/Stop
+control — now sits under the tabs, in one row with the orbit badge at
+its right end until P3.2 takes the badge away.
+
+Seen on the device, all three tabs of the free edition:
+
+| Band | Sky view | Signal quality | C/N0 vs elevation |
+|---|---|---|---|
+| Tabs | ● | ● | ● |
+| Mode row | the free note | the free note | the free note |
+| Explainer | — (the note said it) | `Live value, this epoch` | `A healthy antenna climbs smoothly…` |
+| Summary | `41 of 41 satellites shown · navigation file` | `38 satellites · mean 47,1 dB-Hz · range 33,8 to 51,9` | `2602 samples this session` |
+| Plot | ● | ● | ● |
+| Footer | `RFSEE01  ARP: 52,211516, 5,983710` | axis label | axis label |
+| Legend | ● (moved from the top) | ● | ● |
+
+One thing the template does not show and the free edition has: the
+edition note and a per-view explainer stack as two lines of prose. In
+pro that row is a control instead, so it does not arise there.
 
 ### P3.2 — The badge retires
 

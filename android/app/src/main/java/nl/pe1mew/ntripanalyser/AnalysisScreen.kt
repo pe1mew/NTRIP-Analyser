@@ -148,58 +148,6 @@ fun AnalysisScreen(
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
 
-            // The orbit badge has no slot in the template's top bar, and
-            // what it says -- where these positions came from -- belongs
-            // in the summary line that P3.2 builds. Until then it keeps
-            // saying it, one row down.
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                OrbitSourceBadge(
-                    source = skySource(usedOrbits, doc, haveLocation),
-                    rinexAgeS = rinexAgeS,
-                    onClick = { uriHandler.openUri(ORBITS_URL) },
-                )
-            }
-
-            // Pro runs analysis as its own session; free shows what
-            // the station check captured, frozen at its end.
-            if (Features.HAS_WATCH) {
-                Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Button(onClick = { onToggleWatch() }) {
-                        Text(stringResource(
-                            if (running) R.string.action_stop
-                            else R.string.action_analyse
-                        ))
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    doc?.watch?.let { w ->
-                        Text(
-                            stringResource(R.string.analysis_running, dur(w.elapsedS)),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            } else {
-                Text(
-                    stringResource(R.string.analysis_static),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
-
-            // No watch card here. It is absent when the screen opens
-            // and appears a second later, shoving the plot down the
-            // moment the user has started reading it. The elapsed
-            // time is beside the Stop button already; the rest of the
-            // long-run picture belongs on the station screen, where
-            // nothing moves under it.
-
             TabRow(selectedTabIndex = tab.ordinal) {
                 AnalysisTab.entries.forEach { t ->
                     Tab(
@@ -214,6 +162,49 @@ fun AnalysisScreen(
                         },
                     )
                 }
+            }
+
+            // Under the tabs, not above them: the template's second band
+            // is the selector, and everything after it belongs to the
+            // view that selector chose. The badge rides at the right of
+            // this row until P3.2 folds what it says into the summary.
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.weight(1f)) {
+                    // Pro runs analysis as its own session; free shows
+                    // what the station check captured, frozen at its end.
+                    if (Features.HAS_WATCH) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { onToggleWatch() }) {
+                                Text(stringResource(
+                                    if (running) R.string.action_stop
+                                    else R.string.action_analyse
+                                ))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            doc?.watch?.let { w ->
+                                Text(
+                                    stringResource(R.string.analysis_running,
+                                                   dur(w.elapsedS)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            stringResource(R.string.analysis_static),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                OrbitSourceBadge(
+                    source = skySource(usedOrbits, doc, haveLocation),
+                    rinexAgeS = rinexAgeS,
+                    onClick = { uriHandler.openUri(ORBITS_URL) },
+                )
             }
 
             // The pager keeps its own overscroll now. It was suppressed

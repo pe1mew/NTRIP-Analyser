@@ -95,9 +95,12 @@ fun SkyView(
     val surface = MaterialTheme.colorScheme.surface
     val density = LocalDensity.current
 
-    PlotLayout(
+    AnalysisBands(
         modifier = modifier,
-        above = {
+        // The screen says what this view is showing, above the tabs;
+        // saying it again here would be the same sentence twice.
+        explainer = null,
+        summary = {
             Text(
                 stringResource(
                     R.string.sky_header, sats.size, sats.size + missing,
@@ -114,13 +117,9 @@ fun SkyView(
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }
-            ConstellationLegend(
-                sats.map { it.gnss }.distinct().sorted(),
-                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
         },
         plot = { m -> SkyCanvas(sats, onSurface, faint, surface, density, m.padding(12.dp)) },
-        below = {
+        footer = {
             Text(
                 footer,
                 style = MaterialTheme.typography.bodySmall,
@@ -128,6 +127,60 @@ fun SkyView(
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
             )
+        },
+        legend = {
+            ConstellationLegend(
+                sats.map { it.gnss }.distinct().sorted(),
+                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        },
+    )
+}
+
+/**
+ * The bands of an analysis screen, in the order the template fixes.
+ *
+ * GUI v3, P3.1 (`design/guiV3spec.md` §4): what this view is, then the
+ * numbers behind the picture, then the picture, then whatever the
+ * picture is of, then the key to its colours. A view supplies the parts
+ * and cannot choose the order, which is the point -- the three of them
+ * had drifted into three different orders, with the sky view's legend at
+ * the top and the other two at the bottom.
+ *
+ * @param explainer one sentence saying what is being shown, or `null`
+ *                  where the screen itself has already said it.
+ * @param summary   the numbers behind the plot.
+ * @param footer    what the plot is of -- the station and its ARP on
+ *                  the sky view, nothing on the other two.
+ * @param legend    the colours, last, nearest the plot they describe.
+ */
+@Composable
+internal fun AnalysisBands(
+    explainer: String?,
+    summary: @Composable ColumnScope.() -> Unit,
+    plot: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
+    footer: @Composable ColumnScope.() -> Unit = {},
+    legend: @Composable ColumnScope.() -> Unit = {},
+) {
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant
+    PlotLayout(
+        modifier = modifier,
+        above = {
+            if (explainer != null) {
+                Text(
+                    explainer,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = faint,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            summary()
+        },
+        plot = plot,
+        below = {
+            footer()
+            legend()
         },
     )
 }
@@ -385,7 +438,12 @@ fun SignalBars(
         compareBy({ it.gnss }, { it.prn })
     )
 
-    PlotLayout(modifier = modifier, above = {
+    AnalysisBands(
+        modifier = modifier,
+        explainer = stringResource(
+            if (liveValues) R.string.bars_live else R.string.bars_mean
+        ),
+        summary = {
         val meanPower = if (shown.isEmpty()) 0f else
             10f * log10(shown.map { 10f.pow(it.cn0 / 10f) }.average().toFloat())
 
@@ -397,14 +455,6 @@ fun SignalBars(
             ),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
-        Text(
-            stringResource(
-                if (liveValues) R.string.bars_live else R.string.bars_mean
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = faint,
-            modifier = Modifier.padding(horizontal = 16.dp),
         )
 
         Text(
@@ -461,14 +511,14 @@ fun SignalBars(
             }
         }
 
-    }, below = {
+    }, footer = {
         Text(
             stringResource(R.string.axis_sat),
             style = MaterialTheme.typography.labelSmall,
             color = faint,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
-
+    }, legend = {
         ConstellationLegend(
             shown.map { it.gnss }.distinct().sorted(),
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -598,17 +648,14 @@ fun ElevationView(
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
     val density = LocalDensity.current
 
-    PlotLayout(modifier = modifier, above = {
+    AnalysisBands(
+        modifier = modifier,
+        explainer = stringResource(R.string.elev_explain),
+        summary = {
         Text(
             stringResource(R.string.elev_header, samples.total),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
-        Text(
-            stringResource(R.string.elev_explain),
-            style = MaterialTheme.typography.bodySmall,
-            color = faint,
-            modifier = Modifier.padding(horizontal = 16.dp),
         )
 
         Text(
@@ -675,14 +722,14 @@ fun ElevationView(
             }
         }
 
-    }, below = {
+    }, footer = {
         Text(
             stringResource(R.string.axis_elev),
             style = MaterialTheme.typography.labelSmall,
             color = faint,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
-
+    }, legend = {
         ConstellationLegend(
             samples.constellations,
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
