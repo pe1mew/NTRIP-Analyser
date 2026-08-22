@@ -111,13 +111,18 @@ REDACTIONS = {
     },
     'free': {
         'main': [
-            ((79, 806, 466, 864), 'ntrip.example.com:2101', True, 44,
+            # v3 put the two editions' tiles in the same place: both
+            # verdict banners now carry the same two lines, so the box
+            # that free needed 54 px higher than pro's in v2 is the same
+            # box in v3. Measured, not assumed.
+            ((84, 818, 470, 866), 'ntrip.example.com:2101', True, 44,
              TILE_BG, TILE_INK),
         ],
-        # Same geometry in both editions: the footer is drawn by the same
-        # composable, below a plot of fixed height.
+        # *Not* the same geometry as pro, which v2 believed. Free's
+        # analysis screen carries a two-line note where pro carries a
+        # button, and the footer ends up 22 px lower.
         'sky': [
-            ((368, 2058, 812, 2108), ARP_HIDDEN, True, 40,
+            ((368, 2080, 812, 2130), ARP_HIDDEN, True, 40,
              PAGE_BG, PAGE_INK),
         ],
     },
