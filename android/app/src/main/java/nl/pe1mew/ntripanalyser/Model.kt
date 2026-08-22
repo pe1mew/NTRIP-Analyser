@@ -80,6 +80,16 @@ data class Stats(
     @SerialName("crc_error_rate") val crcErrorRate: Double? = null,
     @SerialName("latency_s") val latencyS: Double? = null,
     val reconnects: Int = 0,
+    /* Why this stream is not working, when it is not (3.7.0).
+     *
+     * `failure` is the core's `NsFailure` and `failureDetail` is the
+     * sentence it wrote. Both arrive in the snapshot the daemon
+     * publishes with, so the phone and Munin read the same words about
+     * the same fault. Zero and empty while a stream is healthy, which
+     * is why a screen that shows the sentence whenever it is non-empty
+     * is right by construction. */
+    val failure: Int = 0,
+    @SerialName("failure_detail") val failureDetail: String = "",
     @SerialName("cnr_mean_all") val cnrMeanAll: Double? = null,
     /* The advertised-versus-observed roll-up, behind KPI 8. */
     @SerialName("advertised_known") val advertisedKnown: Boolean = false,

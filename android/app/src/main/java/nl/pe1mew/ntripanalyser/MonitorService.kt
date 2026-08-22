@@ -76,6 +76,7 @@ class MonitorService : Service() {
     )
 
     private var worker: Thread? = null
+    private var lastFailure = 0
     private var lastNotificationText: String? = null
     @Volatile private var stopRequested = false
 
@@ -121,6 +122,7 @@ class MonitorService : Service() {
         lastNotificationText = null
         lastSky = null            // a new run supersedes the old coverage
         lastEphCount = 0
+        lastFailure = 0
         _state.value = RunState(running = true, outcome = Outcome.RUNNING,
                                 runId = runId)
 
@@ -181,6 +183,16 @@ class MonitorService : Service() {
                     b.snapshotJson()?.let { json ->
                         runCatching { bridgeJson.decodeFromString<BridgeDocument>(json) }
                             .onSuccess { doc ->
+                                if (doc.stats.failure != 0 &&
+                                    doc.stats.failure != lastFailure) {
+                                    // Logged once per change, not per
+                                    // snapshot: a refused connection
+                                    // retries, and a line per attempt
+                                    // buries the first one.
+                                    lastFailure = doc.stats.failure
+                                    Log.w(TAG, "failure ${doc.stats.failure}:" +
+                                               " ${doc.stats.failureDetail}")
+                                }
                                 _state.value = RunState(running, doc, null, outcome,
                                                         skyAvailable = liveBridge != null,
                                                         runId = runId)

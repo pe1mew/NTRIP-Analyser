@@ -582,7 +582,7 @@ own Makefile and CMake.
 
 # Phase 5 — the app says why
 
-### P5.1 — Across the bridge
+### P5.1 — Across the bridge — **done 2026-08-22**
 
 **Goal.** The failure code reaches Kotlin — through the snapshot JSON,
 which the app already parses, rather than through a second channel.
@@ -591,6 +591,37 @@ which the app already parses, rather than through a second channel.
 
 **Verify.** Wrong password against the author's own caster: the parsed
 document carries `failure = 6`.
+
+**Done.** The bridge needed no change at all: `bridge_snapshot_json`
+already serialises with `ns_stats_to_json`, the same function the daemon
+publishes with, so the fields arrived the moment P4.2 added them. The
+JNI buffer is 16 kB, with room to spare for a 192-character sentence.
+Kotlin's `Stats` declares `failure` and `failureDetail`, and
+`MonitorService` logs the code and the sentence **once per change** —
+a refused connection retries, and a line per attempt buries the first.
+
+**The NDK build had to be told about the new file.** `ns_failure.c`
+linked fine on the desktop and left three undefined symbols on Android:
+`android/app/src/main/cpp/CMakeLists.txt` keeps its own source list.
+That is this project's promoted pattern — *where two build systems
+describe one source set, CI must run both* — and it caught this one at
+the linker rather than at runtime, because CI builds both editions.
+
+**Verified on the device**, against the author's own caster with the
+password deliberately wrong (the author changed it and said to go ahead;
+both editions hold their credentials, which is why this was not done
+unasked):
+
+```
+W ntrip_android: failure 6: The caster rejected the user name or password.
+```
+
+`6` is `NS_FAIL_AUTH`, which is the number this step set out to see. And
+the screen has it already, before P5.2 renders anything: KPI 1 reads
+**User name or password rejected** where it used to read *No connection
+to the caster*. The whole chain in one run — the handshake in C, the
+snapshot, the JNI boundary, the JSON, Kotlin's parse, and a row on a
+phone.
 
 ### P5.2 — Rendering it
 

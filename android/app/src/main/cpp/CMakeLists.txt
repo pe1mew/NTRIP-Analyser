@@ -26,6 +26,7 @@ add_library(ntrip_android SHARED
 
     # ntrip_core
     ${REPO_ROOT}/src/core/ns_stats.c
+    ${REPO_ROOT}/src/core/ns_failure.c
     ${REPO_ROOT}/src/core/rtcm3x_parser.c
     ${REPO_ROOT}/src/core/sv_ephemeris.c
     ${REPO_ROOT}/src/core/sv_orbit.c
