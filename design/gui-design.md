@@ -633,6 +633,18 @@ The engine already enforces this: `kpi_update()` holds a candidate
 verdict until it has survived `KPI_SUSTAIN_S` unchanged, so a station
 that flickers cannot pass by being briefly healthy at the right moment.
 
+**A refusal says which refusal it was** (3.7.0). Where KPI 1 used to
+read *"No connection to the caster"* for a wrong host, a wrong port, a
+wrong password and a missing mountpoint alike, it now carries the
+classification the session made: *"Nothing is listening on that port"*,
+*"User name or password rejected"*, and so on. The words come from
+`ns_failure_short()` in `src/core/ns_failure.c` — short deliberately,
+because this column is about sixty characters wide — and the fuller
+sentence, the one with the advice in it, arrives in the log as the
+session's own error line. Neither is written here: a second wording of
+one judgement is how two descriptions of the same fault start
+disagreeing.
+
 Scope is the **eight KPIs, plus the five VRS assertions when the station
 is a VRS** — matching `--check-vrs`. The GUI already classifies station
 type in Stream Health, so the classification exists before the check

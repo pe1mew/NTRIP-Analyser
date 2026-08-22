@@ -753,7 +753,34 @@ here so it is not forgotten: four shots per edition, main screen and the
 three analysis views.
 
 | **P6.3** | `changelog.md` 3.7.0: the frame, the failure taxonomy, and the CSV column under a *format* heading |
-| **P6.4** | `design/gui-design.md` and `android/design/editions.md` updated so the next reader finds the template, not v2's hub description |
+| **P6.4** — **done 2026-08-22** | `design/gui-design.md` and `android/design/editions.md` updated so the next reader finds the template, not v2's hub description |
+
+### P6.4 — where the next reader is sent
+
+One correction to the step's own file list: **`design/gui-design.md` is
+the *Windows* GUI's design document**, not the Android one. The Android
+design lives in `android/design/`, so all three were updated for what
+each actually covers.
+
+- **`android/design/editions.md`** — the *framework is shared* section
+  now names v3 and what it added to the shell: one app bar with four
+  slots and no title parameter, one overflow menu built from what a
+  screen says its rows *do*, the pinned analysis bar that is absent
+  because no other screen passes one, and the marks drawn by the hub
+  from the panel contract. Each is a rule the editions cannot break
+  separately, which is the argument for the shared framework restated
+  in v3's terms.
+- **`android/design/views.md`** — opens by saying that the *frame* is
+  specified in `guiV3spec.md` §4 and enforced by `AnalysisBands`, and
+  that this document is about what is *in* the views: where a
+  satellite's position comes from and what the plots mean.
+- **`design/gui-design.md`** — the Win32 check window's section now
+  says KPI 1 carries the failure classification, that the words come
+  from `ns_failure_short()` because that column is about sixty
+  characters, and that the fuller sentence arrives in the log. Neither
+  is written in the GUI: a second wording of one judgement is how two
+  descriptions of the same fault start disagreeing.
+
 | **P6.5** | Release: tag, Windows assets, Play closed test — the author's, per `docs/RUNBOOK.md` |
 
 ---

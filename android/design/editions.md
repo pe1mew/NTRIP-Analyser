@@ -308,9 +308,19 @@ android/app/src/
 ### The framework is shared; only the list differs
 
 **Decided 2026-08-18, with GUI v2**
-([guiV2rollout.md](../../design/guiV2rollout.md)). The shell, the
-navigation stack, the hub, the panel contract and the share socket all
-live in `main/` and are identical in both editions. What a flavor
+([guiV2rollout.md](../../design/guiV2rollout.md)), and given a template
+in **GUI v3** ([guiV3spec.md](../../design/guiV3spec.md), 3.7.0). The
+shell, the navigation stack, the hub, the panel contract and the share
+socket all live in `main/` and are identical in both editions.
+
+What v3 added to that shell, and why it belongs there rather than in a
+flavour: one app bar with four slots and **no title parameter**, so no
+screen can disagree about the app's name; one overflow menu, built from
+what a screen says its rows *do*; the analysis bar, pinned, and absent
+by the simple fact that no other screen passes one; and the affordance
+marks, drawn by the hub from `Panel.affordance(state)` rather than by
+each card. Every one of those is a rule the editions cannot break
+separately, which is the whole reason the framework is shared. What a flavor
 supplies is a **registry** — the list of panels it contains — and, for
 the paid ones, the panel files themselves:
 

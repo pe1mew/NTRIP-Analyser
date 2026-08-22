@@ -1,5 +1,15 @@
 # The Android views — specification
 
+> **The frame around these views is specified elsewhere.**
+> [guiV3spec.md §4](../../design/guiV3spec.md) fixes the order of the
+> bands an analysis screen is made of — tabs, what this view is, the
+> numbers behind it, the plot, what the plot is of, the key to its
+> colours — and `AnalysisBands` in `Views.kt` enforces it, so a view
+> supplies the parts and cannot choose where they go. This document is
+> about *what is in* the views: where a satellite's position comes from,
+> and what the plots mean.
+
+
 ## Two modes
 
 **Station mode** is the sixty-second check: connect, watch the seven
