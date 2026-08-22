@@ -27,6 +27,9 @@ object Features {
      */
     const val HAS_EPH_STREAM = true
 
+    /** Trails on the sky plot: where each satellite has been. */
+    const val HAS_TRACKS = true
+
     const val MAX_MOUNTPOINTS = 16
 
     const val SOURCETABLE_SELECTABLE = true

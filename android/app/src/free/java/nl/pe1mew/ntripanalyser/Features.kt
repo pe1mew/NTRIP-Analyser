@@ -36,6 +36,9 @@ object Features {
      */
     const val HAS_EPH_STREAM = false
 
+    /** Trails on the sky plot: where each satellite has been. */
+    const val HAS_TRACKS = false
+
     const val MAX_MOUNTPOINTS = 1
 
     /**

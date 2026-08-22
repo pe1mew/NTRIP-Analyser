@@ -437,6 +437,14 @@ Supplementing CLAUDE.md's list with paths found during work:
   gives a blank hub, a release-signed build upgrades in place where a
   debug build demands an uninstall -- and where only a destructive route
   exists, hand it to the author (2026-08-22).
+- **Pro does not go to Play until the last feature is in** (decided
+  2026-08-22). Free ships on its own cadence -- 3.7.0 went up the day it
+  was released -- while pro's bundle is built and verified each release
+  and kept back. So a pro release means a tag, Windows assets and an
+  APK, not a store upload, and the paid listing stays a release behind
+  by intention rather than by oversight. What "the last feature" is
+  belongs to the author; the phase-2 list it is drawn from is in
+  `design/guiV3rollout.md`.
 - **One frame, and the rules live in it.** The app bar takes no title
   parameter, the analysis bar is absent because no other screen passes
   one, and a row's mark comes from `Panel.affordance(state)` rather than

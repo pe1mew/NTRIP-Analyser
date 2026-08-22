@@ -60,6 +60,7 @@ or forms a verdict; that rule is what makes the next row true.
 | Feature | What it is, and why | CLI | GUI | Free | Pro | Daemon |
 |---|---|---|---|---|---|---|
 | Sky plot / coverage heatmap | Where the station actually delivers signal, by azimuth and elevation — the obstruction survey a photograph cannot give. The CLI writes a PNG; the others draw it live. | ● | ● | ● | ● | ○ |
+| Satellite tracks on the sky plot | Where each satellite has *been*, drawn behind where it is. One epoch shows a gap; a session shows a shadow -- which is how an obstruction at 20° in the south-west tells itself apart from a satellite that happened to be missing. Same rules in every product: a point a minute, arcs broken where a satellite set and rose again. | ○ | ● | ○ | ● | ○ |
 | C/N0 against elevation | The antenna-and-LNA fingerprint: a healthy chain rises smoothly with elevation, and a sick one does not. | ○ | ● | ● | ● | ○ |
 | Orbit-source badge | States where the placement came from: green for a real orbit source, red for a navigation file too old to place anything, amber for the phone's own receiver. A stale file used to read as a full cache. | ○ | ○ | ● | ● | ○ |
 | Live decoded stream log | The message stream as text, for reading a station rather than judging it. | ● | ● | ○ | ○ | ○ |
@@ -177,6 +178,7 @@ gaining a row for it.
 | `IS_PRO` | false | true | Extended ARP detail, the received-types list, config load/save |
 | `HAS_WATCH` | false | true | Watch mode and the unbounded foreground service |
 | `HAS_EPH_STREAM` | false | true | The on-demand ephemeris side-stream |
+| `HAS_TRACKS` | false | true | Trails on the sky plot: where each satellite has been |
 | `MAX_MOUNTPOINTS` | 1 | 16 | Saved connection profiles and the switcher |
 | `SOURCETABLE_SELECTABLE` | false | true | Tap-to-use in the sourcetable browser |
 | `HAS_LIVE_GGA` | false | true | The phone's live position in the GGA uplink |

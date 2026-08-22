@@ -68,6 +68,14 @@ data class PlottedSat(
     val elevationDeg: Float,
 )
 
+/** Toward white by @p t, which is how a trail says "this was". */
+private fun Color.lerpToWhite(t: Float) = Color(
+    red = red + (1f - red) * t,
+    green = green + (1f - green) * t,
+    blue = blue + (1f - blue) * t,
+    alpha = alpha,
+)
+
 /** Brightness by C/N0: strong satellites read solid, weak ones faint. */
 private fun satAlpha(cn0: Float): Float =
     if (cn0 <= 0f) 0.35f else ((cn0 - 25f) / 25f).coerceIn(0.35f, 1f)
@@ -93,6 +101,9 @@ fun SkyView(
     rinexAgeS: Double?,
     onSourceClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Where each satellite has been; empty in free. */
+    tracks: TrackAccumulator? = null,
+    trackRevision: Int = 0,
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -139,7 +150,8 @@ fun SkyView(
                 )
             }
         },
-        plot = { m -> SkyCanvas(sats, onSurface, faint, surface, density, m.padding(12.dp)) },
+        plot = { m -> SkyCanvas(sats, onSurface, faint, surface, density,
+                                m.padding(12.dp), tracks, trackRevision) },
         footer = {
             Text(
                 footer,
@@ -274,7 +286,11 @@ private fun SkyCanvas(
     surface: Color,
     density: Density,
     modifier: Modifier = Modifier,
+    tracks: TrackAccumulator? = null,
+    trackRevision: Int = 0,
 ) {
+    @Suppress("UNUSED_EXPRESSION")
+    trackRevision   // read so Compose redraws when a point is added
         Canvas(modifier) {
             val cx = size.width / 2f
             val cy = size.height / 2f
@@ -306,6 +322,35 @@ private fun SkyCanvas(
             // full size on a plot too small to separate them.
             val markerR = minOf(with(density) { 7.dp.toPx() }, radius * 0.075f)
             val labelPx = minOf(with(density) { 11.sp.toPx() }, radius * 0.11f)
+            // Trails first, so a marker always sits on top of its own
+            // history. The hue is the constellation's, lightened 30 %
+            // toward white -- the desktop's rule, and for its reason:
+            // history should not compete with the live position.
+            if (tracks != null) {
+                for (s in sats) {
+                    val trail = Gnss.colour(s.gnss).lerpToWhite(0.3f)
+                    for (run in tracks.runsFor(s.gnss, s.prn)) {
+                        var prev: Offset? = null
+                        var prevAz = 0f
+                        for (p in run) {
+                            val (px, py) = polar(cx, cy, radius, p.azDeg, p.elDeg)
+                            val here = Offset(px, py)
+                            // A step across north is a wrap, not a
+                            // journey: drawn as a line it would be a
+                            // chord straight through the plot.
+                            val wrapped = prev != null &&
+                                kotlin.math.abs(p.azDeg - prevAz) > 180f
+                            if (prev != null && !wrapped) {
+                                drawLine(trail, prev, here, strokeWidth = markerR * 0.35f)
+                            }
+                            drawCircle(trail, markerR * 0.28f, here)
+                            prev = here
+                            prevAz = p.azDeg
+                        }
+                    }
+                }
+            }
+
             for (s in sats) {
                 val (x, y) = polar(cx, cy, radius, s.azimuthDeg, s.elevationDeg,
                                    markerR)
@@ -548,6 +593,101 @@ fun SignalBars(
 }
 
 // ── 3. C/N0 versus elevation ─────────────────────────────────────────
+
+/**
+ * Where each satellite has been, for as long as one screen wants it.
+ *
+ * Phase 2 item 1, pro only (`design/work-items/satellite-tracks.md`).
+ * A sibling of [ElevationAccumulator], and here for the same reason: a
+ * trail is not a measurement, it is a record of positions the core has
+ * already computed, kept by the screen that draws them. The desktop
+ * accumulates its own the same way (`gui/gui_state.h`).
+ *
+ * The rules are the desktop's, so that a trail means the same thing in
+ * both products: one sample per [INTERVAL_S] per satellite, and a run
+ * broken where consecutive samples are more than [GAP_BREAK_S] apart --
+ * a satellite that sets and rises again is two arcs, not a chord across
+ * the plot.
+ *
+ * The **cap** is not the desktop's. It keeps 24 hours per SV at 11.3 MB;
+ * a phone keeps four, at about 300 kB, which covers a watch-mode session
+ * without asking a handset to hold a day of sky.
+ */
+class TrackAccumulator {
+
+    /** One remembered position. */
+    data class Point(val azDeg: Float, val elDeg: Float, val tSeconds: Double)
+
+    private val trails = HashMap<Int, ArrayDeque<Point>>()
+
+    /** Bumped whenever a point is added, because Compose cannot see inside. */
+    var revision: Int = 0
+        private set
+
+    /**
+     * Offer a position. Kept only if [INTERVAL_S] has passed since this
+     * satellite's last kept sample, so the trail is evenly spaced however
+     * often the plot happens to refresh.
+     *
+     * @return true if the point was kept.
+     */
+    fun offer(gnss: Int, prn: Int, azDeg: Float, elDeg: Float, tSeconds: Double): Boolean {
+        val key = gnss * 256 + prn
+        val trail = trails.getOrPut(key) { ArrayDeque() }
+        val last = trail.lastOrNull()
+        if (last != null && tSeconds - last.tSeconds < INTERVAL_S) return false
+
+        trail.addLast(Point(azDeg, elDeg, tSeconds))
+        while (trail.size > CAP) trail.removeFirst()
+        revision++
+        return true
+    }
+
+    /**
+     * The runs to draw for one satellite: each an unbroken arc.
+     *
+     * Split where the gap in time says the satellite was away, so a rise
+     * after a set is drawn as its own arc. Azimuth wrap is left to the
+     * renderer, which is where the projection lives.
+     */
+    fun runsFor(gnss: Int, prn: Int): List<List<Point>> {
+        val trail = trails[gnss * 256 + prn] ?: return emptyList()
+        if (trail.isEmpty()) return emptyList()
+
+        val runs = ArrayList<List<Point>>()
+        var current = ArrayList<Point>()
+        for (p in trail) {
+            val last = current.lastOrNull()
+            if (last != null && p.tSeconds - last.tSeconds > GAP_BREAK_S) {
+                if (current.size > 1) runs.add(current)
+                current = ArrayList()
+            }
+            current.add(p)
+        }
+        if (current.size > 1) runs.add(current)
+        return runs
+    }
+
+    /** How many points are held, across every satellite. Tests and probes. */
+    val size: Int get() = trails.values.sumOf { it.size }
+
+    /** A trail belongs to one run, as the elevation scatter does. */
+    fun clear() {
+        trails.clear()
+        revision++
+    }
+
+    companion object {
+        /** Seconds between kept samples. The desktop's value. */
+        const val INTERVAL_S = 60.0
+
+        /** A longer gap than this starts a new arc. The desktop's value. */
+        const val GAP_BREAK_S = 300.0
+
+        /** Four hours per satellite, against the desktop's twenty-four. */
+        const val CAP = 240
+    }
+}
 
 /**
  * The elevation scatter, accumulated into the plot rather than into a

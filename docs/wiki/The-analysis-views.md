@@ -35,6 +35,20 @@ fact.
 The count reads, for example, *"41 of 41 satellites shown"* — the second
 number is what the stream carries, the first what could be placed.
 
+### Trails — Pro
+
+Pro draws where each satellite has been: one point a minute, in the
+constellation's own colour lightened so the history does not compete
+with the live marker. Four hours are kept, and a trail breaks rather
+than joins across a gap — a satellite that set and rose again is two
+arcs, not a line across the plot.
+
+They answer a question one epoch cannot: *is this station's horizon
+clear?* A session's worth of arcs that all stop at 20 degrees in the
+south-west is the shape of something standing there.
+
+The free edition draws the satellites without trails.
+
 ## Signal quality
 
 One bar per satellite, coloured by constellation, with the mean and

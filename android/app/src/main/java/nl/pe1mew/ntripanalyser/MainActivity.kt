@@ -409,6 +409,12 @@ fun MainScreen() {
     val elevSamples = remember { ElevationAccumulator() }
     var elevRevision by remember { mutableStateOf(0) }
 
+    // Where each satellite has been, for the trails pro draws behind
+    // them. Fed from the same list the plot draws, so a trail can only
+    // contain positions that were on screen (phase 2 item 1).
+    val tracks = remember { TrackAccumulator() }
+    var trackRevision by remember { mutableStateOf(0) }
+
     // Keyed on the document and gated on the run, not keyed on
     // `plotted`: keying on `plotted` re-fired every time the phone's
     // GNSS updated, so a stopped analysis went on adding its last
@@ -423,6 +429,8 @@ fun MainScreen() {
         if (runState.running) {
             elevSamples.clear()
             elevRevision++
+            tracks.clear()
+            trackRevision++
         }
     }
 
@@ -436,6 +444,18 @@ fun MainScreen() {
             }
         }
         if (added) elevRevision++
+
+        // Trails keep their own clock: one point per satellite per
+        // minute, however often the plot refreshes.
+        if (Features.HAS_TRACKS) {
+            val t = System.currentTimeMillis() / 1000.0
+            var kept = false
+            plotted.forEach { p ->
+                if (tracks.offer(p.gnss, p.prn, p.azimuthDeg, p.elevationDeg, t))
+                    kept = true
+            }
+            if (kept) trackRevision++
+        }
     }
 
     // The system back key belongs to the app while a screen is open:
@@ -510,6 +530,9 @@ fun MainScreen() {
             },
             onLeave = { nav.pop() },
             menu = menuActions,
+            // Free passes none, so its canvas draws exactly what it did.
+            tracks = if (Features.HAS_TRACKS) tracks else null,
+            trackRevision = trackRevision,
         )
         return
     }

@@ -791,8 +791,14 @@ Every phase above is marked done.
 
 What the plan does **not** cover, and is still open:
 
-- **Play's closed track** still holds the previous build; uploading the
-  3.7.0 bundles is the author's.
+- **Free 3.7.0 is on Play**; pro is not, and will not be until the last
+  feature is in (2026-08-22). Its bundle is built and checked every
+  release regardless, so the upload is a decision rather than a build.
+- **Play's app-access declaration** blocked free's upload again with
+  *missing credentials* -- the crawler reading the caster dialog's
+  username and password as an account. The remedy is the one recorded in
+  August: declare no restricted parts, and name an anonymous caster in
+  the notes.
 - **A horizontal drag on the hub** reaches the card underneath and opens
   the profile picker — left over from v2's P1.7 and never ruled on.
 - **`--check` exits 6** for a station it could not connect to at all.

@@ -4,6 +4,32 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [Unreleased]
+
+### Added — satellite tracks, in the paid edition
+
+Where each satellite has *been*, drawn behind where it is. One epoch
+shows a gap in the sky; a session shows a **shadow** — which is how an
+obstruction at 20 degrees in the south-west tells itself apart from a
+satellite that merely happened to be missing when you looked.
+
+The rules are the Windows GUI's, so a trail means the same thing in both
+products: one point per satellite per minute, arcs broken where more
+than five minutes separates two points, so a satellite that set and rose
+again is two arcs rather than a chord across the plot. The trail carries
+the constellation's own colour lightened toward white, because history
+should not compete with the live position.
+
+One rule differs, deliberately: the desktop keeps twenty-four hours per
+satellite at 11 MB, and the phone keeps four at about 300 kB — enough
+for a watch-mode session, on a device that has other things to hold.
+
+Nothing was added to the core or to the bridge. A trail is not a
+measurement; it is a record of positions already computed, kept by the
+screen that draws them, exactly as the C/N0-against-elevation scatter
+already accumulates. Phase 2, item 1
+(`design/work-items/satellite-tracks.md`).
+
 ## [3.7.0] - 2026-08-22
 
 ### Changed — every screen is drawn in one frame

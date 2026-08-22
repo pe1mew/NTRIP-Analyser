@@ -81,6 +81,8 @@ fun AnalysisScreen(
     onToggleWatch: () -> Unit,
     onLeave: () -> Unit,
     menu: MenuActions,
+    tracks: TrackAccumulator? = null,
+    trackRevision: Int = 0,
 ) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -234,6 +236,8 @@ fun AnalysisScreen(
                         footer = footer,
                         rinexAgeS = rinexAgeS,
                         onSourceClick = { uriHandler.openUri(ORBITS_URL) },
+                        tracks = tracks,
+                        trackRevision = trackRevision,
                     )
                     AnalysisTab.SIGNAL ->
                         SignalBars(signal, liveValues = running)
