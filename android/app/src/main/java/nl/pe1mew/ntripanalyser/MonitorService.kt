@@ -135,7 +135,14 @@ class MonitorService : Service() {
             )
             if (bridge == null) {
                 Log.e(TAG, "bridge_open returned null")
-                _state.value = RunState(running = false, error = getString(R.string.err_open),
+                // Not "could not open the session" any more. That string
+                // stood for a wrong host, a wrong port, a wrong password
+                // and a missing mountpoint alike; each of those now
+                // arrives as a failure code with a sentence of its own,
+                // and this path is the one thing left that is genuinely
+                // not the caster's doing: no session object at all.
+                _state.value = RunState(running = false,
+                                        error = getString(R.string.err_start),
                                         outcome = Outcome.FINISHED, runId = runId)
                 stopSelf()
                 return@thread

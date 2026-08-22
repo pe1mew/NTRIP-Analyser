@@ -144,7 +144,11 @@
     <string name="fail_rejected">The caster refused the request.</string>
     <string name="fail_dropped">The caster closed the connection.</string>
     <string name="fail_stalled">Connected, but nothing is arriving.</string>
-    <string name="err_open">Could not open the session.</string>
+    <!-- Not a caster fault: the session object could not be created at
+         all, which on this side means memory or a configuration the
+         bridge would not take.  Everything the *caster* does wrong now
+         has a sentence of its own (Failure.kt). -->
+    <string name="err_start">The check could not be started on this device.</string>
 
     <string name="settings_title">Caster</string>
     <string name="field_caster">Caster host</string>

@@ -670,7 +670,7 @@ the C enum and the Kotlin object and compares them name by name and
 value by value. Falsified by renumbering `REFUSED`, which turns the run
 red on that one line; restored, and it is 65 checks now rather than 51.
 
-### P5.3 — `err_open` retires
+### P5.3 — `err_open` retires — **done 2026-08-22**
 
 **Goal.** Delete the string and its call site. Nothing may fall back to
 *Could not open the session.*
@@ -678,6 +678,22 @@ red on that one line; restored, and it is 65 checks now rather than 51.
 **Verify.** `grep -r err_open android/` returns nothing. If a path exists
 with no failure code, it is a missing mapping, not a reason to keep a
 catch-all.
+
+**Done.** `grep -r err_open android/app/src` returns nothing, and the
+string is gone from `strings.xml`.
+
+One call site remained, and it turned out **not** to be a missing
+mapping. `NtripBridge.open` returning null means no session object was
+created at all — memory, or a configuration the bridge would not take —
+which is the one failure on this path that is genuinely not the caster's
+doing. It says so now: *The check could not be started on this device.*
+Everything the caster does wrong has a sentence of its own.
+
+`RunState.error` has exactly one writer left, and it is that case.
+
+Checked on the device afterwards with the password valid again: a
+healthy run shows no sentence at all — *Authenticated, connected, data
+flowing*, 1654 B/s — which is the case that must not cry wolf.
 
 ---
 
