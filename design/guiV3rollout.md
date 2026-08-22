@@ -781,7 +781,51 @@ each actually covers.
   is written in the GUI: a second wording of one judgement is how two
   descriptions of the same fault start disagreeing.
 
-| **P6.5** | Release: tag, Windows assets, Play closed test — the author's, per `docs/RUNBOOK.md` |
+| **P6.5** — **prepared 2026-08-22**, publishing is the author's | Release: tag, Windows assets, Play closed test — the author's, per `docs/RUNBOOK.md` |
+
+### P6.5 — what is ready, and what is not mine to do
+
+**Ready and verified here:**
+
+| | |
+|---|---|
+| Tests | 13 of 13 |
+| `check_release.py` | 70 checks, consistent at 3.7.0 |
+| `verify_memory.py --offline` | 14 pass, 0 fail (2 network claims left to Monday) |
+| Windows assets | staged in `build/dist`, with `SHA256SUMS-3.7.0-windows-x64.txt` |
+| The packaged CLI | answers `ntrip-analyser 3.7.0` — read from the artefact, not the tree |
+| Play bundles | `app-{free,pro}-release.aab`, both carrying `arm64-v8a` and `x86_64` |
+| R8 smoke test | pro's **release-signed** build has been running on an S23 all afternoon: starts, runs checks, decodes documents. Neither release-only failure the runbook names appeared |
+
+`cmake --build build --target release` warned, correctly, that HEAD
+carries no tag and it was packaging a development build. That is the
+guard doing its job; it turns green when the bump commit is tagged.
+
+**Not mine.** The runbook's line is unambiguous and was written after I
+crossed it once: *the agent never publishes* — and publishing covers
+uploading, `gh release create`, `gh release edit --draft=false`, pushing
+a tag, and the Play console. The commands are in the handover, not run
+here.
+
+**Pro's listing screenshots are re-taken** (2026-08-22) against this
+build, from a run that reads `STATION OK`, held 60 s, finished after
+120 s, 38 SV at 2069 B/s with orbits from the ephemeris stream. The
+captures also caught a fault before it shipped: the sky view's station
+line and legend were drawn under the navigation buttons, which is fixed.
+
+Framing them turned up a second one, and a worse one. The redaction
+boxes in `make_store_shots.py` are fixed positions measured against v2,
+so the tool painted a documentation host into the gap above the
+connection tile — leaving the real caster readable below it — and the
+ARP replacement across the legend, leaving the real coordinates in
+place. The boxes are re-measured, and the tool now refuses to write
+unless each box covers grey ink: text must be under it, and it must not
+be coloured, which is what distinguishes the line being hidden from the
+legend beside it.
+
+**Free's four are still outstanding** — free is not installed on the S23
+and would need its own configuration.
+
 
 ---
 

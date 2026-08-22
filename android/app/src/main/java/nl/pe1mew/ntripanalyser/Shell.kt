@@ -28,6 +28,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -96,7 +97,14 @@ fun AppScaffold(
         // well, and on a phone drawn edge to edge that shows as a band
         // of nothing under the title -- an S23 had 80 dp of it while the
         // other handset, which gives the app a smaller window, had none.
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        //
+        // The navigation bar is the exception, and only where there is
+        // no analysis bar to absorb it: on those screens the content
+        // runs to the bottom of the window, and the sky view's ARP line
+        // and legend were drawn underneath the system's own buttons.
+        contentWindowInsets =
+            if (analysis != null) WindowInsets(0, 0, 0, 0)
+            else WindowInsets.navigationBars,
         topBar = {
             TopAppBar(
                 // No title parameter, deliberately. The name of the app

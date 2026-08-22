@@ -313,6 +313,11 @@
 
 Found by probe rather than by reading: a background colour showed the empty band was outside the hub, `onGloballyPositioned` put the hub's top at 711 px where its padding said 338, and logging the children's heights gave 860 px of content in a 1700 px viewport -- the difference, halved, was the band. **When a layout is placed somewhere unexpected, ask it where it is** rather than deducing it from the modifier chain. And when a fix is reported as not working, believe the report: twice here the symptom was still there because only part of the cause had gone.
 
+### A redaction that moved off the thing it hid (2026-08-22)
+**Problem**: `make_store_shots.py` frames captures for the Play listing and paints over two things: the caster's real address and the station's ARP to six decimals. Re-run against GUI v3 captures, it painted `ntrip.example.com:2101` into the gap *above* the connection tile -- leaving the real host readable below it -- and `52,xxxxxx, 5,xxxxxx` across the constellation legend, leaving the real coordinates untouched one line up. Both files were written to `docs/images/store/pro/`, bound for a public listing.
+**Root cause**: the boxes are fixed pixel positions, measured against the v2 layout. The file's own comment warned about exactly this -- *"Re-measure if the layout changes; a box that has drifted paints over the wrong line"* -- and a warning in a comment is obeyed until the day nobody reads it.
+**Fix**: boxes re-measured for v3, and the class closed rather than re-warned. The tool now refuses to write when a box does not cover **grey ink**: there must be text under it, and it must not be coloured. A first attempt only checked for *ink* and passed happily with the box sitting on the legend -- the legend is ink. Both conditions were needed, and the second is the one that catches a drift onto a neighbouring line. Every box is checked before the first file is written, because a half-updated directory is the state most likely to be uploaded unnoticed. Falsified by restoring the v2 box: the run stops, names the box and the capture, and leaves the existing screenshots alone.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

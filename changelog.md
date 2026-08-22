@@ -71,8 +71,12 @@ app is drawn behind the status and navigation bars and cannot opt out.
 The analysis bar now takes the navigation bar's height into account —
 without it, on a phone with three-button navigation, the word *Analysis*
 read through the buttons — and the content no longer pays the insets a
-second time, which showed as a band of nothing under the title. Both
-appeared on an S23 and on neither of the other test devices.
+second time, which showed as a band of nothing under the title. On the
+screens that have no bar to absorb it, the content takes that height
+itself: the sky view's station line and its colour key were drawn
+underneath the same buttons. All three appeared on an S23 and on neither
+of the other test devices, which is the argument for testing on more
+than one.
 
 **A folded-open KPI row stays open** across a rotation and across the end
 of a run, and folds shut when a new run begins. It used to shut itself at

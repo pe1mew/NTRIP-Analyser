@@ -95,11 +95,17 @@ REDACTIONS = {
         'main': [
             # (box, replacement, monospace, size, fill, ink) -- the
             # connection tile's caster line, monospace in the app.
-            ((84, 752, 470, 796), 'ntrip.example.com:2101', True, 44,
+            # Re-measured for GUI v3 (3.7.0): the tile sits higher now
+            # that the hub's margins scroll with the content, and the
+            # old box painted a documentation host into the gap *above*
+            # the tile while the real one stayed readable below it.
+            ((84, 818, 470, 866), 'ntrip.example.com:2101', True, 44,
              TILE_BG, TILE_INK),
         ],
         'sky': [
-            ((368, 2152, 812, 2202), ARP_HIDDEN, True, 40,
+            # Likewise: v3 moved the footer up, clear of the navigation
+            # bar, so the old box landed on the legend.
+            ((368, 2058, 812, 2108), ARP_HIDDEN, True, 40,
              PAGE_BG, PAGE_INK),
         ],
     },
@@ -111,7 +117,7 @@ REDACTIONS = {
         # Same geometry in both editions: the footer is drawn by the same
         # composable, below a plot of fixed height.
         'sky': [
-            ((368, 2152, 812, 2202), ARP_HIDDEN, True, 40,
+            ((368, 2058, 812, 2108), ARP_HIDDEN, True, 40,
              PAGE_BG, PAGE_INK),
         ],
     },
@@ -127,9 +133,46 @@ def mono(size):
     return font(size)
 
 
+def covers_plain_text(shot, box, threshold=140, need=30):
+    """Whether @p box sits on the kind of line it is meant to hide.
+
+    Two conditions, and it took both to catch the real fault. A box that
+    covers **nothing** paints a documentation host into empty space and
+    leaves the real one visible below -- what GUI v3 did to the box
+    measured for v2. A box that covers **something else** is worse: the
+    v2 sky box landed squarely on the constellation legend, which is ink
+    enough to satisfy any "is there text here" test while the real
+    coordinates sat untouched a line above.
+
+    So: there must be ink, and it must be *grey* ink. Neither line this
+    tool hides is coloured -- the caster is dark on the tile, the ARP is
+    muted on the page -- while everything nearby that could be hit by a
+    drifting box is not: the legend has its constellation dots, the plot
+    its satellites, the verdict its banner.
+    """
+    px = shot.load()
+    dark = 0
+    for x in range(box[0], box[2]):
+        for y in range(box[1], box[3]):
+            r, g, b = px[x, y][:3]
+            if max(r, g, b) - min(r, g, b) > 40:
+                return False          # colour: this is not a text line
+            if (r + g + b) / 3 < threshold:
+                dark += 1
+    return dark >= need
+
+
 def redact(shot, name, edition):
     """Paint out anything in the capture that should not be published."""
     for box, text, monospace, size, bg, ink in             REDACTIONS.get(edition, {}).get(name, []):
+        if not covers_plain_text(shot, box):
+            raise SystemExit(
+                "redaction box %s does not cover a plain text line in "
+                "%s.png (%s). "
+                "The layout has moved: re-measure it against the capture "
+                "before publishing, because painting here would hide "
+                "nothing and leave the real value on screen."
+                % (box, name, edition))
         draw = ImageDraw.Draw(shot)
         draw.rectangle(box, fill=bg)
         f = mono(size) if monospace else font(size)
@@ -199,11 +242,27 @@ def main():
     out_dir = os.path.join(root, 'docs', 'images', 'store', edition)
     os.makedirs(out_dir, exist_ok=True)
 
+    # Every redaction is checked before anything is written. A run that
+    # stops half way leaves a directory holding some new screenshots and
+    # some old ones, which is the state most likely to be uploaded
+    # without anybody noticing.
+    present = [name for name in ORDER
+               if os.path.exists(os.path.join(src, name + '.png'))]
+    for name in present:
+        shot = Image.open(os.path.join(src, name + '.png')).convert('RGB')
+        for box, _text, _mono, _size, _bg, _ink in                 REDACTIONS.get(edition, {}).get(name, []):
+            if not covers_plain_text(shot, box):
+                print("redaction box %s does not cover a plain text line "
+                      "in %s.png (%s). " 
+                      "The layout has moved: re-measure "
+                      "it against the capture before publishing, because "
+                      "painting here would hide nothing and leave the real "
+                      "value on screen." % (box, name, edition))
+                return 1
+
     n = 0
-    for name in ORDER:
+    for name in present:
         path = os.path.join(src, name + '.png')
-        if not os.path.exists(path):
-            continue
         n += 1
         title, subtitle = CAPTIONS[name]
         out = os.path.join(out_dir, '%d-%s.png' % (n, name))
