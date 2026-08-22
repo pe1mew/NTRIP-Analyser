@@ -27,8 +27,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,6 +90,13 @@ fun AppScaffold(
     val shareLabel = stringResource(R.string.action_share)
 
     Scaffold(
+        // The bars pad themselves: the app bar takes the status bar's
+        // height, the analysis bar takes the navigation bar's. Left at
+        // its default the Scaffold would add both to the content as
+        // well, and on a phone drawn edge to edge that shows as a band
+        // of nothing under the title -- an S23 had 80 dp of it while the
+        // other handset, which gives the app a smaller window, had none.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 // No title parameter, deliberately. The name of the app
@@ -199,7 +208,18 @@ private fun AnalysisBarRow(bar: AnalysisBar) {
 
     // Opaque: the hub scrolls underneath this, and a translucent bar
     // would show KPI rows sliding through the word "Analysis".
-    Surface(color = MaterialTheme.colorScheme.surface) {
+    //
+    // And padded by the navigation bar's own height. Targeting SDK 36
+    // the app is drawn behind the system bars and cannot opt out, and
+    // `Scaffold` pads its *content* for that, not the bar slots -- so
+    // on a phone with three-button navigation this sat underneath the
+    // buttons, with "Analysis" reading through them. Seen on an S23;
+    // the other test handset hides it by giving the app a smaller
+    // window, which is exactly why one device is not a test.
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.navigationBarsPadding(),
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()

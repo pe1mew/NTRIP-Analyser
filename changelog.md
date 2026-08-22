@@ -4,6 +4,133 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [3.7.0] - 2026-08-22
+
+### Changed — every screen is drawn in one frame
+
+The two Android editions had drifted into three top bars that disagreed:
+the station screen kept a menu in the slot reserved for going back, the
+analysis screen grew a filled badge where nothing else has one, and each
+titled itself differently. A review of the whole layout produced a
+template, and this release builds to it
+(`design/guiV3spec.md`, `design/guiV3rollout.md`).
+
+**One bar, from one place.** It takes no title parameter at all — the
+app's own name is read inside it — so no screen can disagree about what
+the app is called. Four slots and nothing else: back where there is
+somewhere to go back to, the name, share, and a `⋮` menu that is now on
+every screen rather than on the station screen alone.
+
+**The way into the plots is pinned to the bottom.** It used to be a
+button inside a card, which meant it slid off the screen under eight KPI
+rows the moment a run started — the control you reach for while watching
+a run was the one the run pushed away. It is part of the frame now, grey
+when there is nothing to look at and gone on every screen but the main
+one.
+
+**Every touchable row wears a mark, and every mark means one thing.**
+`▶` leads somewhere, `▼` folds open, `▲` folds away, and a row with no
+mark does nothing when you touch it. The mark comes from the panel
+contract rather than from each card, so a capability added later is
+marked because it exists; measured from the accessibility tree, every
+mark on the station screen ends at the same pixel. The station screen
+also has one vertical distance now, the same between two cards as
+between two KPI rows: panels that draw nothing no longer leave a gap
+where they would have been.
+
+**The analysis screens are six fixed bands** — tabs, what this view is,
+the numbers behind it, the plot, what the plot is of, and the key to its
+colours. The three views had drifted into three orders, with the sky
+view's legend at the top and the other two at the bottom. The tab strip
+sits directly under the app bar; the plot still keeps its minimum height
+on a short screen and lets the screen scroll rather than being squeezed.
+
+**The orbit badge is retired into the sentence about the plot.** What it
+knew is not lost: the sky view's summary line names the source, carries
+its age, is coloured by the same judgement the badge made — green for a
+working source, red for a file too stale to place anything, amber for
+the phone — and opens the same page when tapped.
+
+**The frame keeps clear of the system's own bars.** Targeting SDK 36 the
+app is drawn behind the status and navigation bars and cannot opt out.
+The analysis bar now takes the navigation bar's height into account —
+without it, on a phone with three-button navigation, the word *Analysis*
+read through the buttons — and the content no longer pays the insets a
+second time, which showed as a band of nothing under the title. Both
+appeared on an S23 and on neither of the other test devices.
+
+**A folded-open KPI row stays open** across a rotation and across the end
+of a run, and folds shut when a new run begins. It used to shut itself at
+the moment the run finished, which is when a reader wants it.
+
+### Added — a stream that will not open now says which thing is wrong
+
+Until this release every way of failing to open a stream produced one
+sentence. The Android app said *"Could not open the session."* whether
+the host name was wrong, the port was wrong, the password was wrong or
+the mountpoint did not exist — four different things to go and fix,
+behind one message that named none of them.
+
+The information was never missing. `getaddrinfo` had failed, `connect`
+had set `ECONNREFUSED`, the `401` had been parsed and stored. It was
+computed and thrown away: printed to a `stderr` that Android does not
+read, or collapsed into one of two end reasons before anything could see
+it.
+
+**Twelve failures, classified once, in the core.** DNS, refused,
+unreachable, timeout, not-a-caster, 401, 403, 404, busy, refused-without
+-words, dropped, stalled. The `errno` and `WSAE*` numbers are reconciled
+in one place in `src/net`, because a frontend that mapped them itself
+would be a second opinion about what a connection failure is.
+
+Two distinctions carry most of the value, and are the ones a user cannot
+work out alone:
+
+* **A name that does not resolve** versus **a port with nothing behind
+  it** is wrong address versus wrong port. The first never reached a
+  machine; the second reached one and was turned away at that door.
+* **Rejected credentials** versus **credentials that are right for
+  something else** is a wrong password versus an account without
+  permission for that mountpoint. Casters differ in which they send, so
+  both are mapped rather than assumed.
+
+Two cases were added while writing the tests: a caster that refuses in
+words this version has no sentence for is named as that rather than
+guessed at, and a `200` with a web page behind it is *not a caster* —
+believing the status there is how a run spends its length wondering why
+the "RTCM" will not decode.
+
+**Every frontend says it.** The CLI names the fault in KPI 1's row and
+again under the `exit=` line, where `-q` cannot silence it; the daemon's
+journal names it beside the reason number (`session ended (reason 3,
+auth)`); the Windows GUI logs it. The Android app maps the code to its
+own strings — which is what leaves room for a translated build — and
+shows the sentence under the verdict, where the sustain countdown would
+be. A run that could not connect has no window to count.
+
+**And the row that is wrong is the one to tap.** The connection card
+opens the settings with the cursor already in the field the fault points
+at: the password for a `401`, the mountpoint for a `404`, the caster for
+the five that never reached one. A message that names the fault and does
+not offer the fix is half a message.
+
+Pinned by `test/test_failure.c` — a caster on the loopback interface that
+answers as told, plus a port that was listening a moment ago, which is
+what a wrong port number looks like. Thirty-four assertions, no network,
+including the one that must not fire: a caster answering `ICY 200 OK` is
+not a failure.
+
+### Changed — format: two columns at the end of the statistics CSV
+
+`failure` and `failure_detail` are **appended** to the columns written by
+the daemon and by the Windows GUI, so a reader that counts from the left
+keeps working. `failure` is the numeric code above; `failure_detail` is
+the sentence. Both are `0` and empty while a stream is healthy.
+
+The JSON snapshot gains the same two fields. The Android app reads it
+with unknown keys ignored, so a phone still running 3.6.0 reads a 3.7.0
+snapshot without noticing them.
+
 ## [3.6.0] - 2026-08-20
 
 ### Changed — the Android app is one screen you scroll, not two you swipe between
