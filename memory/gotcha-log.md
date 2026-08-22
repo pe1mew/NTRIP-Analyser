@@ -97,9 +97,10 @@
 **Root cause**: Each worktree has its own index. The work was staged in `.claude/worktrees/<name>`; `git commit` was run in the main repository, where the only dirty file was a stray edit.
 **Fix**: Commit from inside the worktree that holds the work, then fast-forward `main` onto its branch.
 
-### Heredocs corrupt C string literals (2026-08-12)
+### Heredocs corrupt C string literals (2026-08-12) [x5]
 **Problem**: `\n` inside a heredoc-fed script arrives as a real newline, producing C source that no longer compiles.
 **Fix**: Use file-editing tools for anything containing escapes, or write the script to a file first.
+*Four more on 2026-08-22*, in one session and all the same shape: a `printf` in `cli_stream.c` that would not compile, and three error messages in `make_store_shots.py` broken identically. Each cost a build. The reliable dodge when a heredoc must be used is `chr(92) + 'n'`, which no shell can eat -- but the answer above was available every time, and this very entry could not be edited until it was applied.
 
 ### Windows filesystem is case-insensitive (2026-08-12)
 **Problem**: Resizing `SHOT.png` into `shot.png` destroyed the original; later reads returned the resized copy.
@@ -318,6 +319,16 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the boxes are fixed pixel positions, measured against the v2 layout. The file's own comment warned about exactly this -- *"Re-measure if the layout changes; a box that has drifted paints over the wrong line"* -- and a warning in a comment is obeyed until the day nobody reads it.
 **Fix**: boxes re-measured for v3, and the class closed rather than re-warned. The tool now refuses to write when a box does not cover **grey ink**: there must be text under it, and it must not be coloured. A first attempt only checked for *ink* and passed happily with the box sitting on the legend -- the legend is ink. Both conditions were needed, and the second is the one that catches a drift onto a neighbouring line. Every box is checked before the first file is written, because a half-updated directory is the state most likely to be uploaded unnoticed. Falsified by restoring the v2 box: the run stops, names the box and the capture, and leaves the existing screenshots alone.
 
+### A script truncated a file before deciding what to write (2026-08-22)
+**Problem**: `MainActivity.kt` -- 627 lines -- became a zero-byte file in the middle of a step.
+**Root cause**: an edit helper written as `io.open(p, 'w').write(f(s))`. Python opens the file, which truncates it, *before* evaluating `f(s)`; `f` raised on a failed assertion and the write never happened. The assertion was right -- the anchor matched three places -- so the guard fired and destroyed the file it was guarding.
+**Fix**: compute the new text first, then open for writing. Recovered with `git show HEAD:path` rather than `git checkout`, line endings converted back to CRLF by hand and confirmed byte-identical with `git diff`. Fifth instance of the promoted *scripted edits corrupt what they rewrite* pattern, and the first where the corruption was total.
+
+### The phone is somebody's phone, not a test fixture (2026-08-22)
+**Problem**: `adb shell pm clear` on the pro edition, run to get a clean "nothing measured yet" screen for a screenshot, wiped the author's caster, mountpoint, username and password. No backup exists: the store is encrypted per install.
+**Root cause**: treating the handset as scratch space. The command was the shortest route to the state I wanted, and its other effect was somebody else's configuration.
+**Fix**: nothing could restore it; the author retyped it. **Reach for the state, not the reset** -- force-stop clears a run without clearing settings, a spare profile gives pro a blank hub, and a release-signed build upgrades in place where a debug build demands an uninstall. The rule held the second time the same day: free on the S23 is Play's copy, so installing over it would have taken its configuration with it, and that one was handed to the author instead.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -328,7 +339,7 @@ Found by probe rather than by reading: a background colour showed the empty band
 |------|--------|-------------|-------------|
 | 2026-08-13 | A remembered value must not satisfy the KPI that asks for it | 1 | project file, hard constraint |
 | 2026-08-13 | Judge constellations by NavSys, never the 1005/1006 bits | **3** — 2026-08-12 three times in one session | project file, domain facts; `memory/MEMORY.md` active decisions |
-| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings | **4** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14, `sed -i` deleting a table row 2026-08-16 | project file, hard constraint |
+| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings, then the whole file | **9** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14, `sed -i` deleting a table row 2026-08-16, four eaten backslashes and one truncated file 2026-08-22 | project file, hard constraint |
 | 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |
 | 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **3** — 16 KB alignment, bundle ABIs, signing key, all 2026-08-14 | project file, hard constraint |
 | 2026-08-15 | Measure the way the build measures, or report no number | **2** — `-fsyntax-only` blind to truncation warnings, `-std=c99` hiding `M_PI`, both 2026-08-15 | project file, hard constraint |
@@ -339,3 +350,4 @@ Found by probe rather than by reading: a background colour showed the empty band
 | 2026-08-18 | A tag points at a commit, not at your working tree | **2** — v3.4.0 2026-08-15, v3.5.0 2026-08-18, both staged-not-committed, both caught by the packaging guard | `docs/RUNBOOK.md` release sequence, with the `git show <tag>:` check |
 | 2026-08-18 | An entry is only `[RESOLVED]` when code or procedure changed | **1** — the v3.4.0 tag gotcha was retired on advice alone and recurred in three days | this log's header, promotion lifecycle |
 | 2026-08-20 | The shell between you and the device edits what passes through it | **2** — paths rewritten by Git Bash 2026-08-14 and again 2026-08-20, a PNG CRLF-mangled by the PTY 2026-08-20 | `memory/MEMORY.md` active decisions; `MSYS_NO_PATHCONV=1` for paths, `adb exec-out` for bytes |
+| 2026-08-22 | The device under test holds the author's data | **2** — `pm clear` wiped pro's caster and credentials; free on the S23 was left alone for the same reason | `memory/MEMORY.md` active decisions |

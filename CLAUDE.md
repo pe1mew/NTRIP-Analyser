@@ -113,10 +113,13 @@ NDK, so nothing testable on a desktop belongs there.
 | `src/core/rinex_nav.c` | RINEX 3 NAV loader — pinned by `test/test_rinex_nav.c` |
 | `src/core/config.c` | The one JSON config format, plus the legacy reader |
 | `src/session/ntrip_session.c` | Stream loop and statistics snapshot |
+| `src/core/ns_failure.{c,h}` | The twelve ways a stream fails to open, and the words for each. The `errno`/`WSAE*` half lives in `src/net/ntrip_handler.c`, which has the platform headers |
 | `gui/gui_state.h` | `AppState` — everything the GUI knows |
 | `gui/gui_events.c` | Command dispatch, Stream Health, station classification |
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
 | `android/app/src/main/java/.../MainActivity.kt` | The Android shell: state, service binding, permissions |
+| `android/app/src/main/java/.../Shell.kt` | The frame every screen is drawn in: four bar slots, the overflow menu, the analysis bar. **No title parameter**, so no screen can disagree about the app's name |
+| `android/app/src/main/java/.../Failure.kt` | `NsFailure` in the app's own words, and which field each fault points at. Numbers checked against the C enum by `tools/check_release.py` |
 | `android/app/src/main/java/.../{Panel,HubPanels}.kt` | The panel contract and the ten panels that implement it. A panel owns its card, its detail screen and its slice of the shared report |
 | `android/app/src/main/java/.../Navigation.kt` | `Dest` and the hand-rolled `NavStack`. No `navigation-compose` |
 | `android/app/src/{free,pro}/.../Registry.kt` | **The list is the layout** — what an edition shows, in order, hub and report alike |

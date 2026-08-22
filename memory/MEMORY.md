@@ -53,6 +53,29 @@
 
 ## Current State
 
+<!-- 2026-08-22 -->
+
+- **v3.7.0 released** (2026-08-22): the Android app is drawn in one
+  <!-- verify: grep -q '^## .3.7.0.' changelog.md -->
+  template, and a stream that will not open says which thing is wrong.
+  The frame is `design/guiV3spec.md`, built to `design/guiV3rollout.md`,
+  from the author's own review in `design/work-items/guiReview/`. One app
+  bar with **no title parameter**, one overflow menu, an analysis bar
+  pinned to the hub, a mark on every touchable row drawn from the panel
+  contract, and six fixed bands on the analysis screens.
+  **Twelve failure codes** classified once in `src/core/ns_failure.c` --
+  wrong address versus wrong port, wrong password versus wrong
+  mountpoint -- carried in the snapshot, said by all four frontends, and
+  in the app leading to the field at fault. `err_open`, the one sentence
+  that stood for every fault, is gone. Thirteen tests; `check_release.py`
+  is at 70 checks, up from 51.
+- **Both editions' Play screenshots show the v3 layout** (2026-08-22),
+  <!-- verify: manual — the images are what they are; a checksum proves nothing about what they show -->
+  re-taken from runs that pass, and `tools/make_store_shots.py` now
+  refuses to write when a redaction box has drifted off the line it
+  hides. It had drifted: the first framing exposed the caster address
+  and the station's ARP.
+
 <!-- 2026-08-20 -->
 
 - **The Android UI is a registry of panels, and 3.6.0 carries the first
@@ -407,6 +430,24 @@ Supplementing CLAUDE.md's list with paths found during work:
   holding none, and enforced by `tools/check_release.py`, which reads
   every `shareSection` and fails on `username` or `password`. The phone's
   own fix never leaves the device.
+- **The device under test holds the author's data.** A handset here is
+  not scratch space: `pm clear` wiped pro's caster and credentials in
+  one command, and nothing could restore them. Reach for the state
+  rather than the reset -- force-stop clears a run, a spare profile
+  gives a blank hub, a release-signed build upgrades in place where a
+  debug build demands an uninstall -- and where only a destructive route
+  exists, hand it to the author (2026-08-22).
+- **One frame, and the rules live in it.** The app bar takes no title
+  parameter, the analysis bar is absent because no other screen passes
+  one, and a row's mark comes from `Panel.affordance(state)` rather than
+  from each card. Every one of those is a rule two editions cannot break
+  separately, which is why the framework is shared and only the registry
+  differs (`design/guiV3spec.md`).
+- **A refusal names the field at fault.** The core classifies twelve
+  ways a stream can fail to open and writes the sentence; the CLI, GUI
+  and daemon print it, and the app maps the code to its own strings so a
+  translated build stays possible. The verdict vocabulary did not move,
+  so exit codes are unchanged (`design/guiV3spec.md` §5).
 - **The shell between you and the device edits what passes through it.**
   Git Bash rewrites Unix paths in `adb shell` arguments (`MSYS_NO_PATHCONV=1`),
   and `adb shell` allocates a PTY that turns every `LF` into `CRLF`, which

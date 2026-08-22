@@ -752,7 +752,7 @@ ships**, rather than now, when phase 6 may still move something. Noted
 here so it is not forgotten: four shots per edition, main screen and the
 three analysis views.
 
-| **P6.3** | `changelog.md` 3.7.0: the frame, the failure taxonomy, and the CSV column under a *format* heading |
+| **P6.3** — **done 2026-08-22** | `changelog.md` 3.7.0: the frame, the failure taxonomy, and the CSV column under a *format* heading |
 | **P6.4** — **done 2026-08-22** | `design/gui-design.md` and `android/design/editions.md` updated so the next reader finds the template, not v2's hub description |
 
 ### P6.4 — where the next reader is sent
@@ -781,7 +781,27 @@ each actually covers.
   is written in the GUI: a second wording of one judgement is how two
   descriptions of the same fault start disagreeing.
 
-| **P6.5** — **prepared 2026-08-22**, publishing is the author's | Release: tag, Windows assets, Play closed test — the author's, per `docs/RUNBOOK.md` |
+| **P6.5** — **released 2026-08-22** | Release: tag, Windows assets, Play closed test — the author's, per `docs/RUNBOOK.md` |
+
+### The plan is finished
+
+v3.7.0 is tagged at `dd47e5b`, released with its Windows assets, and the
+wiki is published. Both editions' listing screenshots show the template.
+Every phase above is marked done.
+
+What the plan does **not** cover, and is still open:
+
+- **Play's closed track** still holds the previous build; uploading the
+  3.7.0 bundles is the author's.
+- **A horizontal drag on the hub** reaches the card underneath and opens
+  the profile picker — left over from v2's P1.7 and never ruled on.
+- **`--check` exits 6** for a station it could not connect to at all.
+  Arguably 1. Deliberately untouched: exit codes are a contract, and
+  moving one belongs in its own change (P4.3).
+- **Phase 2 of the v2 plan** — VRS, hand-over, tier 2, tracks, export,
+  TLS — is what the template was built to hold. Each lands as a panel
+  and a line in a registry.
+
 
 ### P6.5 — what is ready, and what is not mine to do
 
