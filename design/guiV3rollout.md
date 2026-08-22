@@ -358,13 +358,36 @@ whose picture is drawn from orbits and the only one the template gives a
 provenance line. The full story — coverage, newest orbit, file and age —
 is on the hub's orbits card, which is where a reader who wants it looks.
 
-### P3.3 — Small screens
+### P3.3 — Small screens — **done 2026-08-22**
 
 **Goal.** The `PlotLayout` exception from v2's P1.4a survives the
 re-banding: below the height threshold the screen scrolls rather than
 crushing the plot.
 
 **Verify.** The 5.4-inch profile, all three tabs, portrait and landscape.
+
+**Done, and nothing had to change.** The re-banding put two more rows
+above the pager — the tab strip and the mode row — which is exactly the
+height the plot would otherwise have lost, so this was the step most
+likely to need a fix. It did not.
+
+Two shapes, by the method v2 used (`wm density`, reset afterwards):
+
+- **320 dp wide** (`wm density 540`): tab labels wrap to two lines, the
+  bands stack in order, nothing clipped or truncated on any of the three
+  tabs. The sky plot keeps its rings; the C/N0 plot keeps its axes.
+- **360 dp tall** (`wm size 2340x1080`, the landscape shape without
+  touching the rotation setting): `PlotLayout` takes its short branch,
+  the plot keeps `MIN_PLOT` rather than being squeezed into what the
+  words left over, and the screen scrolls. The app bar and the tab strip
+  stay put while the explainer and summary scroll away — which is the
+  right half to lose, since the tabs are how you leave.
+
+Checked on the sky view in particular, the case that collapsed to a dot
+before P1.4a: a full circle, scrollable to its ARP footer.
+
+Display size and density reset afterwards; `wm size` and `wm density`
+report the handset's own 1080x2340 at 480 again.
 
 ---
 
