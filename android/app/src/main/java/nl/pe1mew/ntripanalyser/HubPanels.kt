@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,9 +42,13 @@ object VerdictPanel : Panel {
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
+        val context = LocalContext.current
         VerdictBadge(
             state.doc, state.run.running, state.run.outcome,
             state.settings.isComplete,
+            failure = state.doc?.stats?.failure
+                ?.takeIf { it != Failure.NONE }
+                ?.let { failureSentence(context, it, state.settings) },
         )
     }
 

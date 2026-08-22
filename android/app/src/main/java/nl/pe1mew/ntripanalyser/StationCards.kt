@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
@@ -36,6 +37,7 @@ internal fun VerdictBadge(
     running: Boolean,
     outcome: MonitorService.Outcome,
     configured: Boolean,
+    failure: String? = null,
 ) {
     val verdict = doc?.kpi?.overallEnum ?: RunVerdict.RUNNING
     // "READY" is a claim, and an app with no mountpoint is not ready for
@@ -62,6 +64,18 @@ internal fun VerdictBadge(
             )
             doc?.kpi?.let { k ->
                 Spacer(Modifier.height(8.dp))
+                // What went wrong, where the countdown would be. A run
+                // that could not connect has no sustain window to count,
+                // and "0 of 60 s sustained" is a true statement that
+                // explains nothing (GUI v3, D2).
+                if (failure != null) {
+                    Text(
+                        failure,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                } else
                 Text(
                     // Once the window is met the countdown has served its
                     // purpose; a watch showing "101 of 60 s" reads as a

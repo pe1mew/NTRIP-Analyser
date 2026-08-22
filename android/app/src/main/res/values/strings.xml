@@ -128,6 +128,22 @@
     <string name="config_gga">GGA uplink from %1$.5f, %2$.5f</string>
     <string name="config_gga_live">GGA uplink from this phone’s position (%1$.5f, %2$.5f without a fix)</string>
     <string name="hint_configure">Set the caster and mountpoint first (⚙).</string>
+    <!-- What went wrong when a stream will not open (GUI v3, P5.2).
+         Each names the field to go and look at: a message that says
+         only what failed leaves the reader guessing which of the four
+         things they typed is the wrong one. -->
+    <string name="fail_dns">Cannot find “%1$s”. Check the caster address.</string>
+    <string name="fail_refused">Nothing is listening on %1$s:%2$d. Check the port.</string>
+    <string name="fail_unreachable">No route to %1$s. Check the network.</string>
+    <string name="fail_timeout">%1$s:%2$d did not answer. It may be down, or a firewall may be dropping it.</string>
+    <string name="fail_not_ntrip">%1$s:%2$d answered, but not as an NTRIP caster.</string>
+    <string name="fail_auth">The caster rejected the user name or password.</string>
+    <string name="fail_forbidden">Your account is accepted, but not for mountpoint “%1$s”.</string>
+    <string name="fail_no_mountpoint">This caster has no mountpoint “%1$s”.</string>
+    <string name="fail_busy">The caster is refusing new connections just now.</string>
+    <string name="fail_rejected">The caster refused the request.</string>
+    <string name="fail_dropped">The caster closed the connection.</string>
+    <string name="fail_stalled">Connected, but nothing is arriving.</string>
     <string name="err_open">Could not open the session.</string>
 
     <string name="settings_title">Caster</string>

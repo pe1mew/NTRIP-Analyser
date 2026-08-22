@@ -28,6 +28,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -123,7 +125,16 @@ internal fun SettingsDialog(
     initial: CasterSettings,
     onDismiss: () -> Unit,
     onSave: (CasterSettings) -> Unit,
+    /** Which field the last failure implicates, if any (GUI v3, P5.2). */
+    focus: FailureFix = FailureFix.NONE,
 ) {
+    // A message that names the fault and does not offer the fix is half
+    // a message. Coming here from "the caster rejected the user name or
+    // password", the cursor is already in the password.
+    val focusOnFault = remember { FocusRequester() }
+    LaunchedEffect(focus) {
+        if (focus != FailureFix.NONE) runCatching { focusOnFault.requestFocus() }
+    }
     var caster by remember { mutableStateOf(initial.caster) }
     var port by remember { mutableStateOf(initial.port.toString()) }
     var mountpoint by remember { mutableStateOf(initial.mountpoint) }
@@ -222,6 +233,9 @@ internal fun SettingsDialog(
                     label = { Text(stringResource(R.string.field_caster)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = if (focus == FailureFix.HOST)
+                                   Modifier.focusRequester(focusOnFault)
+                               else Modifier,
                 )
                 OutlinedTextField(port, { port = it.filter(Char::isDigit) },
                     label = { Text(stringResource(R.string.field_port)) }, singleLine = true)
@@ -236,6 +250,9 @@ internal fun SettingsDialog(
                 OutlinedTextField(mountpoint, { mountpoint = it },
                     label = { Text(stringResource(R.string.field_mountpoint)) },
                     singleLine = true,
+                    modifier = if (focus == FailureFix.MOUNTPOINT)
+                                   Modifier.focusRequester(focusOnFault)
+                               else Modifier,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
                 OutlinedTextField(user, { user = it },
                     label = { Text(stringResource(R.string.field_user)) },
@@ -252,6 +269,9 @@ internal fun SettingsDialog(
                 OutlinedTextField(password, { password = it },
                     label = { Text(stringResource(R.string.field_password)) },
                     singleLine = true,
+                    modifier = if (focus == FailureFix.CREDENTIALS)
+                                   Modifier.focusRequester(focusOnFault)
+                               else Modifier,
                     visualTransformation =
                         if (showPassword) VisualTransformation.None
                         else PasswordVisualTransformation(),

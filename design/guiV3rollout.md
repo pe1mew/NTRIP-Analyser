@@ -623,7 +623,7 @@ to the caster*. The whole chain in one run — the handshake in C, the
 snapshot, the JNI boundary, the JSON, Kotlin's parse, and a row on a
 phone.
 
-### P5.2 — Rendering it
+### P5.2 — Rendering it — **done 2026-08-22**
 
 **Goal.** Eleven strings in `strings.xml`; the sentence in the verdict
 sub-line (D2); the failing row marked and tappable straight to the field
@@ -636,6 +636,39 @@ at fault (spec §5.5).
 bad password, bad mountpoint, caster stopped mid-run — five different
 sentences, each leading somewhere useful. Screenshot each; they belong in
 the wiki page.
+
+**Done.** Twelve strings in the app's own `strings.xml`, mapped from the
+code by `Failure.kt` — not printed from the core's sentence, which is
+what leaves room for a Dutch build. The core's words still arrive in
+`stats.failureDetail` and are what the log carries, so when one of the
+two is wrong the other is beside it.
+
+The verdict card says it **where the countdown was** (D2). A run that
+could not connect has no sustain window to count, and *0 of 60 s
+sustained* is a true statement that explains nothing.
+
+The failing row leads to the fault. `failureFix` maps each code to a
+field — host for the five that never reached a caster, credentials for
+401 and 403, mountpoint for 404 — and `SettingsDialog` focuses it. On
+the device, coming from *the caster rejected the user name or password*,
+the dialog opens with the cursor already in the password:
+`focused="true" password="true"`.
+
+Seen on the author's own caster, with the author forcing the fault:
+
+```
+        FAILED
+The caster rejected the user name or password.
+        Finished after 10 s
+```
+
+**A guard, promised in the code and now real.** The app maps the code by
+**number**, and a number meaning DNS in C and *wrong password* in Kotlin
+would put the wrong sentence under a fault and send the reader to the
+wrong field — worse than saying nothing. `tools/check_release.py` reads
+the C enum and the Kotlin object and compares them name by name and
+value by value. Falsified by renumbering `REFUSED`, which turns the run
+red on that one line; restored, and it is 65 checks now rather than 51.
 
 ### P5.3 — `err_open` retires
 

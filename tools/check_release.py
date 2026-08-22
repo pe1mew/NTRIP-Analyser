@@ -526,6 +526,34 @@ def check_share_sections():
           ", ".join(sorted(set(fixes))) or "none reference it")
 
 
+# ── One vocabulary, two languages ─────────────────────────────────────
+# The app maps NsFailure to its own strings so that a Dutch build is
+# possible; that mapping is by number.  A number that means DNS in C and
+# "wrong password" in Kotlin would put the wrong sentence under a fault
+# and send the reader to the wrong field -- worse than saying nothing.
+
+def check_failure_codes():
+    print("failure codes")
+    h = read("src", "core", "ns_failure.h")
+    body = h[h.index("typedef enum {"):h.index("} NsFailure;")]
+    c_order = re.findall(r"NS_FAIL_(\w+)", body)
+
+    kt = read("android", "app", "src", "main", "java", "nl", "pe1mew",
+              "ntripanalyser", "Failure.kt")
+    obj = kt[kt.index("object Failure {"):kt.index("}", kt.index("object Failure {"))]
+    kt_pairs = re.findall(r"const val (\w+)\s*=\s*(\d+)", obj)
+
+    check(len(c_order) == len(kt_pairs),
+       "the app declares every failure code (C has %d, Kotlin %d)"
+       % (len(c_order), len(kt_pairs)))
+
+    for i, (name, value) in enumerate(kt_pairs):
+        if i >= len(c_order):
+            break
+        check(name == c_order[i] and int(value) == i,
+           "%s is %d in both C and Kotlin" % (name, i))
+
+
 def main():
     ver = check_version()
     check_urls()
@@ -537,6 +565,7 @@ def main():
     check_doc_links()
     check_thresholds()
     check_snapshot_fields()
+    check_failure_codes()
 
     print("")
     if PROBLEMS:
