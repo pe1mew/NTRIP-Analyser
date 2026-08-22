@@ -725,7 +725,33 @@ declared with their reasons. Falsified by deleting `ns_failure.c` from
 the NDK list again — the exact state P4.3 shipped — which reproduces the
 red build in a second instead of in a CI run.
 
-| **P6.2** | Wiki: **Troubleshooting** gets the eleven sentences and what to do about each — it is the page a user reaches from a failure; **The analysis views** and **Getting started** get the new screenshots |
+| **P6.2** — **done 2026-08-22** | Wiki: **Troubleshooting** gets the eleven sentences and what to do about each — it is the page a user reaches from a failure; **The analysis views** and **Getting started** get the new screenshots |
+
+### P6.2 — what the wiki says now
+
+**Troubleshooting** opens with a table of all twelve sentences: what each
+means and which field to change. Two distinctions are spelled out
+underneath, because no app can guess them for the reader — *cannot find*
+versus *nothing is listening* is wrong address versus wrong port, and
+*rejected the user name or password* versus *not for mountpoint* is wrong
+credentials versus right credentials on the wrong stream. The two older
+prose sections now point at the same distinction rather than contradict
+it, and the page says the CLI and the daemon use the same words.
+
+**The analysis views** and **Getting started** were corrected where the
+template made them wrong: the badge is a summary line now, the way in is
+the bar at the bottom, back is `←`, a foldable row is marked, and the
+verdict says why a run could not start. The `☰` became `⋮` across the
+whole wiki — four pages had it.
+
+**No screenshots, because the wiki has none.** Not one page embeds an
+image; the screenshot set that exists is the Play listing's, in
+`docs/images/store/{free,pro}/`, and those are release artefacts. They
+show the v2 layout and want re-taking — **at P6.5, with the build that
+ships**, rather than now, when phase 6 may still move something. Noted
+here so it is not forgotten: four shots per edition, main screen and the
+three analysis views.
+
 | **P6.3** | `changelog.md` 3.7.0: the frame, the failure taxonomy, and the CSV column under a *format* heading |
 | **P6.4** | `design/gui-design.md` and `android/design/editions.md` updated so the next reader finds the template, not v2's hub description |
 | **P6.5** | Release: tag, Windows assets, Play closed test — the author's, per `docs/RUNBOOK.md` |

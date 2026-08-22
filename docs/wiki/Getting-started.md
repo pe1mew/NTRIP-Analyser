@@ -50,9 +50,15 @@ to return to the verdict.
 
 ## 3. Read the answer
 
-The badge at the top is the verdict. Below it, each of the
-**[eight checks](The-eight-checks)** carries its own verdict, the number
-behind it, and a sentence saying what it means. Tap a row to expand it.
+The badge at the top is the verdict. When a run cannot start at all it
+says why there instead of counting seconds — *the caster rejected the
+user name or password* — and the row that carries the field at fault is
+the one to tap; [Troubleshooting](Troubleshooting) lists every message
+and what to change.
+
+Below it, each of the **[eight checks](The-eight-checks)** carries its
+own verdict, the number behind it, and a sentence saying what it means.
+A row with a **▾** has more to show: tap it to fold it open.
 
 A **CAUTION** is worth reading rather than dismissing: it is the app
 saying *this is not a clean pass, and here is precisely which part*.
@@ -80,7 +86,7 @@ healthy service look like a broken station.
 
 The sky view needs to know where satellites are, and an observation
 stream does not carry that. Many stations broadcast their own orbits and
-then nothing is needed. For a station that does not, use **☰ → Import
+then nothing is needed. For a station that does not, use **⋮ → Import
 navigation file** and pick a RINEX navigation file (`.rnx`, or a
 `.gz` of one) that you have obtained yourself.
 
@@ -90,6 +96,6 @@ provider whose terms are between you and them.
 **It has to be today's.** Orbits more than four hours old are not used —
 by then they no longer say where the satellite is — and a stale file
 still loads and still reports thousands of records, so the only sign is
-the badge in the corner of the Analysis screen turning red.
-[Satellite orbits](Orbits-and-the-ephemeris-stream) explains the badge
-and names a place to get a current file.
+the sky view's summary line turning red.
+[Satellite orbits](Orbits-and-the-ephemeris-stream) explains what that
+line says and names a place to get a current file.

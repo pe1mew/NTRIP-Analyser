@@ -6,6 +6,45 @@ enough.
 
 ---
 
+## The check will not start: what the message means
+
+Since 3.7.0 a stream that will not open says which of the things you
+typed is the one at fault, and the row it names is the one to tap. The
+sentence appears under the verdict; tapping the connection card opens the
+settings with the cursor already in the field the fault points at.
+
+| What the app says | What it means | What to change |
+|---|---|---|
+| Cannot find “*host*”. Check the caster address. | The name does not resolve. Nothing was reached. | The **caster** field — or the phone's network, if nothing resolves |
+| Nothing is listening on *host*:*port*. Check the port. | The machine answered the door and refused at that port. The address is right | The **port**. 2101 is the usual one |
+| No route to *host*. Check the network. | The phone could not get onto the network at all | Wi-Fi, mobile data, a VPN |
+| *host*:*port* did not answer. It may be down, or a firewall may be dropping it. | The request went out and nothing came back | Whether the caster is up; a firewall between you and it |
+| *host*:*port* answered, but not as an NTRIP caster. | Something is on that port, and it is not a caster — usually a web server | The **port**, and whether that host serves NTRIP at all |
+| The caster rejected the user name or password. | The caster read your credentials and said no | **User name** and **password** |
+| Your account is accepted, but not for mountpoint “*name*”. | The credentials are right; the account is not permitted this stream | Ask the operator, or pick another mountpoint |
+| This caster has no mountpoint “*name*”. | The caster does not carry that name | The **mountpoint** — use **Browse mountpoints…** and compare exactly |
+| The caster is refusing new connections just now. | Full, or restarting | Nothing. Try again shortly |
+| The caster refused the request. | It said no in a way the app has no specific words for | The caster's own message is in the log |
+| The caster closed the connection. | It worked, then the caster hung up | Often the caster's end; see the section below on streams that stop |
+| Connected, but nothing is arriving. | The socket is open and silent | See *"Data arrived for N s, then the stream stopped"* below |
+
+Two distinctions are worth knowing, because no app can guess them for
+you:
+
+* **“Cannot find” versus “nothing is listening”** is *wrong address*
+  versus *wrong port*. The first never reached a machine; the second
+  reached one and was turned away at that door.
+* **“Rejected the user name or password” versus “not for mountpoint”**
+  is *wrong credentials* versus *right credentials, wrong stream*.
+  Casters differ in which they send, so the app reports what it was
+  told rather than guessing.
+
+The CLI and the daemon say the same sentences. In the CLI they follow
+the `exit=` line; in the daemon's journal the failure is named beside
+the reason: `session ended (reason 3, auth)`.
+
+---
+
 ## "Connected, but the caster has sent nothing"
 
 The caster accepted the connection and then sent nothing at all.
@@ -48,13 +87,21 @@ sourcetable will wait for a message that never comes.
 ## The mountpoint is rejected, or "no such mountpoint"
 
 Mountpoint names are case-sensitive and exact. Use **Browse
-mountpoints…** and compare character by character.
+mountpoints…** and compare character by character. The app names the
+mountpoint it asked for in the message, so compare that against the
+list rather than against what you meant to type.
 
 ## The connection is refused, or asks for credentials
 
 Some casters require a login even for streams they describe as free;
 some require your e-mail address as the username. That is the caster's
 convention, not the app's — check the operator's instructions.
+
+If the app says the caster **rejected the user name or password**, the
+caster read your credentials and refused them; if it says your account
+is **not permitted** for that mountpoint, they were accepted and the
+stream was not. The first is worth retyping, the second is worth an
+e-mail to the operator.
 
 ## The sky view is empty, or shows far fewer satellites than the check counted
 

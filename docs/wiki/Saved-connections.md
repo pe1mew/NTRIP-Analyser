@@ -16,7 +16,7 @@ there is one, and the mountpoint if there is not.
 
 ## The configuration file
 
-**☰ → Load configuration** and **Save configuration** read and write the
+**⋮ → Load configuration** and **Save configuration** read and write the
 same JSON file that the desktop tools use, so a set of connections moves
 between a laptop and a phone unchanged.
 

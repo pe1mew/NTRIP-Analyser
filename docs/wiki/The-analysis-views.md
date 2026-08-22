@@ -1,13 +1,15 @@
 # The analysis views
 
-Two of the three are drawn from satellite positions, and the badge in
-the top-right corner says where those came from — a green one means a
+Two of the three are drawn from satellite positions, and the sky view's
+summary line says where those came from — *34 of 38 satellites shown ·
+navigation file, 3 h old*. Its colour is the judgement: green means a
 real orbit source, amber means this phone's own receiver, red means an
-imported file too old to use. Tapping it opens
+imported file too old to use. Tapping the line opens
 [Satellite orbits](Orbits-and-the-ephemeris-stream).
 
-Tap **Analysis** on the main screen. Three views, and you can swipe
-between them; **Back** returns to the station.
+Tap **Analysis** on the bar at the bottom of the station screen. Three
+views, chosen by the tabs at the top or by swiping between them;
+**←** returns to the station.
 
 In the free edition these show **what the station check captured**, held
 after the run ends.
@@ -74,7 +76,7 @@ because the stream carries no signal strength, and check 6 says so.
 
 ## Importing a navigation file
 
-**☰ → Import navigation file** takes a RINEX 3 navigation file, plain or
+**⋮ → Import navigation file** takes a RINEX 3 navigation file, plain or
 `.gz`. The app tells you how many records it accepted, or why it could
 not use the file — a file that turns out to be the wrong one never
 replaces the one that was working.

@@ -42,7 +42,7 @@ Nothing to configure. The badge reads **Station orbits**.
 
 ## 2. A navigation file you import
 
-**☰ → Import navigation file** takes a RINEX 3 navigation file (`.rnx`,
+**⋮ → Import navigation file** takes a RINEX 3 navigation file (`.rnx`,
 or a `.gz` of one). It works for any station, in both editions.
 
 ### It has to be today's
