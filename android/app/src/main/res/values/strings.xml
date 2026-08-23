@@ -117,6 +117,10 @@
     <string name="watch_streak">Current healthy streak %1$s (best %2$s)</string>
     <string name="watch_drops">%1$d degradation(s); worst %2$s</string>
     <string name="watch_clean">No degradation yet; worst %1$s</string>
+    <!-- Shown only when it happened. The app reconnects by itself after
+         a drop, which is what a phone needs; the count is how a reader
+         tells a station that faltered from a link that did. -->
+    <string name="watch_reconnects">%1$d reconnect(s) — the stream dropped and came back</string>
     <string name="run_watching">Watching — stop when you have seen enough</string>
 
     <string name="no_evidence">No detail recorded for this check yet.</string>

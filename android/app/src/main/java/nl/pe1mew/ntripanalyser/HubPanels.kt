@@ -160,7 +160,9 @@ object WatchPanel : Panel {
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        state.doc?.watch?.let { WatchCard(it) }
+        state.doc?.watch?.let {
+            WatchCard(it, state.doc?.stats?.reconnects ?: 0)
+        }
     }
 
     override fun shareSection(state: HubState): ShareSection? {
@@ -172,6 +174,11 @@ object WatchPanel : Panel {
             "longest good streak ${dur(w.bestStreakS)}",
         )
         w.availability?.let { lines += "availability %.2f %%".format(it) }
+        // The report says it too, and for the same reason the card
+        // does: a reader of the report cannot ask the phone.
+        (state.doc?.stats?.reconnects ?: 0).let {
+            if (it > 0) lines += "$it reconnect(s)"
+        }
         return ShareSection("Over time", lines)
     }
 }

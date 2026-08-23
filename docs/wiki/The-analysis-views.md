@@ -39,13 +39,19 @@ number is what the stream carries, the first what could be placed.
 
 Pro draws where each satellite has been: one point a minute, in the
 constellation's own colour lightened so the history does not compete
-with the live marker. Four hours are kept, and a trail breaks rather
-than joins across a gap — a satellite that set and rose again is two
-arcs, not a line across the plot.
+with the live marker. A **day** is kept per satellite, and a trail
+breaks rather than joins across a gap — a satellite that set and rose
+again is two arcs, not a line across the plot.
 
 They answer a question one epoch cannot: *is this station's horizon
 clear?* A session's worth of arcs that all stop at 20 degrees in the
 south-west is the shape of something standing there.
+
+Trails are kept for the run, not for the screen: they go on filling
+while the phone is in a pocket, and rotating it does not start them
+over. They are cleared when the next run begins, because they describe
+one capture. How long a capture can run is on the
+[Watch mode](Watch-mode#how-a-capture-ends-and-what-survives-it) page.
 
 The free edition draws the satellites without trails.
 

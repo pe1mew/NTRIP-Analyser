@@ -513,7 +513,7 @@ internal fun FoldableCard(
 }
 
 @Composable
-internal fun WatchCard(w: Watch) {
+internal fun WatchCard(w: Watch, reconnects: Int = 0) {
     FoldableCard(
         "watch",
         header = {
@@ -522,21 +522,52 @@ internal fun WatchCard(w: Watch) {
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(6.dp))
-            Text(stringResource(R.string.watch_for, dur(w.elapsedS)))
+            // The card's lines are the size a KPI row's evidence is:
+            // this is the same kind of reading, and two kinds of type
+            // for one kind of fact is what made the hub look assembled
+            // rather than designed.
+            Text(
+                stringResource(R.string.watch_for, dur(w.elapsedS)),
+                style = MaterialTheme.typography.bodySmall,
+            )
         },
         body = {
             w.availability?.let {
-                Text(stringResource(R.string.watch_availability, "%.1f%%".format(it * 100)))
+                Text(
+                    stringResource(R.string.watch_availability,
+                                   "%.1f%%".format(it * 100)),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
-            Text(stringResource(R.string.watch_streak, dur(w.streakS), dur(w.bestStreakS)))
+            Text(
+                stringResource(R.string.watch_streak,
+                               dur(w.streakS), dur(w.bestStreakS)),
+                style = MaterialTheme.typography.bodySmall,
+            )
             Text(
                 if (w.degradations > 0)
                     stringResource(R.string.watch_drops, w.degradations, w.worstName)
                 else
                     stringResource(R.string.watch_clean, w.worstName),
+                style = MaterialTheme.typography.bodySmall,
                 color = if (w.degradations > 0) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // Only when it happened: a nought here would be one more
+            // number to read past on every watch that went cleanly, and
+            // the fact worth surfacing is the exception.
+            //
+            // Under the degradations line because it explains it. Three
+            // degradations with two reconnects is a link that dropped;
+            // three with none is a station that faltered, and those are
+            // different diagnoses.
+            if (reconnects > 0) {
+                Text(
+                    stringResource(R.string.watch_reconnects, reconnects),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
     )
 }

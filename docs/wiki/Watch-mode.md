@@ -27,10 +27,36 @@ It appears on the main screen once a watch is running.
 | **Current healthy streak 42 min (best 2 h 15 m)** | How long it has been clean, and the best it managed |
 | **3 degradation(s); worst FAILED** | How many times it left OK, and how bad it got |
 | **No degradation yet; worst OK** | Nothing has gone wrong so far |
+| **2 reconnects — the stream dropped and came back** | The connection was lost and re-made. Shown only when it happened |
 
 **A degradation is the event, not the duration.** Three short drops and
 one long one both read as degradations; the streak lines are what
 separate them.
+
+**Read the reconnect line together with the degradation line.** Three
+degradations *with* reconnects is a link that dropped — a tunnel, a cell
+hand-over, a caster restart. Three *without* is a station that faltered
+while the connection held. Those are different faults, and only the pair
+tells them apart.
+
+## The app reconnects by itself
+
+A dropped stream is not the end of a watch. The app waits a second and
+tries again, doubling the wait to a minute at most, and goes on doing
+that for as long as the watch runs — so a phone that walks into a
+building, hands over between masts, or meets a caster being restarted
+picks the stream back up without being asked. A stream that expires is
+treated as a drop, and reconnected the same way.
+
+**This cannot turn a bad station into a good one.** The verdict's
+sustain clock resets on the gap, so OK has to be re-earned from the
+reconnection onwards, exactly as it does after any degradation. What
+reconnecting buys is that one bad minute does not cost you the other
+eight hours.
+
+Both editions do this; it is not a paid capability. What it leaves
+behind is the count on the Watch card, the same number under **check 1**,
+and a break in the satellite trails where nothing was measured.
 
 ## What to run, and for how long
 
@@ -48,6 +74,47 @@ so — *"stopped by Android's six-hour limit"* — and everything measured
 up to that point is kept and reported, so an interrupted overnight watch
 still yields the hours it did manage. To cover a longer period, start a
 fresh watch afterwards. Android 14 and earlier have no such ceiling.
+
+## How a capture ends, and what survives it
+
+A watch ends in one of three ways: **you stop it**, **the link fails**,
+or **Android stops it** at the six-hour ceiling above.
+
+**Capture stops; the picture stays.** Whichever ending it is, nothing
+measured is thrown away. The eight rows, the sky view with its trails,
+the signal bars and the C/N0 scatter all hold what they had at that
+moment, and can still be read, compared and shared. What ends is the
+measuring: no new data arrives, and the numbers stop moving. When it is
+Android's ceiling, a dismissible notification says so, and the main
+screen reads *"stopped by Android's six-hour limit"* rather than
+borrowing the word for what the Stop button does.
+
+**What survives is in the app, not on the phone.** No capture is written
+to storage — the only thing this app keeps on disk is your connection
+settings. A capture survives the watch ending, rotating the phone, the
+screen going dark, and leaving the app for something else. It does not
+survive swiping the app away, restarting the phone, or Android
+reclaiming the app's memory while you are elsewhere.
+
+So **share a capture worth keeping before the phone goes back in a
+pocket**: the share control in the top bar sends the report from the
+main screen and the picture from a plot, and those are files.
+
+**A fresh watch is a fresh capture.** The plots belong to one run and
+are cleared when the next one starts, which is why a period longer than
+the ceiling is covered by consecutive watches rather than by one
+continuous picture. Note when each one started; the app cannot join them
+for you.
+
+## How much a capture holds
+
+Neither plot fills up in any period you are likely to watch:
+
+| | |
+|---|---|
+| **Satellite trails** (Pro) | A **day** per satellite, at a point a minute. A longer watch keeps the most recent day and drops the oldest points as it goes |
+| **C/N0 against elevation** | **Everything**, however long the watch. Samples are counted into the plot's own cells rather than kept one by one, so nine hours and nine minutes cost the same memory |
+| **The eight rows and the Watch card** | The whole watch: availability, degradations and streaks are running totals |
 
 The numbers to quote are **availability**, **degradations** and **worst
 state**. A station at 99.9 % with one FAILED degradation is telling you

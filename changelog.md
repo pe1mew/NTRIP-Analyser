@@ -32,6 +32,23 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Added — the Watch card says when the stream dropped
+
+The app has always reconnected by itself after a drop — a second, then
+two, up to a minute, for as long as a watch runs — because a phone walks
+into buildings and hands over between masts. It never said so. A watch
+that lost the stream fifteen times looked exactly like one that never
+faltered, unless you opened the evidence under check 1.
+
+The Watch card now carries the count when there is one, under the
+degradations line it explains: three degradations *with* reconnects is a
+link that dropped, three *without* is a station that faltered, and those
+are different faults. The report says it too. Nothing is shown when
+nothing happened.
+
+The card's lines are also the size a KPI row's evidence is. They were a
+step larger, for no reason beyond the order they were written in.
+
 ### Fixed — a long capture is now a long record
 
 Both analysis plots accumulated in the screen that draws them, so a
