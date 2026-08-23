@@ -26,6 +26,8 @@ import io
 import os
 import re
 import subprocess
+import zipfile
+import time
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -611,6 +613,123 @@ def check_source_lists():
           ", ".join(stale) if stale else "")
 
 
+
+# -- Android artefacts -------------------------------------------------
+# What Play receives is a file on this disk, and a file is not the
+# source it was built from. Free 3.7.1 exists because free 3.7.0 shipped
+# a bundle built four and a half hours before the fix it was supposed to
+# carry: the release is built by two commands, one for the APK and one
+# for the bundle, and only the APK was re-run. The tag was right, the
+# APK on GitHub was right, and the program a thousand people installed
+# was the old one.
+#
+# Two comparisons, because the fault needs both. An artefact must carry
+# the version this tree declares -- which catches a bundle from an
+# earlier release -- and it must be **newer than the sources**, which is
+# the one that catches this incident, where the stale bundle carried
+# exactly the right version number.
+
+ARTEFACTS = [
+    ("bundle", "freeRelease", "app-free-release.aab"),
+    ("bundle", "proRelease", "app-pro-release.aab"),
+    ("apk", "free", "release", "app-free-release.apk"),
+    ("apk", "pro", "release", "app-pro-release.apk"),
+]
+
+# Everything a build of the app reads. Sources only: the build directory
+# is the output, and comparing it with itself proves nothing.
+SOURCE_TREES = [
+    ("android", "app", "src"),
+    ("src",),
+]
+SOURCE_FILES = [
+    ("android", "app", "build.gradle.kts"),
+    ("android", "build.gradle.kts"),
+    ("android", "gradle", "libs.versions.toml"),
+]
+
+# Written by the build itself (tools/make_notices.py, run from Gradle),
+# so its timestamp moves every time even when its content does not. Left
+# in, every artefact would look older than a source that was rewritten
+# after it was packaged, and the check would cry stale at a build that
+# is not -- a guard that fails on a good build is a guard that gets
+# ignored on a bad one.
+GENERATED_SOURCES = {"notices.txt"}
+
+
+def newest_source():
+    """(path, mtime) of the most recently changed source the app builds."""
+    newest, when = None, 0.0
+    for parts in SOURCE_TREES:
+        for base, dirs, files in os.walk(os.path.join(ROOT, *parts)):
+            dirs[:] = [d for d in dirs if d not in ("build", ".cxx")]
+            for f in files:
+                if f in GENERATED_SOURCES:
+                    continue
+                full = os.path.join(base, f)
+                t = os.path.getmtime(full)
+                if t > when:
+                    newest, when = full, t
+    for parts in SOURCE_FILES:
+        full = os.path.join(ROOT, *parts)
+        if os.path.exists(full):
+            t = os.path.getmtime(full)
+            if t > when:
+                newest, when = full, t
+    return newest, when
+
+
+def manifest_of(path):
+    """The packaged manifest, uncompressed, or None if there is none.
+
+    Searching the file itself finds nothing: every entry in an APK or a
+    bundle is deflated, so the version is not there as bytes. It has to
+    be read out of the archive -- and the two formats differ, a bundle
+    holding protobuf with plain UTF-8 strings and an APK binary XML
+    whose pool is UTF-16.
+    """
+    entry = ("base/manifest/AndroidManifest.xml" if path.endswith(".aab")
+             else "AndroidManifest.xml")
+    with zipfile.ZipFile(path) as z:
+        if entry not in z.namelist():
+            return None
+        return z.read(entry)
+
+
+def check_artefacts(ver):
+    """Whether anything built here is fit to submit."""
+    print("")
+    print("android artefacts")
+
+    out = os.path.join(ROOT, "android", "app", "build", "outputs")
+    built = [(parts, os.path.join(out, *parts))
+             for parts in ARTEFACTS
+             if os.path.exists(os.path.join(out, *parts))]
+
+    if not built:
+        check(True, "nothing is built here, so nothing here can be stale")
+        return
+
+    src, src_time = newest_source()
+    for parts, path in built:
+        name = parts[-1]
+        age = os.path.getmtime(path)
+        check(age >= src_time,
+              "%s was built after the sources it is built from" % name,
+              "built %s, but %s changed %s -- rebuild before submitting"
+              % (stamp(age), os.path.relpath(src, ROOT), stamp(src_time)))
+
+        blob = manifest_of(path)
+        found = blob is not None and (ver.encode("utf-8") in blob
+                                      or ver.encode("utf-16-le") in blob)
+        check(found, "%s declares version %s" % (name, ver),
+              "its manifest names no such version, so it was packaged "
+              "from another tree")
+
+
+def stamp(t):
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
+
 def main():
     ver = check_version()
     check_urls()
@@ -624,6 +743,7 @@ def main():
     check_snapshot_fields()
     check_failure_codes()
     check_source_lists()
+    check_artefacts(ver)
 
     print("")
     if PROBLEMS:

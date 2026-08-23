@@ -4,6 +4,32 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [3.7.1] - 2026-08-23
+
+### Fixed — the legend, under the navigation buttons
+
+On a phone drawn edge to edge with three-button navigation, the sky
+view's coordinate line and constellation legend were drawn *behind* the
+system's own buttons. Reported from the S23 against free 3.7.0 as it
+came from Play.
+
+**The source was never wrong.** The fix went in before 3.7.0 was tagged
+and is inside the tag; what reached Play was an older binary. The
+Android release is built by two commands, `assembleFreeRelease` for the
+APK and `bundleFreeRelease` for the bundle Play takes, and only the
+first was re-run after the fix. The GitHub release therefore carried a
+corrected APK while Play carried a bundle built four and a half hours
+earlier -- the same version number on two different programs.
+
+So this release also removes the way that happened:
+
+* `tools/check_release.py` now refuses to call a build submittable when
+  an artefact under `app/build/outputs` is older than the source it was
+  supposedly built from. A stale bundle is now a failed check rather
+  than a screenshot from a user.
+* The runbook builds APK and bundle in one command, and says why they
+  may not be built separately.
+
 ## [Unreleased]
 
 ### Added — satellite tracks, in the paid edition

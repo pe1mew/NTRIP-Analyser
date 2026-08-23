@@ -236,8 +236,22 @@ each time for that reason.
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot'
 cd android
-.\gradlew.bat assembleFreeRelease assembleProRelease
+.\gradlew.bat assembleFreeRelease assembleProRelease bundleFreeRelease bundleProRelease
 ```
+
+**Build the APKs and the bundles together, always.** They are different
+artefacts of the same release -- the APK goes to GitHub and to a
+handset, the bundle goes to Play -- and building them by separate
+commands is how free 3.7.0 shipped: the sky view's inset fix was
+committed, the APKs were rebuilt, the bundle was not, and Play served a
+binary four and a half hours older than the tag it claimed to be. The
+tag was right and the users' phones were wrong.
+
+`python tools/check_release.py` now refuses to pass when an artefact
+under `app/build/outputs` is older than the sources it was built from,
+or declares a version this tree does not. Run it **after** building and
+before uploading -- in that order, because it is the built file it
+checks, not the intention to build one.
 
 Release builds are **minified** (R8, plus resource shrinking). What that
 breaks is invisible in a debug build, so a release build is worth
@@ -263,6 +277,9 @@ app. The artefact to upload is:
 cd android
 .\gradlew.bat bundleFreeRelease     # app/build/outputs/bundle/freeRelease/*.aab
 ```
+
+-- but prefer the combined command above, so the APK and the bundle
+cannot disagree about what they contain.
 
 Play then generates per-device APKs from it, which is why the bundle is
 worth *looking inside* before uploading: this app carries a JNI library,
