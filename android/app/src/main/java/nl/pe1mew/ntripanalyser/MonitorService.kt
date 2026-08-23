@@ -200,6 +200,7 @@ class MonitorService : Service() {
                                     Log.w(TAG, "failure ${doc.stats.failure}:" +
                                                " ${doc.stats.failureDetail}")
                                 }
+                                accumulate(doc)
                                 _state.value = RunState(running, doc, null, outcome,
                                                         skyAvailable = liveBridge != null,
                                                         runId = runId)
@@ -685,15 +686,57 @@ class MonitorService : Service() {
          */
         @Volatile private var runId = 0L
 
+        /**
+         * What the run has accumulated: where each satellite has been,
+         * and C/N0 against elevation.
+         *
+         * Here rather than in the composition that draws them, which is
+         * where both used to live. A composition dies on a rotation and
+         * is not fed at all while the activity is stopped -- the
+         * document is collected with `collectAsStateWithLifecycle` --
+         * so a nine-hour capture accumulated the minutes its screen
+         * happened to be on, and a rotation started it over. The run
+         * outlives all of that, and now so does its record of itself.
+         */
+        val tracks = TrackAccumulator()
+
+        /** @see tracks */
+        val elevation = ElevationAccumulator()
+
         private val _state = MutableStateFlow(RunState())
 
         /** Observed by the UI; survives the activity, as the run does. */
         val state: StateFlow<RunState> = _state.asStateFlow()
 
+        /**
+         * Record what this document says, for the plots that outlive it.
+         *
+         * Only satellites the orbits place: those carry `az`/`el` in the
+         * document itself, which is all this side has. The ones only the
+         * handset can place are added by the UI, which is where the
+         * handset's fixes are -- so every satellite is recorded once, by
+         * whichever side can see it.
+         */
+        private fun accumulate(doc: BridgeDocument) {
+            val t = System.currentTimeMillis() / 1000.0
+            doc.sats.forEach { sat ->
+                val el = sat.el ?: return@forEach
+                val az = sat.az ?: return@forEach
+                if (Features.HAS_TRACKS) tracks.offer(sat.gnss, sat.prn, az, el, t)
+                if (sat.cn0 > 0f) elevation.add(sat.gnss, el, sat.cn0)
+            }
+        }
+
         fun start(context: Context, s: CasterSettings, watch: Boolean = false) {
             // Stamped where the run is asked for, so it is set before
             // any state built from it can be published.
             runId = SystemClock.elapsedRealtime()
+            // A plot belongs to one run: cleared where the run begins,
+            // not where a screen re-enters. The screen's own clear
+            // fired on every rotation, which is how a nine-hour capture
+            // came to hold ten minutes.
+            tracks.clear()
+            elevation.clear()
             val i = Intent(context, MonitorService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_CASTER, s.caster)

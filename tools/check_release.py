@@ -20,6 +20,12 @@ check below reads both sides and compares them. Run it before every
 submission, and add a check whenever drift is found by hand, so that it
 is found by machine the next time.
 
+The artefact checks are **expected to be red between an edit and a
+rebuild**: they compare a built file with the sources it came from, and
+after any edit it no longer did. That is the point -- they answer "is
+what I am about to upload built from this?", which is only a meaningful
+question at submission time. Rebuild, then read them.
+
 Exit status is 0 when everything agrees, 1 otherwise.
 """
 import io

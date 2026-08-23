@@ -363,10 +363,12 @@ fun MainScreen() {
         val out = liveDoc?.sats.orEmpty().mapNotNull { sat ->
             val az: Float
             val el: Float
+            var orbitPlaced = false
             val a = sat.az
             val e = sat.el
             if (a != null && e != null) {
                 az = a; el = e; fromOrbit++
+                orbitPlaced = true
             } else {
                 val pos = positions[PhoneGnss.key(sat.gnss, sat.prn)]
                     ?: return@mapNotNull null
@@ -380,6 +382,7 @@ fun MainScreen() {
                 gnss = sat.gnss, prn = sat.prn,
                 cn0 = if (live) sat.cn0 else sat.cn0Mean,
                 azimuthDeg = az, elevationDeg = el,
+                fromOrbit = orbitPlaced,
             )
         }
         usedOrbits = fromOrbit
@@ -403,58 +406,32 @@ fun MainScreen() {
     // accumulation -- can only happen here.
     //
     // Counted into the plot's own cells rather than kept as samples: see
-    // ElevationAccumulator. `elevRevision` is what the view observes,
-    // because the accumulator is a plain object and Compose cannot see
-    // inside it.
-    val elevSamples = remember { ElevationAccumulator() }
-    var elevRevision by remember { mutableStateOf(0) }
+    // ElevationAccumulator, and both now belong to the run rather than
+    // to this composition -- see MonitorService's companion. Their
+    // revisions are read plainly on each composition: the thing that
+    // changes them is a new document, and a new document recomposes
+    // this anyway.
+    val elevSamples = MonitorService.elevation
+    val elevRevision = elevSamples.revision
 
     // Where each satellite has been, for the trails pro draws behind
-    // them. Fed from the same list the plot draws, so a trail can only
-    // contain positions that were on screen (phase 2 item 1).
-    val tracks = remember { TrackAccumulator() }
-    var trackRevision by remember { mutableStateOf(0) }
+    // them (phase 2 item 1).
+    val tracks = MonitorService.tracks
+    val trackRevision = tracks.revision
 
-    // Keyed on the document and gated on the run, not keyed on
-    // `plotted`: keying on `plotted` re-fired every time the phone's
-    // GNSS updated, so a stopped analysis went on adding its last
-    // document's samples for ever -- the scatter grew while nothing was
-    // measuring.
-    // A plot belongs to one run.  Without this the scatter carried
-    // samples from whatever was measured before -- a different caster,
-    // a different antenna, a different sky -- into a view whose header
-    // says "this session", and two stations' curves were drawn on top of
-    // each other with nothing to say which was which.
-    LaunchedEffect(runState.running) {
-        if (runState.running) {
-            elevSamples.clear()
-            elevRevision++
-            tracks.clear()
-            trackRevision++
-        }
-    }
-
+    // What the orbits placed is recorded by the service, which keeps
+    // decoding with the screen off. What only the phone could place is
+    // recorded here, because the phone's fixes reach no further than
+    // this composition -- and a satellite has one source, so the two
+    // sides never record the same one.
     LaunchedEffect(liveDoc, runState.running) {
         if (!runState.running) return@LaunchedEffect
-        var added = false
+        val t = System.currentTimeMillis() / 1000.0
         plotted.forEach { p ->
-            if (p.cn0 > 0f) {
-                elevSamples.add(p.gnss, p.elevationDeg, p.cn0)
-                added = true
-            }
-        }
-        if (added) elevRevision++
-
-        // Trails keep their own clock: one point per satellite per
-        // minute, however often the plot refreshes.
-        if (Features.HAS_TRACKS) {
-            val t = System.currentTimeMillis() / 1000.0
-            var kept = false
-            plotted.forEach { p ->
-                if (tracks.offer(p.gnss, p.prn, p.azimuthDeg, p.elevationDeg, t))
-                    kept = true
-            }
-            if (kept) trackRevision++
+            if (p.fromOrbit) return@forEach
+            if (p.cn0 > 0f) elevSamples.add(p.gnss, p.elevationDeg, p.cn0)
+            if (Features.HAS_TRACKS)
+                tracks.offer(p.gnss, p.prn, p.azimuthDeg, p.elevationDeg, t)
         }
     }
 

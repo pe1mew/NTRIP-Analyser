@@ -32,6 +32,28 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Fixed — a long capture is now a long record
+
+Both analysis plots accumulated in the screen that draws them, so a
+rotation reset them and a screen that was off recorded nothing at all: a
+nine-hour capture drew its arcs from the minutes its screen happened to
+be on, and its C/N0 scatter from 25 000 samples where nine hours holds
+a million. What the plots showed was true; it was true of far less than
+the run.
+
+The record now belongs to the run. Both accumulators live with the
+service that decodes the stream, are cleared when a run starts rather
+than when a screen re-enters, and are fed where the document is
+published. Measured off screen: 45 samples a second, against nothing
+before. Satellites only the handset can place are still recorded by the
+screen, because that is the only side that has the handset's fixes --
+one satellite, one source.
+
+The trail cap goes from four hours to a day, the desktop's own number,
+so a nine-hour capture is nine hours of arc; the arcs are built once a
+document rather than once a frame, and drawn thinner than the markers
+they sit behind.
+
 ### Added — satellite tracks, in the paid edition
 
 Where each satellite has *been*, drawn behind where it is. One epoch

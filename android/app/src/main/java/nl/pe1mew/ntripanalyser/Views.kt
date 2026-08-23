@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -66,6 +67,15 @@ data class PlottedSat(
     val cn0: Float,          // the value this edition shows
     val azimuthDeg: Float,
     val elevationDeg: Float,
+    /**
+     * Whether the orbits placed this one, or only the handset could.
+     *
+     * The service records what the orbits place, because it goes on
+     * decoding with the screen off; the phone's own fixes exist only
+     * where the UI is, so those stay here. One satellite has one source,
+     * so nothing is counted twice.
+     */
+    val fromOrbit: Boolean = true,
 )
 
 /** Toward white by @p t, which is how a trail says "this was". */
@@ -289,8 +299,16 @@ private fun SkyCanvas(
     tracks: TrackAccumulator? = null,
     trackRevision: Int = 0,
 ) {
-    @Suppress("UNUSED_EXPRESSION")
-    trackRevision   // read so Compose redraws when a point is added
+    // The arcs to draw, built once per document rather than once per
+    // frame. `runsFor` copies and splits a satellite's whole history,
+    // and a day of it across forty satellites is 57 000 points -- cheap
+    // at 1 Hz, not at 60. Keyed on the revision as well as the list,
+    // because a point can be added without the satellites changing.
+    val trails: List<Pair<Int, List<List<TrackAccumulator.Point>>>> =
+        remember(tracks, trackRevision, sats) {
+            if (tracks == null) emptyList()
+            else sats.map { s -> s.gnss to tracks.runsFor(s.gnss, s.prn) }
+        }
         Canvas(modifier) {
             val cx = size.width / 2f
             val cy = size.height / 2f
@@ -326,10 +344,10 @@ private fun SkyCanvas(
             // history. The hue is the constellation's, lightened 30 %
             // toward white -- the desktop's rule, and for its reason:
             // history should not compete with the live position.
-            if (tracks != null) {
-                for (s in sats) {
-                    val trail = Gnss.colour(s.gnss).lerpToWhite(0.3f)
-                    for (run in tracks.runsFor(s.gnss, s.prn)) {
+            if (trails.isNotEmpty()) {
+                for ((gnss, runs) in trails) {
+                    val trail = Gnss.colour(gnss).lerpToWhite(0.3f)
+                    for (run in runs) {
                         var prev: Offset? = null
                         var prevAz = 0f
                         for (p in run) {
@@ -341,9 +359,13 @@ private fun SkyCanvas(
                             val wrapped = prev != null &&
                                 kotlin.math.abs(p.azDeg - prevAz) > 180f
                             if (prev != null && !wrapped) {
-                                drawLine(trail, prev, here, strokeWidth = markerR * 0.35f)
+                                // Thinner than the marker it belongs
+                                // to, deliberately: at 0.35 the trail
+                                // carried the same visual weight as the
+                                // satellite and the plot read as a mesh.
+                                drawLine(trail, prev, here, strokeWidth = markerR * 0.16f)
                             }
-                            drawCircle(trail, markerR * 0.28f, here)
+                            drawCircle(trail, markerR * 0.13f, here)
                             prev = here
                             prevAz = p.azDeg
                         }
@@ -631,6 +653,7 @@ class TrackAccumulator {
      *
      * @return true if the point was kept.
      */
+    @Synchronized
     fun offer(gnss: Int, prn: Int, azDeg: Float, elDeg: Float, tSeconds: Double): Boolean {
         val key = gnss * 256 + prn
         val trail = trails.getOrPut(key) { ArrayDeque() }
@@ -650,6 +673,7 @@ class TrackAccumulator {
      * after a set is drawn as its own arc. Azimuth wrap is left to the
      * renderer, which is where the projection lives.
      */
+    @Synchronized
     fun runsFor(gnss: Int, prn: Int): List<List<Point>> {
         val trail = trails[gnss * 256 + prn] ?: return emptyList()
         if (trail.isEmpty()) return emptyList()
@@ -669,9 +693,10 @@ class TrackAccumulator {
     }
 
     /** How many points are held, across every satellite. Tests and probes. */
-    val size: Int get() = trails.values.sumOf { it.size }
+    val size: Int @Synchronized get() = trails.values.sumOf { it.size }
 
     /** A trail belongs to one run, as the elevation scatter does. */
+    @Synchronized
     fun clear() {
         trails.clear()
         revision++
@@ -684,8 +709,18 @@ class TrackAccumulator {
         /** A longer gap than this starts a new arc. The desktop's value. */
         const val GAP_BREAK_S = 300.0
 
-        /** Four hours per satellite, against the desktop's twenty-four. */
-        const val CAP = 240
+        /**
+         * A day per satellite, which is the desktop's number too.
+         *
+         * It was four hours, on the reasoning that a phone holds a
+         * watch-mode session rather than a day. A nine-hour capture then
+         * showed nine hours of measurement under four hours of arc, and
+         * the reader has no way to tell a cap from a satellite that was
+         * not there. 1440 points across forty satellites is under two
+         * megabytes, and the runs are built once a minute rather than
+         * once a frame, so the drawing does not care either.
+         */
+        const val CAP = 1440
     }
 }
 
@@ -721,9 +756,21 @@ class ElevationAccumulator {
 
     private val seen = HashSet<Int>()
 
-    /** Constellations that have contributed, for the legend. */
-    val constellations: List<Int> get() = seen.sorted()
+    /**
+     * Constellations that have contributed, for the legend.
+     *
+     * Synchronised because the service adds while the screen draws;
+     * `forEachCell` deliberately is not -- it reads plain counters, and
+     * a cell one sample behind is invisible, where holding the lock for
+     * a whole plot would not be.
+     */
+    val constellations: List<Int> @Synchronized get() = seen.sorted()
 
+    /** Bumped on every sample, so a view can key on it as tracks do. */
+    var revision: Int = 0
+        private set
+
+    @Synchronized
     fun add(gnss: Int, elevationDeg: Float, cn0: Float) {
         if (gnss !in 1 until GNSS_SLOTS) return
         val el = (elevationDeg / EL_STEP).toInt().coerceIn(0, EL_BINS - 1)
@@ -731,12 +778,15 @@ class ElevationAccumulator {
         cells[(gnss * EL_BINS + el) * CN0_BINS + cn]++
         total++
         seen.add(gnss)
+        revision++
     }
 
+    @Synchronized
     fun clear() {
         cells.fill(0)
         total = 0L
         seen.clear()
+        revision++
     }
 
     /**

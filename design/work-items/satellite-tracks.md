@@ -94,17 +94,91 @@ readers of both editions and must say which one draws trails.
    far is that free's screens never show a disabled paid control, and
    *More in Pro* is where the capability is named instead.
 
-## What is built, and what is still to see
+## What 3.7.1 shipped, and what a night with it showed
 
-T1, T2 and T3 are in: the accumulator, the drawing, the edition gate,
-and the docs. Both editions build, `checkEditionParity` passes, and
-`check_release.py` is at 71 checks -- it gained one when it caught
-`HAS_TRACKS` arriving undocumented.
+T1-T4 are in, and a forty-minute run draws exactly what the plan asked
+for: arcs behind the markers, in the constellation's own hue. The arcs
+are confirmed.
 
-**Points are confirmed on the device; arcs are not yet.** A trail draws
-its dots as soon as there are two, and those are visible inside the live
-markers -- but a satellite moves only a few pixels in the minutes a test
-run lasts, so the *line* between them has nothing to span. Shortening
-the interval does not help: closer samples are closer dots. The line
-needs a run long enough for a satellite to travel, which is the next
-thing to look at, on a capture rather than by shortening the clock.
+A nine-hour run is not. Three faults, reported 2026-08-23 from two
+captures of the same station:
+
+1. **Nine hours produced minutes of track.** The elevation scatter told
+   the same story from the other side: 25 412 samples where nine hours
+   at forty satellites a second is millions.
+2. **Rotating the phone reset every analysis screen** -- tracks, scatter
+   and all -- and started from zero.
+3. The trails are drawn **thicker than they need to be**.
+
+### One cause under the first two
+
+The run lives in `MonitorService`'s companion, process-scoped, and
+survives anything the activity does. The accumulators do not: both are
+`remember { }` inside the composition, and `LaunchedEffect(running)`
+clears them whenever it re-enters. So a rotation destroys them, and the
+clear then wipes what a fresh one might have held.
+
+Worse for the long run: the document is collected with
+`collectAsStateWithLifecycle`, which stops at STOPPED. With the screen
+off **no document reaches the UI at all**, so nothing accumulates. A
+nine-hour capture accumulated the minutes its screen happened to be on,
+which is what both plots were honestly showing.
+
+The mistake was putting a record of the run in the thing that draws it.
+The C/N0 scatter has had it since it was written; tracks inherited it by
+copying the precedent, which is how a wrong precedent spreads.
+
+## Steps
+
+### T5 -- accumulate where the run lives
+
+Both accumulators move to `MonitorService`'s companion, cleared when a
+run starts rather than when a composition re-enters, and fed where the
+document is published (`MonitorService.kt:203`) rather than where it is
+drawn. The service decodes with the screen off, so accumulation
+continues with the screen off.
+
+Satellites the orbits place are the service's to record. Those only the
+phone can place stay with the UI, which is the only side that has the
+handset's positions -- one satellite, one source, so nothing is counted
+twice. Both accumulators become synchronised, because two threads now
+reach them.
+
+**Verify.** Rotate on each of the three analysis screens: the sample
+count and the arcs are unchanged. Screen off for ten minutes: the count
+has risen when it comes back.
+
+### T6 -- a long run is a long track
+
+The cap goes from 240 points to **1440**, the desktop's own number: a
+day per satellite, so a nine-hour capture is nine hours of arc. Drawing
+57 000 points a frame is not free, so the runs are built once per
+revision -- once a minute -- instead of on every frame.
+
+Thinner lines while there: the trail was `markerR * 0.35`, near enough
+the marker's own weight to compete with it.
+
+**Verify.** A long run draws to its start; a rotation mid-run keeps it.
+
+## What the verification showed (2026-08-23, Huawei SNE-LX1)
+
+Read off the C/N0 view's own sample counter, which is the accumulation
+made visible:
+
+| Step | Samples | |
+|---|---|---|
+| Watch run, 60 s | 2 385 | ~40/s, one document a second across ~40 satellites |
+| Rotated to landscape | 1 786 -> 2 947 | rose across the rotation; before this change it restarted at 0 |
+| Backgrounded 150 s | 2 385 -> 9 121 | ~45/s while off screen, where nothing at all was recorded before |
+
+The trail dots are visibly finer than the markers they sit behind.
+
+**One thing is not proven here.** Those figures are with the app off
+screen but the *screen on*. With the screen off the CPU may suspend
+between packets, and a foreground service holds no wake lock -- the
+service pumps every 200 ms, and nothing keeps it running against a
+suspend. A stream arriving continuously wakes it often, so it may not
+matter; the next overnight run is what says. If that run comes back
+sparse, a partial wake lock held for the length of a watch run is the
+lever, and the cost is battery on a phone that is usually charging
+while it does this.
