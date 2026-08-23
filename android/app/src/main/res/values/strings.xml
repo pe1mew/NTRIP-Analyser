@@ -120,7 +120,11 @@
     <!-- Shown only when it happened. The app reconnects by itself after
          a drop, which is what a phone needs; the count is how a reader
          tells a station that faltered from a link that did. -->
-    <string name="watch_reconnects">%1$d reconnect(s) — the stream dropped and came back</string>
+    <!-- Shaped like the degradations line above it, and short enough to
+         sit on one line at bodySmall on a 1080-wide phone: the first
+         wording wrapped, leaving "back" alone on a line of its own while
+         every other line in the card fitted. -->
+    <string name="watch_reconnects">%1$d reconnect(s); the stream came back</string>
     <string name="run_watching">Watching — stop when you have seen enough</string>
 
     <string name="no_evidence">No detail recorded for this check yet.</string>
