@@ -467,11 +467,30 @@ creating it as a *draft* if it does not exist yet. It runs on
 than the one it was built on, and `ubuntu-latest` would exclude Debian 12
 and Ubuntu 22.04, which is most of the VPS estate.
 
-So the release sequence is: bump `src/core/version.h`, build and stage
-the Windows assets here, create the release and upload them, then push
-the tag and let the Linux assets arrive by themselves. Tag and header
-must agree — `cmake/CheckReleaseTag.cmake` fails the packaging otherwise,
-which is the whole reason it exists.
+So the release sequence is: bump `src/core/version.h`, commit it, tag
+it locally, build and stage the Windows assets here -- then **push the
+tag**, and let CI open the release. Tag and header must agree —
+`cmake/CheckReleaseTag.cmake` fails the packaging otherwise, which is
+the whole reason it exists, and it can only compare a tag that already
+exists.
+
+```bash
+git tag v3.7.1                       # after committing the bump
+cmake --build build --target release # the guard reads the tag here
+git push origin v3.7.1               # CI opens a draft, Linux assets attached
+gh release upload v3.7.1 build/dist/*
+gh release edit v3.7.1 --title "NTRIP-Analyser 3.7.1" --notes-file notes.md
+gh release edit v3.7.1 --draft=false
+```
+
+**Push the tag before reaching for `gh release create`.** This order
+used to read the other way round -- create the release, then push the
+tag -- and it does not work once the tag exists locally: *"tag v3.7.1
+exists locally but has not been pushed ... please push it before
+continuing or specify the `--target` flag"*. The packaging guard wants
+the tag to exist and `gh release create` wants it not to, so the only
+order that satisfies both is to tag, package, push, and then fill in
+the release CI has already opened. Met at v3.7.1.
 
 **Commit the bump before tagging, and read the tag rather than the tree
 to check it.** A tag points at a commit; a staged bump is not in one, and
