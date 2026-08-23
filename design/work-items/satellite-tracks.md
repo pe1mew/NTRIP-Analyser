@@ -173,6 +173,14 @@ made visible:
 
 The trail dots are visibly finer than the markers they sit behind.
 
+**A trial is running.** Started 2026-08-23 15:0x on the Huawei
+(SNE-LX1, Android 10, so no six-hour ceiling), pro 3.7.1 from `cd78871`,
+watch mode on HANESE with placement from the ephemeris stream. What to
+read from it: the elapsed line, the sample count on C/N0 against
+elevation -- about 1.3 million if the service keeps 40/s through the
+night -- and whether the arcs run back the whole session. **Do not
+install anything on that handset while it runs.**
+
 **One thing is not proven here.** Those figures are with the app off
 screen but the *screen on*. With the screen off the CPU may suspend
 between packets, and a foreground service holds no wake lock -- the

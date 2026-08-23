@@ -53,6 +53,43 @@
 
 ## Current State
 
+<!-- 2026-08-23 -->
+
+- **v3.7.1 released** (2026-08-23) to Play and to GitHub, both platforms'
+  <!-- verify: grep -q '^## .3.7.1.' changelog.md -->
+  assets attached. It fixes the sky view's legend being drawn behind the
+  navigation buttons on a phone with three-button navigation -- **a fault
+  whose fix was already inside the v3.7.0 tag**. What reached Play was a
+  bundle built four and a half hours earlier: the Android release is
+  built by two commands, one for the APK and one for the bundle, and only
+  the first was re-run. `tools/check_release.py` now compares every
+  artefact under `app/build/outputs` with the sources it came from and
+  with this tree's version, and is at **79 checks**; the runbook builds
+  APKs and bundles in one command. Expect those four checks to be red
+  between an edit and a rebuild -- that is what they are for.
+  <!-- verify: grep -q 'def check_artefacts' tools/check_release.py -->
+- **The analysis plots belong to the run, not to the screen** (2026-08-23).
+  <!-- verify: grep -q 'val tracks = TrackAccumulator()' android/app/src/main/java/nl/pe1mew/ntripanalyser/MonitorService.kt -->
+  Both accumulators live in `MonitorService`'s companion, cleared at run
+  start and fed where the document is published. Before this a rotation
+  reset them and a stopped activity fed them nothing at all, so a
+  nine-hour capture held the minutes its screen happened to be on.
+  Satellites only the handset can place are still fed by the UI -- one
+  satellite, one source. Measured: 45 samples/s off screen, unchanged
+  across a rotation.
+- **Satellite tracks (pro)**: trails on the sky plot, a point a minute,
+  <!-- verify: grep -q 'HAS_TRACKS' android/app/src/pro/java/nl/pe1mew/ntripanalyser/Features.kt -->
+  a **day** per satellite, arcs broken at a five-minute gap and at the
+  azimuth wrap, drawn thinner than the markers and built once a document
+  rather than once a frame. Confirmed on hardware at 40 minutes.
+  Unreleased: **pro does not go to Play until the last feature lands.**
+- **The Watch card says when the stream dropped** (2026-08-23): the app
+  <!-- verify: grep -q 'watch_reconnects' android/app/src/main/res/values/strings.xml -->
+  has always reconnected by itself (1 s doubling to 60 s, both editions,
+  set in `ntrip_bridge.c`) and never said so. Read the count *with* the
+  degradations line: degradations with reconnects is a link that dropped,
+  without is a station that faltered.
+
 <!-- 2026-08-22 -->
 
 - **v3.7.0 released** (2026-08-22): the Android app is drawn in one
@@ -332,6 +369,14 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **A record of a run outlives the screen that draws it.** Anything that
+  accumulates across a session -- trails, the C/N0 scatter, counters --
+  belongs where the run lives (`MonitorService`'s companion), never in a
+  composition. A composition dies on a rotation and is fed nothing while
+  the activity is stopped, so a plot kept there quietly describes the
+  minutes its screen was on rather than the run (2026-08-23; the scatter
+  had done this since it was written, and tracks inherited it by copying
+  the precedent).
 - **A learning project, held to professional standards.** No revenue goal
   and no growth to optimise, so commercially-argued proposals are
   off-target — but the engineering bar is a professional one, and "only a
