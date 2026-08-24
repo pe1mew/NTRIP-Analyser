@@ -117,6 +117,41 @@ sourcetable against the broadcast ARP — 325 m — while its user stood
 23 km away. With the phone's fix in use the distance line breathes a
 little; that is your own receiver's wander, not the station's.
 
+### Taking it on the road
+
+This view works during any run, however started — including a
+[watch](Watch-mode) begun from the analysis screen and left going for
+a drive. Two sides of it behave differently on the move, and knowing
+which is which is knowing what you measured:
+
+- **The station side keeps itself, screen on or off.** The reference
+  position, its history dots, the hand-over count and the moved/stable
+  sentence all come from the *stream*, decoded by the same service
+  that keeps a watch alive in a pocket. A network that switches
+  stations under you at two in the morning is recorded either way.
+- **The rover side follows you only while the app is on screen.**
+  Android stops delivering location to an app it cannot see, and this
+  app deliberately runs no background location service
+  ([why](Live-position)). Screen off, the last fix stands: the
+  distance stops tracking you — and so does the live position being
+  sent, which is the same rule.
+
+So for a drive that is *about* hand-overs: **screen on, mounted, and
+[live reporting](Live-position) agreed.** With those three, the
+reference position chases you and each hand-over lands as a jump in
+the dots and a step in the distance chart.
+
+Without live reporting, a drive shows something different — and the
+view stays honest about it: the caster only ever sees your fixed
+configured position, so a network has no reason to hand you over. The
+reference position sits still while the distance *"of this phone"*
+grows as you drive away from it. That is a correct picture of what the
+service was told, not a fault in the view.
+
+The history keeps the most recent **32** positions; the count keeps
+counting past that. On Android 15 and later the six-hour ceiling on a
+watch applies as ever ([Watch mode](Watch-mode)).
+
 ---
 
 The verdicts and their reasoning live in the shared engine

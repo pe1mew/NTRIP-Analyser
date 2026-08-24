@@ -266,6 +266,31 @@ names its rover end ("of this phone" / "of the set position").
 Verified on the same station: **"25,0 km S of this phone"**, amber, on
 HANESE from the author's home.
 
+### On the road — the mobile behaviour, stated  *(2026-08-24)*
+
+Asked by the author: does this run from the analysis screen, for hours,
+while driving? Answered and documented (wiki: *Taking it on the road*):
+
+- **Yes for the station side, unconditionally.** The trail is fed in
+  the service at every publish, gated on the edition alone — not on
+  how the run started. Dots, count and sentence record with the
+  screen off, like every run-scoped accumulator.
+- **The rover side follows the phone only on screen.** The receiver is
+  read by the activity, by design — no location-typed background
+  service, the decision recorded at `MainActivity.kt`'s consent block
+  and in the Play data-safety position. Screen off, the last fix
+  stands, for the distance display and the live uplink alike.
+- **A drive without live GGA sees no hand-overs**, correctly: the
+  caster was never told the rover moved. The view shows the ARP
+  standing still and the distance growing, which is the truth of what
+  the service was asked.
+
+Changing the second point — background location — would be a new
+permission, a Play data-safety change, and a reversal of a recorded
+design decision. It is not planned; it is written down here so the
+next person asking finds the boundary and its reasons rather than an
+accident.
+
 ## Open, and worth an answer before H3
 
 1. **Should free's check-3 evidence quote `arp_moves`?** It is

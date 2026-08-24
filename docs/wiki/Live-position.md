@@ -44,6 +44,12 @@ deliberate: the alternative is a service that tracks you continuously in
 the background, and this app will not do that to answer a coverage
 question. If you are walking a site, keep the screen on.
 
+The same rule reaches the [reference-position
+view](Network-RTK-check#watching-the-reference-position-pro): its
+station side (hand-overs, the dots) records with the screen off,
+because that comes from the stream — but its rover side, the distance
+to you, freezes with the last fix, for exactly the reason above.
+
 ## Which to use when
 
 - **Accepting a network service** — fixed, taken from the station's own
