@@ -122,6 +122,7 @@ struct NtripSession {
     bool       header_done;
     bool       announced_streaming;
     bool       framing_enabled;    /**< ns_set_framing_enabled          */
+    NsArpTrack arp_track;          /**< reference-position movement      */
 
     double     t0;             /**< session start (monotonic)          */
     double     t_start_unix;   /**< session start (wall clock)         */
@@ -786,6 +787,8 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                             s->stats.arp_lat = a.lat_deg;
                             s->stats.arp_lon = a.lon_deg;
                             s->stats.arp_alt = a.alt_m;
+                            ns_stats_note_arp(&s->stats, &s->arp_track,
+                                              a.lat_deg, a.lon_deg);
                             s->stats.arp_says_gps     = a.gps;
                             s->stats.arp_says_glonass = a.glonass;
                             s->stats.arp_says_galileo = a.galileo;

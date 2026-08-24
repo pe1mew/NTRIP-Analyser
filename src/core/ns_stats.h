@@ -214,7 +214,8 @@ typedef struct {
     bool     arp_says_galileo;
     double   arp_lat, arp_lon, arp_alt;
     double   arp_drift_m;         /**< from the first ARP; NS_UNSET if none */
-    int      arp_moves;           /**< distinct positions beyond a threshold */
+    int      arp_moves;           /**< distinct positions beyond
+                                   *   @ref NS_ARP_MOVE_M                */
     bool     sourcetable_pos_valid;
     double   sourcetable_offset_m;/**< declared vs broadcast; NS_UNSET if
                                    *   not comparable, e.g. on a VRS     */
@@ -268,6 +269,47 @@ typedef struct {
  * distinction that matters for drift and latency in particular.
  */
 void ns_stats_init(NsStatsSnapshot *s);
+
+/* ── Reference-position movement ──────────────────────────────────────
+ *
+ * `arp_drift_m` and `arp_moves` were declared and serialised for a
+ * release without any code writing them: every document carried
+ * "arp_moves": 0 as a fact about nothing -- the fourth instance of the
+ * snapshot-field gotcha, found while planning the hand-over view.
+ * They are filled here, in core, so the CLI, the daemon's CSV, the GUI
+ * and the app all read one bookkeeping rather than four.
+ */
+
+/**
+ * @brief A new position counts as a move beyond this, metres.
+ *
+ * The desktop's value (`gui_state.h`): wander in a fixed station's
+ * re-broadcast ARP is millimetres, and a VRS hand-over is hundreds of
+ * metres, so anything near the line is already suspicious.  10 m
+ * separates re-encoding noise from an actual change of position.
+ */
+#define NS_ARP_MOVE_M 10.0
+
+/** @brief What the movement bookkeeping remembers between broadcasts. */
+typedef struct {
+    bool   have_first;
+    double first_lat, first_lon;  /**< drift is measured from here      */
+    double last_lat,  last_lon;   /**< the last *recorded* position     */
+} NsArpTrack;
+
+/**
+ * @brief Note one broadcast reference position; keep the snapshot true.
+ *
+ * Call with every decoded 1005/1006.  Maintains @ref
+ * NsStatsSnapshot.arp_drift_m (distance from the run's first position)
+ * and @ref NsStatsSnapshot.arp_moves (positions more than @ref
+ * NS_ARP_MOVE_M from the last recorded one).  The first position is
+ * not a move.
+ *
+ * @param t Zero-initialise at session start; opaque otherwise.
+ */
+void ns_stats_note_arp(NsStatsSnapshot *s, NsArpTrack *t,
+                       double lat_deg, double lon_deg);
 
 /**
  * @brief Find or create the entry for @p msg_type.

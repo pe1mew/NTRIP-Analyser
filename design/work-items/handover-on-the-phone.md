@@ -81,7 +81,19 @@ as an open question below rather than smuggled in.
 
 ## Steps
 
-### H1 — the core fills its own fields
+### H1 — the core fills its own fields  *(done 2026-08-24)*
+
+`ns_stats_note_arp()` in `ns_stats.c`, called from the session where
+1005/1006 already lands; `NS_ARP_MOVE_M 10.0` beside it with the
+desktop's reasoning. One decision the writing settled: a move is
+judged against the last **recorded** position, not the last broadcast
+-- a station creeping 9 m per message would otherwise never move at
+all, however far it got -- and the test pins that with a creep case.
+Eight assertions in `test_ns_stats`; falsified by tripling the
+threshold (the 15 m jump stops counting), restored, 15 of 15 suite
+tests. Both Android editions rebuild on the changed session.
+
+*(As planned:)*
 
 `ns_stats_note_arp()` (or inline where 1005/1006 lands): first
 position remembered, drift from it maintained, a move counted past the

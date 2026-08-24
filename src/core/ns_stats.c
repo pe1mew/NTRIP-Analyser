@@ -123,6 +123,42 @@ static void out_key(NsOut *o, const char *k)
 
 /* ── Public API ───────────────────────────────────────────────────── */
 
+/** @brief Great-circle distance in metres, spherical earth. */
+static double geo_m(double lat1, double lon1, double lat2, double lon2)
+{
+    const double R = 6371000.0, D = 3.14159265358979323846 / 180.0;
+    double dla = (lat2 - lat1) * D, dlo = (lon2 - lon1) * D;
+    double sa = sin(dla / 2), so = sin(dlo / 2);
+    double a = sa * sa + cos(lat1 * D) * cos(lat2 * D) * so * so;
+    return 2.0 * R * atan2(sqrt(a), sqrt(1.0 - a));
+}
+
+void ns_stats_note_arp(NsStatsSnapshot *s, NsArpTrack *t,
+                       double lat_deg, double lon_deg)
+{
+    if (!s || !t) return;
+
+    if (!t->have_first) {
+        t->have_first = true;
+        t->first_lat  = lat_deg;  t->first_lon = lon_deg;
+        t->last_lat   = lat_deg;  t->last_lon  = lon_deg;
+        s->arp_drift_m = 0.0;
+        s->arp_moves   = 0;
+        return;
+    }
+
+    s->arp_drift_m = geo_m(t->first_lat, t->first_lon, lat_deg, lon_deg);
+
+    /* Against the last *recorded* position, not the last broadcast: a
+     * station creeping 9 m per message would otherwise never move at
+     * all, however far it got. */
+    if (geo_m(t->last_lat, t->last_lon, lat_deg, lon_deg) > NS_ARP_MOVE_M) {
+        s->arp_moves++;
+        t->last_lat = lat_deg;
+        t->last_lon = lon_deg;
+    }
+}
+
 void ns_stats_init(NsStatsSnapshot *s)
 {
     if (!s) return;

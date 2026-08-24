@@ -336,8 +336,55 @@ static void populate(NsStatsSnapshot *s)
     s->stream_time_s = 3600.0;
 }
 
+/* ── Reference-position movement ──────────────────────────────────────
+ *
+ * arp_drift_m and arp_moves shipped declared, serialised and written by
+ * nothing; this drives the bookkeeping that now fills them.  Offsets
+ * are in latitude, where a metre is a fixed number of degrees.
+ */
+static void arp_movement(void)
+{
+    const double M = 1.0 / 111320.0;   /* one metre of latitude, degrees */
+    NsStatsSnapshot s;
+    NsArpTrack t;
+    ns_stats_init(&s);
+    memset(&t, 0, sizeof(t));
+
+    ns_stats_note_arp(&s, &t, 52.0, 5.0);
+    check(s.arp_moves == 0 && s.arp_drift_m == 0.0,
+          "the first position is not a move, and drift starts at zero");
+
+    /* Re-encoding wander: well under the threshold. */
+    ns_stats_note_arp(&s, &t, 52.0 + 5.0 * M, 5.0);
+    check(s.arp_moves == 0, "5 m of wander is not a move");
+    check(s.arp_drift_m > 4.0 && s.arp_drift_m < 6.0,
+          "but the drift from the first position says it happened");
+
+    /* A hand-over: far past the threshold. */
+    ns_stats_note_arp(&s, &t, 52.0 + 15.0 * M, 5.0);
+    check(s.arp_moves == 1, "15 m from the last recorded position is a move");
+    check(s.arp_drift_m > 14.0 && s.arp_drift_m < 16.0,
+          "and the drift is measured from the first position, not the last");
+
+    /* Creep: 9 m steps.  Judged against the last *recorded* position,
+     * a station creeping under the threshold still gets counted once
+     * it is far enough from where it was last pinned. */
+    ns_stats_note_arp(&s, &t, 52.0 + 24.0 * M, 5.0);
+    check(s.arp_moves == 1, "9 m past the last recorded position: no move yet");
+    ns_stats_note_arp(&s, &t, 52.0 + 33.0 * M, 5.0);
+    check(s.arp_moves == 2,
+          "18 m of accumulated creep is a move: creep cannot hide");
+
+    /* Coming home does not un-count anything. */
+    ns_stats_note_arp(&s, &t, 52.0, 5.0);
+    check(s.arp_moves == 3 && s.arp_drift_m < 1.0,
+          "returning is one more move, and the drift reads near zero");
+}
+
 int main(void)
 {
+    arp_movement();
+
     char json[16384], header[4096], row[4096];
     NsStatsSnapshot s;
 
