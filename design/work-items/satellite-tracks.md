@@ -173,7 +173,15 @@ made visible:
 
 The trail dots are visibly finer than the markers they sit behind.
 
-**A trial is running.** Started 2026-08-23 15:0x on the Huawei
+**The trial passed** (2026-08-23, 21:55, 7 h 17 m in and still
+running): arcs span the whole session in every constellation's own
+character -- Galileo near-straight, GLONASS steep, BeiDou slow -- each
+ending at its live marker, broken only where a satellite set. The
+screen was off for most of those hours, which answers the suspension
+question below: accumulation kept its one-point-a-minute pace without
+a wake lock. Accepted by the author from this capture.
+
+**How it was run.** Started 2026-08-23 15:0x on the Huawei
 (SNE-LX1, Android 10, so no six-hour ceiling), pro 3.7.1 from `cd78871`,
 watch mode on HANESE with placement from the ephemeris stream. What to
 read from it: the elapsed line, the sample count on C/N0 against
@@ -181,7 +189,7 @@ elevation -- about 1.3 million if the service keeps 40/s through the
 night -- and whether the arcs run back the whole session. **Do not
 install anything on that handset while it runs.**
 
-**One thing is not proven here.** Those figures are with the app off
+**One thing was not proven before that trial.** Those figures are with the app off
 screen but the *screen on*. With the screen off the CPU may suspend
 between packets, and a foreground service holds no wake lock -- the
 service pumps every 200 ms, and nothing keeps it running against a
