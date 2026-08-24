@@ -210,7 +210,19 @@ position (76°)" in green, one dot pair inside a 120 m ring, and the
 strip chart wiggling with the phone's own fix -- the rover end is live,
 so the line breathes. The moved cases still await a real network.
 
-### H5 — the guards
+### H5 — the guards  *(done 2026-08-24)*
+
+Most of it had already happened where it belonged: the gate row and
+`check_snapshot_fields`' education landed in H2, forced by the guards
+themselves. H5 added `check_handover_parity()` -- the move threshold
+compared between `NS_ARP_MOVE_M` and `ArpTrail.MOVE_M` (drift there
+puts a count and its own dots in disagreement on one screen), the
+32-position cap compared against the desktop's `VRS_ARP_HIST_N`, and
+the no-redefined-strings rule for `ho_`. Both numeric checks falsified
+red with the disagreeing values named, restored. Row 56 reads ● for
+pro. **90 checks.**
+
+*(As planned:)*
 
 `HAS_HANDOVER` documented in the matrix gate table; row 56 Pro ⋯ → ●;
 `check_snapshot_fields` already compares C and Kotlin, so the two new

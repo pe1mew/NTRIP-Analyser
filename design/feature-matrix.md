@@ -53,7 +53,7 @@ or forms a verdict; that rule is what makes the next row true.
 | Ephemeris decode from the observation stream | 1019/1020/1042/1044/1045/1046 through a single seven-type switch. Lets a station place its own satellites with nothing configured. The daemon decodes them with the rest of the session layer but surfaces nothing: it publishes no orbit and draws no sky. | ● | ● | ● | ● | ◐ |
 | Ionospheric ROTI | Geometry-free dual-frequency combination from MSM6/7, per satellite and as a polar heatmap. No other free NTRIP tool does this. | ○ | ● | ⋯ | ⋯ | ● |
 | Session history time-series | Six metrics across the session. Min/max/average hide dropouts — a 45 s gap and a steady stream can average alike. | ○ | ● | ○ | ⋯ | ◐ |
-| Rover-to-ARP distance and hand-over | Live distance and direction, with accumulated ARP dots that reveal a network switching stations under you. | ◐ | ● | ○ | ⋯ | ○ |
+| Rover-to-ARP distance and hand-over | Live distance and direction, with accumulated ARP dots that reveal a network switching stations under you. | ◐ | ● | ○ | ● | ○ |
 
 ## Visualisation
 

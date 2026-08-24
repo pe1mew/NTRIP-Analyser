@@ -626,6 +626,46 @@ def check_vrs_parity():
               "the %s edition does not redefine a network-RTK string" % flavour)
 
 
+# ── The hand-over vocabulary ──────────────────────────────────────────
+# Two rules, three homes. The core counts a "move" past NS_ARP_MOVE_M;
+# the app records a history dot past ArpTrail.MOVE_M; if the two drift
+# apart, the card's count disagrees with its own dots -- three
+# hand-overs over two recorded positions, on one screen. And the app
+# keeps the desktop's 32 positions (VRS_ARP_HIST_N) so a session means
+# the same on both products.
+
+def check_handover_parity():
+    print("hand-over parity")
+
+    h = read("src", "core", "ns_stats.h")
+    m = re.search(r"#define\s+NS_ARP_MOVE_M\s+([\d.]+)", h)
+    core_move = float(m.group(1)) if m else -1.0
+
+    kt = read("android", "app", "src", "main", "java", "nl", "pe1mew",
+              "ntripanalyser", "Views.kt")
+    m = re.search(r"const val MOVE_M\s*=\s*([\d.]+)", kt)
+    app_move = float(m.group(1)) if m else -2.0
+    check(core_move == app_move,
+          "a 'move' is the same distance in core and app",
+          "core %s m, app %s m" % (core_move, app_move))
+
+    g = read("gui", "gui_state.h")
+    m = re.search(r"#define\s+VRS_ARP_HIST_N\s+(\d+)", g)
+    gui_cap = int(m.group(1)) if m else -1
+    m = re.search(r"const val DOT_CAP\s*=\s*(\d+)", kt)
+    app_cap = int(m.group(1)) if m else -2
+    check(gui_cap == app_cap,
+          "the app keeps as many positions as the desktop",
+          "desktop %d, app %d" % (gui_cap, app_cap))
+
+    for flavour in ("free", "pro"):
+        path = os.path.join(ROOT, "android", "app", "src", flavour,
+                            "res", "values", "strings.xml")
+        text = io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        check("ho_" not in text,
+              "the %s edition does not redefine a hand-over string" % flavour)
+
+
 # ── One source set, three build systems ───────────────────────────────
 # CMakeLists.txt builds the desktop and the daemon; the NDK's own
 # CMakeLists builds the app from the same src/.  A file added to one and
@@ -802,6 +842,7 @@ def main():
     check_snapshot_fields()
     check_failure_codes()
     check_vrs_parity()
+    check_handover_parity()
     check_source_lists()
     check_artefacts(ver)
 
