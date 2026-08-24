@@ -12,6 +12,7 @@
 
 - [What Pro adds](Pro-edition)
 - [Watch mode](Watch-mode)
+- [Network-RTK check](Network-RTK-check)
 - [Saved connections](Saved-connections)
 - [Reporting where you are](Live-position)
 

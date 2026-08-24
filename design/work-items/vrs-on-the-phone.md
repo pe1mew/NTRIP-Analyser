@@ -195,7 +195,17 @@ feed it twice). Matrix row 45: Pro ⋯ → ●. A check that the Kotlin
 panel's assertion count matches `VRS_ASSERT_COUNT`, in the fashion of
 the failure-code parity check.
 
-### V5 — say so
+### V5 — say so  *(done 2026-08-24; wiki prepared, push is the author's)*
+
+The changelog entry, a wiki page (`Network-RTK-check.md`: the five
+assertions, what *gated* means, why *not gated* is amber and not red,
+and the check-3 relationship), the sidebar, the Pro pages' tables, and
+a cross-link from check 3's section -- which now says a moving
+reference position on a network mountpoint is correct operation, and
+points at the right instrument. `docs/cli.md` already documents
+`--check-vrs`; the wiki page names it as the same engine.
+
+*(As planned:)*
 
 `changelog.md` under `[Unreleased]`; the wiki — a *Network-RTK check*
 page (what the five assertions mean, what *gated* means, why a fixed

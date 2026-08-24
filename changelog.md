@@ -32,6 +32,32 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Added — the network-RTK check, in the paid edition
+
+The eight checks grade a station, and on a network service they can
+actively mislead: a VRS computes its reference position near *you*, so
+the position moves, and a moving position is what check 3 exists to
+distrust. The five network-RTK assertions and the gate test have been
+in the shared core since `--check-vrs`; the phone -- the thing a
+surveyor actually carries to a VRS -- now runs them too.
+
+One tap on the hub. The bridge owns the whole workflow, because only
+the sender knows the moment a GGA was accepted by the socket, which is
+what A1 and A2 are timed from; the run is a verdict on one connection,
+so it does not reconnect; and when the checks have held, it stops the
+GGA and lets the caster's reaction classify the service. **"Not gated
+(fixed base?)" is a classification, not a failure** -- a single base
+ignoring GGA is correct for what it is, and the row shows amber, never
+red.
+
+Three tests carry it: the engine against synthetic snapshots, the
+bridge against a loopback caster through the same JSON the app decodes,
+and the whole path live against a real caster, where the automatic gate
+entry fired and the service classified as the fixed base it is.
+`check_release.py` pins the crossing into Kotlin -- the gate enum's
+order, the app's reading of it, and the assertion count the matrix
+quotes. Phase 2, item 2 (`design/work-items/vrs-on-the-phone.md`).
+
 ### Added — the Watch card says when the stream dropped
 
 The app has always reconnected by itself after a drop — a second, then

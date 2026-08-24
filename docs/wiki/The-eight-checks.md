@@ -57,6 +57,11 @@ Without it a rover has nothing to compute against.
   then stopped, which usually means the message is sent very
   infrequently.
 
+On a **network mountpoint** — VRS, MAC, nearest-base — read this check
+differently: the reference position is computed near you and may move,
+which is correct operation there, not a fault. The instrument for that
+kind of service is the [Network-RTK check](Network-RTK-check) (Pro).
+
 ## 4. Observations flowing
 
 Every constellation the station is streaming must arrive at **0.5 Hz or
