@@ -201,6 +201,15 @@ add_executable(test_failure test/test_failure.c)
 target_link_libraries(test_failure PRIVATE ntrip_session)
 add_test(NAME failure COMMAND test_failure)
 
+# The network-RTK assertions had no test: the only thing that had ever
+# exercised vrs_check.c was a live caster. The engine is pure -- a
+# snapshot struct and the caller's clock -- so both endings (gated,
+# fixed base), every failure branch, and the policy override are driven
+# synthetically, with the 60 s hold and 90 s gate costing nothing.
+add_executable(test_vrs test/test_vrs.c)
+target_link_libraries(test_vrs PRIVATE ntrip_core)
+add_test(NAME vrs COMMAND test_vrs)
+
 # Tier 2's three load-bearing decisions -- "not enough evidence" as a
 # verdict, live-only metrics absent rather than zero, and windows in
 # stream time so a replay reproduces exactly. Each would erode quietly
@@ -249,7 +258,7 @@ add_custom_target(test_all
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall test_failure)
+            test_stall test_failure test_vrs)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

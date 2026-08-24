@@ -59,7 +59,25 @@ convenience of running them from a pocket.
 
 ## Steps
 
-### V1 — a loopback proof of the engine
+### V1 — a proof of the engine  *(done 2026-08-24)*
+
+**Built without the loopback this step was named for.** Reading the
+engine showed `vrs_update` takes a snapshot struct and the caller's
+clock and touches nothing else -- so synthetic snapshots and a driven
+clock test exactly the contract every frontend uses, the 60 s hold and
+90 s gate cost nothing, and the session layer stays tested where it
+already is (`test_stall`, `test_failure`). `test/test_vrs.c`: both
+endings, every failure branch, the policy override as a living
+assertion. 24 checks; 14 of 14 suite tests pass.
+
+Writing it caught two contract facts worth knowing for V2: `complete`
+is true once A1..A4 resolve *even if the gate was never entered* (the
+header says so; a caller must not wait on `complete` to mean "gate
+answered"), and the engine sees connection edges only through updates,
+so the bridge must keep calling `vrs_update` per pump even when nothing
+else changed.
+
+*(As planned, superseded:)*
 
 `vrs_check.c` has no test. `test/test_failure.c` already runs a
 loopback caster that answers as told; a sibling `test_vrs.c` drives the
