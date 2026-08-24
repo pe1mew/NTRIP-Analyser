@@ -113,10 +113,23 @@ jump — the sign-off numbers.
 
 ### H4 — the screen
 
-The `Dest` drill-in, first of its kind: the polar plot (rover centred,
-ARP at true bearing, scaled radius, history dots joined faintly in
-order) and the five-minute strip chart under it, in the analysis
-screens' band order. Verified on a real network mountpoint if one is
+The `Dest` drill-in, first of its kind — and **laid out as an analysis
+screen, using the analysis screens as its template** (author's
+direction, 2026-08-24). Concretely: the same `AppScaffold` frame, and
+the six fixed bands of `guiV3spec.md` §4 through the shared
+`AnalysisBands`/`PlotLayout` composables rather than a layout of its
+own — explainer, summary, plot, footer, legend, in that order and no
+other. The bands fill as: summary = distance, bearing and the
+hand-over count in the station type's words; plot = the polar plot
+(rover centred, ARP at true bearing, scaled radius, history dots
+joined faintly in order) with the five-minute strip chart beneath it;
+footer = the mountpoint and the rover position in use; legend = what a
+dot, the rover mark and the line mean.
+
+Reusing `PlotLayout` is not just consistency: it is what already
+solved landscape — a plot squeezed into what the words left over is
+how the sky view became a dot — so this screen inherits that fix
+instead of rediscovering it. Verified on a real network mountpoint if one is
 available; otherwise on RFSEE01, where the honest picture is one dot
 and a flat line — and the words must say that is *good*.
 
