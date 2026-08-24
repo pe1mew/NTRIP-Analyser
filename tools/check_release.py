@@ -359,9 +359,12 @@ SNAPSHOT_KNOWN_GAPS = {
     "sourcetable_offset_m":   "measurement-tiers.md phase 0",
     "sourcetable_pos_valid":  "measurement-tiers.md phase 0",
     "station_type":           "measurement-tiers.md, unfilled fields",
-    "arp_drift_m":            "measurement-tiers.md, unfilled fields",
-    "arp_moves":              "measurement-tiers.md, unfilled fields",
 }
+# arp_drift_m and arp_moves left this list 2026-08-24, filled by
+# ns_stats_note_arp() for the hand-over view. They were on it for a
+# release -- and would have *stayed* on it unnoticed, because the fill
+# lives in ns_stats.c, the one file the search below excludes. Hence
+# the carve-out under the exclusion.
 # `frames_malformed` was on this list for one commit. It is not there now
 # because the field is gone: NS_BAD_MALFORMED had no producer, so the
 # honest fix was to retire the concept rather than invent a number for
@@ -471,6 +474,15 @@ def check_snapshot_fields():
     for path in set(sources):
         with io.open(path, encoding="utf-8", errors="ignore") as f:
             blob += f.read()
+
+    # ns_stats.c is excluded because its serialisers name every field,
+    # which would make the whole check vacuous. But it also holds the
+    # one function that *fills* fields -- ns_stats_note_arp -- so that
+    # function's body is read back in, alone.
+    src = read("src", "core", "ns_stats.c")
+    m = re.search(r"void ns_stats_note_arp.*?" + chr(10) + r"}", src, re.S)
+    if m:
+        blob += m.group(0)
 
     unfilled = [f for f in fields
                 if f not in SNAPSHOT_INIT_ONLY

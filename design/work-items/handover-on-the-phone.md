@@ -104,7 +104,26 @@ carrying the numbers. Falsify by halving the threshold in the test.
 **Verify.** `test_ns_stats` (or a sibling) red/green; the daemon's CSV
 header already names the columns, so nothing there changes.
 
-### H2 — the accumulator and the Kotlin model
+### H2 — the accumulator and the Kotlin model  *(done 2026-08-24)*
+
+`ArpTrail` beside the other two accumulators: dots past the 10 m rule
+capped at 32, the 300-slot distance ring, all `@Synchronized`,
+run-scoped in the service's companion and fed at the publish. The
+rover end of each distance sample follows the GGA uplink's own order:
+the live fix where consent was given, the configured position
+otherwise -- and the fix never leaves the phone. `Stats` gained
+`arpDriftM`/`arpMoves`.
+
+The planning claim about `check_snapshot_fields` was **wrong in an
+instructive way**: the check would not have gone red, because the fill
+lives in `ns_stats.c` -- the one file its search excludes, since the
+serialisers there name every field. The two entries would have sat on
+the known-gaps list forever, "tracked" and filled. The checker now
+reads `ns_stats_note_arp`'s body back in past the exclusion, the two
+entries are retired, and the gate guard demanded `HAS_HANDOVER` in the
+matrix before going green. 86 checks.
+
+*(As planned:)*
 
 `ArpTrail` beside the other two in `MonitorService`'s companion:
 (lat, lon) recorded past the same 10 m rule, capped at 32, cleared at

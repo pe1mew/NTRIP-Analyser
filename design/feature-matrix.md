@@ -180,6 +180,7 @@ gaining a row for it.
 | `HAS_EPH_STREAM` | false | true | The on-demand ephemeris side-stream |
 | `HAS_TRACKS` | false | true | Trails on the sky plot: where each satellite has been |
 | `HAS_VRS_CHECK` | false | true | The network-RTK check: five assertions and the gate test on the hub |
+| `HAS_HANDOVER` | false | true | Rover-to-ARP distance and the hand-over history |
 | `MAX_MOUNTPOINTS` | 1 | 16 | Saved connection profiles and the switcher |
 | `SOURCETABLE_SELECTABLE` | false | true | Tap-to-use in the sourcetable browser |
 | `HAS_LIVE_GGA` | false | true | The phone's live position in the GGA uplink |

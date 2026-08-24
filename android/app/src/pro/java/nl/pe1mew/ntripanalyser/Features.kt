@@ -38,6 +38,13 @@ object Features {
      */
     const val HAS_VRS_CHECK = true
 
+    /**
+     * Rover-to-ARP distance and hand-over history: where the reference
+     * position is, and where it has been. The moving counterpart of
+     * the network-RTK check's snapshot judgement.
+     */
+    const val HAS_HANDOVER = true
+
     const val MAX_MOUNTPOINTS = 16
 
     const val SOURCETABLE_SELECTABLE = true

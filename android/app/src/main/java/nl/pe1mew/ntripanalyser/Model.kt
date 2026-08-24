@@ -95,6 +95,8 @@ data class Stats(
     @SerialName("arp_lat") val arpLat: Double? = null,
     @SerialName("arp_lon") val arpLon: Double? = null,
     @SerialName("arp_alt") val arpAlt: Double? = null,
+    @SerialName("arp_drift_m") val arpDriftM: Double? = null,
+    @SerialName("arp_moves") val arpMoves: Int = 0,
     @SerialName("uptime_s") val uptimeS: Double? = null,
     @SerialName("bytes_total") val bytesTotal: Long = 0,
     @SerialName("frames_crc_error") val framesCrcError: Long = 0,

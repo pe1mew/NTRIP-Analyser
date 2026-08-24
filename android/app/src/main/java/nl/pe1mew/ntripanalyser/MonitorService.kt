@@ -733,6 +733,18 @@ class MonitorService : Service() {
         /** @see tracks */
         val elevation = ElevationAccumulator()
 
+        /** @see tracks */
+        val arpTrail = ArpTrail()
+
+        /**
+         * The run's configured position, for the rover end of the
+         * distance ring when there is no live fix. Stamped at start(),
+         * like the accumulators are cleared there: the worker's own
+         * settings are out of the companion's reach.
+         */
+        @Volatile private var runLat = 0.0
+        @Volatile private var runLon = 0.0
+
         private val _state = MutableStateFlow(RunState())
 
         /** Observed by the UI; survives the activity, as the run does. */
@@ -749,6 +761,22 @@ class MonitorService : Service() {
          */
         private fun accumulate(doc: BridgeDocument) {
             val t = System.currentTimeMillis() / 1000.0
+            if (Features.HAS_HANDOVER) {
+                val alat = doc.stats.arpLat
+                val alon = doc.stats.arpLon
+                if (doc.stats.arpValid && alat != null && alon != null) {
+                    arpTrail.offerDot(alat, alon)
+                    // The rover end: the phone where it consented to be
+                    // known, the configured position otherwise -- the
+                    // same order the GGA uplink itself uses.
+                    val fix = livePosition
+                    val rlat = fix?.lat ?: runLat
+                    val rlon = fix?.lon ?: runLon
+                    arpTrail.offerDistance(
+                        (geoDistanceM(rlat, rlon, alat, alon) / 1000.0)
+                            .toFloat())
+                }
+            }
             doc.sats.forEach { sat ->
                 val el = sat.el ?: return@forEach
                 val az = sat.az ?: return@forEach
@@ -768,6 +796,9 @@ class MonitorService : Service() {
             // came to hold ten minutes.
             tracks.clear()
             elevation.clear()
+            arpTrail.clear()
+            runLat = s.latitude
+            runLon = s.longitude
             val i = Intent(context, MonitorService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_CASTER, s.caster)

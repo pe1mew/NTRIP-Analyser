@@ -725,6 +725,101 @@ class TrackAccumulator {
 }
 
 /**
+ * Where the reference position has been, and how far away it was.
+ *
+ * The hand-over history (phase 2 item 3): a dot per distinct ARP, on
+ * the desktop's rule -- a new position more than 10 m from the last
+ * *recorded* one -- capped at 32, plus a five-minute ring of the
+ * rover-to-ARP distance for the strip chart. Run-scoped and owned by
+ * `MonitorService`'s companion, because a record of a run outlives the
+ * screen that draws it.
+ */
+class ArpTrail {
+
+    data class Dot(val lat: Double, val lon: Double)
+
+    private val dots = ArrayList<Dot>()
+
+    /** km, NaN where no sample; a ring, newest at [head]-1. */
+    private val ring = FloatArray(RING_N) { Float.NaN }
+    private var head = 0
+    private var ringCount = 0
+
+    /** Bumped on any recording, because Compose cannot see inside. */
+    var revision: Int = 0
+        private set
+
+    /** Note a broadcast reference position; records it if it moved. */
+    @Synchronized
+    fun offerDot(lat: Double, lon: Double) {
+        val last = dots.lastOrNull()
+        if (last != null &&
+            geoDistanceM(last.lat, last.lon, lat, lon) <= MOVE_M) return
+        if (dots.size >= DOT_CAP) dots.removeAt(0)
+        dots.add(Dot(lat, lon))
+        revision++
+    }
+
+    /** One rover-to-ARP distance sample, at the publish cadence. */
+    @Synchronized
+    fun offerDistance(km: Float) {
+        ring[head] = km
+        head = (head + 1) % RING_N
+        if (ringCount < RING_N) ringCount++
+        revision++
+    }
+
+    @Synchronized
+    fun dots(): List<Dot> = ArrayList(dots)
+
+    /** Oldest first, NaN-free tail trimmed by the caller if it cares. */
+    @Synchronized
+    fun distances(): FloatArray {
+        val out = FloatArray(ringCount)
+        for (i in 0 until ringCount)
+            out[i] = ring[(head - ringCount + i + RING_N) % RING_N]
+        return out
+    }
+
+    /** Hand-overs seen by this trail: recorded positions minus one. */
+    val moves: Int @Synchronized get() = (dots.size - 1).coerceAtLeast(0)
+
+    @Synchronized
+    fun clear() {
+        dots.clear()
+        ring.fill(Float.NaN)
+        head = 0
+        ringCount = 0
+        revision++
+    }
+
+    companion object {
+        /** The desktop's move threshold; `NS_ARP_MOVE_M` in the core. */
+        const val MOVE_M = 10.0
+
+        /** The desktop keeps 32 positions; so does the phone. */
+        const val DOT_CAP = 32
+
+        /** Five minutes at the 1 Hz publish, the desktop's chart. */
+        const val RING_N = 300
+    }
+}
+
+/** Great-circle distance in metres, spherical earth. */
+internal fun geoDistanceM(lat1: Double, lon1: Double,
+                          lat2: Double, lon2: Double): Double {
+    val d = Math.PI / 180.0
+    val dla = (lat2 - lat1) * d
+    val dlo = (lon2 - lon1) * d
+    val sa = kotlin.math.sin(dla / 2)
+    val so = kotlin.math.sin(dlo / 2)
+    val a = sa * sa +
+        kotlin.math.cos(lat1 * d) * kotlin.math.cos(lat2 * d) * so * so
+    return 2.0 * 6371000.0 *
+        kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1.0 - a))
+}
+
+/**
  * The elevation scatter, accumulated into the plot rather than into a
  * list of samples.
  *

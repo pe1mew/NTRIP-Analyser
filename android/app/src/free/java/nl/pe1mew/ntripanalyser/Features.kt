@@ -42,6 +42,9 @@ object Features {
     /** The network-RTK check screen is paid; the engine is shared. */
     const val HAS_VRS_CHECK = false
 
+    /** The hand-over view is paid; arp_moves itself is measurement. */
+    const val HAS_HANDOVER = false
+
     const val MAX_MOUNTPOINTS = 1
 
     /**
