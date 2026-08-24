@@ -55,7 +55,8 @@ JNIEXPORT jlong JNICALL
 JNI_FN(nativeOpen)(JNIEnv *env, jobject thiz,
                    jstring caster, jint port, jstring mountpoint,
                    jstring user, jstring password,
-                   jdouble lat, jdouble lon, jboolean sendGga, jboolean watch)
+                   jdouble lat, jdouble lon, jboolean sendGga, jboolean watch,
+                   jboolean vrs)
 {
     (void)thiz;
     const char *c_caster = str_in(env, caster);
@@ -68,7 +69,8 @@ JNI_FN(nativeOpen)(JNIEnv *env, jobject thiz,
                                  c_user ? c_user : "",
                                  c_pass ? c_pass : "",
                                  (double)lat, (double)lon,
-                                 sendGga == JNI_TRUE, watch == JNI_TRUE);
+                                 sendGga == JNI_TRUE, watch == JNI_TRUE,
+                                 vrs == JNI_TRUE);
 
     str_free(env, caster, c_caster);
     str_free(env, mountpoint, c_mount);

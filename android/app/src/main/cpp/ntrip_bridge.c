@@ -11,6 +11,7 @@
 
 #include "session/ntrip_session.h"
 #include "core/kpi.h"
+#include "core/vrs_check.h"
 #include "core/sourcetable.h"
 #include "core/rtcm3x_parser.h"  /* eph decoders, ARP, output sink */
 #include "core/sky_collect.h"
@@ -170,6 +171,15 @@ struct NtripBridge {
     bool      gga_on;
     double    gga_lat, gga_lon;
     double    gga_last_s;      /**< when one was last accepted by the socket */
+
+    /* The network-RTK assertions, judged beside the eight checks. The
+     * engine owns the verdicts; this side owns the workflow, and it is
+     * the only side that can: A1 and A2 are timed from the moment a GGA
+     * was accepted by the socket, which only the sender knows. */
+    bool      vrs_mode;
+    bool      vrs_gated;       /**< the gate test has begun: GGA stopped */
+    VrsRun    vrun;
+    VrsReport vrep;
 };
 
 /** @brief GGA cadence, matching what the session's own timer used. */
@@ -276,11 +286,13 @@ static NtripBridge *bridge_alloc(void)
 
 NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                          const char *user, const char *password,
-                         double lat, double lon, bool send_gga, bool watch)
+                         double lat, double lon, bool send_gga, bool watch,
+                         bool vrs)
 {
     NtripBridge *b = bridge_alloc();
     if (!b) return NULL;
-    b->watch = watch;
+    b->watch    = watch;
+    b->vrs_mode = vrs;
 
     NsOptions opt;
     ns_options_default(&opt);
@@ -304,6 +316,15 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
      * expects; the KPI sustain clock resets on the gap either way, so a
      * genuinely broken station still cannot pass. */
     opt.auto_reconnect   = true;
+
+    /* A VRS check is a verdict on one connection, as the CLI's is: the
+     * assertions time connection edges, and a silent reconnect would
+     * hand A5 a stream the gate test is waiting to see drop.  And the
+     * check is meaningless without the uplink, so the mode implies it. */
+    if (vrs) {
+        opt.auto_reconnect = false;
+        send_gga = true;
+    }
 
     b->gga_on     = send_gga;
     b->gga_lat    = lat;
@@ -388,6 +409,7 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
     if (!b->started) {
         kpi_run_start(&b->run, now_s, NULL);
         kpi_watch_start(&b->w, now_s);
+        if (b->vrs_mode) vrs_run_start(&b->vrun, now_s, NULL);
         b->started = true;
     }
 
@@ -397,9 +419,16 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
      * run that spends its first minute reconnecting still uplinks the
      * moment it is back rather than on the next tick of a free-running
      * timer. */
-    if (b->gga_on && now_s - b->gga_last_s >= BRIDGE_GGA_INTERVAL_S) {
-        if (ns_send_gga(b->sess, b->gga_lat, b->gga_lon))
+    if (b->gga_on && !b->vrs_gated &&
+        now_s - b->gga_last_s >= BRIDGE_GGA_INTERVAL_S) {
+        if (ns_send_gga(b->sess, b->gga_lat, b->gga_lon)) {
             b->gga_last_s = now_s;
+            /* Told at the moment of acceptance, which is the fact A1
+             * and A2 are timed from. */
+            if (b->vrs_mode)
+                vrs_note_gga(&b->vrun, ns_stats(b->sess), now_s,
+                             b->gga_lat, b->gga_lon);
+        }
     }
 
     /* The ephemeris stream is pumped on the same thread, briefly: it
@@ -408,7 +437,28 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
 
     kpi_update(&b->run, ns_stats(b->sess), now_s, &b->rep);
     kpi_watch_update(&b->w, &b->rep, now_s);
+
+    if (b->vrs_mode) {
+        /* Every pump, even when nothing changed: the engine sees
+         * connection edges only through updates (test_vrs.c). */
+        vrs_update(&b->vrun, ns_stats(b->sess), now_s, &b->vrep);
+
+        /* The CLI's own gate condition: the KPIs have held their
+         * window and the keep-alive assertion has passed, so stopping
+         * the GGA now tests the caster rather than the station. */
+        if (!b->vrs_gated &&
+            b->rep.sustained_s >= KPI_SUSTAIN_S &&
+            b->vrep.a[3].verdict == KPI_PASS)
+            bridge_vrs_gate(b, now_s);
+    }
     return r;
+}
+
+void bridge_vrs_gate(NtripBridge *b, double now_s)
+{
+    if (!b || !b->vrs_mode || b->vrs_gated) return;
+    b->vrs_gated = true;
+    vrs_begin_gate_test(&b->vrun, now_s);
 }
 
 void bridge_set_position(NtripBridge *b, double lat, double lon)
@@ -491,6 +541,35 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
     }
 
     app(out, cap, &pos, "]}");
+
+    /* The network-RTK assertions, in the same shape as the eight above
+     * them, plus the classification -- which is a result, not a
+     * verdict: a fixed base that never drops is NOT_GATED and correct.
+     * Absent entirely outside a VRS run, so a normal run's document is
+     * byte-identical to before the field existed. */
+    if (b->vrs_mode) {
+        app(out, cap, &pos,
+            ",\"vrs\":{\"gate\":%d,\"gate_name\":\"%s\","
+            "\"gate_started\":%s,\"failed\":%s,\"complete\":%s,"
+            "\"items\":[",
+            b->vrep.gate, vrs_gate_name(b->vrep.gate),
+            b->vrs_gated ? "true" : "false",
+            b->vrep.failed ? "true" : "false",
+            b->vrep.complete ? "true" : "false");
+        for (int i = 0; i < VRS_ASSERT_COUNT; i++) {
+            const VrsResult *a = &b->vrep.a[i];
+            app(out, cap, &pos,
+                "%s{\"verdict\":%d,\"verdict_name\":\"%s\","
+                "\"value\":%.1f,\"label\":\"",
+                i ? "," : "", a->verdict, kpi_verdict_name(a->verdict),
+                a->value);
+            app_escaped(out, cap, &pos, a->label);
+            app(out, cap, &pos, "\",\"detail\":\"");
+            app_escaped(out, cap, &pos, a->detail);
+            app(out, cap, &pos, "\"}");
+        }
+        app(out, cap, &pos, "]}");
+    }
 
     /* What the station says about itself.  More than the position: an
      * installer checking a base wants the station ID it will appear

@@ -90,7 +90,31 @@ compares the two.
 **Verify.** The tests go red when `VRS_RTCM_S` is halved in the test's
 policy, green as committed. `verify:` tier, no network.
 
-### V2 — the bridge drives a VRS run
+### V2 — the bridge drives a VRS run  *(done 2026-08-24)*
+
+Built as planned, with two additions the building surfaced:
+
+* **`bridge_vrs_gate()`** -- the explicit way into the gate test,
+  beside the CLI's automatic condition. `vrs_check.h`'s contract
+  anticipates a frontend that enters the gate from a control, and the
+  desktop test needs it too: a loopback serving junk frames cannot
+  sustain eight KPIs, so the automatic entry -- four lines lifted from
+  `cli_stream.c` -- is the one piece verified only in V3, on a live
+  caster.
+* **VRS mode turns `auto_reconnect` off and the GGA uplink on.** A
+  check is a verdict on one connection; a silent reconnect would hand
+  A5 a stream the gate test is waiting to see drop.
+
+`test/test_bridge_vrs.c` proves the plumbing over a real socket: the
+bridge compiles unmodified on the desktop (its logging is
+`__ANDROID__`-guarded), the clock is the caller's, and the caster runs
+on a thread because `bridge_open` blocks fetching the sourcetable while
+the observation connection waits in the backlog. Falsified by removing
+the per-pump `vrs_update`: red. 15 of 15 suite tests pass; both
+editions and the NDK library rebuild; a normal run's document carries
+no `vrs` object at all.
+
+*(As planned:)*
 
 `bridge_open(..., bool vrs_mode)` (or a `bridge_vrs_start()` beside it —
 whichever reads better at the JNI glue). In VRS mode: note each

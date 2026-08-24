@@ -87,7 +87,8 @@ typedef struct NtripBridge NtripBridge;
  */
 NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                          const char *user, const char *password,
-                         double lat, double lon, bool send_gga, bool watch);
+                         double lat, double lon, bool send_gga, bool watch,
+                         bool vrs);
 
 /**
  * @brief Open a bridge that replays a captured `.rtcm3` file.
@@ -110,6 +111,18 @@ NtripBridge *bridge_open_file(const char *path, bool watch);
  * @return >=0 while the stream is alive, <0 once it has ended.
  */
 int bridge_pump(NtripBridge *b, int timeout_ms, double now_s);
+
+/**
+ * @brief Enter the network-RTK gate test: stop the GGA, watch for the drop.
+ *
+ * The engine's contract (`vrs_check.h`) leaves the caller to decide the
+ * moment; the bridge decides it the way the CLI does -- KPIs sustained
+ * and A4 passed -- and this call is the other way in, for a frontend
+ * that offers the decision as a control and for the desktop test that
+ * cannot sustain eight KPIs on a loopback. Harmless when the run is not
+ * a VRS run, or when the gate is already underway.
+ */
+void bridge_vrs_gate(NtripBridge *b, double now_s);
 
 /**
  * @brief Move the position the GGA uplink reports.

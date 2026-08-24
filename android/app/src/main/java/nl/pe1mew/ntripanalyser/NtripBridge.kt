@@ -130,8 +130,17 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
             lon: Double,
             sendGga: Boolean,
             watch: Boolean,
+            /**
+             * Run the network-RTK assertions beside the eight checks.
+             * The bridge owns the whole workflow -- GGA bookkeeping,
+             * the gate entry, one-connection semantics -- and the
+             * document gains a `vrs` object. Pro only, and only when
+             * the user asked for a network-RTK check.
+             */
+            vrs: Boolean = false,
         ): NtripBridge? {
-            val h = nativeOpen(caster, port, mountpoint, user, password, lat, lon, sendGga, watch)
+            val h = nativeOpen(caster, port, mountpoint, user, password,
+                               lat, lon, sendGga, watch, vrs)
             return if (h == 0L) null else NtripBridge(h)
         }
 
@@ -183,6 +192,7 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
             caster: String, port: Int, mountpoint: String,
             user: String, password: String,
             lat: Double, lon: Double, sendGga: Boolean, watch: Boolean,
+            vrs: Boolean,
         ): Long
 
         @JvmStatic private external fun nativeOpenFile(path: String, watch: Boolean): Long

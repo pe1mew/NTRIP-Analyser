@@ -210,6 +210,22 @@ add_executable(test_vrs test/test_vrs.c)
 target_link_libraries(test_vrs PRIVATE ntrip_core)
 add_test(NAME vrs COMMAND test_vrs)
 
+# The bridge is the phone's caller of the shared engines, and it is
+# plain C behind an __ANDROID__ guard -- so its VRS workflow is tested
+# here, on this desktop, against a loopback caster, through the same
+# JSON the app decodes. The one Android-only piece (jni_glue.c) stays
+# out; the bridge itself must build anywhere, and this target is what
+# enforces that.
+add_executable(test_bridge_vrs test/test_bridge_vrs.c
+               android/app/src/main/cpp/ntrip_bridge.c)
+target_include_directories(test_bridge_vrs PRIVATE android/app/src/main/cpp)
+target_link_libraries(test_bridge_vrs PRIVATE ntrip_session)
+if(NOT WIN32)
+    find_package(Threads REQUIRED)
+    target_link_libraries(test_bridge_vrs PRIVATE Threads::Threads)
+endif()
+add_test(NAME bridge_vrs COMMAND test_bridge_vrs)
+
 # Tier 2's three load-bearing decisions -- "not enough evidence" as a
 # verdict, live-only metrics absent rather than zero, and windows in
 # stream time so a replay reproduces exactly. Each would erode quietly
@@ -258,7 +274,7 @@ add_custom_target(test_all
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall test_failure test_vrs)
+            test_stall test_failure test_vrs test_bridge_vrs)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)
