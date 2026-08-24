@@ -765,7 +765,10 @@ internal fun HandoverDetail(
             if (sum == null) return@AnalysisBands
             Text(
                 stringResource(R.string.ho_bearing,
-                               distanceText(sum.distM), sum.compass,
+                               stringResource(
+                                   if (roverIsFix) R.string.ho_distance_fix
+                                   else R.string.ho_distance_set,
+                                   distanceText(sum.distM), sum.compass),
                                sum.bearingDeg.toInt()),
                 style = MaterialTheme.typography.bodyMedium,
                 color = hoDistColour(sum.distM),

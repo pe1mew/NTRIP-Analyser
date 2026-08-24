@@ -333,7 +333,13 @@ fun MainScreen() {
     val liveGgaOn = Features.HAS_LIVE_GGA && settings.ggaLive && ggaConsent
     DisposableEffect(fix, liveGgaOn) {
         MonitorService.livePosition = if (liveGgaOn) fix else null
-        onDispose { MonitorService.livePosition = null }
+        // For display only, consent not required: it never leaves the
+        // device. See the field's own comment for the 23 km lesson.
+        MonitorService.displayPosition = fix
+        onDispose {
+            MonitorService.livePosition = null
+            MonitorService.displayPosition = null
+        }
     }
 
     // Satellites the stream measured, joined to a position where one

@@ -285,7 +285,7 @@ object HandoverPanel : Panel {
     @Composable
     override fun Detail(state: HubState, actions: HubActions) {
         val stats = state.doc?.stats ?: return
-        val fix = MonitorService.livePosition
+        val fix = MonitorService.displayPosition ?: MonitorService.livePosition
         HandoverDetail(
             stats = stats,
             vrs = state.doc?.vrs,
@@ -302,13 +302,15 @@ object HandoverPanel : Panel {
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
         val stats = state.doc?.stats ?: return
-        // The rover end, in the uplink's own order of preference.
-        val fix = MonitorService.livePosition
+        // The rover end: the phone wherever it has a fix (display only,
+        // it never leaves the device), the set position otherwise.
+        val fix = MonitorService.displayPosition ?: MonitorService.livePosition
         HandoverCard(
             stats = stats,
             vrs = state.doc?.vrs,
             roverLat = fix?.lat ?: state.settings.latitude,
             roverLon = fix?.lon ?: state.settings.longitude,
+            roverIsFix = fix != null,
             moves = stats.arpMoves,
             worstJumpM = worstJump(),
         )
@@ -332,14 +334,15 @@ object HandoverPanel : Panel {
         val alat = stats.arpLat ?: return null
         val alon = stats.arpLon ?: return null
         if (!stats.arpValid) return null
-        val fix = MonitorService.livePosition
+        val fix = MonitorService.displayPosition ?: MonitorService.livePosition
         val rlat = fix?.lat ?: state.settings.latitude
         val rlon = fix?.lon ?: state.settings.longitude
         val distM = geoDistanceM(rlat, rlon, alat, alon)
         val lines = mutableListOf(
-            "%s %s of the rover position".format(
+            "%s %s of %s".format(
                 distanceText(distM),
-                compassPoint(geoBearingDeg(rlat, rlon, alat, alon))),
+                compassPoint(geoBearingDeg(rlat, rlon, alat, alon)),
+                if (fix != null) "this phone" else "the set position"),
             "${stats.arpMoves} hand-over(s)",
         )
         stats.arpDriftM?.let { lines += "drift from first position %s".format(distanceText(it)) }

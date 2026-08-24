@@ -74,6 +74,51 @@ wrong instrument here.
 - Like every check, it is a client on somebody's caster — run it
   against services you are entitled to use.
 
+## Watching the reference position (Pro)
+
+The check above answers *what kind of service is this* in three
+minutes. The **Reference position** card answers *what is it doing to
+you over time*: how far the service's reference position is from where
+you stand, in the same green/amber/red bands assertion A3 judges by,
+and how often it has **moved**.
+
+Tap the card for the full picture, laid out like the analysis views:
+a plot with the rover at the centre and the reference position at its
+true bearing and distance, the history as dots — **a hand-over reads
+as a jump in the dots** — and the last five minutes of distance as a
+chart, where a drift and a jump look nothing alike.
+
+What movement *means* depends on what the service is, and the app
+words it accordingly:
+
+- On a **network service**, the reference position follows you and
+  hands you between stations: *"a network switching stations under
+  you, which is its job."* Expected, and now visible — a switch
+  mid-survey is worth knowing about even when it is correct.
+- On a **fixed base**, the reference position must not move at all:
+  *"a fixed base should not move; corrections are unreliable."* A
+  base whose broadcast position wanders is describing itself wrongly,
+  and everything computed from it inherits the wander.
+
+A "move" is a new position more than **10 metres** from the last one
+recorded — far above re-encoding noise, far below any real hand-over —
+and the same rule, the same 10 metres, is applied by the desktop and
+counted into every report the core writes (`arp_moves` in the JSON and
+CSV). Up to **32** positions are kept, as on the desktop.
+
+The rover end of the distance is **this phone, whenever it has a
+fix** — the reading says so — and the set position only when it does
+not. That position is used for the display alone and never leaves the
+device; what the app *sends* to the caster is a separate matter, still
+behind [its own agreement](Live-position). The distinction exists
+because of a real reading: with a station's own coordinates set as the
+position (which tap-to-use fills in), the card once measured the
+sourcetable against the broadcast ARP — 325 m — while its user stood
+23 km away. With the phone's fix in use the distance line breathes a
+little; that is your own receiver's wander, not the station's.
+
+---
+
 The verdicts and their reasoning live in the shared engine
 (`src/core/vrs_check.c`); the CLI's `--check-vrs` prints the same five
 rows with the same words.

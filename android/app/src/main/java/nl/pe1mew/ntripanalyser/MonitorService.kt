@@ -666,6 +666,23 @@ class MonitorService : Service() {
         @Volatile
         var livePosition: Fix? = null
 
+        /**
+         * The phone's position for *display*, regardless of GGA consent.
+         *
+         * Distinct from [livePosition] on purpose: that one is what may
+         * be **transmitted**, and stays behind the explicit agreement.
+         * This one never leaves the device -- it is the rover end of the
+         * distance the hand-over view draws, and nothing else -- the
+         * same trust under which the sky view already reads the
+         * receiver. Without it the distance fell back to the configured
+         * position, which tap-to-use fills with the *station's own
+         * coordinates*: the card then measured the sourcetable against
+         * the broadcast ARP -- 325 m -- while the user stood 23 km away
+         * (author, first field use, 2026-08-24).
+         */
+        @Volatile
+        var displayPosition: Fix? = null
+
         /** The size the sky is rendered and retained at. */
         const val SKY_SIZE = 700
 
@@ -766,10 +783,10 @@ class MonitorService : Service() {
                 val alon = doc.stats.arpLon
                 if (doc.stats.arpValid && alat != null && alon != null) {
                     arpTrail.offerDot(alat, alon)
-                    // The rover end: the phone where it consented to be
-                    // known, the configured position otherwise -- the
-                    // same order the GGA uplink itself uses.
-                    val fix = livePosition
+                    // The rover end: the phone wherever it has a fix --
+                    // display only, so no consent question arises -- and
+                    // the configured position as the last resort.
+                    val fix = displayPosition ?: livePosition
                     val rlat = fix?.lat ?: runLat
                     val rlon = fix?.lon ?: runLon
                     arpTrail.offerDistance(

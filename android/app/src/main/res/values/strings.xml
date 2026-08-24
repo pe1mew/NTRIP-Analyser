@@ -23,13 +23,19 @@
          what kind of service this is, and the card must never scold a
          network for doing its job. -->
     <string name="ho_title">Reference position</string>
-    <string name="ho_distance">%1$s %2$s of the rover position</string>
+    <!-- Two variants, because the number means different things: from
+         the phone it is the user's own separation, from the set position
+         it may be the station measured against itself. The first field
+         use read 325 m while the user stood 23 km away, and the card
+         did not say which rover end produced it. -->
+    <string name="ho_distance_fix">%1$s %2$s of this phone</string>
+    <string name="ho_distance_set">%1$s %2$s of the set position</string>
     <string name="ho_stable">No hand-over: one position across the run</string>
     <string name="ho_moves_net">%1$d hand-over(s) — a network switching stations under you, which is its job</string>
     <string name="ho_moves_fixed">%1$d hand-over(s) — a fixed base should not move; corrections are unreliable</string>
     <string name="ho_jump">Largest jump %1$s</string>
     <string name="ho_explainer">Where the service’s reference position stands, and where it has been this run.</string>
-    <string name="ho_bearing">%1$s %2$s of the rover position (%3$d°)</string>
+    <string name="ho_bearing">%1$s (%2$d°)</string>
     <string name="ho_footer">%1$s — rover at %2$s</string>
     <string name="ho_rover_fix">this phone’s fix</string>
     <string name="ho_rover_set">the set position</string>

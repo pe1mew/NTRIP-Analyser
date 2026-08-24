@@ -381,6 +381,7 @@ internal fun HandoverCard(
     vrs: VrsDoc?,
     roverLat: Double,
     roverLon: Double,
+    roverIsFix: Boolean,
     moves: Int,
     worstJumpM: Double?,
 ) {
@@ -403,8 +404,10 @@ internal fun HandoverCard(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                stringResource(R.string.ho_distance,
-                               distanceText(distM), bearing),
+                stringResource(
+                    if (roverIsFix) R.string.ho_distance_fix
+                    else R.string.ho_distance_set,
+                    distanceText(distM), bearing),
                 style = MaterialTheme.typography.bodySmall,
                 color = distColour,
                 fontWeight = FontWeight.Medium,

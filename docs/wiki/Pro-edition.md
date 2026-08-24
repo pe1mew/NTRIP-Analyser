@@ -16,6 +16,7 @@ These pages cover only what is different.
 |---|---|
 | **[Watch mode](Watch-mode)** | Keep measuring for hours: availability, streaks, degradations |
 | **[Network-RTK check](Network-RTK-check)** | Five assertions and a gate test for VRS and network services, where the eight checks alone mislead |
+| **[Reference position](Network-RTK-check#watching-the-reference-position-pro)** | Live rover-to-ARP distance, and the hand-over history that shows a network switching stations under you |
 | **[Saved connections](Saved-connections)** | Up to sixteen casters, and the shared configuration file |
 | **[Reporting where you are](Live-position)** | Sending this phone's position to a network mountpoint |
 | **[Orbits and the ephemeris stream](Orbits-and-the-ephemeris-stream)** | A complete sky view on a station that broadcasts no orbits |

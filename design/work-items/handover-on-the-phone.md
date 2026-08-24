@@ -231,13 +231,40 @@ guard working, not a step to perform. The 10 m threshold quoted
 anywhere (wiki, matrix) gets a parity line beside the five-assertions
 count.
 
-### H6 — say so
+### H6 — say so  *(done 2026-08-24; wiki prepared, push is the author's)*
+
+Changelog under `[Unreleased]`, leading with what the reader gets and
+ending with what was underneath -- the two fields nothing wrote. The
+wiki gained *Watching the reference position (Pro)* on the Network-RTK
+page as planned: what movement means on each kind of service, the 10 m
+and 32-position rules with their reasons, and the honest note that a
+live-fix distance line breathes with the reader's own receiver. The
+Pro pages' tables carry the row.
+
+*(As planned:)*
 
 Changelog under `[Unreleased]`. Wiki: a **Hand-over** section on the
 [Network-RTK check](Network-RTK-check) page rather than a new page —
 one page per subject, and the subject is *reading a network service*;
 the sidebar entry stays one. Check 3's network paragraph gains the
 pointer. The Pro pages' tables gain the row.
+
+### H7 — the field's first correction  *(2026-08-24)*
+
+The author checked HANESE from 23 km away and the card said **325 m**.
+Right arithmetic, wrong rover: the distance used the position being
+*sent*, and tap-to-use fills that with the station's own coordinates --
+so the card measured the sourcetable position against the broadcast
+ARP, a number with a meaning, but not the one on the tin, wearing a
+green band its user's real 23 km did not deserve.
+
+The display now prefers the phone's own fix always -- a new
+`displayPosition`, deliberately distinct from the consent-gated
+`livePosition`: one is what may be transmitted, the other never leaves
+the device, the same trust the sky view already holds. The reading
+names its rover end ("of this phone" / "of the set position").
+Verified on the same station: **"25,0 km S of this phone"**, amber, on
+HANESE from the author's home.
 
 ## Open, and worth an answer before H3
 

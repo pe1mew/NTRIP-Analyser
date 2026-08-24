@@ -15,6 +15,7 @@ the free edition deliberately does not do at all.
 | Choosing a mountpoint from the sourcetable | read the list, type the name | tap it, and its position and settings come with it |
 | Watch mode — keep measuring for hours, with availability and degradation counts | — | yes |
 | Network-RTK check — five assertions and a gate test for VRS services | — | yes |
+| Rover-to-ARP distance and hand-over history | — | yes |
 | Satellite trails on the sky view — where each satellite has been, for a whole session | — | yes |
 | Ephemeris side-stream for a complete sky view | — | yes |
 | Import and export of the shared configuration file | — | yes |

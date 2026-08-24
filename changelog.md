@@ -32,6 +32,43 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Added — where the reference position stands, in the paid edition
+
+How far the service's reference position is from where you stand, live
+and in the usability colours, with the history of where it has *been*:
+a card on the hub, and behind it the first screen a card has ever
+drilled into -- the desktop's VRS monitor redrawn in the analysis
+screens' own template. Rover at the centre, the reference position at
+its true bearing, history dots joined so a hand-over reads as a jump,
+and five minutes of distance as a strip chart. A network switching
+stations under you mid-survey is precisely the event a stream of
+corrections lets you miss.
+
+The movement sentence is chosen by what the service *is*, on the
+desktop's evidence rule -- a reference position within 150 m of the
+position you send is a network answering you, and a resolved gate test
+outranks the guess -- so the same count reads as a network doing its
+job or a base that should worry you, never both.
+
+Underneath it, two snapshot fields that had been declared, serialised
+and **written by nothing** since they shipped -- `arp_drift_m` and
+`arp_moves` -- are now filled in the core, where 1005/1006 lands. A
+move is judged against the last *recorded* position, so a station
+creeping 9 m per broadcast still gets counted. The CLI's JSON and the
+daemon's CSV carry honest numbers for the first time; the release
+checks compare the 10 m threshold and the 32-position history between
+core, app and desktop, so the three cannot drift apart. Phase 2,
+item 3 (`design/work-items/handover-on-the-phone.md`).
+
+First field use corrected the rover end: the distance had used the
+position you *send*, which tap-to-use fills with the station's own
+coordinates -- so the card read 325 m while its user stood 23 km away,
+measuring the sourcetable against the broadcast ARP. The display now
+prefers the phone's own fix, which never leaves the device and so needs
+no consent a transmission would; the reading says which end it used
+("of this phone" / "of the set position"); what is transmitted stays
+behind the agreement, unchanged.
+
 ### Added — the network-RTK check, in the paid edition
 
 The eight checks grade a station, and on a network service they can
