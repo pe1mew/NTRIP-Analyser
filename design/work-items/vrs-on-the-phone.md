@@ -173,7 +173,21 @@ expected answer is **not gated (fixed base?)**, which is the honest
 result and proves A5's other branch on real hardware. Free: registry
 diff shows no VRS entry; `checkEditionParity` passes.
 
-### V4 — the guards
+### V4 — the guards  *(done 2026-08-24)*
+
+The gate row landed in V3, demanded by the existing check before the
+commit could go green. What V4 added is `check_vrs_parity()` -- and the
+planned assertion-count comparison changed shape when the code showed
+there was no Kotlin count to compare: the panel draws however many
+items arrive. What *does* cross the language boundary as a bare number
+is the gate code, and Kotlin's `gateResolved` reads it as `gate >= 2`
+-- true only while GATED and NOT_GATED sit third and fourth in the C
+enum. So the check pins the enum's order, the Kotlin expression, the
+matrix's "five further checks" against `VRS_ASSERT_COUNT`, and that
+neither edition redefines a `vrs_` string. Both falsified red and
+restored; 85 checks. Row 45 reads ○ free, ● pro.
+
+*(As planned:)*
 
 `HAS_VRS_CHECK` documented in `design/feature-matrix.md`'s gate table
 (check_release.py caught `HAS_TRACKS` arriving undocumented; do not
