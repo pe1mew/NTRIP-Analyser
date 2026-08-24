@@ -99,6 +99,10 @@ class MonitorService : Service() {
         // persisted alongside credentials.
         val watchMode = intent.getBooleanExtra(EXTRA_WATCH, false) &&
             Features.HAS_WATCH
+        // Like watch: a property of this run, guarded by the edition at
+        // the door every run goes through.
+        val vrsMode = intent.getBooleanExtra(EXTRA_VRS, false) &&
+            Features.HAS_VRS_CHECK
 
         val settings = CasterSettings(
             caster = intent.getStringExtra(EXTRA_CASTER).orEmpty(),
@@ -132,6 +136,7 @@ class MonitorService : Service() {
                 settings.user, settings.password,
                 settings.latitude, settings.longitude, settings.sendGga,
                 watchMode,
+                vrs = vrsMode,
             )
             if (bridge == null) {
                 Log.e(TAG, "bridge_open returned null")
@@ -329,8 +334,25 @@ class MonitorService : Service() {
                     // CAUTION held its window, or a hard failure. A
                     // caution used to leave the run going to its ceiling
                     // because only OK and FAILED counted as done.
+                    // A VRS run does not end at a settled verdict: the
+                    // gate test comes after it, and the whole point is
+                    // what the caster does next. Only an outright
+                    // failure ends it early, exactly as the CLI ends.
+                    if (vrsMode) {
+                        val v = _state.value.document?.vrs
+                        if (v != null &&
+                            (v.failed || (v.gateStarted && v.gateResolved))) {
+                            Log.i(TAG, "network-RTK check done: " +
+                                       (v.items.getOrNull(4)?.detail ?: ""))
+                            publish(false, Outcome.FINISHED)
+                            break
+                        }
+                    }
+
                     val verdict = b.overall()
-                    if (!watchMode && verdict < 0) {
+                    if (!watchMode && verdict < 0 &&
+                        (!vrsMode ||
+                         -verdict - 1 == RunVerdict.FAILED.ordinal)) {
                         Log.i(TAG, "verdict settled: ${-verdict - 1} after ${nowS.toInt()} s")
                         publish(false, Outcome.FINISHED)   // the state that matters
                         break
@@ -348,6 +370,13 @@ class MonitorService : Service() {
                         if (endedAtS < 0.0) {
                             endedAtS = nowS
                             Log.w(TAG, "stream ended at ${nowS.toInt()} s; letting the KPI verdict settle")
+                        } else if (vrsMode &&
+                                   _state.value.document?.vrs?.gateStarted == true) {
+                            // The gate is *waiting* for the stream to
+                            // end: the drop is the answer, and A5 reads
+                            // it from the next snapshot. Ending the run
+                            // here would discard the classification the
+                            // run exists to make.
                         } else if (!watchMode && nowS - endedAtS > STREAM_END_GRACE_S) {
                             publish(false, Outcome.FINISHED)
                             break
@@ -604,6 +633,7 @@ class MonitorService : Service() {
         private const val EXTRA_PASSWORD = "password"
         private const val EXTRA_LAT = "lat"
         private const val EXTRA_LON = "lon"
+        private const val EXTRA_VRS = "vrs"
         private const val EXTRA_GGA = "gga"
         private const val EXTRA_GGA_LIVE = "gga_live"
         private const val EXTRA_WATCH = "watch"
@@ -727,7 +757,8 @@ class MonitorService : Service() {
             }
         }
 
-        fun start(context: Context, s: CasterSettings, watch: Boolean = false) {
+        fun start(context: Context, s: CasterSettings, watch: Boolean = false,
+                  vrs: Boolean = false) {
             // Stamped where the run is asked for, so it is set before
             // any state built from it can be published.
             runId = SystemClock.elapsedRealtime()
@@ -747,6 +778,7 @@ class MonitorService : Service() {
                 putExtra(EXTRA_LAT, s.latitude)
                 putExtra(EXTRA_LON, s.longitude)
                 putExtra(EXTRA_GGA, s.sendGga)
+                putExtra(EXTRA_VRS, vrs)
                 // Re-checked here as well as in the UI that offers the
                 // switch: this is the single door every run goes through,
                 // and transmitting a position without consent is not a

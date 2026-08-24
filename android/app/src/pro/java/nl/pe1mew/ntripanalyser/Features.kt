@@ -30,6 +30,14 @@ object Features {
     /** Trails on the sky plot: where each satellite has been. */
     const val HAS_TRACKS = true
 
+    /**
+     * The network-RTK assertions: five checks and a gate test, layered
+     * on the eight. The engine and its verdicts are shared core
+     * (`vrs_check.c`, also the CLI's --check-vrs); what this gates is
+     * the phone frontend over it.
+     */
+    const val HAS_VRS_CHECK = true
+
     const val MAX_MOUNTPOINTS = 16
 
     const val SOURCETABLE_SELECTABLE = true

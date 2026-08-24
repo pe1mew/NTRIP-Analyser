@@ -15,6 +15,6 @@
     <string name="app_name">NTRIP Analyser</string>
 
     <string name="pro_title">More in the paid edition</string>
-    <string name="pro_body">Several saved connections, a mountpoint chosen by tapping it, watch mode for runs lasting hours, a second stream for a complete sky view, per-message statistics, and import and export of the shared configuration file. The eight checks and their verdicts are identical in both editions.</string>
+    <string name="pro_body">Several saved connections, a mountpoint chosen by tapping it, watch mode for runs lasting hours, a network-RTK check with its own assertions, satellite trails on the sky view, a second stream for a complete sky view, per-message statistics, and import and export of the shared configuration file. The eight checks and their verdicts are identical in both editions.</string>
     <string name="pro_more">What the paid edition adds</string>
 </resources>

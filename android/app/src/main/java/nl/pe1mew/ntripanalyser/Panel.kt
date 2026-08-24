@@ -154,6 +154,7 @@ class HubActions(
     val editConnection: () -> Unit,
     val browseSourcetable: () -> Unit,
     val startCheck: () -> Unit,
+    val startVrsCheck: () -> Unit,
     val stopRun: () -> Unit,
     val openAnalysis: () -> Unit,
     /** Drill into a panel's own screen. The shell owns the stack. */

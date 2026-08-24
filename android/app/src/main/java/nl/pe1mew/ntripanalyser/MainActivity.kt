@@ -462,6 +462,9 @@ fun MainScreen() {
         },
         browseSourcetable = { showSourcetable = true },
         startCheck = { MonitorService.start(context, settings, watch = false) },
+        startVrsCheck = {
+            MonitorService.start(context, settings, watch = false, vrs = true)
+        },
         stopRun = { MonitorService.stop(context) },
         openAnalysis = { openSky = true },
         openDetail = { nav.push(it) },

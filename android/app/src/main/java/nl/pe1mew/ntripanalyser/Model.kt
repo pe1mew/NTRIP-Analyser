@@ -31,6 +31,27 @@ data class KpiItem(
         get() = Verdict.entries.getOrElse(verdict) { Verdict.PENDING }
 }
 
+/**
+ * The network-RTK assertions, present only on a VRS-mode run.
+ *
+ * The items reuse [KpiItem]: the bridge writes them in exactly the
+ * eight checks' shape, engine words and all, so one row model serves
+ * both. `gate` is a classification, not a verdict -- a fixed base that
+ * never drops reads NOT_GATED and is correct for what it is.
+ */
+@Serializable
+data class VrsDoc(
+    val gate: Int = 0,
+    @SerialName("gate_name") val gateName: String = "",
+    @SerialName("gate_started") val gateStarted: Boolean = false,
+    val failed: Boolean = false,
+    val complete: Boolean = false,
+    val items: List<KpiItem> = emptyList(),
+) {
+    /** The gate has answered, one way or the other. */
+    val gateResolved: Boolean get() = gate >= 2
+}
+
 @Serializable
 data class KpiReport(
     val overall: Int = 0,
@@ -270,6 +291,7 @@ data class BridgeDocument(
     val stats: Stats = Stats(),
     val kpi: KpiReport = KpiReport(),
     val watch: Watch? = null,
+    val vrs: VrsDoc? = null,
     val sats: List<SatEntry> = emptyList(),
     val eph: EphState = EphState(),
     val arp: ArpInfo? = null,

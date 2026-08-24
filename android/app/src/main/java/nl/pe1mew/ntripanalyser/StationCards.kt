@@ -332,6 +332,71 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
     }
 }
 
+/**
+ * The network-RTK assertions, drawn in the eight checks' own dress.
+ *
+ * The rows are [KpiItem]s from the same engine family and read the same
+ * way; what differs is the last line: the gate is a **classification**,
+ * not a verdict, so it is worded as what the service *is* — a fixed
+ * base answering NOT gated has passed the question, not failed it.
+ */
+@Composable
+internal fun VrsCard(v: VrsDoc) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                stringResource(R.string.vrs_title),
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(6.dp))
+            v.items.forEachIndexed { i, item ->
+                Row(
+                    Modifier.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        color = verdictColour(item.verdictEnum),
+                        shape = RoundedCornerShape(6.dp),
+                    ) {
+                        Text(
+                            item.verdictName,
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(
+                                horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("A${i + 1}. ${item.label}",
+                             fontWeight = FontWeight.Medium)
+                        Text(
+                            item.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (v.gateResolved)
+                    stringResource(R.string.vrs_service, v.gateName)
+                else
+                    stringResource(R.string.vrs_running),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight =
+                    if (v.gateResolved) FontWeight.Medium else FontWeight.Normal,
+                color =
+                    if (v.gateResolved) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 @Composable
 internal fun KpiRow(
     index: Int,

@@ -24,9 +24,10 @@ package nl.pe1mew.ntripanalyser
 /**
  * The paid edition's hub.
  *
- * Phase 2 adds VrsPanel, HandoverPanel and Tier2Panel between [KpiPanel]
- * and [RunControlsPanel]; tracks and TLS add nothing here, because one
- * draws inside the sky canvas and the other has no screen at all.
+ * Phase 2 adds HandoverPanel and Tier2Panel between [KpiPanel] and
+ * [RunControlsPanel], where [VrsPanel] now sits; tracks and TLS add
+ * nothing here, because one draws inside the sky canvas and the other
+ * has no screen at all.
  */
 internal val hubPanels: List<Panel> = listOf(
     VerdictPanel,
@@ -36,6 +37,7 @@ internal val hubPanels: List<Panel> = listOf(
     ErrorPanel,
     WatchPanel,
     KpiPanel,
+    VrsPanel,
     RunControlsPanel,
     EphemerisPanel,
     SetupHintPanel,

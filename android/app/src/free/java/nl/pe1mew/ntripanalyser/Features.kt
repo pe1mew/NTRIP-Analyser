@@ -39,6 +39,9 @@ object Features {
     /** Trails on the sky plot: where each satellite has been. */
     const val HAS_TRACKS = false
 
+    /** The network-RTK check screen is paid; the engine is shared. */
+    const val HAS_VRS_CHECK = false
+
     const val MAX_MOUNTPOINTS = 1
 
     /**

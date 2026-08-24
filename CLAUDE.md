@@ -125,7 +125,7 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/{free,pro}/.../Registry.kt` | **The list is the layout** — what an edition shows, in order, hub and report alike |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
 | `test/` | Fifteen tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity, stream capture, station report, stream clock, snapshot serialisation, threshold policy, KPI 1's stopped-stream wording, stall detection, failure classification, the network-RTK assertions, the bridge's VRS workflow over a loopback socket |
-<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 13 -->
+<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 15 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
 | `.github/workflows/ci.yml` | Core, tests, release checks, the daemon's own Makefile and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
 | `.github/workflows/release-linux.yml` | On a `v*` tag: build, test, package, attach the Linux assets. `ubuntu-22.04` deliberately — its glibc 2.35 is the floor the binaries then require |

@@ -129,7 +129,32 @@ own JSON: the object appears in VRS mode, is absent otherwise, and the
 run ends with the gate's answer. Free's document is byte-identical to
 today's.
 
-### V3 — the panel
+### V3 — the panel  *(done 2026-08-24)*
+
+Built as planned, with the registry's own decision honoured over the
+plan's wording: the panel sits **between the eight checks and
+Run-the-check**, the slot pro's `Registry.kt` had reserved for it in
+writing. The enable condition became `settings.isComplete`, the same as
+Run-the-check's -- the C side forces the uplink on in VRS mode, so a
+separate GGA precondition would have gated the button on a thing the
+run supplies itself.
+
+**Verified live on the S23 against rfsee.net/RFSEE01** (not HANESE as
+drafted -- the same class of service, and the caster the handset was
+already configured for, under the author's standing authorisation).
+The whole sequence, read off the screen: A1-A4 resolve to PASS, the
+**automatic gate entry fires** at KPI-sustained + A4 -- the one V2
+could not reach -- A5 watches, and 90 s later classifies *"Still
+streaming past the deadline after GGA stopped: fixed base"*, the card
+says **Service: not gated (fixed base?)**, and the run ends by itself
+into Run again. A5 carries WARN amber, not FAIL red, which is the
+distinction this feature exists to draw.
+
+Not exercised on a device: the share section's text (code-reviewed
+only), and the GATED branch live -- that needs a real VRS service, and
+the loopback covers it (`test_bridge_vrs.c`).
+
+*(As planned:)*
 
 `VrsPanel` in **pro's `Registry.kt` only**: a "Network-RTK check ▶" row
 under Run-the-check, enabled when a GGA position is configured (the

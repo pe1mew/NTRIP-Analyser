@@ -11,6 +11,13 @@
     <string name="run_stopped">Stopped after %1$d s — measurement incomplete</string>
 
     <string name="action_run">Run the check</string>
+    <!-- The network-RTK check (pro). Assertion labels and details come
+         from the C engine, exactly as the eight checks' words do; these
+         are only the furniture around them. -->
+    <string name="action_vrs">Network-RTK check</string>
+    <string name="vrs_title">Network-RTK</string>
+    <string name="vrs_service">Service: %1$s</string>
+    <string name="vrs_running">Testing the service — the gate test ends the run by itself</string>
     <string name="action_again">Run again</string>
     <string name="action_watch">Watch</string>
     <string name="action_stop">Stop</string>

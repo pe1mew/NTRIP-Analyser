@@ -219,6 +219,48 @@ object KpiPanel : Panel {
  * the point of having the views, and hiding the way in until it finished
  * made a running test unobservable.
  */
+/**
+ * The network-RTK check: five assertions and the gate test, on top of
+ * the eight (phase 2 item 2, `design/work-items/vrs-on-the-phone.md`).
+ *
+ * Composed only by the paid registry — free's hub never names it, per
+ * "free advertises without shipping UI it cannot run". The run itself
+ * is a **check**, not a watch: the bridge enters the gate test when the
+ * KPIs have held, and the service ends the run when the gate answers.
+ */
+object VrsPanel : Panel {
+    override val key = "vrs"
+
+    @Composable
+    override fun Content(state: HubState, actions: HubActions) {
+        val v = state.doc?.vrs
+        if (v != null) {
+            VrsCard(v)
+        } else if (!state.run.running) {
+            OutlinedButton(
+                onClick = { actions.startVrsCheck() },
+                enabled = state.settings.isComplete,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = TRANSPORT_PADDING,
+            ) { TransportLabel(stringResource(R.string.action_vrs), "▶") }
+        }
+        // While an ordinary run is going there is nothing to draw: the
+        // button would start a second run, and the card has no report.
+    }
+
+    /**
+     * The assertions, engine words, and the classification — which is
+     * the line a network operator actually asked for.
+     */
+    override fun shareSection(state: HubState): ShareSection? {
+        val v = state.doc?.vrs ?: return null
+        val lines = v.items.mapIndexed { i, item ->
+            "A${i + 1} ${item.label}: ${item.verdictName}"
+        } + "service: ${v.gateName}"
+        return ShareSection("Network-RTK", lines)
+    }
+}
+
 object RunControlsPanel : Panel {
     override val key = "run"
 
