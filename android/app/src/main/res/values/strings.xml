@@ -28,6 +28,16 @@
     <string name="ho_moves_net">%1$d hand-over(s) — a network switching stations under you, which is its job</string>
     <string name="ho_moves_fixed">%1$d hand-over(s) — a fixed base should not move; corrections are unreliable</string>
     <string name="ho_jump">Largest jump %1$s</string>
+    <string name="ho_explainer">Where the service’s reference position stands, and where it has been this run.</string>
+    <string name="ho_bearing">%1$s %2$s of the rover position (%3$d°)</string>
+    <string name="ho_footer">%1$s — rover at %2$s</string>
+    <string name="ho_rover_fix">this phone’s fix</string>
+    <string name="ho_rover_set">the set position</string>
+    <string name="ho_ring">outer ring %1$s</string>
+    <string name="ho_legend_rover">rover</string>
+    <string name="ho_legend_arp">reference position</string>
+    <string name="ho_legend_hist">where it was</string>
+    <string name="ho_chart">last five minutes</string>
     <string name="action_again">Run again</string>
     <string name="action_watch">Watch</string>
     <string name="action_stop">Stop</string>

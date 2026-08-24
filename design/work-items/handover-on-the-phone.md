@@ -187,6 +187,29 @@ instead of rediscovering it. Verified on a real network mountpoint if one is
 available; otherwise on RFSEE01, where the honest picture is one dot
 and a flat line — and the words must say that is *good*.
 
+### H4 — what building it found  *(done 2026-08-24)*
+
+Two faults, both structural and both now impossible to repeat:
+
+* **A foldable card cannot be a door.** The H3 card was a
+  `FoldableCard`; its inner fold-toggle consumed the tap before the
+  shell's drill-in wrapper could see it -- and the affordance grammar
+  already said so, since one row cannot honestly carry both ▲ and ▶.
+  The card is plain now, three lines and a forward mark, whole-card
+  tap navigating.
+* **`DetailScreen` wrapped its content in `verticalScroll`**, which
+  hands children infinite height; the band template answers infinity
+  with its tall branch, whose weighted plot then collapses --
+  `maxHeight(-6)`, a crash on the S23, found on the very first real
+  use of the detail contract. The frame no longer scrolls: the
+  template scrolls *itself* when short (that is what `PlotLayout` is
+  for), and a detail that wants scrolling brings its own.
+
+Seen working on the S23: the six bands in order, "2 m E of the rover
+position (76°)" in green, one dot pair inside a 120 m ring, and the
+strip chart wiggling with the phone's own fix -- the rover end is live,
+so the line breathes. The moved cases still await a real network.
+
 ### H5 — the guards
 
 `HAS_HANDOVER` documented in the matrix gate table; row 56 Pro ⋯ → ●;

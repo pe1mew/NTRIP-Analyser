@@ -346,12 +346,20 @@ fun DetailScreen(
         },
         shareEnabled = state.doc != null,
     ) { pad ->
+        // No scroll wrapper, deliberately -- learned from the first real
+        // detail. A screen wrapped in verticalScroll hands its children
+        // infinite height, and the analysis band template answers
+        // infinity by taking its tall branch, whose weighted plot then
+        // collapses: maxHeight(-6) on an S23, a crash. The template
+        // already scrolls *itself* when the viewport is short, which is
+        // the whole point of PlotLayout -- so the frame stays fixed and
+        // a detail that needs scrolling brings its own, knowing what is
+        // inside it.
         Column(
             Modifier
                 .padding(pad)
                 .padding(16.dp)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // The bar says the name of the app on every screen now, so

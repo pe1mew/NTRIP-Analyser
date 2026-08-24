@@ -265,12 +265,39 @@ object VrsPanel : Panel {
  * Rover-to-ARP distance and the hand-over history (phase 2 item 3,
  * `design/work-items/handover-on-the-phone.md`). Pro's registry only.
  *
- * No forward mark yet, deliberately: the detail screen is H4, and a
- * mark over a row that leads nowhere would be a lie. The mark and the
- * destination arrive together.
+ * The first panel with a screen of its own: the card drills into the
+ * polar plot and the strip chart, through the detail contract the
+ * shell has carried unused since P1.2.
  */
 object HandoverPanel : Panel {
     override val key = "handover"
+
+    override fun destination(): Dest = Dest.Detail(key)
+
+    /** The mark only over a card that is actually drawn. */
+    override fun affordance(state: HubState): Affordance {
+        val stats = state.doc?.stats
+        return if (stats != null && stats.arpValid &&
+                   stats.arpLat != null && stats.arpLon != null)
+            Affordance.FORWARD else Affordance.NONE
+    }
+
+    @Composable
+    override fun Detail(state: HubState, actions: HubActions) {
+        val stats = state.doc?.stats ?: return
+        val fix = MonitorService.livePosition
+        HandoverDetail(
+            stats = stats,
+            vrs = state.doc?.vrs,
+            roverLat = fix?.lat ?: state.settings.latitude,
+            roverLon = fix?.lon ?: state.settings.longitude,
+            mountpoint = state.settings.mountpoint,
+            roverIsFix = fix != null,
+        )
+    }
+
+    @Composable
+    override fun detailTitle(): String = stringResource(R.string.ho_title)
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {

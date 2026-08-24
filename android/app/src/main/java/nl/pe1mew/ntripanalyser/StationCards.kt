@@ -344,6 +344,37 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
  * resolved gate test outranks the guess. The same count reads as a
  * network doing its job or a base that should worry you -- never both.
  */
+/** What both the card and the detail screen say about the ARP. */
+internal data class HoSummary(
+    val distM: Double,
+    val bearingDeg: Double,
+    val isNetwork: Boolean,
+) {
+    val compass: String get() = compassPoint(bearingDeg)
+}
+
+/** Null when there is no valid reference position to summarise. */
+internal fun hoSummary(
+    stats: Stats, vrs: VrsDoc?, roverLat: Double, roverLon: Double,
+): HoSummary? {
+    val alat = stats.arpLat ?: return null
+    val alon = stats.arpLon ?: return null
+    if (!stats.arpValid) return null
+    val distM = geoDistanceM(roverLat, roverLon, alat, alon)
+    return HoSummary(
+        distM = distM,
+        bearingDeg = geoBearingDeg(roverLat, roverLon, alat, alon),
+        // The desktop's evidence rule, and the gate test outranks it.
+        isNetwork = (vrs != null && vrs.gate == 2) || distM < 150.0,
+    )
+}
+
+internal fun hoDistColour(distM: Double) = when {
+    distM < 5_000.0 -> verdictColour(Verdict.PASS)
+    distM < 50_000.0 -> verdictColour(Verdict.WARN)
+    else -> verdictColour(Verdict.FAIL)
+}
+
 @Composable
 internal fun HandoverCard(
     stats: Stats,
@@ -353,22 +384,19 @@ internal fun HandoverCard(
     moves: Int,
     worstJumpM: Double?,
 ) {
-    val alat = stats.arpLat ?: return
-    val alon = stats.arpLon ?: return
-    if (!stats.arpValid) return
+    val sum = hoSummary(stats, vrs, roverLat, roverLon) ?: return
+    val distM = sum.distM
+    val bearing = sum.compass
+    val distColour = hoDistColour(distM)
+    val isNetwork = sum.isNetwork
 
-    val distM = geoDistanceM(roverLat, roverLon, alat, alon)
-    val bearing = compassPoint(geoBearingDeg(roverLat, roverLon, alat, alon))
-    val distColour = when {
-        distM < 5_000.0 -> verdictColour(Verdict.PASS)
-        distM < 50_000.0 -> verdictColour(Verdict.WARN)
-        else -> verdictColour(Verdict.FAIL)
-    }
-    val isNetwork = (vrs != null && vrs.gate == 2) || distM < 150.0
-
-    FoldableCard(
-        "handover",
-        header = {
+    // A plain card, deliberately not a FoldableCard: this row *leads*
+    // somewhere, and a row cannot honestly carry both the fold mark and
+    // the forward mark -- nor can an inner fold-toggle share a tap with
+    // the drill-in the shell wraps around it. Three short lines do not
+    // need folding; they need to be a door.
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
             Text(
                 stringResource(R.string.ho_title),
                 fontWeight = FontWeight.Bold,
@@ -381,8 +409,6 @@ internal fun HandoverCard(
                 color = distColour,
                 fontWeight = FontWeight.Medium,
             )
-        },
-        body = {
             Text(
                 when {
                     moves == 0 -> stringResource(R.string.ho_stable)
@@ -401,8 +427,8 @@ internal fun HandoverCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        },
-    )
+        }
+    }
 }
 
 /**

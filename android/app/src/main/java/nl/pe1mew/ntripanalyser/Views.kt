@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -721,6 +723,229 @@ class TrackAccumulator {
          * once a frame, so the drawing does not care either.
          */
         const val CAP = 1440
+    }
+}
+
+/**
+ * The hand-over detail: the analysis screens’ template, filled with
+ * the reference position’s story.
+ *
+ * Laid out through [AnalysisBands] by the author’s direction
+ * (2026-08-24): the same six bands as the three analysis views, in the
+ * same order, through the same composables — so this screen inherits
+ * what `PlotLayout` already solved (a plot squeezed into leftover
+ * height in landscape) instead of rediscovering it.
+ *
+ * The plot is the desktop’s VRS monitor, redrawn: rover at the
+ * centre, the reference position at its true bearing with the radius
+ * scaled to fit, the history as dots joined faintly in order — a
+ * hand-over reads as a jump in the dots — and the five-minute
+ * distance ring as a strip chart beneath.
+ */
+@Composable
+internal fun HandoverDetail(
+    stats: Stats,
+    vrs: VrsDoc?,
+    roverLat: Double,
+    roverLon: Double,
+    mountpoint: String,
+    roverIsFix: Boolean,
+) {
+    val sum = hoSummary(stats, vrs, roverLat, roverLon)
+    val trail = MonitorService.arpTrail
+    // Read so a dot recorded between documents still redraws us; the
+    // 1 Hz document is the usual trigger.
+    @Suppress("UNUSED_EXPRESSION") trail.revision
+
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant
+
+    AnalysisBands(
+        explainer = stringResource(R.string.ho_explainer),
+        summary = {
+            if (sum == null) return@AnalysisBands
+            Text(
+                stringResource(R.string.ho_bearing,
+                               distanceText(sum.distM), sum.compass,
+                               sum.bearingDeg.toInt()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = hoDistColour(sum.distM),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            val moves = stats.arpMoves
+            Text(
+                when {
+                    moves == 0 -> stringResource(R.string.ho_stable)
+                    sum.isNetwork -> stringResource(R.string.ho_moves_net, moves)
+                    else -> stringResource(R.string.ho_moves_fixed, moves)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (moves > 0 && !sum.isNetwork)
+                    MaterialTheme.colorScheme.error else faint,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        },
+        plot = { m ->
+            Column(m.padding(12.dp)) {
+                HandoverPolar(
+                    trail, stats, roverLat, roverLon,
+                    Modifier.weight(3f).fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                DistanceStrip(
+                    trail,
+                    Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+        },
+        footer = {
+            Text(
+                stringResource(
+                    R.string.ho_footer, mountpoint,
+                    stringResource(
+                        if (roverIsFix) R.string.ho_rover_fix
+                        else R.string.ho_rover_set)),
+                style = MaterialTheme.typography.bodySmall,
+                color = faint,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        },
+        legend = {
+            Row(
+                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LegendDot(HO_ROVER, stringResource(R.string.ho_legend_rover))
+                LegendDot(HO_ARP, stringResource(R.string.ho_legend_arp))
+                LegendDot(HO_HIST, stringResource(R.string.ho_legend_hist))
+            }
+        },
+    )
+}
+
+/** The desktop VRS monitor’s colours, kept so screenshots agree. */
+private val HO_ROVER = Color(0xFF1E50C8)
+private val HO_ARP   = Color(0xFFD22828)
+private val HO_HIST  = Color(0xFFF0AAAA)
+
+@Composable
+private fun LegendDot(colour: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(10.dp)) { drawCircle(colour) }
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.bodySmall,
+             color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Rover centred; everything else at true bearing, radius to scale. */
+@Composable
+private fun HandoverPolar(
+    trail: ArpTrail,
+    stats: Stats,
+    roverLat: Double,
+    roverLon: Double,
+    modifier: Modifier,
+) {
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant
+    val ringLabel = stringResource(
+        R.string.ho_ring,
+        distanceText(polarScaleM(trail, stats, roverLat, roverLon)))
+    val labelStyle = MaterialTheme.typography.bodySmall
+    val measurer = rememberTextMeasurer()
+
+    Canvas(modifier) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val radius = minOf(cx, cy) * 0.86f
+        val scaleM = polarScaleM(trail, stats, roverLat, roverLon)
+
+        fun place(lat: Double, lon: Double): Offset {
+            val d = geoDistanceM(roverLat, roverLon, lat, lon)
+            val b = geoBearingDeg(roverLat, roverLon, lat, lon) *
+                Math.PI / 180.0
+            val r = (d / scaleM).toFloat().coerceAtMost(1f) * radius
+            return Offset(cx + r * kotlin.math.sin(b).toFloat(),
+                          cy - r * kotlin.math.cos(b).toFloat())
+        }
+
+        // Rings: full scale and half.
+        drawCircle(faint.copy(alpha = 0.35f), radius, Offset(cx, cy),
+                   style = Stroke(1.5f))
+        drawCircle(faint.copy(alpha = 0.25f), radius / 2f, Offset(cx, cy),
+                   style = Stroke(1.5f))
+
+        // History, oldest to newest, joined faintly: a hand-over is a
+        // long segment between two dots.
+        val dots = trail.dots()
+        var prev: Offset? = null
+        for (d in dots) {
+            val here = place(d.lat, d.lon)
+            prev?.let { drawLine(HO_HIST, it, here, strokeWidth = 3f) }
+            drawCircle(HO_HIST, 6f, here)
+            prev = here
+        }
+
+        // The reference position now, on top of its own history.
+        val alat = stats.arpLat
+        val alon = stats.arpLon
+        if (stats.arpValid && alat != null && alon != null)
+            drawCircle(HO_ARP, 10f, place(alat, alon))
+
+        // The rover, centre of its own world.
+        drawCircle(HO_ROVER, 10f, Offset(cx, cy))
+
+        drawText(
+            measurer, ringLabel, Offset(cx + 8f, cy - radius + 6f),
+            style = labelStyle.copy(color = faint),
+        )
+    }
+}
+
+/** How many metres the outer ring stands for: the furthest thing, padded. */
+private fun polarScaleM(
+    trail: ArpTrail, stats: Stats, roverLat: Double, roverLon: Double,
+): Double {
+    var worst = 100.0                       // floor: a 2 m ARP still draws
+    val alat = stats.arpLat
+    val alon = stats.arpLon
+    if (stats.arpValid && alat != null && alon != null)
+        worst = maxOf(worst, geoDistanceM(roverLat, roverLon, alat, alon))
+    for (d in trail.dots())
+        worst = maxOf(worst, geoDistanceM(roverLat, roverLon, d.lat, d.lon))
+    return worst * 1.2
+}
+
+/** The last five minutes of rover-to-ARP distance, oldest at the left. */
+@Composable
+private fun DistanceStrip(trail: ArpTrail, modifier: Modifier) {
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant
+    val label = stringResource(R.string.ho_chart)
+    val labelStyle = MaterialTheme.typography.bodySmall
+    val measurer = rememberTextMeasurer()
+
+    Canvas(modifier) {
+        val km = trail.distances()
+        drawRect(faint.copy(alpha = 0.08f))
+        drawText(measurer, label, Offset(6f, 2f),
+                 style = labelStyle.copy(color = faint))
+        if (km.size < 2) return@Canvas
+
+        var maxKm = 0.001f
+        for (v in km) if (!v.isNaN() && v > maxKm) maxKm = v
+
+        val stepX = size.width / (ArpTrail.RING_N - 1).toFloat()
+        var prev: Offset? = null
+        km.forEachIndexed { i, v ->
+            if (v.isNaN()) { prev = null; return@forEachIndexed }
+            val x = size.width - (km.size - 1 - i) * stepX
+            val y = size.height * (1f - (v / maxKm) * 0.9f)
+            val here = Offset(x, y)
+            prev?.let { drawLine(HO_ARP, it, here, strokeWidth = 2.5f) }
+            prev = here
+        }
     }
 }
 
