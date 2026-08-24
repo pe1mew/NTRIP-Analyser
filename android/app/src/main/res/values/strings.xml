@@ -18,6 +18,16 @@
     <string name="vrs_title">Network-RTK</string>
     <string name="vrs_service">Service: %1$s</string>
     <string name="vrs_running">Testing the service — the gate test ends the run by itself</string>
+    <!-- The hand-over card (pro). The two "moved" sentences are the
+         desktop's: the same count means opposite things depending on
+         what kind of service this is, and the card must never scold a
+         network for doing its job. -->
+    <string name="ho_title">Reference position</string>
+    <string name="ho_distance">%1$s %2$s of the rover position</string>
+    <string name="ho_stable">No hand-over: one position across the run</string>
+    <string name="ho_moves_net">%1$d hand-over(s) — a network switching stations under you, which is its job</string>
+    <string name="ho_moves_fixed">%1$d hand-over(s) — a fixed base should not move; corrections are unreliable</string>
+    <string name="ho_jump">Largest jump %1$s</string>
     <string name="action_again">Run again</string>
     <string name="action_watch">Watch</string>
     <string name="action_stop">Stop</string>

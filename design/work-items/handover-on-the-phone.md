@@ -134,7 +134,30 @@ distance ring for the strip chart, fed at the 1 Hz publish.
 **Verify.** Unit-testable in Kotlin? No test harness exists for the
 app — verify on device in H4, and by the parity check in H5.
 
-### H3 — the card
+### H3 — the card  *(done 2026-08-24)*
+
+`HandoverCard` + `HandoverPanel`, pro's registry, after VrsPanel. Two
+deviations, each reasoned:
+
+* **No forward mark yet.** The detail screen is H4, and a mark over a
+  row that leads nowhere is a lie by the panel contract's own rule.
+  Mark and destination arrive together in H4.
+* **The station-type words come from evidence, not `station_type`** --
+  the snapshot field is still unfilled (the known gap). The card uses
+  the desktop's own behavioural rule from `ClassifyStation`: an ARP
+  within 150 m of the position being sent is a network answering you,
+  and a resolved gate test outranks the guess. So the "should not
+  move" scolding can only appear on a service that neither sits on the
+  rover nor classified as gated.
+
+Seen on the S23 against RFSEE01: **"2 m E of the rover position"** in
+green -- correct twice over, the configured rover being the station's
+own coordinates -- and **"No hand-over: one position across the run"**.
+The moved cases render from the same strings and are exercised by the
+run itself only against a live network; the wording was reviewed
+rather than seen.
+
+*(As planned:)*
 
 `HandoverPanel` in pro's registry beside `VrsPanel`: live distance and
 bearing in the usability colour, the hand-over count in the station

@@ -333,6 +333,79 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
 }
 
 /**
+ * Where the reference position stands relative to the rover, and
+ * whether it has moved.
+ *
+ * The distance takes the usability colours A3 judges by -- green under
+ * 5 km, amber under 50, red beyond. The movement sentence is chosen by
+ * what the service *is*, on the desktop's own evidence rule: a
+ * reference position within 150 m of the position being sent is a
+ * network answering you (`gui_events.c`, ClassifyStation), and a
+ * resolved gate test outranks the guess. The same count reads as a
+ * network doing its job or a base that should worry you -- never both.
+ */
+@Composable
+internal fun HandoverCard(
+    stats: Stats,
+    vrs: VrsDoc?,
+    roverLat: Double,
+    roverLon: Double,
+    moves: Int,
+    worstJumpM: Double?,
+) {
+    val alat = stats.arpLat ?: return
+    val alon = stats.arpLon ?: return
+    if (!stats.arpValid) return
+
+    val distM = geoDistanceM(roverLat, roverLon, alat, alon)
+    val bearing = compassPoint(geoBearingDeg(roverLat, roverLon, alat, alon))
+    val distColour = when {
+        distM < 5_000.0 -> verdictColour(Verdict.PASS)
+        distM < 50_000.0 -> verdictColour(Verdict.WARN)
+        else -> verdictColour(Verdict.FAIL)
+    }
+    val isNetwork = (vrs != null && vrs.gate == 2) || distM < 150.0
+
+    FoldableCard(
+        "handover",
+        header = {
+            Text(
+                stringResource(R.string.ho_title),
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                stringResource(R.string.ho_distance,
+                               distanceText(distM), bearing),
+                style = MaterialTheme.typography.bodySmall,
+                color = distColour,
+                fontWeight = FontWeight.Medium,
+            )
+        },
+        body = {
+            Text(
+                when {
+                    moves == 0 -> stringResource(R.string.ho_stable)
+                    isNetwork -> stringResource(R.string.ho_moves_net, moves)
+                    else -> stringResource(R.string.ho_moves_fixed, moves)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color =
+                    if (moves > 0 && !isNetwork) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (moves > 0 && worstJumpM != null) {
+                Text(
+                    stringResource(R.string.ho_jump, distanceText(worstJumpM)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+    )
+}
+
+/**
  * The network-RTK assertions, drawn in the eight checks' own dress.
  *
  * The rows are [KpiItem]s from the same engine family and read the same

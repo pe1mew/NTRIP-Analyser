@@ -261,6 +261,66 @@ object VrsPanel : Panel {
     }
 }
 
+/**
+ * Rover-to-ARP distance and the hand-over history (phase 2 item 3,
+ * `design/work-items/handover-on-the-phone.md`). Pro's registry only.
+ *
+ * No forward mark yet, deliberately: the detail screen is H4, and a
+ * mark over a row that leads nowhere would be a lie. The mark and the
+ * destination arrive together.
+ */
+object HandoverPanel : Panel {
+    override val key = "handover"
+
+    @Composable
+    override fun Content(state: HubState, actions: HubActions) {
+        val stats = state.doc?.stats ?: return
+        // The rover end, in the uplink's own order of preference.
+        val fix = MonitorService.livePosition
+        HandoverCard(
+            stats = stats,
+            vrs = state.doc?.vrs,
+            roverLat = fix?.lat ?: state.settings.latitude,
+            roverLon = fix?.lon ?: state.settings.longitude,
+            moves = stats.arpMoves,
+            worstJumpM = worstJump(),
+        )
+    }
+
+    /** The largest step between successive recorded positions. */
+    private fun worstJump(): Double? {
+        val dots = MonitorService.arpTrail.dots()
+        if (dots.size < 2) return null
+        var worst = 0.0
+        for (i in 1 until dots.size) {
+            val d = geoDistanceM(dots[i - 1].lat, dots[i - 1].lon,
+                                 dots[i].lat, dots[i].lon)
+            if (d > worst) worst = d
+        }
+        return worst
+    }
+
+    override fun shareSection(state: HubState): ShareSection? {
+        val stats = state.doc?.stats ?: return null
+        val alat = stats.arpLat ?: return null
+        val alon = stats.arpLon ?: return null
+        if (!stats.arpValid) return null
+        val fix = MonitorService.livePosition
+        val rlat = fix?.lat ?: state.settings.latitude
+        val rlon = fix?.lon ?: state.settings.longitude
+        val distM = geoDistanceM(rlat, rlon, alat, alon)
+        val lines = mutableListOf(
+            "%s %s of the rover position".format(
+                distanceText(distM),
+                compassPoint(geoBearingDeg(rlat, rlon, alat, alon))),
+            "${stats.arpMoves} hand-over(s)",
+        )
+        stats.arpDriftM?.let { lines += "drift from first position %s".format(distanceText(it)) }
+        worstJump()?.let { lines += "largest jump %s".format(distanceText(it)) }
+        return ShareSection("Reference position", lines)
+    }
+}
+
 object RunControlsPanel : Panel {
     override val key = "run"
 

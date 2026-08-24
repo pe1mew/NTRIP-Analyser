@@ -805,6 +805,29 @@ class ArpTrail {
     }
 }
 
+/** Initial great-circle bearing, degrees clockwise from north. */
+internal fun geoBearingDeg(lat1: Double, lon1: Double,
+                           lat2: Double, lon2: Double): Double {
+    val d = Math.PI / 180.0
+    val dlo = (lon2 - lon1) * d
+    val y = kotlin.math.sin(dlo) * kotlin.math.cos(lat2 * d)
+    val x = kotlin.math.cos(lat1 * d) * kotlin.math.sin(lat2 * d) -
+        kotlin.math.sin(lat1 * d) * kotlin.math.cos(lat2 * d) *
+        kotlin.math.cos(dlo)
+    val deg = kotlin.math.atan2(y, x) / d
+    return (deg + 360.0) % 360.0
+}
+
+/** An eight-point compass name for a bearing. */
+internal fun compassPoint(deg: Double): String {
+    val names = arrayOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+    return names[(((deg + 22.5) % 360.0) / 45.0).toInt()]
+}
+
+/** "850 m" under a kilometre, "4.2 km" above. */
+internal fun distanceText(m: Double): String =
+    if (m < 1000.0) "%.0f m".format(m) else "%.1f km".format(m / 1000.0)
+
 /** Great-circle distance in metres, spherical earth. */
 internal fun geoDistanceM(lat1: Double, lon1: Double,
                           lat2: Double, lon2: Double): Double {
