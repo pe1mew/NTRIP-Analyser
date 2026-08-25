@@ -369,6 +369,51 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: one-second mtime resolution on this MinGW/make setup; `touch` alone raced the same wall.
 **Fix**: delete the object file (`rm build/CMakeFiles/<target>.dir/.../file.obj`) before rebuilding when a just-edited file's test result looks impossible. Candidate for promotion at next recurrence.
 
+### The run is a copy of the settings, and the copy forgot a field (2026-08-25)
+**Problem**: the app's first TLS run went out in plain text to port 443; Azure's gateway answered the plaintext with its own 400 page and the run failed as REJECTED while the checkbox sat ticked.
+**Root cause**: settings travel to MonitorService by Intent extras, and `tls` had no extra -- the rebuilt CasterSettings defaulted it false. Third face of the flag-lifetime family: a field the copy forgets is a field the run silently does without.
+**Fix**: EXTRA_TLS / EXTRA_EPH_TLS ride the Intent, with the lesson in a comment at the unpack site. Found by BLOG-instrumenting the bridge (`tls=0`).
+
+### mbedTLS's entropy accumulator never returned on EMUI (2026-08-25)
+**Problem**: `mbedtls_ctr_drbg_seed` blocked forever on the Huawei -- every TLS connect wedged before its first byte of I/O.
+**Root cause**: mbedTLS's own entropy gathering (`mbedtls_entropy_func`) hangs on this EMUI 10 handset; mechanism unidentified, behaviour reproducible.
+**Fix**: the DRBG seeds from the OS RNG directly (`/dev/urandom`, `BCryptGenRandom` on Windows) -- the OS pool is the root of trust either way, and the accumulator added nothing but the hang.
+
+### -O0 crypto reads as a hang (2026-08-25)
+**Problem**: after the entropy fix, handshakes still "wedged" -- in truth they took over a minute: unoptimized mbedTLS bignum on the 2019 Kirin.
+**Root cause**: NDK debug builds compile C at -O0, and TLS is the first heavy math the debug APK ever ran.
+**Fix**: `CMAKE_C_FLAGS_DEBUG += -O2` in the NDK CMakeLists -- the C core is debugged on the desktop through the suite, never through a debug APK. Cost an afternoon of misdiagnosis first.
+
+### Gradle cannot see this repo's C sources (2026-08-25) [x3 in one day]
+**Problem**: three rounds of "the fix didn't work" on the phone -- each time the installed .so predated the edit.
+**Root cause**: the NDK sources live outside the Gradle project (`${REPO_ROOT}/src`), and both the externalNativeBuild task's up-to-date check and the build cache are blind to them: deleting `.cxx` alone re-served the stale build from cache.
+**Fix**: `gradlew clean` + `--no-build-cache` whenever a `src/` or `lib/` C file changed. Promoted to the runbook's Common Problems.
+
+### The Bash tool's heredocs halve backslashes (2026-08-25) [x4 in one day]
+**Problem**: python edit scripts fed through `python - <<'EOF'` heredocs failed asserts on anchors that plainly existed -- and once *matched the wrong thing*: `'\0'` reached Python as a literal NUL byte.
+**Root cause**: the tool layer processes backslash escapes in the command text before the shell sees it, even inside quoted heredocs; every `\` arrives halved. Recurrence of the promoted scripted-edit gotcha by a brand-new mechanism.
+**Fix**: any edit script with a backslash in it is written to the scratchpad with the Write tool (verbatim by contract) and run as a file. Promoted table incremented; the CLAUDE.md constraint now names the mechanism.
+
+### git's EOL conversion rewrote a checksummed vendored file (2026-08-25)
+**Problem**: the regenerate-and-diff check went red on the CA bundle after the branch merge; the regenerated array had grown by 2,950 bytes and `cacert.pem` no longer matched curl's published SHA-256.
+**Root cause**: text autocrlf converted the vendored PEM at checkout -- so the embedded trust store would differ between a Windows and a Linux checkout, and the provenance checksum was unverifiable on one of them.
+**Fix**: `.gitattributes`: `cacert.pem -text` (upstream's exact bytes are the point), the generated array `eol=lf`; bytes restored from the index, sha256 matches curl again. Rule: a vendored file whose checksum is part of its provenance is binary to git, whatever it contains.
+
+### A check that rewrites what another check reads (2026-08-25)
+**Problem**: the first full release-check run on the 3.8.0 artefacts cried stale at bundles built one minute earlier.
+**Root cause**: `check_generated` rewrites `ns_ca_bundle.c` to prove it matches the PEM -- same content, fresh mtime -- and the artefact-staleness check downstream reads mtimes. The notices.txt disease, second member.
+**Fix**: `ns_ca_bundle.c` joined the GENERATED_SOURCES carve-out. Any future generated-and-committed source starts life in that set.
+
+### SIGPIPE: the platform-specific death only CI could see (2026-08-25)
+**Problem**: the TLS suite passed 16/16 on Windows and died of SIGPIPE on Linux -- twice, on the L5 and L6 pushes.
+**Root cause**: TLS made writes to peer-closed sockets routine (close_notify at teardown, records to refusing casters); POSIX's default for those is process death, and Windows has no such signal to raise, so no local run could show it.
+**Fix**: every transport send carries MSG_NOSIGNAL (which also retired the same latent exposure under every plain-text send the daemon ever made); the test ignores the signal for its server thread. The branch plan's draft-PR-for-CI rule caught it before the merge -- the discipline paying for itself.
+
+### A parsed field nobody consumed (2026-08-25)
+**Problem**: the first live TLS check scored frame integrity 79.6% -- Kadaster's 443 wraps NTRIP 2 in `Transfer-Encoding: chunked`, and the chunk-size lines were costing one frame in five its CRC.
+**Root cause**: `ns_proto` had parsed `handshake.chunked` since the field existed and the GUI displayed it; nothing ever decoded the framing. A parsed-but-unconsumed field is a decision postponed until a live wire forces it.
+**Fix**: the session de-chunks (gated on the handshake), the sourcetable fetch de-chunks in place, and the loopback caster serves chunked with boundaries cut mid-frame -- falsified by gating the decoder off, which reproduced the live corruption exactly.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -379,11 +424,12 @@ Found by probe rather than by reading: a background colour showed the empty band
 |------|--------|-------------|-------------|
 | 2026-08-13 | A remembered value must not satisfy the KPI that asks for it | 1 | project file, hard constraint |
 | 2026-08-13 | Judge constellations by NavSys, never the 1005/1006 bits | **3** — 2026-08-12 three times in one session | project file, domain facts; `memory/MEMORY.md` active decisions |
-| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings, then the whole file | **9** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14, `sed -i` deleting a table row 2026-08-16, four eaten backslashes and one truncated file 2026-08-22 | project file, hard constraint |
+| 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings, then the whole file | **13** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14, `sed -i` deleting a table row 2026-08-16, four eaten backslashes and one truncated file 2026-08-22, **four halved-backslash heredocs 2026-08-25** (the tool halves `\\` before the shell sees it — one anchor became a literal NUL) | project file, hard constraint — scripts now go through Write to a file, never a heredoc |
 | 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |
 | 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **6** — 16 KB alignment, bundle ABIs, signing key (2026-08-14); wrapped strings on-device 2026-08-23 (reconnect line) and 2026-08-25 twice (export filename template, banner evidence line) | project file, hard constraint |
 | 2026-08-15 | Measure the way the build measures, or report no number | **2** — `-fsyntax-only` blind to truncation warnings, `-std=c99` hiding `M_PI`, both 2026-08-15 | project file, hard constraint |
-| 2026-08-15 | Two build systems over one source set: CI must run both | **2** — `build-gui.bat` (open), `service/Makefile` (found broken 2026-08-15) | `memory/MEMORY.md` active decisions |
+| 2026-08-15 | Two build systems over one source set: CI must run both | **2, then closed** — `build-gui.bat` retired 2026-08-25 (TLS L2; it had been broken since L1), `service/Makefile` builds by wildcard | `memory/MEMORY.md` active decisions |
+| 2026-08-25 | Gradle cannot see out-of-tree C sources — clean + `--no-build-cache` after any `src/` or `lib/` C change | **3** — three stale-`.so` rounds in one afternoon; deleting `.cxx` alone re-served the cache | `docs/RUNBOOK.md` Common Problems |
 | 2026-08-16 | A snapshot field nothing fills is worse than a missing one | **3** — ARP fields (until a live run tripped over them), `latency_s` and `sourcetable_offset_m` (both found 2026-08-16) | `memory/MEMORY.md` active decisions |
 | 2026-08-16 | A green verdict is not a correct registration — read the sourcetable | **2** — 3.3 km transposition and a 25 km paste, both STATION OK, 2026-08-16 | `memory/MEMORY.md` active decisions; specified as measurement-tiers phase 0 |
 | 2026-08-16 | What is installed is not what was built — on any platform | **5** — pro's APK 2026-08-14, the VPS binary 2026-08-16, `test_all` green beside a stale `bin/` 2026-08-18, **Play's 3.7.0 bundle built before the fix it claimed to carry, and an install that succeeded from a failed build, both 2026-08-23** | `memory/MEMORY.md` active decisions (generalised from Android); `tools/check_release.py` artefact checks |

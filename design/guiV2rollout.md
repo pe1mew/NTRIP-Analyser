@@ -581,7 +581,7 @@ order is the author's; the notes are what each needs beyond its own code.
 | 3 | **Rover-to-ARP, hand-over** | Card *Hand-over · N* → **M2** plot in local metres | ARP history across the session; a scale bar and north arrow; no map SDK |
 | 4 | **Statistics export** | Extends the share sections into a file | Share must already be the socket (P1.2) — otherwise this is where the socket gets built anyway |
 | 5 | **Tier 2 + thresholds** | Card *Stable · N h* → six metrics under their own verdict | `station_report.c` and `thresholds.c` are **not in the Android build** today; both must be added to `android/app/src/main/cpp/CMakeLists.txt`, and the foreground service must survive hours rather than minutes |
-| 6 | **TLS** | No UI at all | [tls.md](tls.md): a bundled library behind a transport abstraction in the session layer. **Ships in both editions the same day, and ends the free freeze** |
+| 6 | **TLS** | ✅ Shipped 3.8.0 (2026-08-25) | [work-items/tls-rollout.md](work-items/tls-rollout.md): mbedTLS behind `ns_transport`, both editions same day, the free freeze ended and the pro hold lifted |
 
 ### Two notes on the order
 

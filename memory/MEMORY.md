@@ -46,8 +46,8 @@
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
 | `docs/jsonConfigs.md` | Config reading, writing or interop | One format everywhere; passwords in the clear |
-| `design/security-review.md` | Touching a parser, the socket layer, or anything a caster feeds | What a hostile caster can do; six findings closed, TLS scheduled |
-| `design/tls.md` | Implementing TLS, or asked why it is not there yet | The decision, the measured surface, and what actually costs |
+| `design/security-review.md` | Touching a parser, the socket layer, or anything a caster feeds | What a hostile caster can do; F3 narrowed 2026-08-25 — TLS shipped, the disclosure survives for plain-text casters |
+| `design/tls.md` + `design/work-items/tls-rollout.md` | Anything TLS — shipped in 3.8.0 | The decision and its surface; the rollout record carries every deviation, falsification and live find (chunked, entropy, SIGPIPE) |
 | `design/legacy-observations.md` | Touching KPI 4, KPI 5, or anything that decides which messages count | Delivery is judged against the sourcetable, so an old GPS+GLONASS station passes. Built 2026-08-13 |
 | `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Twelve published pages; the app links into them, so a claim here is a claim in the product |
 
@@ -55,13 +55,23 @@
 
 <!-- 2026-08-25 -->
 
-- **Phase 2 is five of six: only TLS remains.** VRS check, hand-over,
+- **3.8.0 released; phase 2 is complete** (2026-08-25). TLS in every
+  <!-- verify: grep -q "## .3.8.0." changelog.md -->
+  product and both editions -- mbedTLS behind the `ns_transport` seam,
+  verification mandatory against the embedded Mozilla roots, chunked
+  NTRIP 2 decoded, an explicit per-connection flag. Developed on the
+  `tls` branch, accepted by PR #4's merge, released same day: GitHub
+  (all platforms' assets) published, free submitted to Play, and every
+  accumulated paid capability public for the first time. **The pro
+  hold is lifted** -- `design/work-items/release-to-play.md` owns what
+  comes next. The rollout record with every deviation and live find is
+  `design/work-items/tls-rollout.md`.
+  <!-- verify: git rev-parse v3.8.0 -->
+- **Phase 2's earlier five**: VRS check, hand-over, statistics export
   <!-- verify: grep -c "done 2026-08" design/work-items/tier2-on-the-phone.md -->
-  statistics export and tier 2 all shipped to `main` (pro-gated) in
-  one day each, every plan in `design/work-items/*-on-the-phone.md`
-  recording what its steps actually did. **Pro still does not go to
-  Play until TLS lands** -- the author's hold stands, and TLS also
-  unfreezes free.
+  and tier 2 shipped pro-gated in one day each, every plan in
+  `design/work-items/*-on-the-phone.md` recording what its steps
+  actually did.
 - **3.7.3 released** (2026-08-25, free to Play + GitHub with both
   <!-- verify: grep -q "## .3.7.3." changelog.md -->
   platforms' assets): the run-flow corrections from tier 2's first
@@ -211,11 +221,13 @@ Supplementing CLAUDE.md's list with paths found during work:
 ## Active Decisions
 
 - **A flag's lifetime must match the thing it describes** — and a
-  record of a run outlives the screen that draws it. Two faces of one
-  rule, both paid for: run-scoped accumulators in composables lost a
-  nine-hour capture (2026-08-23), and a per-run provenance flag over a
+  record of a run outlives the screen that draws it. Three faces of one
+  rule, all paid for: run-scoped accumulators in composables lost a
+  nine-hour capture (2026-08-23), a per-run provenance flag over a
   process-lived cache credited a stale file for the stream's orbits
-  (2026-08-25).
+  (2026-08-25), and the Intent that copies settings into a run forgot
+  the TLS field, so the run silently went plain text (2026-08-25 —
+  a field the copy forgets is a field the run does without).
 - **Runs start and stop in one place** — the hub owns every run verb;
   the analysis screen is the viewing room (author, 2026-08-25). The
   service door enforces single occupancy with a logged refusal; the

@@ -86,6 +86,10 @@ because people will point it at real stations and believe what it says.
   Edit to change. Four incidents: mangled escapes, doubled carriage
   returns, a literal newline, and a `sed -i` written to *test a match*
   that deleted a table row in the very file recording the other three.
+  **A python edit script never travels through a heredoc** — the tool
+  layer halves backslashes before the shell sees them (`\\0` arrived as
+  a NUL byte, 2026-08-25, four times). Write the script to the
+  scratchpad with the Write tool and run the file.
 
 ## Architecture
 

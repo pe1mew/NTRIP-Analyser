@@ -443,6 +443,7 @@ matter.
 | Symptom | Look at |
 |---|---|
 | Gradle: "JAVA_HOME is set to an invalid directory" | Use the Windows path to Adoptium JDK 17 |
+| A C change under `src/` or `lib/` does not reach the phone | Gradle's up-to-date check **and** build cache are blind to out-of-tree sources: `gradlew clean` then build with `--no-build-cache` |
 | `gcc: command not found` | Put CodeBlocks' MinGW on `PATH` |
 | Android: `UnsatisfiedLinkError` | `@JvmStatic` moves the symbol to the enclosing class — see `memory/gotcha-log.md` |
 | Android: screen stuck on a stale value | A snapshot field is `null` and the Kotlin model is non-nullable, so nothing decodes |
