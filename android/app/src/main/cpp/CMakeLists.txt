@@ -20,6 +20,13 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.."
                        ABSOLUTE)
 
+# ── Mbed TLS (vendored; see lib/mbedtls/NTRIP-ANALYSER-NOTE.md) ──────
+# The same arrangement as the desktop build: library/*.c compiled by
+# this target against the default configuration, upstream's own CMake
+# unused.  The GLOB is read at configure time -- a Gradle sync or clean
+# build picks up a refreshed vendor copy.
+file(GLOB MBEDTLS_SOURCES ${REPO_ROOT}/lib/mbedtls/library/*.c)
+
 add_library(ntrip_android SHARED
     ntrip_bridge.c
     jni_glue.c
@@ -49,12 +56,15 @@ add_library(ntrip_android SHARED
     ${REPO_ROOT}/src/net/ntrip_handler.c
 
     ${REPO_ROOT}/lib/cJSON/cJSON.c
+    ${MBEDTLS_SOURCES}
 )
 
 target_include_directories(ntrip_android PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${REPO_ROOT}/src
     ${REPO_ROOT}/lib/cJSON
+    ${REPO_ROOT}/lib/mbedtls/include
+    ${REPO_ROOT}/lib/mbedtls/library
 )
 
 # Bionic declares clock_gettime, getaddrinfo and strncasecmp behind the

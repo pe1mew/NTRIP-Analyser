@@ -85,6 +85,20 @@ add_compile_definitions(_USE_MATH_DEFINES)
 add_library(cjson STATIC lib/cJSON/cJSON.c)
 target_include_directories(cjson PUBLIC lib/cJSON)
 
+# ── Mbed TLS (vendored; lib/mbedtls/NTRIP-ANALYSER-NOTE.md) ───────────
+# Our own target over library/*.c, like cJSON at larger scale: upstream's
+# CMake wants Python and a test framework this tree does not carry.  The
+# GLOB is read at configure time -- re-run CMake after refreshing the
+# vendor copy.
+file(GLOB MBEDTLS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/mbedtls/library/*.c)
+add_library(mbedtls STATIC ${MBEDTLS_SOURCES})
+target_include_directories(mbedtls PUBLIC lib/mbedtls/include
+                                   PRIVATE lib/mbedtls/library)
+if(WIN32)
+    # bcrypt for the OS entropy source (BCryptGenRandom).
+    target_link_libraries(mbedtls PUBLIC bcrypt ws2_32)
+endif()
+
 # ── ntrip_core ────────────────────────────────────────────────────────
 add_library(ntrip_core STATIC
     src/core/ns_stats.c
@@ -118,7 +132,7 @@ add_library(ntrip_session STATIC
     src/net/ntrip_proto.c
     src/net/ntrip_handler.c
 )
-target_link_libraries(ntrip_session PUBLIC ntrip_core)
+target_link_libraries(ntrip_session PUBLIC ntrip_core mbedtls)
 if(WIN32)
     target_link_libraries(ntrip_session PUBLIC ws2_32)
 endif()

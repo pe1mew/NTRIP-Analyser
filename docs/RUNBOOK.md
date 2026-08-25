@@ -12,9 +12,11 @@ machine-specific it says so.
   desktop programs for days because only the phone was being tested.
 - **A clean build proves nothing.** This project measures live streams.
   Verify against a real caster and quote the numbers.
-- **Two build systems describe the GUI.** CMake and `build-gui.bat` each
-  list `gui/*.c` by hand. Adding a file to one and not the other breaks
-  whichever the next person happens to use.
+- **One build system describes the desktop.** `build-gui.bat`, its
+  PowerShell twin and the hand-listed VS Code tasks retired with the TLS
+  rollout (2026-08-25): a second source list is a second place to forget
+  a file. `CMakeLists.txt` owns the only desktop list; the daemon's
+  `service/Makefile` survives on wildcards, and CI builds it.
 - **The device is part of the toolchain.** Android behaviour that matters
   — foreground service, GNSS, permissions — cannot be seen in a build.
 
@@ -44,12 +46,6 @@ cmake --build build --target test_all
 
 `test_all` runs CTest with `--output-on-failure`. Tests link
 `ntrip_core` only, so they need no network and no caster.
-
-The GUI has a second, independent build:
-
-```bash
-./build-gui.bat           # windres + one gcc line, explicit source list
-```
 
 Binaries always land in `bin/`, never in the build tree — the programs
 look for `config.json` in the working directory, and a clean rebuild
@@ -406,17 +402,19 @@ Weekly, and on demand: **verified claims**, running
 commands ask whether the site and the wiki are still live, and a check
 that fails on someone else's outage teaches people to ignore it.
 
-**The Win32 GUI is not built by CI.** It is Windows-only and has a
-second, hand-written build path (`build-gui.bat`) that lists every
-source by hand. Building it on a runner would need a MinGW toolchain
-whose failures would say more about the runner than about the code, so
-it stays a manual step — build it, and run the station check against a
-live caster, before any desktop release.
+**The Win32 GUI is not built by CI.** It is Windows-only, and building
+it on a runner would need a MinGW toolchain whose failures would say
+more about the runner than about the code, so it stays a manual step —
+`cmake --build build` builds it with everything else; run the station
+check against a live caster before any desktop release. (Its second,
+hand-written build path retired with the TLS rollout; CMake's list is
+the only list.)
 
 ## Adding a New Frontend, Window, KPI or Config Field
 
-**Adding a GUI source file** — add it to *both* `CMakeLists.txt`
-(`ntrip-analyser-gui` target) and `build-gui.bat`.
+**Adding a GUI source file** — add it to the `ntrip-analyser-gui`
+target in `CMakeLists.txt`. That is the only list; the hand-written
+second build retired with the TLS rollout.
 
 **Adding a floating GUI window** — copy the shape of
 `gui/gui_vrs_window.c`: `Register…WindowClass` + `Create…Window`, an
@@ -446,7 +444,6 @@ matter.
 |---|---|
 | Gradle: "JAVA_HOME is set to an invalid directory" | Use the Windows path to Adoptium JDK 17 |
 | `gcc: command not found` | Put CodeBlocks' MinGW on `PATH` |
-| GUI builds under CMake but `build-gui.bat` fails | A source file was added to only one |
 | Android: `UnsatisfiedLinkError` | `@JvmStatic` moves the symbol to the enclosing class — see `memory/gotcha-log.md` |
 | Android: screen stuck on a stale value | A snapshot field is `null` and the Kotlin model is non-nullable, so nothing decodes |
 | Sky view places few satellites | It needs the station's own position (1005/1006), not only orbits |

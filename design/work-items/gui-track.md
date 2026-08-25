@@ -71,6 +71,11 @@ MinGW toolchain on a Linux runner would fail in ways that say more about
 the runner than about the code. It is verified by hand on the machine
 that ships it, per [docs/RUNBOOK.md](../../docs/RUNBOOK.md).
 
+*(Update 2026-08-25, TLS rollout L2: `build-gui.bat` and its twins are
+gone — CMake is the GUI's only build now, which removes the
+second-list half of this phase's argument. The compile-only Windows
+job below remains the open half.)*
+
 That is an honest gap rather than a hidden one, but it is still the case
 that a core change can break the GUI and no machine will notice until
 somebody builds it. The cheap middle option — worth costing before

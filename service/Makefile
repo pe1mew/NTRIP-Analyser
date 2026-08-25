@@ -12,7 +12,9 @@ CFLAGS  ?= -g -O2 -Wall -Wextra -std=c99 -D_USE_MATH_DEFINES
 # Strict -std=c99 hides POSIX declarations on glibc; without these,
 # clock_gettime, CLOCK_MONOTONIC, getaddrinfo and strncasecmp all fail
 # to resolve.  MinGW does not need them but tolerates them.
-CPPFLAGS = -I../src -I../lib/cJSON -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
+CPPFLAGS = -I../src -I../lib/cJSON \
+           -I../lib/mbedtls/include -I../lib/mbedtls/library \
+           -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE
 
 # Every shared source, by wildcard rather than by hand.
 #
@@ -32,13 +34,15 @@ SRC = ntrip-monitord.c \
       $(wildcard ../src/session/*.c) \
       $(wildcard ../src/net/*.c) \
       $(wildcard ../src/core/*.c) \
-      ../lib/cJSON/cJSON.c
+      ../lib/cJSON/cJSON.c \
+      $(wildcard ../lib/mbedtls/library/*.c)
 
 BIN = ntrip-monitord
 
-# Windows needs winsock; everything else needs only libm.
+# Windows needs winsock and bcrypt (Mbed TLS's OS entropy source);
+# everything else needs only libm.
 ifeq ($(OS),Windows_NT)
-LDLIBS = -lws2_32 -lm
+LDLIBS = -lws2_32 -lbcrypt -lm
 BIN   := $(BIN).exe
 else
 LDLIBS = -lm

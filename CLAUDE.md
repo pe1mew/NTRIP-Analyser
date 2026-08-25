@@ -60,8 +60,9 @@ because people will point it at real stations and believe what it says.
 - **A remembered or inferred value must never satisfy the KPI that asks
   for it.** The sky view may draw from a remembered station position;
   KPI 3 still waits for a real 1005/1006.
-- **Never add a GUI source file to only one build.** `CMakeLists.txt`
-  *and* `build-gui.bat` both list every `gui/*.c` by hand.
+- **The desktop has one source list**: `CMakeLists.txt`.
+  `build-gui.bat` and the hand-listed VS Code tasks retired with the
+  TLS rollout (2026-08-25); `service/Makefile` builds by wildcard.
 - **Never document a function in both header and `.c`.** Doxygen merges
   them and reports nonsense.
 - **Verify against a live caster before claiming something works.** A

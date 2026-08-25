@@ -757,6 +757,22 @@ def check_source_lists():
           "every documented omission still names a file that exists",
           ", ".join(stale) if stale else "")
 
+    # The vendored TLS library sits outside the src/ scope of the
+    # regexes above, deliberately: lib/ keeps no per-file parity,
+    # because every build takes library/*.c whole (by GLOB or by
+    # wildcard).  What can drift is a build forgetting the vendor tree
+    # entirely -- the desktop links it, the phone never gained it, and
+    # nobody notices until a TLS caster fails on Android only.  So each
+    # build must name the directory.
+    daemon_txt = read("service", "Makefile")
+    ndk_txt = read("android", "app", "src", "main", "cpp",
+                   "CMakeLists.txt")
+    for name, text in (("CMakeLists.txt", desktop_txt),
+                       ("the NDK CMakeLists.txt", ndk_txt),
+                       ("service/Makefile", daemon_txt)):
+        check("lib/mbedtls/library" in text,
+              "%s compiles the vendored Mbed TLS" % name, "")
+
 
 
 # -- Android artefacts -------------------------------------------------

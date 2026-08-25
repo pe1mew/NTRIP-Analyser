@@ -117,7 +117,41 @@ the loopback harnesses, which exercise the seam by existing. Falsify
 by breaking the plaintext transport's recv: half the suite must go
 red, proving the seam actually carries the traffic.
 
-### L2 — the library joins every build
+### L2 — the library joins every build  *(done 2026-08-25)*
+
+Mbed TLS **3.6.7** (the LTS line; 4.x splits into a second repository
+and was declined in the vendor note), taken from the official release
+asset with its published SHA-256 verified, vendored as `include/` and
+`library/` only — `lib/mbedtls/NTRIP-ANALYSER-NOTE.md` records what
+the copy is and how to refresh it. Upstream's CMake is not used:
+every build compiles `library/*.c` itself, cJSON's arrangement at
+larger scale. Three deviations from the step's wording, all of them
+the step done more honestly:
+
+* **The daemon has its own build** the plan forgot by name —
+  `service/Makefile` — and it needed nothing but its wildcard
+  extending to the vendor directory; built under MinGW to prove it.
+* **The retirement was bigger than one file**: `build-gui.ps1` and
+  the four hand-listed gcc tasks in `.vscode/tasks.json` were the
+  same disease and went too (the .bat had in fact been broken since
+  L1 — it never learned `ns_transport.c` — the two-lists gotcha
+  firing one last time on its way out). Nine documents updated,
+  including CI's own comments and the readme's stale one-liners.
+* **`check_source_lists` was taught, not excused**: the vendor tree
+  is outside its `src/` regexes by design, so a new check demands
+  that all three builds name `lib/mbedtls/library` — falsified red
+  by pointing the NDK list at a directory that does not exist, then
+  restored. 98 checks became 101.
+
+Notices: Mbed TLS joins both generated texts, its version read from
+`build_info.h` — the header the builds compile — never typed.
+Verified by artefact: desktop suite 15/15 green with `libmbedtls.a`
+linked beneath the session; the daemon binary rebuilt; the NDK `.so`
+rebuilt and `llvm-nm` shows `mbedtls_ssl_set_hostname` and the X.509
+family in arm64. No behaviour change: no source file outside the
+build lists moved.
+
+*(As planned:)*
 
 mbedTLS vendored; desktop CMake, the NDK CMakeLists, and the daemon's
 build all link it; `build-gui.bat` deleted with its runbook section.

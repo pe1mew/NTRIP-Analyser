@@ -2,7 +2,7 @@
 
 Upstream cJSON 1.7.18 (MIT), vendored for the JSON configuration files
 and the statistics snapshot. Only `cJSON.c` is compiled: by CMake, by
-`build-gui.bat`, and by the Android NDK build alike.
+`service/Makefile`, and by the Android NDK build alike.
 
 ## cJSON_Utils was deleted, deliberately
 

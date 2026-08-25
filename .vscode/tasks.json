@@ -1,167 +1,38 @@
 {
     "version": "2.0.0",
+    // One build system. The hand-listed gcc lines that stood here (and
+    // build-gui.bat / build-gui.ps1 beside them) retired with the TLS
+    // rollout: a second source list is a second place to forget a file,
+    // and CMakeLists.txt owns the only list now.
     "tasks": [
         {
-            "label": "Build NTRIP-Analyser (CodeBlocks MinGW)",
+            "label": "Configure (CMake)",
             "type": "shell",
-            "command": "C:/Program Files/CodeBlocks/MinGW/bin/gcc.exe",
-            "args": [
-                "-g",
-                "-o",
-                "bin/ntrip-analyser.exe",
-                "src/cli/main.c",
-                "lib/cJSON/cJSON.c",
-                "src/core/rtcm3x_parser.c",
-                "src/core/ns_stats.c",
-                "src/net/ntrip_proto.c",
-                "src/session/ntrip_session.c",
-                "src/cli/cli_stream.c",
-                "src/net/ntrip_handler.c",
-                "src/core/config.c",
-                "src/cli/cli_help.c",
-                "src/core/nmea_parser.c",
-                "src/core/sv_ephemeris.c",
-                "src/core/sv_orbit.c",
-                "src/core/sv_track.c",
-                "src/core/kpi.c",
-                "src/core/sourcetable.c",
-                "src/core/vrs_check.c",
-                "src/core/iono.c",
-                "src/core/sky_collect.c",
-                "src/core/sky_render.c",
-                "src/core/rinex_nav.c",
-                "-Isrc",
-                "-Ilib/cJSON",
-                "-lws2_32",
-                "-lm",
-                "-Wall"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "problemMatcher": ["$gcc"],
-            "detail": "Builds the NTRIP-Analyser executable using CodeBlocks MinGW"
-        },
-        {
-            "label": "Build NTRIP-Analyser (Linux GCC)",
-            "type": "shell",
-            "command": "gcc",
-            "args": [
-                "-g",
-                "-o",
-                "bin/ntrip-analyser",
-                "src/cli/main.c",
-                "lib/cJSON/cJSON.c",
-                "src/core/rtcm3x_parser.c",
-                "src/core/ns_stats.c",
-                "src/net/ntrip_proto.c",
-                "src/session/ntrip_session.c",
-                "src/cli/cli_stream.c",
-                "src/net/ntrip_handler.c",
-                "src/core/config.c",
-                "src/cli/cli_help.c",
-                "src/core/nmea_parser.c",
-                "src/core/sv_ephemeris.c",
-                "src/core/sv_orbit.c",
-                "src/core/sv_track.c",
-                "src/core/iono.c",
-                "src/core/sky_collect.c",
-                "src/core/sky_render.c",
-                "src/core/rinex_nav.c",
-                "-Isrc",
-                "-Ilib/cJSON",
-                "-Wall",
-                "-lm",
-                "-lpthread"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": {
-                "kind": "build",
-                "isDefault": false
-            },
-            "problemMatcher": ["$gcc"],
-            "detail": "Builds the NTRIP-Analyser executable for Linux using GCC"
-        },
-        {
-            "label": "Compile GUI Resources",
-            "type": "shell",
-            "command": "C:/Program Files/CodeBlocks/MinGW/bin/windres.exe",
-            "args": [
-                "-Isrc",
-                "gui/resource.rc",
-                "-o",
-                "gui/resource.o"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
+            "command": "cmake",
+            "args": ["-S", ".", "-B", "build"],
+            "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": [],
-            "detail": "Compiles gui/resource.rc into gui/resource.o"
+            "detail": "Run after changing CMakeLists.txt or refreshing a vendored library"
         },
         {
-            "label": "Build NTRIP-Analyser GUI (CodeBlocks MinGW)",
+            "label": "Build (CMake)",
             "type": "shell",
-            "command": "C:/Program Files/CodeBlocks/MinGW/bin/gcc.exe",
-            "args": [
-                "-g",
-                "-mwindows",
-                "-std=c99",
-                "-D_USE_MATH_DEFINES",
-                "-o",
-                "bin/ntrip-analyser-gui.exe",
-                "gui/gui_main.c",
-                "gui/gui_layout.c",
-                "gui/gui_events.c",
-                "gui/gui_thread.c",
-                "gui/gui_log.c",
-                "gui/gui_parsers.c",
-                "gui/gui_detail.c",
-                "gui/gui_sky_window.c",
-                "gui/gui_snapshot.c",
-                "gui/gui_sv_detail.c",
-                "gui/gui_vrs_window.c",
-                "gui/gui_signal_window.c",
-                "gui/gui_hist_window.c",
-                "gui/gui_iono_window.c",
-                "gui/gui_iono_sky_window.c",
-                "src/core/ns_stats.c",
-                "src/net/ntrip_proto.c",
-                "src/session/ntrip_session.c",
-                "src/cli/cli_stream.c",
-                "src/net/ntrip_handler.c",
-                "src/core/rtcm3x_parser.c",
-                "src/core/config.c",
-                "src/core/nmea_parser.c",
-                "src/core/sv_ephemeris.c",
-                "src/core/sv_orbit.c",
-                "src/core/sv_track.c",
-                "src/core/iono.c",
-                "src/core/rinex_nav.c",
-                "lib/cJSON/cJSON.c",
-                "gui/resource.o",
-                "-Isrc",
-                "-Ilib/cJSON",
-                "-Igui",
-                "-lws2_32",
-                "-lcomctl32",
-                "-lcomdlg32",
-                "-lgdiplus",
-                "-lm",
-                "-Wall"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "group": "build",
+            "command": "cmake",
+            "args": ["--build", "build", "-j"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "build", "isDefault": true },
             "problemMatcher": ["$gcc"],
-            "detail": "Builds the NTRIP-Analyser Windows GUI using CodeBlocks MinGW",
-            "dependsOn": "Compile GUI Resources"
+            "detail": "CLI, GUI and tests; binaries land in bin/"
+        },
+        {
+            "label": "Test (ctest)",
+            "type": "shell",
+            "command": "ctest",
+            "args": ["--test-dir", "build", "--output-on-failure"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": [],
+            "detail": "The full suite, as CI runs it"
         }
     ]
 }

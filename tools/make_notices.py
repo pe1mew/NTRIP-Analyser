@@ -6,6 +6,10 @@ Two obligations, one text:
   notice to be shipped with the software. It is compiled into every
   artefact this project produces -- the CLI, the GUI, the daemon and
   both Android editions -- so the notice ships with all of them.
+* **Mbed TLS** is Apache 2.0 and is likewise compiled into every
+  artefact (vendored under lib/mbedtls for TLS to the caster). Its
+  version is read from the build_info.h the builds actually compile,
+  for the same reason the Android versions come from the toml.
 * **Everything else is Apache 2.0**, which requires attribution and any
   NOTICE the library carries. The AndroidX, Compose and kotlinx
   libraries carry no NOTICE file of their own, so attribution is what is
@@ -66,6 +70,10 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."""
 
+MBEDTLS_NOTICE = """Copyright The Mbed TLS Contributors. Vendored from the official
+long-term-support release for TLS connections to NTRIP casters; see
+lib/mbedtls/NTRIP-ANALYSER-NOTE.md for exactly what the copy contains."""
+
 APACHE_SUMMARY = """Licensed under the Apache License, Version 2.0 (the "License"); you may
 not use these files except in compliance with the License. You may
 obtain a copy of the License at
@@ -84,6 +92,17 @@ INTRO = ("NTRIP-Analyser is Apache 2.0 with the Commons Clause; see LICENSE. "
 
 CLOSING = ("The GNSS data this software reads belongs to whoever operates the "
            "caster you connect to, under their terms, not ours.")
+
+
+def mbedtls_version():
+    """The version the vendored copy actually is, from the header the
+    builds compile -- never typed here."""
+    path = os.path.join(ROOT, "lib", "mbedtls", "include", "mbedtls",
+                        "build_info.h")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    return re.search(r'#define MBEDTLS_VERSION_STRING\s+"([^"]+)"',
+                     text).group(1)
 
 
 def versions():
@@ -119,6 +138,15 @@ def build(android):
 
     out = ["THIRD-PARTY NOTICES", "", reflow(INTRO, width), "", rule, "",
            "cJSON -- MIT License", "", reflow(CJSON_NOTICE, width), ""]
+
+    out += [rule, "",
+            "Mbed TLS " + mbedtls_version() + " -- Apache License 2.0",
+            "", reflow(MBEDTLS_NOTICE, width), ""]
+    if not android:
+        # The Android text carries the Apache summary once, after its
+        # own Apache-licensed list below; the desktop text has no such
+        # list, so the summary rides here.
+        out += [reflow(APACHE_SUMMARY, width), ""]
 
     if android:
         v = versions()

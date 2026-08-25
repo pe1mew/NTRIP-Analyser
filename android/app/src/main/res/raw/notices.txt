@@ -45,6 +45,17 @@ THE SOFTWARE.
 
 ==========================================
 
+Mbed TLS 3.6.7 -- Apache License 2.0
+
+Copyright The Mbed TLS Contributors.
+Vendored from the official long-term-
+support release for TLS connections to
+NTRIP casters; see lib/mbedtls/NTRIP-
+ANALYSER-NOTE.md for exactly what the copy
+contains.
+
+==========================================
+
 The following are used by the Android
 application and are licensed under the
 Apache License, Version 2.0.
