@@ -43,6 +43,7 @@ ntripanalysis.exe -g
         {
             "caster": "your.caster.example.com",
             "port": 2101,
+            "tls": false,
             "mountpoint": "MOUNTPOINT",
             "username": "your_username",
             "password": "your_password",

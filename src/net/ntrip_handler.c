@@ -127,14 +127,20 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     char *mount_table = NULL;
     size_t mount_table_size = 0;
 
-    /* Same seam, same failure taxonomy as the stream: a caster that
-     * cannot serve a sourcetable fails the way it would fail a stream. */
+    /* Same seam, same failure taxonomy as the stream -- and the same
+     * TLS flag: every connection to this caster inherits it, so the
+     * mountpoint list travels as protected as the stream it offers. */
     NsFailure fail = NS_FAIL_NONE;
-    NsTransport *t = ns_transport_connect(config->NTRIP_CASTER,
-                                          config->NTRIP_PORT, &fail);
+    NsTransport *t = config->TLS
+        ? ns_transport_connect_tls(config->NTRIP_CASTER,
+                                   config->NTRIP_PORT, &fail, NULL, 0)
+        : ns_transport_connect(config->NTRIP_CASTER,
+                               config->NTRIP_PORT, &fail);
     if (!t) {
         if (fail == NS_FAIL_DNS)
             fprintf(stderr, "DNS lookup failed\n");
+        else if (fail == NS_FAIL_TLS_HANDSHAKE || fail == NS_FAIL_TLS_CERT)
+            fprintf(stderr, "TLS failed: %s\n", ns_failure_short(fail));
         else
             fprintf(stderr, "Connection failed\n");
         return NULL; // -4

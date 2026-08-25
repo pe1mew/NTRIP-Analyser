@@ -152,9 +152,11 @@ internal fun SettingsDialog(
     var lat by remember { mutableStateOf(initial.latitude.toString()) }
     var lon by remember { mutableStateOf(initial.longitude.toString()) }
     var gga by remember { mutableStateOf(initial.sendGga) }
+    var tls by remember { mutableStateOf(initial.tls) }
     var ephCaster by remember { mutableStateOf(initial.ephCaster) }
     var ephPort by remember { mutableStateOf(initial.ephPort.toString()) }
     var ephMp by remember { mutableStateOf(initial.ephMountpoint) }
+    var ephTls by remember { mutableStateOf(initial.ephTls) }
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -194,7 +196,7 @@ internal fun SettingsDialog(
             looking = true
             val json = withContext(Dispatchers.IO) {
                 NtripBridge.sourcetable(
-                    caster, port.toIntOrNull() ?: 2101, user, password)
+                    caster, port.toIntOrNull() ?: 2101, user, password, tls)
             }
             looking = false
             val entry = json
@@ -254,6 +256,19 @@ internal fun SettingsDialog(
                 OutlinedTextField(port, { port = it.filter(Char::isDigit) },
                     enabled = !readOnly,
                     label = { Text(stringResource(R.string.field_port)) }, singleLine = true)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(tls, { tls = it }, enabled = !readOnly)
+                    Text(stringResource(R.string.field_tls))
+                }
+                // A suggestion, not an inference: the run uses exactly
+                // what the checkbox says (decision 5 of the TLS plan).
+                if (port == "443" && !tls) {
+                    Text(
+                        stringResource(R.string.field_tls_443),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 // The same keyboard the caster field asks for, and for
                 // the same reason: with a text keyboard EMUI commits a
                 // full stop and a space when the field loses focus, so
@@ -430,6 +445,10 @@ internal fun SettingsDialog(
                         label = { Text(stringResource(R.string.field_eph_mp)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(ephTls, { ephTls = it }, enabled = !readOnly)
+                        Text(stringResource(R.string.field_eph_tls))
+                    }
                 } else {
                     Text(
                         stringResource(R.string.eph_free),
@@ -458,6 +477,7 @@ internal fun SettingsDialog(
                         latitude = lat.toDoubleOrNull() ?: 52.0,
                         longitude = lon.toDoubleOrNull() ?: 6.0,
                         sendGga = gga,
+                        tls = tls,
                         ggaLive = live && Features.HAS_LIVE_GGA && consent,
                         // Carried through untouched where the fields
                         // are not shown. The configuration file is shared
@@ -472,6 +492,8 @@ internal fun SettingsDialog(
                             (ephPort.toIntOrNull() ?: 2101) else initial.ephPort,
                         ephMountpoint = if (Features.HAS_EPH_STREAM)
                             ephMp.trim() else initial.ephMountpoint,
+                        ephTls = if (Features.HAS_EPH_STREAM)
+                            ephTls else initial.ephTls,
                     )
                 )
             }) { Text(stringResource(R.string.action_save)) }
@@ -586,7 +608,8 @@ internal fun SourcetableDialog(
     LaunchedEffect(settings.caster, settings.port) {
         val json = withContext(Dispatchers.IO) {
             NtripBridge.sourcetable(
-                settings.caster, settings.port, settings.user, settings.password
+                settings.caster, settings.port, settings.user,
+                settings.password, settings.tls,
             )
         }
         if (json == null) {

@@ -123,7 +123,18 @@ typedef struct {
     const char *eph_mountpoint;
     const char *eph_user;
     const char *eph_password;
+    const char *tls;        /* "on"/"off": a boolean that can also turn
+                               a config file's setting off again */
+    const char *eph_tls;
 } ConfigOverrides;
+
+/* The words a boolean override accepts.  Anything else is off, which
+ * errs on the plain-text side only for input that was already wrong. */
+static bool override_truthy(const char *v)
+{
+    return v && (!strcmp(v, "1") || !strcmp(v, "on") ||
+                 !strcmp(v, "true") || !strcmp(v, "yes"));
+}
 
 static void overrides_apply_env(ConfigOverrides *o)
 {
@@ -137,6 +148,8 @@ static void overrides_apply_env(ConfigOverrides *o)
     if (!o->eph_mountpoint) o->eph_mountpoint = getenv("NTRIP_EPH_MOUNTPOINT");
     if (!o->eph_user)       o->eph_user       = getenv("NTRIP_EPH_USERNAME");
     if (!o->eph_password)   o->eph_password   = getenv("NTRIP_EPH_PASSWORD");
+    if (!o->tls)            o->tls            = getenv("NTRIP_TLS");
+    if (!o->eph_tls)        o->eph_tls        = getenv("NTRIP_EPH_TLS");
 }
 
 #define ASSIGN_STR(dst, src) do {                              \
@@ -156,6 +169,8 @@ static void overrides_apply_to_config(NTRIP_Config *cfg, const ConfigOverrides *
     if (o->eph_mountpoint && o->eph_mountpoint[0]) ASSIGN_STR(cfg->EPH_MOUNTPOINT,  o->eph_mountpoint);
     if (o->eph_user       && o->eph_user[0])       ASSIGN_STR(cfg->EPH_USERNAME,    o->eph_user);
     if (o->eph_password   && o->eph_password[0])   ASSIGN_STR(cfg->EPH_PASSWORD,    o->eph_password);
+    if (o->tls            && o->tls[0])            cfg->TLS     = override_truthy(o->tls);
+    if (o->eph_tls        && o->eph_tls[0])        cfg->EPH_TLS = override_truthy(o->eph_tls);
 }
 
 /* ── --check-config dry-run ──────────────────────────────────────────
@@ -174,6 +189,7 @@ static int run_check_config(const NTRIP_Config *cfg)
     printf("PASSWORD             = %s\n", cfg->PASSWORD[0] ? "(set)" : "(empty)");
     printf("LATITUDE             = %.6f\n", cfg->LATITUDE);
     printf("LONGITUDE            = %.6f\n", cfg->LONGITUDE);
+    printf("TLS                  = %s\n", cfg->TLS ? "on" : "off");
 
     bool have_eph = cfg->EPH_CASTER[0] && cfg->EPH_PORT > 0 && cfg->EPH_MOUNTPOINT[0];
     printf("EPH_CASTER           = %s\n", cfg->EPH_CASTER[0] ? cfg->EPH_CASTER : "(none)");
@@ -181,6 +197,7 @@ static int run_check_config(const NTRIP_Config *cfg)
     printf("EPH_MOUNTPOINT       = %s\n", cfg->EPH_MOUNTPOINT[0] ? cfg->EPH_MOUNTPOINT : "(none)");
     printf("EPH_USERNAME         = %s\n", cfg->EPH_USERNAME);
     printf("EPH_PASSWORD         = %s\n", cfg->EPH_PASSWORD[0] ? "(set)" : "(empty)");
+    printf("EPH_TLS              = %s\n", cfg->EPH_TLS ? "on" : "off");
     printf("EPH_STREAM           = %s\n", have_eph ? "configured" : "(not configured)");
 
     /* Required-field checks */
@@ -1176,6 +1193,8 @@ int main(int argc, char *argv[]) {
         {"eph-mountpoint", required_argument, 0, 15 },
         {"eph-user",       required_argument, 0, 16 },
         {"eph-password",   required_argument, 0, 17 },
+        {"tls",            required_argument, 0, 29 },
+        {"eph-tls",        required_argument, 0, 30 },
         {"reconnect",      no_argument,       0, 21 },
         {"check",          no_argument,       0, 22 },
         {"check-vrs",      no_argument,       0, 23 },
@@ -1299,6 +1318,8 @@ int main(int argc, char *argv[]) {
             case 15: ov.eph_mountpoint = optarg; break;   /* --eph-mountpoint */
             case 16: ov.eph_user       = optarg; break;   /* --eph-user */
             case 17: ov.eph_password   = optarg; break;   /* --eph-password */
+            case 29: ov.tls            = optarg; break;   /* --tls on|off */
+            case 30: ov.eph_tls        = optarg; break;   /* --eph-tls on|off */
             case 18: check_config_only = true;   break;   /* --check-config */
             case 19: json_output       = true;   break;   /* --json */
             case 20: rtcm_stdin        = true;   break;   /* --rtcm-stdin */

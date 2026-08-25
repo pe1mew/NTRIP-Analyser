@@ -218,7 +218,40 @@ downgrade case (a plaintext server answered where TLS was demanded),
 each classifying to the right code with the right sentence. These are
 the tests `tls.md` calls the valuable ones.
 
-### L4 — the flag reaches every frontend
+### L4 — the flag reaches every frontend  *(done 2026-08-25)*
+
+Done as planned, with one structural decision that made most of it
+automatic: **the flag lives in `NTRIP_Config` itself** (`TLS`,
+`EPH_TLS`), not in `NsOptions` — L3's session-level carrier lasted
+exactly one step. Every site that already copies a config carries the
+flag without being edited; the only manual wiring left was the three
+eph workers (CLI, GUI, bridge), each mapping `EPH_TLS` onto its
+private copy's `TLS` in one line, and the bridge/JNI signatures.
+
+The spread: both config readers plus the template (absent means
+plain text — an old file keeps meaning what it meant); CLI
+`--tls on|off` / `--eph-tls on|off` with `NTRIP_TLS` / `NTRIP_EPH_TLS`
+env vars, boolean overrides that can also turn a file's setting *off*,
+shown by `--check-config` and proven live against the example config;
+GUI checkboxes beside both mountpoint fields, the saver, and a log
+hint at Open Stream when port 443 goes out plain; the app's
+`CasterSettings.tls`/`ephTls` through `MonitordMountpoint` (daemon
+keys), `NtripBridge.open/openEph/sourcetable`, both sourcetable
+callers in the dialogs, and a 443 caption under the port field —
+suggestion, never inference; the daemon's per-mountpoint `tls`;
+`bridge_sourcetable_json` carrying the flag so the app's mountpoint
+browser rides TLS too. Example configs and the three format documents
+updated.
+
+One deviation from the verify wording: there were no "shared-config
+tests" to extend — none existed. The round-trip coverage joined
+`test_tls` instead: six assertions over both readers, the third case
+seeding the struct with garbage to prove absent flags mean plain text
+rather than leftover memory. Falsified by misspelling the array
+reader's key — red by name — and restored. 16/16; both app editions
+compile; the daemon rebuilt; 104 checks with only the artefact reds.
+
+*(As planned:)*
 
 Config field (array reader and legacy reader), the CLI flag, the GUI
 checkbox, the app's settings checkbox (read-only during a run like

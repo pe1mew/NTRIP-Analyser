@@ -10,6 +10,7 @@
     {
       "caster": "rfsee.net",
       "port": 2101,
+      "tls": false,
       "mountpoint": "RFSEE01",
       "username": "user",
       "password": "password",

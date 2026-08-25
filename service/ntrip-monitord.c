@@ -165,7 +165,8 @@ static char *read_text_file(const char *path)
  *   "report_window_s": 3600,
  *   "thresholds": "/etc/ntrip-monitord/survey.json",
  *   "mountpoints": [
- *     { "caster": "rfsee.net", "port": 2101, "mountpoint": "RFSEE01",
+ *     { "caster": "rfsee.net", "port": 2101, "tls": false,
+ *       "mountpoint": "RFSEE01",
  *       "username": "u", "password": "p",
  *       "send_gga": false, "latitude": 52.0, "longitude": 6.0 }
  *   ]
@@ -306,6 +307,8 @@ static bool load_md_config(const char *path, MdConfig *cfg)
                     sizeof(o->config.PASSWORD) - 1);
         if ((s = cJSON_GetObjectItem(mp, "send_gga")) && cJSON_IsBool(s))
             o->send_gga = cJSON_IsTrue(s);
+        if ((s = cJSON_GetObjectItem(mp, "tls")) && cJSON_IsBool(s))
+            o->config.TLS = cJSON_IsTrue(s);
         if ((s = cJSON_GetObjectItem(mp, "latitude")) && cJSON_IsNumber(s))
             o->config.LATITUDE = s->valuedouble;
         if ((s = cJSON_GetObjectItem(mp, "longitude")) && cJSON_IsNumber(s))

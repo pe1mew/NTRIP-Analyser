@@ -58,6 +58,12 @@ typedef struct {
     double LATITUDE;          /**< Latitude for NTRIP connection (optional) */
     double LONGITUDE;         /**< Longitude for NTRIP connection (optional) */
 
+    /** Speak TLS to this caster.  An explicit setting, never inferred
+     *  from the port (design/work-items/tls-rollout.md, decision 5);
+     *  every connection to this caster -- the stream and the
+     *  sourcetable fetch -- inherits it. */
+    bool TLS;
+
     /* ── Optional secondary ephemeris stream ─────────────────────────── */
     /* Used by the GUI Sky Plot when the primary observation mountpoint
      * does not broadcast 1019/1045/1046.  Connects to a separate NTRIP
@@ -69,6 +75,8 @@ typedef struct {
     char EPH_USERNAME[128];   /**< Ephemeris-caster username */
     char EPH_PASSWORD[128];   /**< Ephemeris-caster password */
     char EPH_AUTH_BASIC[256]; /**< Base64 of "user:pass" for the eph caster */
+    bool EPH_TLS;             /**< TLS for the eph caster -- its own flag,
+                                   because it may be a different caster */
 } NTRIP_Config;
 
 /**

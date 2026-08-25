@@ -27,6 +27,7 @@
  */
 #include "session/ntrip_session.h"
 #include "session/ns_transport.h"
+#include "core/config.h"
 
 #include "mbedtls/ssl.h"
 #include "mbedtls/entropy.h"
@@ -253,7 +254,7 @@ static void run_case(const char *crt, const char *key,
     opt.config.NTRIP_PORT = g_srv.port;
     snprintf(opt.config.MOUNTPOINT, sizeof(opt.config.MOUNTPOINT),
              "TEST");
-    opt.use_tls        = true;
+    opt.config.TLS     = true;
     opt.auto_reconnect = false;
 
     Watch w;
@@ -306,6 +307,49 @@ int main(int argc, char **argv)
         fclose(f);
         ca_pem[n] = 0;
         ns_transport_set_ca_override(ca_pem, n + 1);
+    }
+
+    /* The flag rides the shared config, through both readers -- the
+     * round-trip every frontend depends on.  The third case seeds the
+     * struct with garbage first: absent flags must mean plain text,
+     * not whatever the memory held. */
+    {
+        NTRIP_Config cfg;
+        FILE *f;
+
+        memset(&cfg, 0, sizeof(cfg));
+        f = fopen("test_tls_cfg.json", "w");
+        fputs("{\"mountpoints\":[{\"caster\":\"c\",\"port\":443,"
+              "\"mountpoint\":\"M\",\"tls\":true,\"eph_caster\":\"e\","
+              "\"eph_port\":443,\"eph_tls\":true}]}", f);
+        fclose(f);
+        check(load_config("test_tls_cfg.json", &cfg) == 0,
+              "the array-format config loads");
+        check(cfg.TLS && cfg.EPH_TLS,
+              "the array reader carries tls and eph_tls");
+        remove("test_tls_cfg.json");
+
+        memset(&cfg, 0, sizeof(cfg));
+        f = fopen("test_tls_cfg.json", "w");
+        fputs("{\"NTRIP_CASTER\":\"c\",\"NTRIP_PORT\":443,"
+              "\"MOUNTPOINT\":\"M\",\"TLS\":true,\"EPH_TLS\":true}", f);
+        fclose(f);
+        check(load_config("test_tls_cfg.json", &cfg) == 0,
+              "the legacy config loads");
+        check(cfg.TLS && cfg.EPH_TLS,
+              "the legacy reader carries TLS and EPH_TLS");
+        remove("test_tls_cfg.json");
+
+        memset(&cfg, 0xff, sizeof(cfg));
+        f = fopen("test_tls_cfg.json", "w");
+        fputs("{\"mountpoints\":[{\"caster\":\"c\",\"port\":2101,"
+              "\"mountpoint\":\"M\"}]}", f);
+        fclose(f);
+        check(load_config("test_tls_cfg.json", &cfg) == 0,
+              "a config from before the flag loads");
+        check(!cfg.TLS && !cfg.EPH_TLS,
+              "absent flags mean plain text, not leftover memory");
+        remove("test_tls_cfg.json");
     }
 
     int fail, got_bytes;

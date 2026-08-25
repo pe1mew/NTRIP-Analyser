@@ -775,7 +775,7 @@ static void do_connect(NtripSession *s)
     NsFailure fail = NS_FAIL_NONE;
     char tls_why[160];
     tls_why[0] = 0;
-    s->tr = s->opt.use_tls
+    s->tr = s->opt.config.TLS
           ? ns_transport_connect_tls(s->opt.config.NTRIP_CASTER,
                                      s->opt.config.NTRIP_PORT, &fail,
                                      tls_why, sizeof(tls_why))

@@ -930,6 +930,11 @@ void GuiToConfig(AppState *state)
     GetWindowText(state->hEditLongitude, buf, sizeof(buf));
     state->config.LONGITUDE = atof(buf);
 
+    state->config.TLS =
+        SendMessage(state->hChkTls, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    state->config.EPH_TLS =
+        SendMessage(state->hChkEphTls, BM_GETCHECK, 0, 0) == BST_CHECKED;
+
     /* Recompute AUTH_BASIC from username:password */
     char auth[512];
     snprintf(auth, sizeof(auth), "%s:%s",
@@ -983,6 +988,11 @@ void ConfigToGui(AppState *state)
 
     snprintf(buf, sizeof(buf), "%.6f", state->config.LONGITUDE);
     SetWindowText(state->hEditLongitude, buf);
+
+    SendMessage(state->hChkTls, BM_SETCHECK,
+                state->config.TLS ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessage(state->hChkEphTls, BM_SETCHECK,
+                state->config.EPH_TLS ? BST_CHECKED : BST_UNCHECKED, 0);
 
     /* ── Ephemeris stream fields ─────────────────────────── */
     SetWindowText(state->hEditEphCaster, state->config.EPH_CASTER);
@@ -1078,6 +1088,7 @@ static void OnSaveConfig(HWND hwnd, AppState *state)
     cJSON *e   = cJSON_CreateObject();
     cJSON_AddStringToObject(e, "caster",         state->config.NTRIP_CASTER);
     cJSON_AddNumberToObject(e, "port",           state->config.NTRIP_PORT);
+    cJSON_AddBoolToObject  (e, "tls",            state->config.TLS ? 1 : 0);
     cJSON_AddStringToObject(e, "mountpoint",     state->config.MOUNTPOINT);
     cJSON_AddStringToObject(e, "username",       state->config.USERNAME);
     cJSON_AddStringToObject(e, "password",       state->config.PASSWORD);
@@ -1086,6 +1097,7 @@ static void OnSaveConfig(HWND hwnd, AppState *state)
     cJSON_AddNumberToObject(e, "longitude",      state->config.LONGITUDE);
     cJSON_AddStringToObject(e, "eph_caster",     state->config.EPH_CASTER);
     cJSON_AddNumberToObject(e, "eph_port",       state->config.EPH_PORT);
+    cJSON_AddBoolToObject  (e, "eph_tls",        state->config.EPH_TLS ? 1 : 0);
     cJSON_AddStringToObject(e, "eph_mountpoint", state->config.EPH_MOUNTPOINT);
     cJSON_AddStringToObject(e, "eph_username",   state->config.EPH_USERNAME);
     cJSON_AddStringToObject(e, "eph_password",   state->config.EPH_PASSWORD);
@@ -1233,6 +1245,13 @@ static void OnOpenStream(HWND hwnd, AppState *state)
 
     /* Sync GUI fields into config */
     GuiToConfig(state);
+
+    /* A suggestion, not an inference: the config the stream uses is
+     * exactly what the checkbox says. */
+    if (state->config.NTRIP_PORT == 443 && !state->config.TLS)
+        AppendLog(state->hEditLog,
+                  "[INFO] Port 443 usually speaks TLS -- consider the "
+                  "TLS checkbox.\r\n");
 
     if (state->config.NTRIP_CASTER[0] == '\0') {
         MessageBox(hwnd, "Please enter a caster address.",

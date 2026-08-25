@@ -50,6 +50,15 @@ static double cfg_double(const cJSON *json, const char *key, double fallback)
     return (item && cJSON_IsNumber(item)) ? item->valuedouble : fallback;
 }
 
+/* Read a boolean, or leave the default in place.  Absent means off for
+ * the TLS flags -- a file written before the flag existed described a
+ * plain-text connection, and must keep meaning what it meant. */
+static bool cfg_bool(const cJSON *json, const char *key, bool fallback)
+{
+    const cJSON *item = cJSON_GetObjectItem(json, key);
+    return (item && cJSON_IsBool(item)) ? cJSON_IsTrue(item) : fallback;
+}
+
 /**
  * @brief Read one entry of the `mountpoints` array.
  *
@@ -85,6 +94,9 @@ static void cfg_load_entry(const cJSON *e, NTRIP_Config *config)
     cfg_copy_string(e, "eph_password", config->EPH_PASSWORD,
                     sizeof(config->EPH_PASSWORD));
     config->EPH_PORT = cfg_int(e, "eph_port", 0);
+
+    config->TLS     = cfg_bool(e, "tls", false);
+    config->EPH_TLS = cfg_bool(e, "eph_tls", false);
 }
 
 /**
@@ -163,6 +175,9 @@ static void cfg_load_legacy(const cJSON *json, NTRIP_Config *config)
             (eph_pwd && cJSON_IsString(eph_pwd)) ? eph_pwd->valuestring : "",
             sizeof(config->EPH_PASSWORD) - 1);
     config->EPH_PASSWORD[sizeof(config->EPH_PASSWORD) - 1] = '\0';
+
+    config->TLS     = cfg_bool(json, "TLS", false);
+    config->EPH_TLS = cfg_bool(json, "EPH_TLS", false);
 }
 
 int load_config(const char *filename, NTRIP_Config *config)
@@ -275,6 +290,7 @@ int initialize_config(const char *filename) {
         "            \"name\": \"my station\",\n"
         "            \"caster\": \"your.caster.example.com\",\n"
         "            \"port\": 2101,\n"
+        "            \"tls\": false,\n"
         "            \"mountpoint\": \"MOUNTPOINT\",\n"
         "            \"username\": \"your_username\",\n"
         "            \"password\": \"your_password\",\n"
@@ -283,6 +299,7 @@ int initialize_config(const char *filename) {
         "            \"longitude\": 0.0,\n"
         "            \"eph_caster\": \"products.igs-ip.net\",\n"
         "            \"eph_port\": 2101,\n"
+        "            \"eph_tls\": false,\n"
         "            \"eph_mountpoint\": \"BCEP00BKG0\",\n"
         "            \"eph_username\": \"\",\n"
         "            \"eph_password\": \"\"\n"

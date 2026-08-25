@@ -972,6 +972,7 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
     strncpy(opt.config.NTRIP_CASTER, state->config.EPH_CASTER,
             sizeof(opt.config.NTRIP_CASTER) - 1);
     opt.config.NTRIP_PORT = state->config.EPH_PORT;
+    opt.config.TLS        = state->config.EPH_TLS;  /* its own caster */
     strncpy(opt.config.MOUNTPOINT, state->config.EPH_MOUNTPOINT,
             sizeof(opt.config.MOUNTPOINT) - 1);
     strncpy(opt.config.USERNAME, state->config.EPH_USERNAME,

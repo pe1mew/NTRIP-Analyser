@@ -147,6 +147,7 @@ class MonitorService : Service() {
                 settings.latitude, settings.longitude, settings.sendGga,
                 watchMode,
                 vrs = vrsMode,
+                tls = settings.tls,
             )
             if (bridge == null) {
                 Log.e(TAG, "bridge_open returned null")
@@ -328,6 +329,7 @@ class MonitorService : Service() {
                                 settings.ephCaster, settings.ephPort,
                                 settings.ephMountpoint,
                                 settings.user, settings.password,
+                                tls = settings.ephTls,
                             )
                             ephOpenedAtS = nowS
                             if (ephOpen) usedEphStream = true

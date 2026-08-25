@@ -376,6 +376,12 @@ data class CasterSettings(
     val longitude: Double = 6.0,
     val sendGga: Boolean = false,
     /**
+     * Speak TLS to the caster. An explicit choice, never inferred from
+     * the port; both editions, because the paid edition withholds
+     * convenience, never protection.
+     */
+    val tls: Boolean = false,
+    /**
      * Send the phone's own position rather than the fixed one above.
      *
      * The paid edition only, and only after the one-time consent
@@ -397,6 +403,9 @@ data class CasterSettings(
     val ephCaster: String = "",
     val ephPort: Int = 2101,
     val ephMountpoint: String = "",
+    /** TLS for the ephemeris caster -- its own flag: it may be a
+     *  different host entirely. */
+    val ephTls: Boolean = false,
 ) {
     val isComplete: Boolean get() =
         caster.isNotBlank() && mountpoint.isNotBlank() && port > 0

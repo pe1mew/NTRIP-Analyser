@@ -236,7 +236,7 @@ int main(void)
 
     /* ── A VRS-mode run, end to end ─────────────────────────────── */
     NtripBridge *b = bridge_open("127.0.0.1", port, "TEST", "", "",
-                                 52.0, 5.0, false, false, true);
+                                 52.0, 5.0, false, false, true, false);
     check(b != NULL, "the bridge opens in VRS mode");
     if (!b) { g_quit = 1; return 1; }
 
@@ -274,7 +274,7 @@ int main(void)
     /* ── The same caster, a normal run: no vrs object at all ─────── */
     g_drop = 0;
     b = bridge_open("127.0.0.1", port, "TEST", "", "",
-                    52.0, 5.0, false, false, false);
+                    52.0, 5.0, false, false, false, false);
     check(b != NULL, "the bridge opens in normal mode");
     if (b) {
         int n = pump_json(b, 1.0);

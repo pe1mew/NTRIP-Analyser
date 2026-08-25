@@ -445,6 +445,7 @@ typedef struct {
     HWND hEditCaster;
     HWND hEditPort;
     HWND hEditMountpoint;
+    HWND hChkTls;           /* TLS to the caster; mirrors config.TLS */
     HWND hEditUsername;
     HWND hEditPassword;
     HWND hEditLatitude;
@@ -492,6 +493,7 @@ typedef struct {
     HWND hLblEphUsername, hLblEphPassword;
     HWND hEditEphCaster, hEditEphPort, hEditEphMountpoint;
     HWND hEditEphUsername, hEditEphPassword;
+    HWND hChkEphTls;        /* TLS to the eph caster (its own flag) */
 
     /* ── Worker thread state ──────────────────────────────── */
     HANDLE hWorkerThread;

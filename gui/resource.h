@@ -85,6 +85,7 @@
 #define IDC_BTN_OPEN_STREAM     1111
 #define IDC_BTN_CLOSE_STREAM    1120
 #define IDC_CHK_RECONNECT       1121    /* auto-reconnect checkbox */
+#define IDC_CHK_TLS             1122    /* TLS to the caster */
 #define IDC_BTN_MAP_PICK        1130    /* "Map" button: open browser map */
 #define IDC_BTN_MAP_PASTE       1131    /* "<<" button: paste coords from clipboard */
 
@@ -112,6 +113,7 @@
 #define IDC_EDIT_EPH_MOUNTPOINT 1203
 #define IDC_EDIT_EPH_USERNAME   1204
 #define IDC_EDIT_EPH_PASSWORD   1205
+#define IDC_CHK_EPH_TLS         1206    /* TLS to the eph caster */
 
 /* ── Ephemeris stream: Labels (static) ────────────────────── */
 #define IDC_LBL_EPH_CASTER      1250

@@ -157,17 +157,11 @@ typedef struct {
     int    reconnect_backoff_max_s;
     const char *user_agent;       /**< NULL selects a default                */
 
-    /**
-     * @brief Speak TLS to the caster; verification is not optional.
-     *
-     * The chain is checked against the embedded Mozilla bundle and the
-     * certificate must name the host -- there is no connect-anyway
-     * mode.  Failures classify as @ref NS_FAIL_TLS_HANDSHAKE (points at
-     * the port/flag pair) or @ref NS_FAIL_TLS_CERT (points at the
-     * caster).  A reconnect repeats the handshake because it repeats
-     * the connect; nothing else changes.
-     */
-    bool   use_tls;
+    /* TLS is not an option here, deliberately: it rides
+     * NTRIP_Config.TLS inside `config`, because the flag describes the
+     * caster, and everything that copies a config -- a frontend, an
+     * eph worker mapping EPH_* fields, the sourcetable fetch -- must
+     * carry it without remembering to. */
 
     /**
      * @brief Give up on a connected but silent socket after this long;

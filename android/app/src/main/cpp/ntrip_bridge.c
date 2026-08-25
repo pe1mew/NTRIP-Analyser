@@ -295,7 +295,7 @@ static NtripBridge *bridge_alloc(void)
 NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                          const char *user, const char *password,
                          double lat, double lon, bool send_gga, bool watch,
-                         bool vrs)
+                         bool vrs, bool tls)
 {
     NtripBridge *b = bridge_alloc();
     if (!b) return NULL;
@@ -316,6 +316,9 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
     opt.config.NTRIP_PORT = port;
     opt.config.LATITUDE   = lat;
     opt.config.LONGITUDE  = lon;
+    /* The sourcetable fetch below reads the same config, so the caster's
+     * flag covers both connections without a second decision. */
+    opt.config.TLS        = tls;
 
     opt.stats_interval_s = 0.0;      /* the app polls; no event needed */
     opt.send_gga         = false;    /* driven from bridge_pump; see below */
@@ -742,7 +745,7 @@ void bridge_close(NtripBridge *b)
 
 int bridge_sourcetable_json(const char *caster, int port,
                             const char *user, const char *password,
-                            char *out, size_t cap)
+                            bool tls, char *out, size_t cap)
 {
     if (!out || cap < 32) return -1;
 
@@ -752,6 +755,7 @@ int bridge_sourcetable_json(const char *caster, int port,
     snprintf(cfg.USERNAME,     sizeof(cfg.USERNAME),     "%s", user ? user : "");
     snprintf(cfg.PASSWORD,     sizeof(cfg.PASSWORD),     "%s", password ? password : "");
     cfg.NTRIP_PORT = port;
+    cfg.TLS        = tls;
 
     char *raw = receive_mount_table(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
     if (!raw) return -1;
@@ -793,7 +797,7 @@ int bridge_sourcetable_json(const char *caster, int port,
 
 bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
                      const char *mountpoint,
-                     const char *user, const char *password)
+                     const char *user, const char *password, bool tls)
 {
     if (!b || b->eph) return false;
 
@@ -808,6 +812,7 @@ bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
     snprintf(opt.config.PASSWORD, sizeof(opt.config.PASSWORD),
              "%s", password ? password : "");
     opt.config.NTRIP_PORT  = port;
+    opt.config.TLS         = tls;   /* its own caster, its own flag */
     opt.stats_interval_s   = 0.0;
     opt.auto_reconnect     = true;
 

@@ -88,7 +88,7 @@ typedef struct NtripBridge NtripBridge;
 NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                          const char *user, const char *password,
                          double lat, double lon, bool send_gga, bool watch,
-                         bool vrs);
+                         bool vrs, bool tls);
 
 /**
  * @brief Open a bridge that replays a captured `.rtcm3` file.
@@ -192,7 +192,7 @@ int bridge_stats_csv(NtripBridge *b, char *out, size_t cap);
  */
 int bridge_sourcetable_json(const char *caster, int port,
                             const char *user, const char *password,
-                            char *out, size_t cap);
+                            bool tls, char *out, size_t cap);
 
 /** @brief Overall verdict as @ref KpiRunVerdict, for a cheap poll. */
 int bridge_overall(const NtripBridge *b);
@@ -221,7 +221,7 @@ int bridge_overall(const NtripBridge *b);
  */
 bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
                      const char *mountpoint,
-                     const char *user, const char *password);
+                     const char *user, const char *password, bool tls);
 
 /**
  * @brief How many satellites hold an orbit, whether tracked or not.

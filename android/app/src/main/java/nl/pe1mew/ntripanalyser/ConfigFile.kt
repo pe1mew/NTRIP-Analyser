@@ -134,6 +134,7 @@ data class MonitordMountpoint(
     val username: String = "",
     val password: String = "",
     @SerialName("send_gga") val sendGga: Boolean = false,
+    val tls: Boolean = false,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     @SerialName("eph_caster") val ephCaster: String? = null,
@@ -141,6 +142,7 @@ data class MonitordMountpoint(
     @SerialName("eph_mountpoint") val ephMountpoint: String? = null,
     @SerialName("eph_username") val ephUsername: String? = null,
     @SerialName("eph_password") val ephPassword: String? = null,
+    @SerialName("eph_tls") val ephTls: Boolean? = null,
 ) {
     fun toSettings() = CasterSettings(
         name = name.orEmpty(),
@@ -152,9 +154,11 @@ data class MonitordMountpoint(
         latitude = latitude,
         longitude = longitude,
         sendGga = sendGga,
+        tls = tls,
         ephCaster = ephCaster.orEmpty(),
         ephPort = ephPort ?: 2101,
         ephMountpoint = ephMountpoint.orEmpty(),
+        ephTls = ephTls ?: false,
     )
 
     companion object {
@@ -166,6 +170,7 @@ data class MonitordMountpoint(
             username = s.user,
             password = s.password,
             sendGga = s.sendGga,
+            tls = s.tls,
             latitude = s.latitude,
             longitude = s.longitude,
             // The ephemeris stream borrows the observation stream's
@@ -175,6 +180,7 @@ data class MonitordMountpoint(
             ephMountpoint = s.ephMountpoint.ifBlank { null },
             ephUsername = if (s.ephCaster.isBlank()) null else s.user,
             ephPassword = if (s.ephCaster.isBlank()) null else s.password,
+            ephTls = if (s.ephCaster.isBlank()) null else s.ephTls,
         )
     }
 }

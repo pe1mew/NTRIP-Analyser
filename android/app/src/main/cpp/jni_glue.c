@@ -56,7 +56,7 @@ JNI_FN(nativeOpen)(JNIEnv *env, jobject thiz,
                    jstring caster, jint port, jstring mountpoint,
                    jstring user, jstring password,
                    jdouble lat, jdouble lon, jboolean sendGga, jboolean watch,
-                   jboolean vrs)
+                   jboolean vrs, jboolean tls)
 {
     (void)thiz;
     const char *c_caster = str_in(env, caster);
@@ -70,7 +70,7 @@ JNI_FN(nativeOpen)(JNIEnv *env, jobject thiz,
                                  c_pass ? c_pass : "",
                                  (double)lat, (double)lon,
                                  sendGga == JNI_TRUE, watch == JNI_TRUE,
-                                 vrs == JNI_TRUE);
+                                 vrs == JNI_TRUE, tls == JNI_TRUE);
 
     str_free(env, caster, c_caster);
     str_free(env, mountpoint, c_mount);
@@ -154,7 +154,7 @@ JNI_FN(nativeClose)(JNIEnv *env, jobject thiz, jlong handle)
 JNIEXPORT jstring JNICALL
 JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
                           jstring caster, jint port,
-                          jstring user, jstring password)
+                          jstring user, jstring password, jboolean tls)
 {
     (void)thiz;
     const char *c_caster = str_in(env, caster);
@@ -172,7 +172,8 @@ JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
     if (buf) {
         int n = bridge_sourcetable_json(c_caster ? c_caster : "", (int)port,
                                         c_user ? c_user : "",
-                                        c_pass ? c_pass : "", buf, cap);
+                                        c_pass ? c_pass : "",
+                                        tls == JNI_TRUE, buf, cap);
         if (n >= 0) outv = (*env)->NewStringUTF(env, buf);
         free(buf);
     }
@@ -186,7 +187,7 @@ JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
 JNIEXPORT jboolean JNICALL
 JNI_FN(nativeOpenEph)(JNIEnv *env, jobject thiz, jlong handle,
                       jstring caster, jint port, jstring mountpoint,
-                      jstring user, jstring password)
+                      jstring user, jstring password, jboolean tls)
 {
     (void)thiz;
     const char *c_caster = str_in(env, caster);
@@ -198,7 +199,8 @@ JNI_FN(nativeOpenEph)(JNIEnv *env, jobject thiz, jlong handle,
                                   c_caster ? c_caster : "", (int)port,
                                   c_mount ? c_mount : "",
                                   c_user ? c_user : "",
-                                  c_pass ? c_pass : "") ? JNI_TRUE : JNI_FALSE;
+                                  c_pass ? c_pass : "",
+                                  tls == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 
     str_free(env, caster, c_caster);
     str_free(env, mountpoint, c_mount);
