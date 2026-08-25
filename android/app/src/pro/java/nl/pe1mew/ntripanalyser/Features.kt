@@ -45,6 +45,14 @@ object Features {
      */
     const val HAS_HANDOVER = true
 
+    /**
+     * Statistics export: the run's numbers as a file another program
+     * eats -- the bridge's JSON verbatim, or the core's CSV in the
+     * daemon's own dialect. The measurement is visible in both
+     * editions; the file is convenience.
+     */
+    const val HAS_EXPORT = true
+
     const val MAX_MOUNTPOINTS = 16
 
     const val SOURCETABLE_SELECTABLE = true

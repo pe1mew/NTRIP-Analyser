@@ -45,6 +45,9 @@ object Features {
     /** The hand-over view is paid; arp_moves itself is measurement. */
     const val HAS_HANDOVER = false
 
+    /** Statistics export is paid; the report shares the same numbers as prose. */
+    const val HAS_EXPORT = false
+
     const val MAX_MOUNTPOINTS = 1
 
     /**

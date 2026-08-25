@@ -163,6 +163,9 @@ class MenuActions(
     val importRinex: () -> Unit,
     val loadConfig: () -> Unit,
     val saveConfig: () -> Unit,
+    val exportStats: () -> Unit,
+    /** Whether there is anything to export yet; the row waits, greyed. */
+    val exportReady: () -> Boolean,
     val about: () -> Unit,
 )
 
@@ -192,6 +195,8 @@ private fun OverflowMenu(actions: MenuActions) {
         onImportRinex = { open = false; actions.importRinex() },
         onLoadConfig = { open = false; actions.loadConfig() },
         onSaveConfig = { open = false; actions.saveConfig() },
+        onExportStats = { open = false; actions.exportStats() },
+        exportReady = actions.exportReady(),
         onAbout = { open = false; actions.about() },
     )
 }

@@ -705,6 +705,8 @@ internal fun AppMenu(
     onImportRinex: () -> Unit,
     onLoadConfig: () -> Unit,
     onSaveConfig: () -> Unit,
+    onExportStats: () -> Unit = {},
+    exportReady: Boolean = false,
     onAbout: () -> Unit,
 ) {
     DropdownMenu(expanded = open, onDismissRequest = onDismiss) {
@@ -729,6 +731,17 @@ internal fun AppMenu(
                 onClick = onSaveConfig,
             )
 
+        }
+        // The file the run's numbers become. Greyed rather than hidden
+        // until there is a snapshot to write -- a row that vanishes is
+        // harder to find than one that waits (the share control's rule).
+        if (Features.HAS_EXPORT) {
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.menu_export)) },
+                onClick = onExportStats,
+                enabled = exportReady,
+            )
         }
         HorizontalDivider()
         DropdownMenuItem(

@@ -302,12 +302,44 @@ fun MainScreen() {
     // the file pickers behind it; the analysis and detail screens are
     // handed the same object, which is what makes the menu identical
     // everywhere rather than merely similar.
+    // The desktop's filename convention: capture time first, so a
+    // folder of exports sorts by it and repeated exports never propose
+    // the same name.
+    fun exportName(ext: String): String {
+        val ts = java.text.SimpleDateFormat("yyyyMMddHHmmss",
+            java.util.Locale.US).format(java.util.Date())
+        val mp = settings.mountpoint.ifBlank { "ntrip" }
+        return "${ts}_${mp}_stats.${ext}"
+    }
+
+    fun writeExport(uri: android.net.Uri?, text: String?) {
+        if (uri == null || text == null) return
+        notice = try {
+            context.contentResolver.openOutputStream(uri)?.use {
+                it.write(text.toByteArray(Charsets.UTF_8))
+            }
+            context.getString(R.string.export_done)
+        } catch (e: Exception) {
+            context.getString(R.string.export_failed)
+        }
+    }
+
+    val exportJson = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { writeExport(it, MonitorService.lastStatsJson) }
+    val exportCsv = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { writeExport(it, MonitorService.lastStatsCsv) }
+    var showExport by remember { mutableStateOf(false) }
+
     val menuActions = remember {
         MenuActions(
             settings = { showSettings = true },
             importRinex = { pickRinex.launch(arrayOf("*/*")) },
             loadConfig = { pickConfig.launch(arrayOf("application/json", "*/*")) },
             saveConfig = { saveConfig.launch("config.json") },
+            exportStats = { showExport = true },
+            exportReady = { MonitorService.lastStatsJson != null },
             about = { showAbout = true },
         )
     }
@@ -476,6 +508,67 @@ fun MainScreen() {
         openDetail = { nav.push(it) },
     )
 
+    /*
+     * Every dialog the overflow menu can open, composed BEFORE the
+     * screen branches below -- two of which end in `return`. They sat
+     * after those returns, which quietly broke the menu's own promise
+     * of being identical everywhere: on the analysis and detail
+     * screens, Settings, About, the export dialog and even the
+     * "configuration saved" notice set their flag and showed nothing.
+     * Found by the statistics export, the first menu row anyone drove
+     * from the analysis screen under automation (E3).
+     */
+    notice?.let { text ->
+        AlertDialog(
+            onDismissRequest = { notice = null },
+            text = { Text(text) },
+            confirmButton = {
+                TextButton(onClick = { notice = null }) {
+                    Text(stringResource(R.string.action_close))
+                }
+            },
+        )
+    }
+
+    if (showAbout) {
+        AboutDialog { showAbout = false }
+    }
+
+    if (showExport) {
+        AlertDialog(
+            onDismissRequest = { showExport = false },
+            title = { Text(stringResource(R.string.export_title)) },
+            text = { Text(stringResource(R.string.export_explain)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExport = false
+                    exportJson.launch(exportName("json"))
+                }) { Text(stringResource(R.string.export_json)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showExport = false
+                    exportCsv.launch(exportName("csv"))
+                }) { Text(stringResource(R.string.export_csv)) }
+            },
+        )
+    }
+
+    if (showSettings) {
+        SettingsDialog(
+            initial = settings,
+            // Where the last failure points, if it pointed anywhere.
+            focus = failureFix(runState.document?.stats?.failure ?: Failure.NONE),
+            readOnly = runState.running,
+            onDismiss = { showSettings = false },
+            onSave = {
+                store = Settings.save(context, it)
+                showSettings = false
+            },
+        )
+    }
+
+
     // A panel's own screen. Which panel is decided by the key in the
     // route, so the shell never learns what any of them contains -- and
     // a route whose panel this edition lacks simply matches nothing and
@@ -605,36 +698,6 @@ fun MainScreen() {
                                 else settings.longitude,
                 ))
                 showSourcetable = false
-            },
-        )
-    }
-
-    notice?.let { text ->
-        AlertDialog(
-            onDismissRequest = { notice = null },
-            text = { Text(text) },
-            confirmButton = {
-                TextButton(onClick = { notice = null }) {
-                    Text(stringResource(R.string.action_close))
-                }
-            },
-        )
-    }
-
-    if (showAbout) {
-        AboutDialog { showAbout = false }
-    }
-
-    if (showSettings) {
-        SettingsDialog(
-            initial = settings,
-            // Where the last failure points, if it pointed anywhere.
-            focus = failureFix(runState.document?.stats?.failure ?: Failure.NONE),
-            readOnly = runState.running,
-            onDismiss = { showSettings = false },
-            onSave = {
-                store = Settings.save(context, it)
-                showSettings = false
             },
         )
     }

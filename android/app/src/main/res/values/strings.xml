@@ -16,6 +16,16 @@
          are only the furniture around them. -->
     <string name="action_vrs">Network-RTK check</string>
     <string name="settings_locked">Read-only while a run is going — the run keeps the settings it started with.</string>
+    <!-- Statistics export (pro). One dialect: the CSV is the daemon's
+         and the GUI's, byte for byte, which is what makes an exported
+         file and a Munin sample comparable. -->
+    <string name="menu_export">Export statistics…</string>
+    <string name="export_title">Export statistics</string>
+    <string name="export_explain">The current snapshot, as the desktop exports it: JSON carries everything the app knows; CSV carries the daemon’s columns for a spreadsheet.</string>
+    <string name="export_json">JSON</string>
+    <string name="export_csv">CSV</string>
+    <string name="export_done">Statistics exported.</string>
+    <string name="export_failed">Export failed writing the file.</string>
     <string name="vrs_title">Network-RTK</string>
     <string name="vrs_service">Service: %1$s</string>
     <string name="vrs_running">Testing the service — the gate test ends the run by itself</string>

@@ -127,7 +127,33 @@ on-device export, which is the only honest reader of it.
 document is published, cleared at run start, surviving run end.
 Nothing decodes them; they are held for the file they will become.
 
-### E3 — the menu row and the pickers
+### E3 — the menu row and the pickers  *(done 2026-08-25)*
+
+Built as planned and verified on the Huawei, both formats read back
+over adb: the JSON parses whole (`stats.mountpoint` = HANESE, the full
+document's keys), the CSV is two lines of 38 columns each with the
+mountpoint in the row, and both carry the desktop's timestamped name.
+The row waits greyed before the first snapshot and — E2's property,
+finally seen — stays live after the run ends. Free's menu has no row.
+
+**E3 found a structural fault older than itself.** The overflow menu's
+dialog-based rows -- Settings, About, and now Export -- silently did
+nothing on the analysis and detail screens: their dialogs were
+composed *after* the `return` those screens exit through, so the flag
+flipped and nothing showed. The menu's "identical everywhere" promise
+held only for rows that launch activities. All the dialog blocks now
+compose before the screen branches, which fixes Settings-from-analysis
+and About-from-analysis in the same movement. Nobody had driven those
+rows from a non-hub screen before; the export was simply the first row
+anyone tried there under automation.
+
+Two smaller stumbles, both mine: a Kotlin string template written
+through one escaping layer too many exported a literal `${ts}` name
+(caught on the very first picker), and a stale SAF picker from before
+a reinstall swallowed a round of taps -- the picker belongs to the
+Files app and outlives the process under test.
+
+*(As planned:)*
 
 `HAS_EXPORT` (pro true, free false); the gated row; the format dialog;
 two `CreateDocument` launchers (`application/json`, `text/csv`) with

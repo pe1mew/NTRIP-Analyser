@@ -181,6 +181,7 @@ gaining a row for it.
 | `HAS_TRACKS` | false | true | Trails on the sky plot: where each satellite has been |
 | `HAS_VRS_CHECK` | false | true | The network-RTK check: five assertions and the gate test on the hub |
 | `HAS_HANDOVER` | false | true | Rover-to-ARP distance and the hand-over history |
+| `HAS_EXPORT` | false | true | Statistics export: the snapshot as JSON or the daemon's CSV |
 | `MAX_MOUNTPOINTS` | 1 | 16 | Saved connection profiles and the switcher |
 | `SOURCETABLE_SELECTABLE` | false | true | Tap-to-use in the sourcetable browser |
 | `HAS_LIVE_GGA` | false | true | The phone's live position in the GGA uplink |
