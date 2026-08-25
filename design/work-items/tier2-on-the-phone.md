@@ -145,7 +145,26 @@ registry; the card as above; share section: the headline, then six
 `label: VERDICT (value against limit)` lines — the sign-off numbers a
 report exists for.
 
-### T2.3 — the live verify
+### T2.3 — the live verify  *(done 2026-08-25)*
+
+A watch on HANESE from the Huawei, and the whole account observed on
+the screen: at 100 s the card said **"INSUFFICIENT EVIDENCE -- 98 s of
+600 needed, 99 sample(s)"** -- the countdown in the engine's words --
+and at the floor it settled to **"STABLE over 0.2 h"** with six green
+rows, each carrying its deciding figure: 0.0 reconnects/h, worst
+100.000 % CRC in 10 min, fell 0.4 dB-Hz from 46.5, fewest held 39,
+worst median ROTI 0.05 TECU/min, off-rate 0 %. The staleness branch
+was not exercised live (no way to stop the caster's side without
+stopping the app's); it stays covered by `test_station_report`, as the
+plan allowed.
+
+**The verify's side-catch**: the author noticed the sky header crediting
+a day-old navigation file for placements the ephemeris stream had made
+-- the source label is decided by run-scoped flags while the orbit
+cache outlives runs in the process. Filed and fixed separately; see
+the changelog entry it produced.
+
+*(As planned:)*
 
 A watch on HANESE from the Huawei, past the ten-minute window: the
 card goes from INSUFFICIENT (with the honest countdown detail) to a

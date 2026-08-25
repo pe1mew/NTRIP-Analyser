@@ -154,7 +154,13 @@ class MonitorService : Service() {
             }
 
             Log.i(TAG, "run started: ${settings.caster}:${settings.port}/${settings.mountpoint}")
-            usedEphStream = false
+            // usedEphStream is deliberately NOT reset here. It describes
+            // the orbit cache, and the cache outlives runs in this
+            // process: reset per run, the first minute of a second run
+            // placed every satellite from the stream's records while the
+            // header credited a day-old navigation file that had placed
+            // nothing (author, 2026-08-25). A flag's lifetime must match
+            // the thing it describes.
 
             // A user-supplied RINEX file, if one has been imported. Read
             // before any stream is considered: a current file means there

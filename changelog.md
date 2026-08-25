@@ -82,6 +82,17 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Fixed — the sky header credited a file for the stream's orbits
+
+The source line is decided per run, but the orbit cache lives as long
+as the process: a second run placed every satellite from the ephemeris
+stream's records fetched minutes earlier, while the header credited a
+day-old navigation file that had placed nothing. Caught by the author
+mid-verification -- the same family as the matrix's own cautionary
+line, *a stale file used to read as a full cache*, in the other
+direction. The stream flag now lives as long as the cache it
+describes; a flag's lifetime must match the thing it describes.
+
 ### Added — statistics export, in the paid edition
 
 The run's numbers as a file another program eats. One overflow row,
