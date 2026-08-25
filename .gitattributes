@@ -5,3 +5,11 @@ service/munin/ntrip_monitor  text eol=lf
 service/Makefile             text eol=lf
 service/*.service            text eol=lf
 service/*.sysusers           text eol=lf
+
+# The vendored CA bundle must keep the exact bytes curl published --
+# its SHA-256 is verified against curl's own sum, and the embedded
+# array is generated from it, so a CRLF conversion at checkout would
+# change the trust store per platform and break both checks.
+lib/ca-bundle/cacert.pem     -text
+lib/ca-bundle/cacert.pem.sha256 text eol=lf
+src/session/ns_ca_bundle.c   text eol=lf

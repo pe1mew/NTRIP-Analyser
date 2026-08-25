@@ -4,116 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
-## [3.7.3] - 2026-08-25
+## [3.8.0] - 2026-08-25
 
-Fixes and polish, both editions. The paid capabilities built alongside
-them stay unreleased until the paid edition ships whole.
+The release where the paid edition ships whole, and the reason it
+could wait this long ships with it: TLS, in **both** editions —
+the paid edition withholds convenience, never protection. Everything
+below the TLS entry has been built and verified over the preceding
+releases and is public for the first time here.
 
-### Changed — runs start in one place, and the app says which is going
-
-First field use of the stability card found the watch had outgrown its
-home: its products moved to the hub years after its start button, the
-card promised ten minutes to a two-minute run, and the banner narrated
-only tier 1. Now the hub owns all three run verbs — check, watch,
-network-RTK — each with a line saying which tier answers and what it
-costs in time; the analysis screen's start and stop are gone entirely;
-the banner's bar changes duty during a watch to the ten-minute
-evidence floor and its subtitle counts it; and the stability card
-tells a check honestly that it ends before the evidence can arrive.
-
-Two faults fixed on the way: the run verbs share the verdict banner's
-corners instead of growing into tall pills, and a second start can no
-longer spawn a second worker over a running measurement — the service
-door refuses with a logged reason.
-
-### Fixed — the sky header credited a file for the stream's orbits
-
-The source line is decided per run, but the orbit cache lives as long
-as the process: a second run placed every satellite from the ephemeris
-stream's records fetched minutes earlier, while the header credited a
-day-old navigation file that had placed nothing. Caught by the author
-mid-verification -- the same family as the matrix's own cautionary
-line, *a stale file used to read as a full cache*, in the other
-direction. The stream flag now lives as long as the cache it
-describes; a flag's lifetime must match the thing it describes.
-
-## [3.7.2] - 2026-08-25
-
-Two tester reports and one fault of our own, all in the frame every
-screen shares -- so this is both editions' release, and the first cut
-from reports that arrived through the issue tracker.
-
-### Fixed — the first two tester reports, both editions
-
-**The sky view survives a screen lock** (GH#2). Locking the phone for
-even a second made every satellite "reload": the receiver's first
-reports after an unlock carry almost nothing, and the app replaced its
-whole placement map on every report. It merges now -- a fresh report
-always wins, a satellite absent from one is retained, and retention
-ages out on the same four-hour trust the orbit cache gives an
-ephemeris: one duration, every position source. The long window is safe
-because the merge overwrites coasted entries the moment fresh reports
-flow; it only ever bridges gaps.
-
-**The connection cannot be edited out from under a run** (GH#3). A
-run's settings are captured when it starts -- deliberately, so a run
-cannot change subject halfway -- but the tile stayed a door, and an
-edit mid-run changed only the *next* run while the tile named the new
-caster under the old verdict. The tile now keeps its place and loses
-its tap and its forward mark while a run is going, exactly as Browse
-already withdraws; the settings dialog, still reachable from the menu,
-shows read-only with one line saying why, and offers no Save -- a
-button that writes back what it read would only claim an edit happened.
-
-### Fixed — a long capture is now a long record
-
-Both analysis plots accumulated in the screen that draws them, so a
-rotation reset them and a screen that was off recorded nothing at all: a
-nine-hour capture drew its arcs from the minutes its screen happened to
-be on, and its C/N0 scatter from 25 000 samples where nine hours holds
-a million. What the plots showed was true; it was true of far less than
-the run.
-
-The record now belongs to the run. Both accumulators live with the
-service that decodes the stream, are cleared when a run starts rather
-than when a screen re-enters, and are fed where the document is
-published. Measured off screen: 45 samples a second, against nothing
-before. Satellites only the handset can place are still recorded by the
-screen, because that is the only side that has the handset's fixes --
-one satellite, one source.
-
-The trail cap goes from four hours to a day, the desktop's own number,
-so a nine-hour capture is nine hours of arc; the arcs are built once a
-document rather than once a frame, and drawn thinner than the markers
-they sit behind.
-
-## [3.7.1] - 2026-08-23
-
-### Fixed — the legend, under the navigation buttons
-
-On a phone drawn edge to edge with three-button navigation, the sky
-view's coordinate line and constellation legend were drawn *behind* the
-system's own buttons. Reported from the S23 against free 3.7.0 as it
-came from Play.
-
-**The source was never wrong.** The fix went in before 3.7.0 was tagged
-and is inside the tag; what reached Play was an older binary. The
-Android release is built by two commands, `assembleFreeRelease` for the
-APK and `bundleFreeRelease` for the bundle Play takes, and only the
-first was re-run after the fix. The GitHub release therefore carried a
-corrected APK while Play carried a bundle built four and a half hours
-earlier -- the same version number on two different programs.
-
-So this release also removes the way that happened:
-
-* `tools/check_release.py` now refuses to call a build submittable when
-  an artefact under `app/build/outputs` is older than the source it was
-  supposedly built from. A stale bundle is now a failed check rather
-  than a screenshot from a user.
-* The runbook builds APK and bundle in one command, and says why they
-  may not be built separately.
-
-## [Unreleased]
 
 ### Added — TLS to the caster, in both editions
 
@@ -272,6 +170,115 @@ measurement; it is a record of positions already computed, kept by the
 screen that draws them, exactly as the C/N0-against-elevation scatter
 already accumulates. Phase 2, item 1
 (`design/work-items/satellite-tracks.md`).
+
+## [3.7.3] - 2026-08-25
+
+Fixes and polish, both editions. The paid capabilities built alongside
+them stay unreleased until the paid edition ships whole.
+
+### Changed — runs start in one place, and the app says which is going
+
+First field use of the stability card found the watch had outgrown its
+home: its products moved to the hub years after its start button, the
+card promised ten minutes to a two-minute run, and the banner narrated
+only tier 1. Now the hub owns all three run verbs — check, watch,
+network-RTK — each with a line saying which tier answers and what it
+costs in time; the analysis screen's start and stop are gone entirely;
+the banner's bar changes duty during a watch to the ten-minute
+evidence floor and its subtitle counts it; and the stability card
+tells a check honestly that it ends before the evidence can arrive.
+
+Two faults fixed on the way: the run verbs share the verdict banner's
+corners instead of growing into tall pills, and a second start can no
+longer spawn a second worker over a running measurement — the service
+door refuses with a logged reason.
+
+### Fixed — the sky header credited a file for the stream's orbits
+
+The source line is decided per run, but the orbit cache lives as long
+as the process: a second run placed every satellite from the ephemeris
+stream's records fetched minutes earlier, while the header credited a
+day-old navigation file that had placed nothing. Caught by the author
+mid-verification -- the same family as the matrix's own cautionary
+line, *a stale file used to read as a full cache*, in the other
+direction. The stream flag now lives as long as the cache it
+describes; a flag's lifetime must match the thing it describes.
+
+## [3.7.2] - 2026-08-25
+
+Two tester reports and one fault of our own, all in the frame every
+screen shares -- so this is both editions' release, and the first cut
+from reports that arrived through the issue tracker.
+
+### Fixed — the first two tester reports, both editions
+
+**The sky view survives a screen lock** (GH#2). Locking the phone for
+even a second made every satellite "reload": the receiver's first
+reports after an unlock carry almost nothing, and the app replaced its
+whole placement map on every report. It merges now -- a fresh report
+always wins, a satellite absent from one is retained, and retention
+ages out on the same four-hour trust the orbit cache gives an
+ephemeris: one duration, every position source. The long window is safe
+because the merge overwrites coasted entries the moment fresh reports
+flow; it only ever bridges gaps.
+
+**The connection cannot be edited out from under a run** (GH#3). A
+run's settings are captured when it starts -- deliberately, so a run
+cannot change subject halfway -- but the tile stayed a door, and an
+edit mid-run changed only the *next* run while the tile named the new
+caster under the old verdict. The tile now keeps its place and loses
+its tap and its forward mark while a run is going, exactly as Browse
+already withdraws; the settings dialog, still reachable from the menu,
+shows read-only with one line saying why, and offers no Save -- a
+button that writes back what it read would only claim an edit happened.
+
+### Fixed — a long capture is now a long record
+
+Both analysis plots accumulated in the screen that draws them, so a
+rotation reset them and a screen that was off recorded nothing at all: a
+nine-hour capture drew its arcs from the minutes its screen happened to
+be on, and its C/N0 scatter from 25 000 samples where nine hours holds
+a million. What the plots showed was true; it was true of far less than
+the run.
+
+The record now belongs to the run. Both accumulators live with the
+service that decodes the stream, are cleared when a run starts rather
+than when a screen re-enters, and are fed where the document is
+published. Measured off screen: 45 samples a second, against nothing
+before. Satellites only the handset can place are still recorded by the
+screen, because that is the only side that has the handset's fixes --
+one satellite, one source.
+
+The trail cap goes from four hours to a day, the desktop's own number,
+so a nine-hour capture is nine hours of arc; the arcs are built once a
+document rather than once a frame, and drawn thinner than the markers
+they sit behind.
+
+## [3.7.1] - 2026-08-23
+
+### Fixed — the legend, under the navigation buttons
+
+On a phone drawn edge to edge with three-button navigation, the sky
+view's coordinate line and constellation legend were drawn *behind* the
+system's own buttons. Reported from the S23 against free 3.7.0 as it
+came from Play.
+
+**The source was never wrong.** The fix went in before 3.7.0 was tagged
+and is inside the tag; what reached Play was an older binary. The
+Android release is built by two commands, `assembleFreeRelease` for the
+APK and `bundleFreeRelease` for the bundle Play takes, and only the
+first was re-run after the fix. The GitHub release therefore carried a
+corrected APK while Play carried a bundle built four and a half hours
+earlier -- the same version number on two different programs.
+
+So this release also removes the way that happened:
+
+* `tools/check_release.py` now refuses to call a build submittable when
+  an artefact under `app/build/outputs` is older than the source it was
+  supposedly built from. A stale bundle is now a failed check rather
+  than a screenshot from a user.
+* The runbook builds APK and bundle in one command, and says why they
+  may not be built separately.
 
 ## [3.7.0] - 2026-08-22
 
