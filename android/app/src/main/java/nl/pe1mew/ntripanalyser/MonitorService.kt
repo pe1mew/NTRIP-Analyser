@@ -127,6 +127,11 @@ class MonitorService : Service() {
             ephCaster = intent.getStringExtra(EXTRA_EPH_CASTER).orEmpty(),
             ephPort = intent.getIntExtra(EXTRA_EPH_PORT, 2101),
             ephMountpoint = intent.getStringExtra(EXTRA_EPH_MP).orEmpty(),
+            // The run is a copy of the settings, and a field the copy
+            // forgets is a field the run silently does without -- this
+            // one cost a live run its encryption before it was packed.
+            tls = intent.getBooleanExtra(EXTRA_TLS, false),
+            ephTls = intent.getBooleanExtra(EXTRA_EPH_TLS, false),
         )
 
         createChannel()
@@ -660,6 +665,8 @@ class MonitorService : Service() {
         private const val EXTRA_EPH_CASTER = "eph_caster"
         private const val EXTRA_EPH_PORT = "eph_port"
         private const val EXTRA_EPH_MP = "eph_mp"
+        private const val EXTRA_TLS = "tls"
+        private const val EXTRA_EPH_TLS = "eph_tls"
 
         /**
          * The running bridge, for the sky screen to render from.
@@ -877,6 +884,8 @@ class MonitorService : Service() {
                 putExtra(EXTRA_EPH_CASTER, s.ephCaster)
                 putExtra(EXTRA_EPH_PORT, s.ephPort)
                 putExtra(EXTRA_EPH_MP, s.ephMountpoint)
+                putExtra(EXTRA_TLS, s.tls)
+                putExtra(EXTRA_EPH_TLS, s.ephTls)
             }
             context.startForegroundService(i)
         }

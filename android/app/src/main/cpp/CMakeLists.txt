@@ -16,6 +16,12 @@ project(ntrip_android C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Optimized C even in debug APKs.  The C core is debugged on the
+# desktop, through the test suite -- never through a debug APK -- and
+# unoptimized mbedTLS made a TLS handshake take half a minute on the
+# 2019 test handset, which read as a hang and cost an afternoon (L5).
+string(APPEND CMAKE_C_FLAGS_DEBUG " -O2")
+
 # ../../../../..  ->  android/app/src/main/cpp  to the repository root
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.."
                        ABSOLUTE)

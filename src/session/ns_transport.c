@@ -27,6 +27,7 @@
 #include "session/ns_transport.h"
 #include "session/ns_ca_bundle.h"
 
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -34,7 +35,6 @@
 #include <string.h>
 
 #include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/error.h"
@@ -43,6 +43,8 @@
 #ifdef _WIN32
   #include <winsock2.h>
   #include <ws2tcpip.h>
+  #include <windows.h>
+  #include <bcrypt.h>
   typedef SOCKET ns_sock_t;
   #define NS_INVALID_SOCK INVALID_SOCKET
 #else
@@ -75,7 +77,6 @@ struct NsTransport {
      * above it. */
     int       bio_timeout_ms;
 
-    mbedtls_entropy_context  entropy;
     mbedtls_ctr_drbg_context drbg;
     mbedtls_ssl_config       conf;
     mbedtls_ssl_context      ssl;
@@ -211,7 +212,7 @@ static int bio_recv(void *ctx, unsigned char *buf, size_t len)
 
     if (t->bio_timeout_ms >= 0) {
         int r = wait_readable(t->sock, t->bio_timeout_ms);
-        if (r == 0)  return MBEDTLS_ERR_SSL_WANT_READ;
+        if (r == 0)  {                       return MBEDTLS_ERR_SSL_WANT_READ; }
         if (r < 0)   return MBEDTLS_ERR_NET_RECV_FAILED;
     }
 
@@ -242,13 +243,37 @@ static void cert_why(uint32_t flags, const char *host,
     /* Anything else keeps the generic sentence. */
 }
 
+/**
+ * @brief Entropy for the DRBG, read from the operating system directly.
+ *
+ * Not mbedtls_entropy_func, deliberately: its accumulator blocked
+ * without returning on an EMUI 10 handset (L5, found live -- the seed
+ * call simply never came back), and everything it adds on top of the
+ * OS RNG is machinery this client does not need.  The OS pool is the
+ * root of trust either way.
+ */
+static int os_entropy(void *data, unsigned char *out, size_t len)
+{
+    (void)data;
+#ifdef _WIN32
+    return BCryptGenRandom(NULL, out, (ULONG)len,
+                           BCRYPT_USE_SYSTEM_PREFERRED_RNG) == 0
+           ? 0 : MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED;
+#else
+    FILE *f = fopen("/dev/urandom", "rb");
+    if (!f) return MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED;
+    size_t got = fread(out, 1, len, f);
+    fclose(f);
+    return got == len ? 0 : MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED;
+#endif
+}
+
 static void tls_free(NsTransport *t)
 {
     mbedtls_ssl_free(&t->ssl);
     mbedtls_ssl_config_free(&t->conf);
     mbedtls_x509_crt_free(&t->ca);
     mbedtls_ctr_drbg_free(&t->drbg);
-    mbedtls_entropy_free(&t->entropy);
 }
 
 NsTransport *ns_transport_connect_tls(const char *host, int port,
@@ -271,7 +296,6 @@ NsTransport *ns_transport_connect_tls(const char *host, int port,
     t->tls  = true;
     t->bio_timeout_ms = NS_TLS_HANDSHAKE_TIMEOUT_MS;
 
-    mbedtls_entropy_init(&t->entropy);
     mbedtls_ctr_drbg_init(&t->drbg);
     mbedtls_ssl_config_init(&t->conf);
     mbedtls_ssl_init(&t->ssl);
@@ -283,8 +307,7 @@ NsTransport *ns_transport_connect_tls(const char *host, int port,
                                    : (size_t)ns_ca_bundle_pem_len;
 
     static const char pers[] = "ntrip-analyser";
-    int rc = mbedtls_ctr_drbg_seed(&t->drbg, mbedtls_entropy_func,
-                                   &t->entropy,
+    int rc = mbedtls_ctr_drbg_seed(&t->drbg, os_entropy, NULL,
                                    (const unsigned char *)pers,
                                    sizeof(pers) - 1);
     if (rc == 0)

@@ -262,7 +262,77 @@ Port-443 suggestion in the UIs that have a port field.
 the others (the shared-config tests extend); the app checkbox reaches
 `bridge_open` and the session.
 
-### L5 — live proof
+### L5 — live proof  *(done 2026-08-25 — the step that earned its place)*
+
+Every promised proof landed, and the live wire taught more than the
+other five steps together. In order of discovery:
+
+* **Kadaster's 443 speaks NTRIP 2 with `Transfer-Encoding: chunked`**,
+  and nothing consumed it: the first CLI check over TLS scored frame
+  integrity 79.6% -- the chunk-size lines were eating one frame in
+  five. `ns_proto` had parsed `handshake.chunked` since the field
+  existed; the GUI displayed it; nobody de-chunked. The session grew a
+  chunk decoder (gated on the handshake, byte-walked framing, whole
+  runs to `feed()`), the sourcetable fetch de-chunks in place, and the
+  loopback TLS caster now serves chunked with boundaries deliberately
+  mid-frame -- falsified by gating the decoder off: the CRCs paid
+  exactly as they had live. Re-run: **STATION OK, integrity 100.000%**.
+* **The stale security sentence lied under TLS** ("This client does
+  not support TLS" printed over an encrypted connection).
+  `ns_proto_build_request` takes the flag now; the warning is
+  plain-text-only and says "Enable TLS if the caster offers it."
+* **The app spoke plain HTTP to 443** on its first run: the settings
+  travel to the service by Intent, and the flag had no extra --
+  `CasterSettings` was rebuilt with `tls` defaulting false, Azure's
+  Application Gateway answered the plaintext with its own 400 page,
+  and the run failed as REJECTED. `EXTRA_TLS`/`EXTRA_EPH_TLS` now ride
+  the Intent, with the lesson in a comment at the unpack site: a field
+  the copy forgets is a field the run silently does without.
+* **mbedTLS's entropy accumulator blocked forever on the EMUI 10
+  handset** -- `mbedtls_ctr_drbg_seed` never returned. The DRBG now
+  seeds from the OS RNG directly (`/dev/urandom`; `BCryptGenRandom`
+  on Windows), which is the root of trust either way.
+* **The debug APK's -O0 crypto made handshakes take half a minute**
+  on the 2019 Kirin -- every "hang" of the afternoon, once the
+  entropy block was gone. NDK debug builds now compile C at -O2 (the
+  C core is debugged on the desktop, never through a debug APK). Two
+  Gradle traps documented on the way: the NDK task's up-to-date check
+  and the build cache are both blind to this repo's out-of-tree C
+  sources -- only `gradlew clean` + `--no-build-cache` guarantees a
+  rebuilt `.so`.
+* **The sourcetable fetch could hang or truncate**: the blocking read
+  waited forever on a keep-alive caster (wedged inside `bridge_open`
+  on the phone), and the first bounded version treated a mid-record
+  zero as end-of-data (nine entries of 115). Now: ten-second reads, a
+  zero is patience (two consecutive silent waits end the fetch), and
+  ENDSOURCETABLE is searched across the accumulated text where a
+  straddle cannot hide.
+
+The proofs themselves: CLI `--check` over TLS **STATION OK** with
+100.000% integrity and no security line; the honest negative
+classified in **0.118 s** ("did not complete a TLS handshake... check
+the port and the TLS setting"); `--mounts` over TLS; the author's GUI
+streaming APEL00NLD0 over 443 chunked **with the ephemeris side-stream
+(BCEP00KAD0) over TLS beside it**; on the Huawei, pro **STATION OK
+held 60 s** (and a second run CAUTION -- the station's own wobble,
+matching the CLI's KPI-4 warning), free **STATION OK held 60 s**, the
+mountpoint browser fetching 115 entries over TLS, the 443 suggestion
+appearing under the port field and retiring when the box is ticked.
+
+Context worth keeping (author-supplied): per NSGI, AGRS stations
+(APEL00NLD0) are free and anonymous on both ports; NETPOS stations
+(ADR200NLD0) are paid, TLS-only -- its 401 was the subscription
+boundary, not a fault. The fleet behind ntrip.kadaster.nl:443 is
+heterogeneous (GNSMART_Caster 2.0 and GN_Caster/1.0 both answered,
+fronted by Azure Application Gateway), and one node stalls sourcetable
+bodies and occasionally fumbles a handshake -- the client's job is to
+classify and retry honestly, which it now demonstrably does.
+
+Left for the wrap-up: the Win32 GUI binary on disk predates the last
+two fixes (it was running, and Windows locks a running exe out of its
+own relink) -- rebuild and spot-check it when it is next closed.
+
+*(As planned:)*
 
 Kadaster's TLS caster on 443, the positive case the design names:
 CLI `--check` over TLS, the app on the Huawei over TLS end to end

@@ -79,6 +79,7 @@ typedef struct {
  *         means the request was truncated and must not be sent.
  */
 int ns_proto_build_request(char *out, size_t cap,
+                           bool tls,
                            const char *host, const char *mountpoint,
                            const char *user, const char *pass,
                            const char *agent);

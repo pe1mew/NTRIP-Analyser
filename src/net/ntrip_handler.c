@@ -116,6 +116,62 @@ bool base64_encode_n(const char *input, char *output, size_t out_cap) {
     return true;
 }
 
+/**
+ * @brief Strip Transfer-Encoding: chunked from a collected HTTP reply,
+ *        in place.
+ *
+ * NTRIP 2 casters -- Kadaster's TLS endpoint among them -- serve the
+ * sourcetable chunked, and a chunk boundary can land in the middle of
+ * an STR line, splitting one mountpoint into two junk lines.  The
+ * headers stay as they are (the parser skips them); only the body is
+ * rewritten.  Sizes are trusted no further than the buffer's edge.
+ */
+static void dechunk_in_place(char *buf, size_t *len)
+{
+    char *body = strstr(buf, "\r\n\r\n");
+    if (!body) return;
+    body += 4;
+
+    /* Header check, bounded to the header: a sourcetable entry could
+     * name a file called chunked. */
+    size_t head_len = (size_t)(body - buf);
+    char saved = buf[head_len];
+    buf[head_len] = 0;
+    bool chunked = false;
+    for (char *h = buf; *h; h++) {
+        if ((*h == 'T' || *h == 't') &&
+            strncasecmp(h, "Transfer-Encoding:", 18) == 0 &&
+            strstr(h, "chunked")) { chunked = true; break; }
+    }
+    buf[head_len] = saved;
+    if (!chunked) return;
+
+    char  *src = body, *dst = body;
+    char  *end = buf + *len;
+    while (src < end) {
+        /* the hex size line */
+        unsigned long sz = 0;
+        while (src < end && *src != '\r' && *src != '\n') {
+            char c = *src++;
+            if (c >= '0' && c <= '9')      sz = sz * 16 + (unsigned)(c - '0');
+            else if (c >= 'a' && c <= 'f') sz = sz * 16 + (unsigned)(c - 'a' + 10);
+            else if (c >= 'A' && c <= 'F') sz = sz * 16 + (unsigned)(c - 'A' + 10);
+            else if (c == ';') { while (src < end && *src != '\r') src++; break; }
+        }
+        if (src < end && *src == '\r') src++;
+        if (src < end && *src == '\n') src++;
+        if (sz == 0) break;
+        if ((size_t)(end - src) < sz) sz = (size_t)(end - src);
+        memmove(dst, src, sz);
+        dst += sz;
+        src += sz;
+        if (src < end && *src == '\r') src++;
+        if (src < end && *src == '\n') src++;
+    }
+    *dst = 0;
+    *len = (size_t)(dst - buf);
+}
+
 char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     if (!config) {
         fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
@@ -190,11 +246,29 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
      * exhausts memory -- on a phone, until the app is killed. */
     const size_t MOUNT_TABLE_MAX = 4u * 1024u * 1024u;
 
-    /* Blocking reads (negative timeout): the reply is bounded by
-     * ENDSOURCETABLE or by the caster closing, not by a pump loop. */
+    /* Bounded reads, twice over.  A first version blocked forever and
+     * searched for ENDSOURCETABLE one buffer at a time; a keep-alive
+     * caster whose marker straddled two reads hung the fetch for good
+     * -- found live, wedged inside bridge_open on the phone (L5).  So:
+     * a ten-second silence ends the fetch (a sourcetable is seconds,
+     * not minutes), and the marker is searched across the accumulated
+     * text, where a straddle cannot hide. */
     int received;
-    while ((received = ns_transport_recv(t, (unsigned char *)buffer,
-                                         (int)sizeof(buffer) - 1, -1)) > 0) {
+    int quiet = 0;
+    for (;;) {
+        received = ns_transport_recv(t, (unsigned char *)buffer,
+                                     (int)sizeof(buffer) - 1, 10000);
+        if (received < 0) break;
+        if (received == 0) {
+            /* Nothing this time is not the end: over TLS a zero also
+             * means a record still in flight, and treating it as done
+             * truncated a table to nine entries on the phone.  Two
+             * consecutive silent waits -- up to twenty seconds -- is
+             * the caster being finished without saying so. */
+            if (++quiet >= 2) break;
+            continue;
+        }
+        quiet = 0;
         buffer[received] = '\0';
         size_t old_size = mount_table_size;
         if (old_size + (size_t)received > MOUNT_TABLE_MAX) {
@@ -214,12 +288,18 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
         }
         mount_table = new_table;
         memcpy(mount_table + old_size, buffer, received + 1);
-        if (strstr(buffer, "ENDSOURCETABLE")) {
+        /* From just before the seam, not from the start: the text can
+         * be hundreds of kilobytes and this runs per read. */
+        size_t from = old_size > 14 ? old_size - 14 : 0;
+        if (strstr(mount_table + from, "ENDSOURCETABLE")) {
             break;
         }
     }
-    if (mount_table)
+
+    if (mount_table) {
         mount_table[mount_table_size] = '\0';
+        dechunk_in_place(mount_table, &mount_table_size);
+    }
 
     ns_transport_close(t);
     return mount_table; // 0 (success)

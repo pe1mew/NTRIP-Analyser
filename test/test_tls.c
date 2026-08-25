@@ -28,6 +28,7 @@
 #include "session/ntrip_session.h"
 #include "session/ns_transport.h"
 #include "core/config.h"
+#include "core/rtcm3x_parser.h"   /* crc24q, for frames worth counting */
 
 #include "mbedtls/ssl.h"
 #include "mbedtls/entropy.h"
@@ -87,10 +88,27 @@ static const char *fixture(const char *name)
 typedef struct {
     const char  *crt;      /**< certificate file, or NULL for plain TCP */
     const char  *key;
+    int          chunked;  /**< speak NTRIP 2: HTTP/1.1 + chunked      */
     int          port;     /**< filled in once listening               */
     volatile int ready;
     volatile int stop;
 } Srv;
+
+/** @brief One CRC-valid RTCM frame of the given type; returns its length. */
+static int make_frame(unsigned char *out, int type, int paylen)
+{
+    out[0] = 0xD3;
+    out[1] = (unsigned char)((paylen >> 8) & 0x03);
+    out[2] = (unsigned char)(paylen & 0xFF);
+    memset(out + 3, 0, (size_t)paylen);
+    out[3] = (unsigned char)((type >> 4) & 0xFF);
+    out[4] = (unsigned char)((type & 0x0F) << 4);
+    uint32_t c = crc24q(out, (size_t)(3 + paylen));
+    out[3 + paylen]     = (unsigned char)((c >> 16) & 0xFF);
+    out[3 + paylen + 1] = (unsigned char)((c >>  8) & 0xFF);
+    out[3 + paylen + 2] = (unsigned char)(c & 0xFF);
+    return 3 + paylen + 3;
+}
 
 static Srv g_srv;
 
@@ -184,7 +202,43 @@ static void *server_thread(void *arg)
                      rc == MBEDTLS_ERR_SSL_WANT_WRITE);
         }
 
-        if (rc == 0) {
+        if (rc == 0 && s->chunked) {
+            /* The Kadaster shape, found live at L5: NTRIP 2 over TLS,
+             * the RTCM wrapped in Transfer-Encoding: chunked -- with
+             * the chunk boundaries deliberately landing mid-frame, so
+             * only a client that strips the framing sees valid CRCs. */
+            static const char http[] =
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: gnss/data\r\n"
+                "Transfer-Encoding: chunked\r\n"
+                "Ntrip-Version: Ntrip/2.0\r\n\r\n";
+            mbedtls_ssl_write(&ssl, (const unsigned char *)http,
+                              strlen(http));
+
+            unsigned char stream[512];
+            int total = 0;
+            for (int i = 0; i < 8; i++)
+                total += make_frame(stream + total, 1005, 24);
+
+            int off = 0;
+            while (off < total && !s->stop) {
+                int piece = 23;               /* never a frame boundary */
+                if (off + piece > total) piece = total - off;
+                char head[16];
+                snprintf(head, sizeof(head), "%x\r\n", piece);
+                mbedtls_ssl_write(&ssl, (const unsigned char *)head,
+                                  strlen(head));
+                mbedtls_ssl_write(&ssl, stream + off, (size_t)piece);
+                mbedtls_ssl_write(&ssl, (const unsigned char *)"\r\n", 2);
+                off += piece;
+                sleep_ms(20);
+            }
+            /* Hold the connection until the client has read it all;
+             * the 0-chunk would otherwise race the last frames. */
+            while (!s->stop) sleep_ms(20);
+            mbedtls_ssl_write(&ssl, (const unsigned char *)"0\r\n\r\n", 5);
+            mbedtls_ssl_close_notify(&ssl);
+        } else if (rc == 0) {
             /* The good case: a caster, but encrypted.  Serve until the
              * test says stop, so the client can prove data flows. */
             mbedtls_ssl_write(&ssl, (const unsigned char *)icy,
@@ -231,13 +285,15 @@ static void on_event(const NsEvent *ev, void *user)
  * The failure code and detail are copied out before close because the
  * snapshot dies with the session.
  */
-static void run_case(const char *crt, const char *key,
+static void run_case(const char *crt, const char *key, int chunked,
                      int *out_fail, char *out_detail, size_t detail_cap,
-                     int *out_got_bytes)
+                     int *out_got_bytes,
+                     uint64_t *out_frames_ok, uint64_t *out_crc_err)
 {
     memset(&g_srv, 0, sizeof(g_srv));
-    g_srv.crt = crt;
-    g_srv.key = key;
+    g_srv.crt     = crt;
+    g_srv.key     = key;
+    g_srv.chunked = chunked;
 
 #ifdef _WIN32
     HANDLE th = CreateThread(NULL, 0, server_thread, &g_srv, 0, NULL);
@@ -267,12 +323,16 @@ static void run_case(const char *crt, const char *key,
         ns_pump(s, 100);
         deadline_ms -= 100;
         const NsStatsSnapshot *st = ns_stats(s);
-        if (st && st->bytes_total > 200) break;
+        if (!st) continue;
+        if (chunked) { if (st->frames_ok >= 6) break; }
+        else         { if (st->bytes_total > 200) break; }
     }
 
     const NsStatsSnapshot *st = ns_stats(s);
     *out_fail      = st ? st->failure : -1;
     *out_got_bytes = st && st->bytes_total > 0;
+    if (out_frames_ok) *out_frames_ok = st ? st->frames_ok : 0;
+    if (out_crc_err)   *out_crc_err   = st ? st->frames_crc_error : 0;
     snprintf(out_detail, detail_cap, "%s", st ? st->failure_detail : "");
 
     g_srv.stop = 1;
@@ -360,14 +420,28 @@ int main(int argc, char **argv)
     char crt[512], key[512];
     snprintf(crt, sizeof(crt), "%s", fixture("good.crt"));
     snprintf(key, sizeof(key), "%s", fixture("good.key"));
-    run_case(crt, key, &fail, detail, sizeof(detail), &got_bytes);
+    run_case(crt, key, 0, &fail, detail, sizeof(detail), &got_bytes,
+             NULL, NULL);
     check(fail == NS_FAIL_NONE, "good chain: no failure recorded");
     check(got_bytes,            "good chain: bytes arrive through TLS");
+
+    /* NTRIP 2 over TLS: chunked transfer, boundaries mid-frame.  The
+     * shape Kadaster's 443 serves, committed to the harness the day it
+     * was found costing a fifth of the frames their CRCs. */
+    uint64_t frames_ok = 0, crc_err = 0;
+    snprintf(crt, sizeof(crt), "%s", fixture("good.crt"));
+    snprintf(key, sizeof(key), "%s", fixture("good.key"));
+    run_case(crt, key, 1, &fail, detail, sizeof(detail), &got_bytes,
+             &frames_ok, &crc_err);
+    check(fail == NS_FAIL_NONE,  "chunked: no failure recorded");
+    check(frames_ok >= 6,        "chunked: the frames reassemble across chunk cuts");
+    check(crc_err == 0,          "chunked: not one CRC paid for the framing");
 
     /* Expired. */
     snprintf(crt, sizeof(crt), "%s", fixture("expired.crt"));
     snprintf(key, sizeof(key), "%s", fixture("expired.key"));
-    run_case(crt, key, &fail, detail, sizeof(detail), &got_bytes);
+    run_case(crt, key, 0, &fail, detail, sizeof(detail), &got_bytes,
+             NULL, NULL);
     check(fail == NS_FAIL_TLS_CERT,      "expired: classifies as the certificate");
     check(strstr(detail, "expired") != NULL,
           "expired: the sentence says expired");
@@ -376,7 +450,8 @@ int main(int argc, char **argv)
     /* Somebody else's certificate. */
     snprintf(crt, sizeof(crt), "%s", fixture("wronghost.crt"));
     snprintf(key, sizeof(key), "%s", fixture("wronghost.key"));
-    run_case(crt, key, &fail, detail, sizeof(detail), &got_bytes);
+    run_case(crt, key, 0, &fail, detail, sizeof(detail), &got_bytes,
+             NULL, NULL);
     check(fail == NS_FAIL_TLS_CERT,      "wrong host: classifies as the certificate");
     check(strstr(detail, "is not for \"localhost\"") != NULL,
           "wrong host: the sentence names the host asked for");
@@ -385,14 +460,16 @@ int main(int argc, char **argv)
     /* Nobody signed it. */
     snprintf(crt, sizeof(crt), "%s", fixture("selfsigned.crt"));
     snprintf(key, sizeof(key), "%s", fixture("selfsigned.key"));
-    run_case(crt, key, &fail, detail, sizeof(detail), &got_bytes);
+    run_case(crt, key, 0, &fail, detail, sizeof(detail), &got_bytes,
+             NULL, NULL);
     check(fail == NS_FAIL_TLS_CERT,      "self-signed: classifies as the certificate");
     check(strstr(detail, "trusted authority") != NULL,
           "self-signed: the sentence says untrusted");
     check(!got_bytes,                    "self-signed: not a byte crossed");
 
     /* The downgrade: plain text answering where TLS was demanded. */
-    run_case(NULL, NULL, &fail, detail, sizeof(detail), &got_bytes);
+    run_case(NULL, NULL, 0, &fail, detail, sizeof(detail), &got_bytes,
+             NULL, NULL);
     check(fail == NS_FAIL_TLS_HANDSHAKE, "plain-text port: classifies as the handshake");
     check(strstr(detail, "TLS handshake") != NULL,
           "plain-text port: the sentence points at the port");

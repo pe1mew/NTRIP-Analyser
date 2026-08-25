@@ -108,6 +108,15 @@ struct NtripSession {
     bool       stopped;
     bool       ended;
     bool       connected;
+
+    /* Chunked transfer decoding.  NTRIP 2 over HTTP -- Kadaster's TLS
+     * endpoint, found live at L5 of the TLS rollout -- wraps the RTCM
+     * in Transfer-Encoding: chunked, and the chunk-size lines cost a
+     * fifth of the frames their CRCs until this existed.  Gated on
+     * handshake.chunked, which ns_proto has parsed since the handshake
+     * struct existed; the GUI displayed it and nothing consumed it. */
+    int        ck_state;
+    uint64_t   ck_remain;
     NsFailure  failure;    /**< why this session cannot run, if it cannot */
     bool       header_done;
     bool       announced_streaming;
@@ -744,6 +753,80 @@ NsFailure ns_failure(const NtripSession *s)
     return s ? s->failure : NS_FAIL_NONE;
 }
 
+/* ── Chunked transfer decoding ────────────────────────────────────
+ *
+ * States for one byte-at-a-time pass over the chunk framing.  The data
+ * bytes themselves go to feed() in whole runs; only the framing is
+ * walked byte by byte, and framing is a few bytes per chunk.
+ */
+enum {
+    CK_SIZE = 0,   /* reading the hex size line              */
+    CK_EXT,        /* a ;extension -- skipped to the CR      */
+    CK_SIZE_LF,    /* the LF after the size line             */
+    CK_DATA,       /* ck_remain data bytes belong to feed()  */
+    CK_DATA_CR,    /* the CR after a chunk's data            */
+    CK_DATA_LF,    /* the LF after that                      */
+    CK_END,        /* the 0-chunk arrived; swallow trailers  */
+};
+
+/**
+ * @brief Feed payload through the chunk decoder.
+ *
+ * Everything between the chunk-size lines is stream; everything else
+ * is HTTP.  A last chunk of size zero means the caster is done -- the
+ * socket close that follows is handled where closes are handled.
+ */
+static void feed_dechunk(NtripSession *s, const unsigned char *data,
+                         int len)
+{
+    int i = 0;
+    while (i < len) {
+        unsigned char c = data[i];
+        switch (s->ck_state) {
+            case CK_SIZE:
+                if (c >= '0' && c <= '9')
+                    { s->ck_remain = s->ck_remain * 16 + (c - '0'); i++; }
+                else if (c >= 'a' && c <= 'f')
+                    { s->ck_remain = s->ck_remain * 16 + (c - 'a' + 10); i++; }
+                else if (c >= 'A' && c <= 'F')
+                    { s->ck_remain = s->ck_remain * 16 + (c - 'A' + 10); i++; }
+                else if (c == ';') { s->ck_state = CK_EXT; i++; }
+                else if (c == '\r') { s->ck_state = CK_SIZE_LF; i++; }
+                else i++;          /* tolerate; a lost byte resyncs here */
+                break;
+            case CK_EXT:
+                if (c == '\r') s->ck_state = CK_SIZE_LF;
+                i++;
+                break;
+            case CK_SIZE_LF:
+                s->ck_state = s->ck_remain ? CK_DATA : CK_END;
+                i++;
+                break;
+            case CK_DATA: {
+                int run = len - i;
+                if ((uint64_t)run > s->ck_remain) run = (int)s->ck_remain;
+                feed(s, data + i, run);
+                s->ck_remain -= (uint64_t)run;
+                i += run;
+                if (s->ck_remain == 0) s->ck_state = CK_DATA_CR;
+                break;
+            }
+            case CK_DATA_CR:
+                s->ck_state = CK_DATA_LF;
+                i++;
+                break;
+            case CK_DATA_LF:
+                s->ck_state  = CK_SIZE;
+                s->ck_remain = 0;
+                i++;
+                break;
+            case CK_END:
+            default:
+                return;            /* trailers are nobody's stream */
+        }
+    }
+}
+
 /**
  * @brief Record why this session cannot run, in one place.
  *
@@ -805,6 +888,7 @@ static void do_connect(NtripSession *s)
     const char *agent = s->opt.user_agent ? s->opt.user_agent
                                           : NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB);
     int n = ns_proto_build_request(req, sizeof(req),
+                                   s->opt.config.TLS,
                                    s->opt.config.NTRIP_CASTER,
                                    s->opt.config.MOUNTPOINT,
                                    s->opt.config.USERNAME,
@@ -828,6 +912,8 @@ static void do_connect(NtripSession *s)
 
     s->connected   = true;
     s->header_len  = 0;
+    s->ck_state    = CK_SIZE;    /* a reconnect renegotiates chunking */
+    s->ck_remain   = 0;
     s->header_done = false;
     s->backoff_s   = 0;
     s->last_rx_t   = ns_now();   /* silence is counted from here */
@@ -1151,7 +1237,10 @@ int ns_pump(NtripSession *s, int timeout_ms)
         if (s->ended) return -1;
         if (off < 0) return n;       /* header still incomplete */
     }
-    if (off < n) feed(s, buf + off, n - off);
+    if (off < n) {
+        if (s->handshake.chunked) feed_dechunk(s, buf + off, n - off);
+        else                      feed(s, buf + off, n - off);
+    }
 
     stats_refresh(s, now);
     maybe_emit_stats(s, now);

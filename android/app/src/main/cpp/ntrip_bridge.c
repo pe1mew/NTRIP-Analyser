@@ -236,7 +236,14 @@ static int bridge_decode_eph(NtripBridge *b, const unsigned char *payload,
 static void bridge_on_event(const NsEvent *ev, void *user)
 {
     NtripBridge *b = (NtripBridge *)user;
-    if (!b || !ev || ev->type != NS_EV_FRAME) return;
+    if (!b || !ev) return;
+    /* The session already writes the sentence; in a debug build it goes
+     * to logcat too, because a phone has no stderr to read. */
+    if (ev->type == NS_EV_LOG && ev->u.log.level >= NS_LOG_WARN) {
+        BLOG("session: %s", ev->u.log.text);
+        return;
+    }
+    if (ev->type != NS_EV_FRAME) return;
 
     const unsigned char *payload = ev->u.frame.data + 3;
     int payload_len = ev->u.frame.len - 6;      /* header and CRC removed */
@@ -372,6 +379,7 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
         int n = 0;
         SourcetableEntry *e = bridge_parse_table(table, &n);
         BLOG("sourcetable: %zu bytes, %d entries parsed", strlen(table), n);
+        if (n == 0) BLOG("sourcetable head: %.200s", table);
         bool found = false;
         if (e) {
             for (int i = 0; i < n; i++) {

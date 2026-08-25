@@ -79,6 +79,7 @@ static int strncasecmp_local(const char *a, const char *b, size_t n)
 }
 
 int ns_proto_build_request(char *out, size_t cap,
+                           bool tls,
                            const char *host, const char *mountpoint,
                            const char *user, const char *pass,
                            const char *agent)
@@ -106,14 +107,16 @@ int ns_proto_build_request(char *out, size_t cap,
             snprintf(auth_line, sizeof(auth_line),
                      "Authorization: Basic %s\r\n", enc);
 
+        /* Only over plain text: TLS is what retires this sentence,
+         * connection by connection (design/tls.md F3). */
         static bool warned = false;
-        if (!warned) {
+        if (!tls && !warned) {
             warned = true;
             fprintf(stderr,
                     "[SECURITY] Credentials for %s are sent as HTTP Basic "
                     "over a plain TCP connection: base64 is an encoding, "
                     "not encryption, and anything on the network path can "
-                    "read them. This client does not support TLS.\n",
+                    "read them. Enable TLS if the caster offers it.\n",
                     host ? host : "the caster");
         }
     }
