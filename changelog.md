@@ -4,6 +4,56 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [3.7.2] - 2026-08-25
+
+Two tester reports and one fault of our own, all in the frame every
+screen shares -- so this is both editions' release, and the first cut
+from reports that arrived through the issue tracker.
+
+### Fixed — the first two tester reports, both editions
+
+**The sky view survives a screen lock** (GH#2). Locking the phone for
+even a second made every satellite "reload": the receiver's first
+reports after an unlock carry almost nothing, and the app replaced its
+whole placement map on every report. It merges now -- a fresh report
+always wins, a satellite absent from one is retained, and retention
+ages out on the same four-hour trust the orbit cache gives an
+ephemeris: one duration, every position source. The long window is safe
+because the merge overwrites coasted entries the moment fresh reports
+flow; it only ever bridges gaps.
+
+**The connection cannot be edited out from under a run** (GH#3). A
+run's settings are captured when it starts -- deliberately, so a run
+cannot change subject halfway -- but the tile stayed a door, and an
+edit mid-run changed only the *next* run while the tile named the new
+caster under the old verdict. The tile now keeps its place and loses
+its tap and its forward mark while a run is going, exactly as Browse
+already withdraws; the settings dialog, still reachable from the menu,
+shows read-only with one line saying why, and offers no Save -- a
+button that writes back what it read would only claim an edit happened.
+
+### Fixed — a long capture is now a long record
+
+Both analysis plots accumulated in the screen that draws them, so a
+rotation reset them and a screen that was off recorded nothing at all: a
+nine-hour capture drew its arcs from the minutes its screen happened to
+be on, and its C/N0 scatter from 25 000 samples where nine hours holds
+a million. What the plots showed was true; it was true of far less than
+the run.
+
+The record now belongs to the run. Both accumulators live with the
+service that decodes the stream, are cleared when a run starts rather
+than when a screen re-enters, and are fed where the document is
+published. Measured off screen: 45 samples a second, against nothing
+before. Satellites only the handset can place are still recorded by the
+screen, because that is the only side that has the handset's fixes --
+one satellite, one source.
+
+The trail cap goes from four hours to a day, the desktop's own number,
+so a nine-hour capture is nine hours of arc; the arcs are built once a
+document rather than once a frame, and drawn thinner than the markers
+they sit behind.
+
 ## [3.7.1] - 2026-08-23
 
 ### Fixed — the legend, under the navigation buttons
@@ -31,28 +81,6 @@ So this release also removes the way that happened:
   may not be built separately.
 
 ## [Unreleased]
-
-### Fixed — the first two tester reports, both editions
-
-**The sky view survives a screen lock** (GH#2). Locking the phone for
-even a second made every satellite "reload": the receiver's first
-reports after an unlock carry almost nothing, and the app replaced its
-whole placement map on every report. It merges now -- a fresh report
-always wins, a satellite absent from one is retained, and retention
-ages out on the same four-hour trust the orbit cache gives an
-ephemeris: one duration, every position source. The long window is safe
-because the merge overwrites coasted entries the moment fresh reports
-flow; it only ever bridges gaps.
-
-**The connection cannot be edited out from under a run** (GH#3). A
-run's settings are captured when it starts -- deliberately, so a run
-cannot change subject halfway -- but the tile stayed a door, and an
-edit mid-run changed only the *next* run while the tile named the new
-caster under the old verdict. The tile now keeps its place and loses
-its tap and its forward mark while a run is going, exactly as Browse
-already withdraws; the settings dialog, still reachable from the menu,
-shows read-only with one line saying why, and offers no Save -- a
-button that writes back what it read would only claim an edit happened.
 
 ### Added — where the reference position stands, in the paid edition
 
@@ -133,28 +161,6 @@ nothing happened.
 
 The card's lines are also the size a KPI row's evidence is. They were a
 step larger, for no reason beyond the order they were written in.
-
-### Fixed — a long capture is now a long record
-
-Both analysis plots accumulated in the screen that draws them, so a
-rotation reset them and a screen that was off recorded nothing at all: a
-nine-hour capture drew its arcs from the minutes its screen happened to
-be on, and its C/N0 scatter from 25 000 samples where nine hours holds
-a million. What the plots showed was true; it was true of far less than
-the run.
-
-The record now belongs to the run. Both accumulators live with the
-service that decodes the stream, are cleared when a run starts rather
-than when a screen re-enters, and are fed where the document is
-published. Measured off screen: 45 samples a second, against nothing
-before. Satellites only the handset can place are still recorded by the
-screen, because that is the only side that has the handset's fixes --
-one satellite, one source.
-
-The trail cap goes from four hours to a day, the desktop's own number,
-so a nine-hour capture is nine hours of arc; the arcs are built once a
-document rather than once a frame, and drawn thinner than the markers
-they sit behind.
 
 ### Added — satellite tracks, in the paid edition
 
