@@ -666,6 +666,22 @@ def check_handover_parity():
               "the %s edition does not redefine a hand-over string" % flavour)
 
 
+# ── The export vocabulary ─────────────────────────────────────────────
+# The CSV dialect is pinned where it is made (test_bridge_vrs: first
+# line equals the core header byte for byte). What remains checkable
+# here is the words around the files: one set, in main/, so the two
+# editions cannot describe one exporter differently.
+
+def check_export_parity():
+    print("export strings")
+    for flavour in ("free", "pro"):
+        path = os.path.join(ROOT, "android", "app", "src", flavour,
+                            "res", "values", "strings.xml")
+        text = io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        check("export_" not in text and "menu_export" not in text,
+              "the %s edition does not redefine an export string" % flavour)
+
+
 # ── One source set, three build systems ───────────────────────────────
 # CMakeLists.txt builds the desktop and the daemon; the NDK's own
 # CMakeLists builds the app from the same src/.  A file added to one and
@@ -843,6 +859,7 @@ def main():
     check_failure_codes()
     check_vrs_parity()
     check_handover_parity()
+    check_export_parity()
     check_source_lists()
     check_artefacts(ver)
 

@@ -73,7 +73,7 @@ or forms a verdict; that rule is what makes the next row true.
 | Offline replay of a capture | The same code path as a live stream, so a capture is analysed exactly as the stream was. Reproducible bug reports, and regression tests that need no caster. | ● | ● | ○ | ○ | ○ |
 | RINEX 3 NAV import | User-supplied orbits. The product never downloads a navigation file, so the licence relationship stays the user's. | ● | ● | ● | ● | ○ |
 | Sky plot export (PNG) | Timestamped and scriptable, so a cron job can produce a nightly coverage plot. | ● | ● | ○ | ○ | ○ |
-| Statistics export | The GUI writes CSV and JSON; the CLI emits one JSON object per tick on stderr. | ◐ | ● | ⋯ | ⋯ | ● |
+| Statistics export | The GUI writes CSV and JSON; the CLI emits one JSON object per tick on stderr. The app exports the document as JSON or the daemon's CSV, mid-run or after. | ◐ | ● | ○ | ● | ● |
 | Snapshot publishing | Atomic per-mountpoint JSON — written to a temporary file and renamed, so a reader never sees half a snapshot. Munin reads it; so can anything else. | ○ | ○ | ○ | ○ | ● |
 
 ## Operation

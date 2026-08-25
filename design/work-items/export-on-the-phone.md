@@ -167,7 +167,17 @@ Downloads, read the files back over adb — the JSON parses and its
 a fresh install with no run yet shows the row greyed. Free: the row is
 absent and the *More in Pro* wording covers it.
 
-### E4 — the guards
+### E4 — the guards  *(done 2026-08-25)*
+
+The gate row landed during E3, demanded by the existing check. E4
+added row 76 (free ○, pro ●, with the app's own sentence in the
+description) and `check_export_parity()` -- the one-vocabulary rule
+for the strings, falsified by planting an `export_done` in free's
+strings and watching it go red by name. The CSV dialect itself needs
+no check here: it is pinned where it is made, in the bridge harness,
+byte for byte against the core header. **93 checks.**
+
+*(As planned:)*
 
 `HAS_EXPORT` documented in the matrix gate table (the check demands
 it); row 76 Free ⋯ → ○, Pro ⋯ → ●; a parity line confirming neither
