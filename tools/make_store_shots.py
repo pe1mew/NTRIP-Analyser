@@ -118,9 +118,11 @@ REDACTIONS = {
              False, 38, TILE_BG, PAGE_INK),
         ],
         'sky': [
-            # Likewise: v3 moved the footer up, clear of the navigation
-            # bar, so the old box landed on the legend.
-            ((368, 2058, 812, 2108), ARP_HIDDEN, True, 40,
+            # Re-measured for 3.8.0 (both editions share the geometry
+            # now): the coordinates span x 445-879, and the old box
+            # started mid-"ARP:" and stopped short, leaving the tail
+            # digits readable beside the replacement.
+            ((430, 2058, 890, 2106), ARP_HIDDEN, True, 40,
              PAGE_BG, PAGE_INK),
         ],
     },
@@ -133,11 +135,12 @@ REDACTIONS = {
             ((84, 818, 470, 866), 'ntrip.example.com:2101', True, 44,
              TILE_BG, TILE_INK),
         ],
-        # *Not* the same geometry as pro, which v2 believed. Free's
-        # analysis screen carries a two-line note where pro carries a
-        # button, and the footer ends up 22 px lower.
+        # Same geometry as pro since 3.8.0's captures -- measured, not
+        # assumed, both times: the earlier 22 px difference is gone and
+        # the old box painted the replacement *below* the real line,
+        # which stayed readable above it.
         'sky': [
-            ((368, 2080, 812, 2130), ARP_HIDDEN, True, 40,
+            ((430, 2058, 890, 2106), ARP_HIDDEN, True, 40,
              PAGE_BG, PAGE_INK),
         ],
     },
