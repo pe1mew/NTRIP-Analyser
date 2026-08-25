@@ -4,6 +4,39 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [3.7.3] - 2026-08-25
+
+Fixes and polish, both editions. The paid capabilities built alongside
+them stay unreleased until the paid edition ships whole.
+
+### Changed — runs start in one place, and the app says which is going
+
+First field use of the stability card found the watch had outgrown its
+home: its products moved to the hub years after its start button, the
+card promised ten minutes to a two-minute run, and the banner narrated
+only tier 1. Now the hub owns all three run verbs — check, watch,
+network-RTK — each with a line saying which tier answers and what it
+costs in time; the analysis screen's start and stop are gone entirely;
+the banner's bar changes duty during a watch to the ten-minute
+evidence floor and its subtitle counts it; and the stability card
+tells a check honestly that it ends before the evidence can arrive.
+
+Two faults fixed on the way: the run verbs share the verdict banner's
+corners instead of growing into tall pills, and a second start can no
+longer spawn a second worker over a running measurement — the service
+door refuses with a logged reason.
+
+### Fixed — the sky header credited a file for the stream's orbits
+
+The source line is decided per run, but the orbit cache lives as long
+as the process: a second run placed every satellite from the ephemeris
+stream's records fetched minutes earlier, while the header credited a
+day-old navigation file that had placed nothing. Caught by the author
+mid-verification -- the same family as the matrix's own cautionary
+line, *a stale file used to read as a full cache*, in the other
+direction. The stream flag now lives as long as the cache it
+describes; a flag's lifetime must match the thing it describes.
+
 ## [3.7.2] - 2026-08-25
 
 Two tester reports and one fault of our own, all in the frame every
@@ -95,34 +128,6 @@ the engine's own countdown until ten minutes of stream have been seen.
 The matrix's old reason for Android's absence — no runtime to sustain
 a ten-minute run — expired the day watch mode shipped; this release
 collects. Phase 2, item 5.
-
-### Changed — runs start in one place, and the app says which is going
-
-First field use of the stability card found the watch had outgrown its
-home: its products moved to the hub years after its start button, the
-card promised ten minutes to a two-minute run, and the banner narrated
-only tier 1. Now the hub owns all three run verbs — check, watch,
-network-RTK — each with a line saying which tier answers and what it
-costs in time; the analysis screen's start and stop are gone entirely;
-the banner's bar changes duty during a watch to the ten-minute
-evidence floor and its subtitle counts it; and the stability card
-tells a check honestly that it ends before the evidence can arrive.
-
-Two faults fixed on the way: the run verbs share the verdict banner's
-corners instead of growing into tall pills, and a second start can no
-longer spawn a second worker over a running measurement — the service
-door refuses with a logged reason.
-
-### Fixed — the sky header credited a file for the stream's orbits
-
-The source line is decided per run, but the orbit cache lives as long
-as the process: a second run placed every satellite from the ephemeris
-stream's records fetched minutes earlier, while the header credited a
-day-old navigation file that had placed nothing. Caught by the author
-mid-verification -- the same family as the matrix's own cautionary
-line, *a stale file used to read as a full cache*, in the other
-direction. The stream flag now lives as long as the cache it
-describes; a flag's lifetime must match the thing it describes.
 
 ### Added — statistics export, in the paid edition
 

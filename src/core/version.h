@@ -41,16 +41,16 @@
  */
 #define NTRIP_VERSION_MAJOR   3
 #define NTRIP_VERSION_MINOR   7
-#define NTRIP_VERSION_PATCH   2
+#define NTRIP_VERSION_PATCH   3
 
 /** Human-readable version.  Keep in step with the three numbers above. */
-#define NTRIP_VERSION_STRING  "3.7.2"
+#define NTRIP_VERSION_STRING  "3.7.3"
 
 /** Comma-separated form required by the Win32 VERSIONINFO resource. */
-#define NTRIP_VERSION_RC      3,7,2,0
+#define NTRIP_VERSION_RC      3,7,3,0
 
 /** Dotted four-part form for the Win32 resource string fields. */
-#define NTRIP_VERSION_RC_STR  "3.7.2.0"
+#define NTRIP_VERSION_RC_STR  "3.7.3.0"
 
 /*
  * Android's versionCode is NOT defined here.
