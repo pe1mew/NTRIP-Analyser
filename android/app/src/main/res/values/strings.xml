@@ -15,6 +15,7 @@
          from the C engine, exactly as the eight checks' words do; these
          are only the furniture around them. -->
     <string name="action_vrs">Network-RTK check</string>
+    <string name="settings_locked">Read-only while a run is going — the run keeps the settings it started with.</string>
     <string name="vrs_title">Network-RTK</string>
     <string name="vrs_service">Service: %1$s</string>
     <string name="vrs_running">Testing the service — the gate test ends the run by itself</string>

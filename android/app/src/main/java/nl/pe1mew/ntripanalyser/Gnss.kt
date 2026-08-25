@@ -131,6 +131,12 @@ enum class PositionSource { NONE, PHONE_GNSS, OBS_STREAM, EPHEMERIS, RINEX }
  */
 class PhoneGnss(private val context: Context) {
 
+    /** A placement and when the receiver last confirmed it. */
+    private data class Held(val pos: SatPosition, val tSeconds: Double)
+
+    /** Everything the receiver has placed, retained across its gaps. */
+    private val held = HashMap<Long, Held>()
+
     private val _positions = MutableStateFlow<Map<Long, SatPosition>>(emptyMap())
 
     /** Keyed by [key] so the sky view can join by (constellation, PRN). */
@@ -158,7 +164,21 @@ class PhoneGnss(private val context: Context) {
 
         val cb = object : GnssStatus.Callback() {
             override fun onSatelliteStatusChanged(status: GnssStatus) {
-                val map = HashMap<Long, SatPosition>(status.satelliteCount)
+                // Merge, never replace (backlog 1.9, GH#1). This used to
+                // assign the fresh map wholesale -- and the receiver's
+                // first reports after a screen unlock carry almost
+                // nothing, so a one-second lock wiped every placed
+                // satellite off the sky view and the plot "reloaded".
+                // Now a fresh report always wins, a satellite absent
+                // from it is retained, and retention ages out on the
+                // same trust the orbit cache gives an ephemeris
+                // (sv_eph_is_valid_at: four hours). The long window is
+                // safe *because* of the merge: on screen, a report a
+                // second overwrites any coasted entry immediately, so
+                // the window only ever bridges gaps. Drawing is further
+                // gated on the caster still tracking the satellite, so
+                // one the stream drops disappears regardless.
+                val now = System.currentTimeMillis() / 1000.0
                 for (i in 0 until status.satelliteCount) {
                     val g = Gnss.fromAndroid(status.getConstellationType(i))
                     if (g == 0) continue
@@ -170,13 +190,21 @@ class PhoneGnss(private val context: Context) {
                     if (el <= 0f && az == 0f) continue
 
                     val prn = Gnss.prnFromAndroid(g, status.getSvid(i))
-                    map[key(g, prn)] = SatPosition(
-                        gnss = g, prn = prn,
-                        azimuthDeg = az, elevationDeg = el,
-                        phoneCn0 = status.getCn0DbHz(i),
+                    held[key(g, prn)] = Held(
+                        SatPosition(
+                            gnss = g, prn = prn,
+                            azimuthDeg = az, elevationDeg = el,
+                            phoneCn0 = status.getCn0DbHz(i),
+                        ),
+                        now,
                     )
                 }
-                _positions.value = map
+                val it = held.entries.iterator()
+                while (it.hasNext()) {
+                    if (now - it.next().value.tSeconds > PLACE_RETAIN_S)
+                        it.remove()
+                }
+                _positions.value = held.mapValues { e -> e.value.pos }
             }
         }
         runCatching { lm.registerGnssStatusCallback(cb, null) }
@@ -217,3 +245,12 @@ class PhoneGnss(private val context: Context) {
 
 /** A position from the phone's own receiver, in degrees and metres. */
 data class Fix(val lat: Double, val lon: Double, val accuracyM: Float)
+
+/**
+ * How long a phone-supplied placement is trusted without a fresh report.
+ *
+ * The author's rule (backlog 1.9, GH#1): one trust duration for every
+ * position source -- this is the four-hour grace `sv_eph_is_valid_at()`
+ * already gives an ephemeris, for the same sky plot.
+ */
+private const val PLACE_RETAIN_S = 4.0 * 3600.0

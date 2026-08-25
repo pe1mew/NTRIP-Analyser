@@ -133,11 +133,15 @@ internal fun VerdictBadge(
  * for a report, should not carry a credential.
  */
 @Composable
-internal fun ConfigSummary(s: CasterSettings, onEdit: () -> Unit) {
+internal fun ConfigSummary(
+    s: CasterSettings,
+    enabled: Boolean = true,
+    onEdit: () -> Unit,
+) {
     Card(
         Modifier
             .fillMaxWidth()
-            .clickable { onEdit() }
+            .clickable(enabled = enabled) { onEdit() }
     ) {
         Column(Modifier.padding(12.dp)) {
             if (!s.isComplete) {

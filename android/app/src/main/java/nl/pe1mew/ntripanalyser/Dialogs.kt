@@ -127,6 +127,12 @@ internal fun SettingsDialog(
     onSave: (CasterSettings) -> Unit,
     /** Which field the last failure implicates, if any (GUI v3, P5.2). */
     focus: FailureFix = FailureFix.NONE,
+    /**
+     * A run keeps the settings it started with, so while one is going
+     * this dialog shows and does not edit (GH#2). Reached then only via
+     * the overflow menu; the hub tile's tap is withdrawn with its mark.
+     */
+    readOnly: Boolean = false,
 ) {
     // A message that names the fault and does not offer the fix is half
     // a message. Coming here from "the caster rejected the user name or
@@ -227,9 +233,17 @@ internal fun SettingsDialog(
                 // characters ("ntrip..kadaster.nl").  Choosing a keyboard
                 // that never inserts them avoids the fight entirely;
                 // save-time sanitising below still catches pasted text.
+                if (readOnly) {
+                    Text(
+                        stringResource(R.string.settings_locked),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 OutlinedTextField(
                     caster,
                     { caster = it },
+                    enabled = !readOnly,
                     label = { Text(stringResource(R.string.field_caster)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -238,6 +252,7 @@ internal fun SettingsDialog(
                                else Modifier,
                 )
                 OutlinedTextField(port, { port = it.filter(Char::isDigit) },
+                    enabled = !readOnly,
                     label = { Text(stringResource(R.string.field_port)) }, singleLine = true)
                 // The same keyboard the caster field asks for, and for
                 // the same reason: with a text keyboard EMUI commits a
@@ -248,6 +263,7 @@ internal fun SettingsDialog(
                 // produced it, and the trim() on save cannot remove a
                 // character the user never typed.
                 OutlinedTextField(mountpoint, { mountpoint = it },
+                    enabled = !readOnly,
                     label = { Text(stringResource(R.string.field_mountpoint)) },
                     singleLine = true,
                     modifier = if (focus == FailureFix.MOUNTPOINT)
@@ -255,6 +271,7 @@ internal fun SettingsDialog(
                                else Modifier,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
                 OutlinedTextField(user, { user = it },
+                    enabled = !readOnly,
                     label = { Text(stringResource(R.string.field_user)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
@@ -267,6 +284,7 @@ internal fun SettingsDialog(
                 // password typed on a phone keyboard and never checked
                 // is the other way this field goes wrong.
                 OutlinedTextField(password, { password = it },
+                    enabled = !readOnly,
                     label = { Text(stringResource(R.string.field_password)) },
                     singleLine = true,
                     modifier = if (focus == FailureFix.CREDENTIALS)
@@ -296,7 +314,7 @@ internal fun SettingsDialog(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(gga, { gga = it })
+                    Checkbox(gga, { gga = it }, enabled = !readOnly)
                     Text(stringResource(R.string.field_gga))
                 }
 
@@ -311,7 +329,7 @@ internal fun SettingsDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(live, { on ->
                                 if (on) enableLive() else live = false
-                            })
+                            }, enabled = !readOnly)
                             Text(stringResource(R.string.field_gga_live))
                         }
                     }
@@ -325,8 +343,10 @@ internal fun SettingsDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     OutlinedTextField(lat, { lat = it },
+                        enabled = !readOnly,
                         label = { Text(stringResource(R.string.field_lat)) }, singleLine = true)
                     OutlinedTextField(lon, { lon = it },
+                        enabled = !readOnly,
                         label = { Text(stringResource(R.string.field_lon)) }, singleLine = true)
 
                     // The map is somebody else's: a geo: intent hands the
@@ -335,7 +355,7 @@ internal fun SettingsDialog(
                     // back through the clipboard. The Windows GUI does the
                     // same with its own browser page; see MapPick.
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = {
+                        TextButton(enabled = !readOnly, onClick = {
                             val ok = MapPick.open(
                                 context,
                                 lat.toDoubleOrNull() ?: 52.0,
@@ -344,7 +364,7 @@ internal fun SettingsDialog(
                             hint = context.getString(
                                 if (ok) R.string.map_hint else R.string.map_no_app)
                         }) { Text(stringResource(R.string.action_map)) }
-                        TextButton(onClick = {
+                        TextButton(enabled = !readOnly, onClick = {
                             val picked = MapPick.parse(MapPick.clipboard(context))
                             if (picked == null) {
                                 hint = context.getString(R.string.map_paste_failed)
@@ -356,8 +376,8 @@ internal fun SettingsDialog(
                         }) { Text(stringResource(R.string.action_paste)) }
                         TextButton(
                             onClick = { fromStation() },
-                            enabled = !looking && caster.isNotBlank() &&
-                                mountpoint.isNotBlank(),
+                            enabled = !readOnly && !looking &&
+                                caster.isNotBlank() && mountpoint.isNotBlank(),
                         ) { Text(stringResource(R.string.action_from_station)) }
                     }
                     if (looking) {
@@ -396,14 +416,17 @@ internal fun SettingsDialog(
                     )
                     OutlinedTextField(
                         ephCaster, { ephCaster = it },
+                        enabled = !readOnly,
                         label = { Text(stringResource(R.string.field_eph_caster)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     )
                     OutlinedTextField(ephPort, { ephPort = it.filter(Char::isDigit) },
+                        enabled = !readOnly,
                         label = { Text(stringResource(R.string.field_eph_port)) },
                         singleLine = true)
                     OutlinedTextField(ephMp, { ephMp = it },
+                        enabled = !readOnly,
                         label = { Text(stringResource(R.string.field_eph_mp)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
@@ -417,7 +440,10 @@ internal fun SettingsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            // No Save on a dialog that cannot change anything: a button
+            // that writes back what it read would only claim an edit
+            // happened.
+            if (!readOnly) TextButton(onClick = {
                 onSave(
                     CasterSettings(
                         // Belt and braces: the field filters as typed,

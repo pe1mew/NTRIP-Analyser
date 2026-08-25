@@ -32,6 +32,28 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Fixed — the first two tester reports, both editions
+
+**The sky view survives a screen lock** (GH#1). Locking the phone for
+even a second made every satellite "reload": the receiver's first
+reports after an unlock carry almost nothing, and the app replaced its
+whole placement map on every report. It merges now -- a fresh report
+always wins, a satellite absent from one is retained, and retention
+ages out on the same four-hour trust the orbit cache gives an
+ephemeris: one duration, every position source. The long window is safe
+because the merge overwrites coasted entries the moment fresh reports
+flow; it only ever bridges gaps.
+
+**The connection cannot be edited out from under a run** (GH#2). A
+run's settings are captured when it starts -- deliberately, so a run
+cannot change subject halfway -- but the tile stayed a door, and an
+edit mid-run changed only the *next* run while the tile named the new
+caster under the old verdict. The tile now keeps its place and loses
+its tap and its forward mark while a run is going, exactly as Browse
+already withdraws; the settings dialog, still reachable from the menu,
+shows read-only with one line saying why, and offers no Save -- a
+button that writes back what it read would only claim an edit happened.
+
 ### Added — where the reference position stands, in the paid edition
 
 How far the service's reference position is from where you stand, live

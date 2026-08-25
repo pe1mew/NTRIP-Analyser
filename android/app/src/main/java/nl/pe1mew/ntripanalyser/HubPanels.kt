@@ -74,10 +74,18 @@ object ConnectionPanel : Panel {
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        ConfigSummary(state.settings) { actions.editConnection() }
+        // A nameplate while a run is going, a door otherwise (GH#2).
+        // The tile itself stays -- the subject of a measurement belongs
+        // on screen -- but a run's settings were captured when it
+        // started, so an edit here would change only the *next* run
+        // while the tile named the new caster under the old verdict.
+        ConfigSummary(state.settings, enabled = !state.run.running) {
+            actions.editConnection()
+        }
     }
 
-    override fun affordance(state: HubState) = Affordance.FORWARD
+    override fun affordance(state: HubState) =
+        if (state.run.running) Affordance.NONE else Affordance.FORWARD
 
     /**
      * The subject of the measurement, and **only** the subject.

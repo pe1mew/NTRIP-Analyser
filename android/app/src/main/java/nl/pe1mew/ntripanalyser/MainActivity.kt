@@ -630,6 +630,7 @@ fun MainScreen() {
             initial = settings,
             // Where the last failure points, if it pointed anywhere.
             focus = failureFix(runState.document?.stats?.failure ?: Failure.NONE),
+            readOnly = runState.running,
             onDismiss = { showSettings = false },
             onSave = {
                 store = Settings.save(context, it)

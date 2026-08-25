@@ -509,7 +509,7 @@ out on their merits, their DF401 phase range being 22 bits at a coarser scale.
 Found while widening C/N0 to MSM4/5/6 (§0). Same family of error: a limit of the reader documented
 as a property of the format.
 
-### 1.9 Sky view: phone-placed satellites survive a screen lock — **Open** `[GH#1]`
+### 1.9 Sky view: phone-placed satellites survive a screen lock — **Shipped** 2026-08-24 `[GH#1]`
 
 Reported by a free-edition tester: lock the phone for even a second on the sky view and
 every satellite "reloads" on unlock; Signal quality and C/N0-vs-elevation do not do this.
@@ -543,6 +543,44 @@ a receiver hiccup). A satellite genuinely gone still disappears the honest way: 
 position ages past the window. What the window must **not** become is a licence to draw an
 hours-old azimuth/elevation as current while fresh reports flow — the merge rule prevents
 that by construction.
+
+### 1.10 The connection is editable while a run measures the old one — **Shipped** 2026-08-24 `[GH#2]`
+
+Reported by a free-edition tester: during a run, the caster settings can be opened, edited
+and — in pro — switched to another saved connection, while the test keeps running against
+what was configured when it started. Misleading: the tile then names one station and the
+verdict describes another. The tester suggests disabling editing and selection during a run.
+
+**Why it is this way.** Two decisions, each right alone, compose wrongly:
+
+1. The connection tile stays visible mid-run *on purpose* — "a measurement whose subject is
+   off screen is a measurement of nothing in particular", and hiding it once took the only
+   tap into the settings with it (`HubPanels.kt`, ConnectionPanel's header comment). The
+   tile kept its tap when it kept its place.
+2. A run's settings are **captured at start** (`MonitorService.start()` passes them as
+   intent extras) — deliberately, so a run cannot change subject halfway. Editing mid-run
+   therefore edits only the *next* run, but nothing on screen says so.
+
+The stray horizontal drag that opens the profile picker (older open item, 2026-08-22) is
+the same exposure by another road, and should close with this.
+
+**The fix, following the hub's own precedent.** `BrowsePanel` already answers this: it is
+"not offered while a run is going", affordance and all. Extend the same rule:
+
+- During a run the connection tile stays — it names the subject — but drops its `▶` and
+  its tap: `ConfigSummary` gains an enabled flag, `ConnectionPanel.affordance()` returns
+  NONE while `run.running` (a mark over a dead row is a control that is not there).
+- The profile switcher and the drag that reaches it are disabled while running.
+- The overflow's Settings row is the one deliberate exception to consider: it also holds
+  RINEX import, which is legitimate mid-run. If it stays reachable, the connection fields
+  inside the dialog should be read-only during a run rather than the whole dialog barred.
+
+**Settled as built:** disabled outright, the tester's suggestion. The tile keeps its place
+and loses its tap and its mark while a run is going; the picker is unreachable with it (its
+only entrance is the tile); the overflow's Settings still opens, read-only, with one line
+saying why and no Save button — a dialog that cannot change anything must not offer to.
+The stray-drag entrance had already gone with the swipes (GUI v2, P1.7), so there was
+nothing left to close there.
 
 ### 1.7 Legacy observation messages — **Shipped**, see §0
 
