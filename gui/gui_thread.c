@@ -902,6 +902,12 @@ static void eph_log(AppState *state, const char *fmt, ...)
 typedef struct {
     AppState *state;
     int       eph_count;   /* ephemerides cached so far */
+    /* Discard sink for the decoders' text.  The CLI's eph worker and
+     * the Android bridge both install one; this worker forgot, and
+     * every ephemeris from a busy caster dumped its full decode into
+     * the log tab (found streaming BCEP00KAD0, TLS rollout L5). */
+    RtcmStrBuf sink;
+    int        sink_used;
 } EphCtx;
 
 /** @brief Ephemeris session events: cache eph frames, log via eph_log. */
@@ -924,6 +930,10 @@ static void EphOnEvent(const NsEvent *ev, void *user)
     case NS_EV_FRAME: {
         const unsigned char *frame = ev->u.frame.data;
         int payload_len = ev->u.frame.len - 6;
+
+        /* Reset the discard sink between frames so it cannot grow
+         * unbounded over an hours-long run. */
+        if (c->sink_used) rtcm_strbuf_clear(&c->sink);
 
         /* Everything else is silently dropped -- including 1005/1006,
          * which must not overwrite the obs caster's ARP. */
@@ -963,8 +973,16 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
     /* The session reads the primary connection fields, so map the EPH_*
      * block onto a private copy of the config. */
     EphCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
     ctx.state     = state;
-    ctx.eph_count = 0;
+
+    /* The decoders narrate every ephemeris; on this worker that text is
+     * noise, and the sink is thread-local so nothing else is muted. */
+    rtcm_strbuf_init(&ctx.sink, 4096);
+    if (ctx.sink.buf) {
+        rtcm_set_output_buffer(&ctx.sink);
+        ctx.sink_used = 1;
+    }
 
     NsOptions opt;
     ns_options_default(&opt);
@@ -1000,6 +1018,11 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
     }
 
     ns_close(sess);
+
+    if (ctx.sink_used) {
+        rtcm_set_output_buffer(NULL);
+        rtcm_strbuf_free(&ctx.sink);
+    }
 
     eph_log(state, "[EPH] Stream worker finished (%d ephemerides processed)\r\n",
             ctx.eph_count);
