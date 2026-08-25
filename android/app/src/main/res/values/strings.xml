@@ -228,6 +228,8 @@
     <string name="fail_rejected">The caster refused the request.</string>
     <string name="fail_dropped">The caster closed the connection.</string>
     <string name="fail_stalled">Connected, but nothing is arriving.</string>
+    <string name="fail_tls_handshake">%1$s:%2$d did not complete a TLS handshake. The port may be plain-text — check the port and the TLS setting.</string>
+    <string name="fail_tls_cert">The caster’s certificate was not accepted (expired, wrong name, or untrusted).</string>
     <!-- Not a caster fault: the session object could not be created at
          all, which on this side means memory or a configuration the
          bridge would not take.  Everything the *caster* does wrong now

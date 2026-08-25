@@ -773,10 +773,22 @@ static void do_connect(NtripSession *s)
     emit(s, &ev);
 
     NsFailure fail = NS_FAIL_NONE;
-    s->tr = ns_transport_connect(s->opt.config.NTRIP_CASTER,
+    char tls_why[160];
+    tls_why[0] = 0;
+    s->tr = s->opt.use_tls
+          ? ns_transport_connect_tls(s->opt.config.NTRIP_CASTER,
+                                     s->opt.config.NTRIP_PORT, &fail,
+                                     tls_why, sizeof(tls_why))
+          : ns_transport_connect(s->opt.config.NTRIP_CASTER,
                                  s->opt.config.NTRIP_PORT, &fail);
     if (!s->tr) {
         set_failure(s, fail);
+        /* The transport knows *which* certificate fault it saw --
+         * expired, wrong host, untrusted -- and that sentence beats the
+         * generic one the vocabulary writes. */
+        if (tls_why[0])
+            snprintf(s->stats.failure_detail,
+                     sizeof(s->stats.failure_detail), "%s", tls_why);
         emit_log(s, NS_LOG_ERROR, "%s", s->stats.failure_detail);
         if (!s->opt.auto_reconnect) { emit_end(s, NS_END_NET_ERROR); return; }
         s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;

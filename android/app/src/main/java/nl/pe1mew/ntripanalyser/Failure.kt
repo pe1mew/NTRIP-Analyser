@@ -37,6 +37,8 @@ object Failure {
     const val REJECTED = 10
     const val DROPPED = 11
     const val STALLED = 12
+    const val TLS_HANDSHAKE = 13
+    const val TLS_CERT = 14
 }
 
 /**
@@ -50,7 +52,10 @@ enum class FailureFix { NONE, HOST, CREDENTIALS, MOUNTPOINT }
 /** Where the fault points, for the connection dialog to open on. */
 fun failureFix(code: Int): FailureFix = when (code) {
     Failure.DNS, Failure.REFUSED, Failure.UNREACHABLE,
-    Failure.TIMEOUT, Failure.NOT_NTRIP -> FailureFix.HOST
+    Failure.TIMEOUT, Failure.NOT_NTRIP,
+    // A handshake failure points at the port/TLS pair the user typed;
+    // a certificate failure points at the caster, which no field fixes.
+    Failure.TLS_HANDSHAKE -> FailureFix.HOST
     Failure.AUTH, Failure.FORBIDDEN -> FailureFix.CREDENTIALS
     Failure.NO_MOUNTPOINT -> FailureFix.MOUNTPOINT
     else -> FailureFix.NONE
@@ -82,5 +87,9 @@ fun failureSentence(context: Context, code: Int, settings: CasterSettings): Stri
         Failure.REJECTED -> context.getString(R.string.fail_rejected)
         Failure.DROPPED -> context.getString(R.string.fail_dropped)
         Failure.STALLED -> context.getString(R.string.fail_stalled)
+        Failure.TLS_HANDSHAKE ->
+            context.getString(R.string.fail_tls_handshake,
+                settings.caster, settings.port)
+        Failure.TLS_CERT -> context.getString(R.string.fail_tls_cert)
         else -> null
     }

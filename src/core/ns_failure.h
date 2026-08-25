@@ -53,6 +53,8 @@ typedef enum {
     NS_FAIL_REJECTED,       /**< refused in a way with no sentence yet  */
     NS_FAIL_DROPPED,        /**< it worked, then the peer closed        */
     NS_FAIL_STALLED,        /**< open and silent -- 3.5.0's stall check */
+    NS_FAIL_TLS_HANDSHAKE,  /**< no TLS there, or negotiation failed    */
+    NS_FAIL_TLS_CERT,       /**< expired, wrong host, or untrusted      */
 } NsFailure;
 
 /**

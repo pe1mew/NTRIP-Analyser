@@ -52,6 +52,7 @@ add_library(ntrip_android SHARED
     # ntrip_session
     ${REPO_ROOT}/src/session/ntrip_session.c
     ${REPO_ROOT}/src/session/ns_transport.c
+    ${REPO_ROOT}/src/session/ns_ca_bundle.c
     ${REPO_ROOT}/src/net/ntrip_proto.c
     ${REPO_ROOT}/src/net/ntrip_handler.c
 

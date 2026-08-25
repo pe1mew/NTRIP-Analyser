@@ -162,7 +162,46 @@ the tree shows which.
 **Verify.** All four artefact families build; the NDK `.so` still
 loads (symbol check, by artefact); no behaviour change yet.
 
-### L3 — the TLS transport
+### L3 — the TLS transport  *(done 2026-08-25)*
+
+Built as planned, with the fixtures exactly as promised — a toy CA
+and four leaves committed under `test/data/tls/` (README says why the
+keys are worthless), a real TLS caster on its own thread in
+`test_tls.c`, fourteen assertions across the five cases, each landing
+on its code with its sentence. Three deviations and one discovery:
+
+* **The CA bundle is converted at refresh time, not build time.**
+  Decision 3 said "at build time"; four build systems would each have
+  needed Python. Instead `tools/make_ca_bundle.py` writes the
+  committed `src/session/ns_ca_bundle.c` from the verified
+  `lib/ca-bundle/cacert.pem` (121 Mozilla roots, SHA-256 checked
+  against curl's published sum), and `check_release.py` regenerates
+  and diffs it exactly as it does the notices — the array cannot
+  drift from the PEM. Same guarantee, one Python dependency.
+* **The flag rides `NsOptions.use_tls` for now** — the session-level
+  carrier the tests drive directly. The config field, every
+  frontend's checkbox, and the sourcetable fetch's own flag are L4,
+  as the step order always said.
+* **The specific certificate sentence travels as an out-parameter**
+  (`why`) from the transport, and the session prefers it over the
+  vocabulary's generic one — expired, not-yet-valid (naming the
+  device clock), wrong host (naming the host asked for), untrusted.
+  `Failure.kt` and `strings.xml` gained codes 13 and 14 in this same
+  commit, which is the parity check's demand being met, not watched.
+* **Discovery, from the falsification**: removing
+  `mbedtls_ssl_set_hostname` was supposed to redden the wrong-host
+  case alone; it reddened *every* TLS case, because Mbed TLS 3.6
+  refuses to verify a certificate at all when no hostname was set.
+  The call the design named non-negotiable is one the library itself
+  enforces — the sharper proof. Restored, 16/16.
+
+The stall detector survives encryption by construction: mbedTLS reads
+through a BIO that never blocks in the data phase, so the session's
+own select stays in charge of time. 104 release checks (the CA-array
+diff joined `check_generated`); the app builds with the new codes;
+the daemon's wildcard picked up the bundle without being asked.
+
+*(As planned:)*
 
 Handshake, chain verification against the embedded bundle, explicit
 hostname verification, clean close; the two failure codes classified

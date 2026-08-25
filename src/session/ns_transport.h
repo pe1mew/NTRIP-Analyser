@@ -43,6 +43,40 @@ NsTransport *ns_transport_connect(const char *host, int port,
                                   NsFailure *fail);
 
 /**
+ * @brief Connect to host:port and complete a TLS handshake, or fail.
+ *
+ * Verification is not optional: the chain is checked against the
+ * embedded Mozilla bundle (`ns_ca_bundle.c`) and the certificate must
+ * name @p host -- `mbedtls_ssl_set_hostname`, the call the design note
+ * makes non-negotiable.  There is no connect-anyway mode, because a
+ * measurement tool that shrugs at a wrong certificate is measuring the
+ * wrong station for an attacker's convenience.
+ *
+ * @param fail NS_FAIL_TLS_CERT when the certificate was the problem,
+ *             NS_FAIL_TLS_HANDSHAKE when the negotiation itself failed
+ *             (commonest cause: a plain-text port), or the plain
+ *             connect failures when TCP never got that far.
+ * @param why  Optional (may be NULL): receives the specific sentence
+ *             for a certificate failure -- expired, wrong host, or
+ *             untrusted -- which the session shows in place of the
+ *             generic one.  Empty when the generic sentence is right.
+ */
+NsTransport *ns_transport_connect_tls(const char *host, int port,
+                                      NsFailure *fail,
+                                      char *why, size_t why_cap);
+
+/**
+ * @brief Trust this PEM instead of the embedded bundle.  TESTS ONLY.
+ *
+ * The loopback TLS caster presents certificates from a toy CA that the
+ * real bundle rightly refuses; this is how the test suite points the
+ * client at that CA.  NULL restores the embedded bundle.  Process-wide
+ * and not thread-safe by design -- a production caller has no business
+ * here, which is why it is not in any config.
+ */
+void ns_transport_set_ca_override(const unsigned char *pem, size_t len);
+
+/**
  * @brief Send the whole buffer.
  * @return >0 on success, <=0 when the connection failed under it.
  */

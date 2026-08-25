@@ -266,10 +266,17 @@ def check_generated():
         os.path.join("android", "app", "src", "main", "res", "raw",
                      "notices.txt"),
         os.path.join("packaging", "THIRD-PARTY-NOTICES.txt"),
+        # The embedded trust store: the C array must be the PEM, byte
+        # for byte, or the products trust something the vendored bundle
+        # does not say.
+        os.path.join("src", "session", "ns_ca_bundle.c"),
     ]
     before = {t: read(*t.split(os.sep)) for t in targets}
     subprocess.run([sys.executable,
                     os.path.join(ROOT, "tools", "make_notices.py")],
+                   cwd=ROOT, stdout=subprocess.DEVNULL, check=True)
+    subprocess.run([sys.executable,
+                    os.path.join(ROOT, "tools", "make_ca_bundle.py")],
                    cwd=ROOT, stdout=subprocess.DEVNULL, check=True)
     for t in targets:
         check(read(*t.split(os.sep)) == before[t],
