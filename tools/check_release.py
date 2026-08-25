@@ -666,6 +666,36 @@ def check_handover_parity():
               "the %s edition does not redefine a hand-over string" % flavour)
 
 
+# ── The tier-2 vocabulary ─────────────────────────────────────────────
+# The stability verdicts cross into Kotlin as bare ints in the daemon's
+# flat dialect, and the card chooses its colour and its word by that
+# number: 1 green STABLE, 2 amber, 3 red, anything else the grey shrug.
+# Reorder SrVerdict and every card on every phone recolours silently.
+# Pin the order, and the app's reading of it, as the VRS gate is pinned.
+
+def check_tier2_parity():
+    print("tier-2 vocabulary")
+    h = read("src", "core", "station_report.h")
+    body = h[h.index("typedef enum {"):h.index("} SrVerdict;")]
+    order = re.findall(r"SR_(\w+)", body)
+    check(order[:4] == ["INSUFFICIENT", "STABLE", "DEGRADED", "UNSTABLE"],
+          "the SrVerdict enum keeps its order",
+          "Kotlin colours and words rows by these ordinals")
+
+    kt = read("android", "app", "src", "main", "java", "nl", "pe1mew",
+              "ntripanalyser", "StationCards.kt")
+    check("1 -> R.string.sr_v_stable" in kt and
+          "3 -> R.string.sr_v_unstable" in kt,
+          "the app still reads the verdicts by those ordinals")
+
+    for flavour in ("free", "pro"):
+        path = os.path.join(ROOT, "android", "app", "src", flavour,
+                            "res", "values", "strings.xml")
+        text = io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        check("sr_" not in text,
+              "the %s edition does not redefine a stability string" % flavour)
+
+
 # ── The export vocabulary ─────────────────────────────────────────────
 # The CSV dialect is pinned where it is made (test_bridge_vrs: first
 # line equals the core header byte for byte). What remains checkable
@@ -860,6 +890,7 @@ def main():
     check_vrs_parity()
     check_handover_parity()
     check_export_parity()
+    check_tier2_parity()
     check_source_lists()
     check_artefacts(ver)
 

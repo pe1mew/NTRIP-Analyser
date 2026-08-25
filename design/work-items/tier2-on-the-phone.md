@@ -173,7 +173,18 @@ staleness guard's branch if cheaply reachable — stop the caster side
 (not the app) and watch the report decline to judge — otherwise
 recorded as covered by `test_station_report` alone.
 
-### T2.4 — the guards
+### T2.4 — the guards  *(done 2026-08-25)*
+
+The gate row landed during T2.2, demanded by the existing check. T2.4
+added row 46's collection -- pro ●, and the "absent from Android"
+sentence replaced by why it is present now and why free deliberately
+is not -- and `check_tier2_parity()`: the `SrVerdict` enum order
+pinned (Kotlin colours and words rows by these ordinals; reorder the
+enum and every card recolours silently), the app's ordinal reading
+checked, and the no-redefined-strings rule for `sr_`. Falsified by
+bending the app's mapping to ordinal 9: red by name. **98 checks.**
+
+*(As planned:)*
 
 `HAS_TIER2` in the matrix gate table (the check will demand it);
 row 46 Pro ○ → ●; the `SrVerdict` enum order pinned against Kotlin's
