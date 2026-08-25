@@ -85,7 +85,25 @@ becoming a world of its own:
 
 ## Steps
 
-### L1 — the transport seam, with nothing behind it changed
+### L1 — the transport seam, with nothing behind it changed  *(done 2026-08-25)*
+
+Built as planned — `ns_transport.{h,c}` in the session layer, the
+platform socket code moved whole, both callers rewired — with two
+deviations worth their lines. First, the sourcetable fetch came out
+*more* changed than "pure refactor" promised, because unifying on the
+seam's connect path is the seam: it resolves IPv6 now (AF_UNSPEC like
+the stream, where it was AF_INET only), it fails in the stream's
+failure taxonomy instead of platform-numbered stderr lines, and its
+per-call WSAStartup/WSACleanup pair is gone — the transport starts
+Winsock once and never cleans up, because a WSACleanup from one caller
+pulls the stack from under every other connection in the process.
+Second, the falsification taught one thing the plan's wording missed:
+with recv eating every byte, `stall`, `failure` and `bridge_vrs` went
+red as demanded, but `capture` stayed green — it replays a file, and a
+file never crosses the transport. "Half the suite red" was really
+"every test with a socket under it red", which is the sharper claim.
+
+*(As planned:)*
 
 `ns_transport` in the session layer: connect / send / recv / close as
 an indirection, the existing plaintext code becoming its first
@@ -169,6 +187,8 @@ author, whose form it is.
   begins the day 3.8.0 exists.
 
 ## Open, and worth the author's word before L1
+
+**All four accepted by the author, 2026-08-25, before L1 began.**
 
 1. mbedTLS, vendored (recommended above).
 2. `build-gui.bat` retires (recommended above).

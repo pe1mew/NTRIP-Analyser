@@ -1,5 +1,7 @@
 #include "net/ntrip_handler.h"
 #include "net/ntrip_proto.h"   /* NsFailure, shared with the session */
+#include "session/ns_transport.h"  /* the sourcetable fetch rides the
+                                    * same transport as the stream */
 #include "core/nmea_parser.h"
 #include "core/rtcm3x_parser.h"
 #include "core/version.h"
@@ -7,24 +9,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+/* Platform headers for ns_failure_from_socket() alone: the WSAE and
+ * errno numbers it reconciles.  Every socket this file once opened
+ * itself now comes from ns_transport. */
 #ifdef _WIN32
     #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #define CLOSESOCKET closesocket
-    #define SOCKET_TYPE SOCKET
-    #define SOCK_ERR(val) ((val) == INVALID_SOCKET)
-    #define SOCK_CONN_ERR(val) ((val) == SOCKET_ERROR)
 #else
-    #include <netdb.h>
-    #include <sys/socket.h>
-    #include <arpa/inet.h>
-    #include <unistd.h>
     #include <errno.h>
-    #define CLOSESOCKET close
-    #define SOCKET_TYPE int
-    #define SOCK_ERR(val) ((val) < 0)
-    #define SOCK_CONN_ERR(val) ((val) < 0)
-    #define SOCKET_ERROR   -1
 #endif
 
 /*
@@ -126,71 +117,26 @@ bool base64_encode_n(const char *input, char *output, size_t out_cap) {
 }
 
 char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
-#ifdef _WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
-        return NULL;
-    }
-#endif
-
     if (!config) {
         fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
         return NULL; // -1
     }
 
-    SOCKET_TYPE sock;
-    struct sockaddr_in server;
-    struct addrinfo hints, *result;
     char request[1024];
     char buffer[BUFFER_SIZE];
     char *mount_table = NULL;
     size_t mount_table_size = 0;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    int gai_ret = getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result);
-    if (gai_ret != 0) {
-#ifdef _WIN32
-        fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
-        WSACleanup();
-#else
-        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(errno));
-#endif
-        return NULL; // -2
-    }
-
-    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-#ifdef _WIN32
-    if (sock == INVALID_SOCKET) {
-        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
-        freeaddrinfo(result);
-        WSACleanup();
-        return NULL; // -3
-    }
-#else
-    if (sock < 0) {
-        perror("Socket creation failed");
-        freeaddrinfo(result);
-        return NULL; // -3
-    }
-#endif
-
-    server.sin_family = AF_INET;
-    server.sin_port = htons(config->NTRIP_PORT);
-    server.sin_addr = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
-    memset(&(server.sin_zero), 0, 8);
-
-    freeaddrinfo(result);
-
-    if (SOCK_CONN_ERR(connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)))) {
-        fprintf(stderr, "Connection failed\n");
-        CLOSESOCKET(sock);
-#ifdef _WIN32
-        WSACleanup();
-#endif
+    /* Same seam, same failure taxonomy as the stream: a caster that
+     * cannot serve a sourcetable fails the way it would fail a stream. */
+    NsFailure fail = NS_FAIL_NONE;
+    NsTransport *t = ns_transport_connect(config->NTRIP_CASTER,
+                                          config->NTRIP_PORT, &fail);
+    if (!t) {
+        if (fail == NS_FAIL_DNS)
+            fprintf(stderr, "DNS lookup failed\n");
+        else
+            fprintf(stderr, "Connection failed\n");
         return NULL; // -4
     }
 
@@ -225,22 +171,11 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
              agent ? agent : NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
              auth);
 
-#ifdef _WIN32
-    int sent = send(sock, request, strlen(request), 0);
-    if (sent == SOCKET_ERROR) {
-        fprintf(stderr, "[ERROR] Failed to send mountpoint list request: %d\n", WSAGetLastError());
-        CLOSESOCKET(sock);
-        WSACleanup();
+    if (ns_transport_send(t, request, (int)strlen(request)) <= 0) {
+        fprintf(stderr, "[ERROR] Failed to send mountpoint list request\n");
+        ns_transport_close(t);
         return NULL; // -5
     }
-#else
-    ssize_t sent = send(sock, request, strlen(request), 0);
-    if (sent < 0) {
-        perror("[ERROR] Failed to send mountpoint list request");
-        CLOSESOCKET(sock);
-        return NULL; // -5
-    }
-#endif
 
     /* A sourcetable is a few hundred kilobytes at the largest public
      * casters.  The ceiling is not tidiness: this loop grows the buffer
@@ -249,14 +184,11 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
      * exhausts memory -- on a phone, until the app is killed. */
     const size_t MOUNT_TABLE_MAX = 4u * 1024u * 1024u;
 
+    /* Blocking reads (negative timeout): the reply is bounded by
+     * ENDSOURCETABLE or by the caster closing, not by a pump loop. */
     int received;
-    while (
-#ifdef _WIN32
-        (received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0
-#else
-        (received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0
-#endif
-    ) {
+    while ((received = ns_transport_recv(t, (unsigned char *)buffer,
+                                         (int)sizeof(buffer) - 1, -1)) > 0) {
         buffer[received] = '\0';
         size_t old_size = mount_table_size;
         if (old_size + (size_t)received > MOUNT_TABLE_MAX) {
@@ -271,10 +203,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
         if (!new_table) {
             free(mount_table);
             fprintf(stderr, "[ERROR] Memory allocation failed for mount table.\n");
-            CLOSESOCKET(sock);
-#ifdef _WIN32
-            WSACleanup();
-#endif
+            ns_transport_close(t);
             return NULL; // -6
         }
         mount_table = new_table;
@@ -286,10 +215,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     if (mount_table)
         mount_table[mount_table_size] = '\0';
 
-    CLOSESOCKET(sock);
-#ifdef _WIN32
-    WSACleanup();
-#endif
+    ns_transport_close(t);
     return mount_table; // 0 (success)
 }
 

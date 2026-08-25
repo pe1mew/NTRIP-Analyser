@@ -114,6 +114,7 @@ endif()
 # ── ntrip_session (with the NTRIP protocol + client beneath it) ───────
 add_library(ntrip_session STATIC
     src/session/ntrip_session.c
+    src/session/ns_transport.c
     src/net/ntrip_proto.c
     src/net/ntrip_handler.c
 )
