@@ -849,7 +849,7 @@ SOURCE_FILES = [
 # after it was packaged, and the check would cry stale at a build that
 # is not -- a guard that fails on a good build is a guard that gets
 # ignored on a bad one.
-GENERATED_SOURCES = {"notices.txt"}
+GENERATED_SOURCES = {"notices.txt", "ns_ca_bundle.c"}  # both rewritten by check_generated itself
 
 
 def newest_source():
