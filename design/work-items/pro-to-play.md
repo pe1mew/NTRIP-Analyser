@@ -36,30 +36,24 @@ touches three console-side mechanisms the free edition never did:
 
 ## Open, and worth the author's word before S1
 
-1. **The price.** "Decided at listing time" — this is listing time.
-   Recommendation: a one-time price in the **€8–€15** band. The
-   comparison set (NTRIP clients and GNSS field tools with far less
-   measurement in them) sits at €5–€20; the pro edition carries the
-   stability report, VRS check, hand-over watch, tracks, export and
-   watch mode, and underpricing a measurement tool reads as a toy.
-   The exact figure, the countries list and any launch discount are
-   the author's alone. *(Nothing here is financial advice; it is a
-   product-positioning recommendation.)*
-2. **Screenshots: reshoot both listings on the author's own stations**
-   (licence study action 6, open since 2026-08-13). Recommendation:
-   yes, in one session — rfsee.net and the free AGRS mountpoints,
-   3.8.0's UI with the TLS checkbox visible, driven on the S23 the
-   way L5 drove the Huawei; `tools/make_store_shots.py` frames them.
-   One reshoot ends the third-party-mountpoint question for good.
-3. **The tester pool.** Recommendation: recruit from the free
-   edition's existing testers (the GitHub issue reporters are exactly
-   the people who kept it installed) via a license-tester list and a
-   closed track, invitation at the top of the readme beside free's.
-4. **Confirm the console mechanics before planning around them**
-   (study-first, the store-study rule): that license testers satisfy
-   the 12×14 requirement for a paid app, and whether free's own track
-   status changes anything. One session in the console settles both;
-   the plan assumes nothing until then.
+**All four answered 2026-08-25** (the author delegated to the
+recommendations; the price carries a working figure the author
+confirms at S5, where it is actually attached):
+
+1. **Price: €12.99**, one-time. Mid-upper of the recommended band --
+   Play permits changing a price later, and a discount is a gift
+   where a rise is an insult, so the launch starts high enough to
+   move down from. Confirmed or overridden at S5.
+2. **Screenshots: reshoot both listings** on the author's own
+   stations, on the S23, 3.8.0's UI. Licence action 6 closes with it.
+3. **Testers: free's own** -- the GitHub reporters, via a
+   license-tester list, invitation beside free's in the readme.
+4. **Mechanics: answered from Play's documentation** -- license
+   testing exists precisely so testers use a paid app without paying,
+   and the 12x14 closed-test rule is per-app -- **confirmed in the
+   console as part of S1's author half** before anything depends on
+   it (study-first). The original recommendations' fuller reasoning
+   is in this file's history; the answers above are what stand.
 
 ## Steps
 
@@ -113,10 +107,12 @@ ordinary release sequence, tag and all.
 ### S5 — production
 
 When the fortnight completes: apply for production access, attach the
-price and countries (open question 1), publish. The data-safety form
-goes live with the answers from S1 — and free's form gets the same
-encryption-in-transit improvement at the same sitting if it has not
-already.
+price and countries (answer 1), publish. The data-safety form goes
+live with the S1 worksheet's answers — including the corrected
+understanding that **encryption in transit stays "No"** while TLS is
+per-connection opt-in (`play-data-safety.md` says why); the optional
+free-text context is where TLS gets its honest credit, on both
+listings at one sitting.
 
 ### S6 — say so
 

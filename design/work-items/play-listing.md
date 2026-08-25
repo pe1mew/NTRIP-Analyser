@@ -7,8 +7,9 @@ and it should be held to the same standard as the software.
 
 Sources: `design/telemetry.md` (what is collected: nothing),
 `android/design/editions.md` (what pro transmits, and when),
-`docs/privacy-policy.md` (the published text), `design/tls.md` (why
-nothing is encrypted in transit yet).
+`docs/privacy-policy.md` (the published text), `design/tls.md` and
+`design/work-items/tls-rollout.md` (TLS, shipped 3.8.0 in both
+editions -- per-connection, verified, never inferred from the port).
 
 ## Names
 
@@ -35,7 +36,7 @@ same reason: on a phone with both installed, the labels truncate to
 
 **Pro**
 
-    Field-grade NTRIP checks: watch mode, live position, saved casters.
+    Watch stations for hours: stability verdicts, network-RTK checks, exports.
 
 ## Full description
 
@@ -81,8 +82,10 @@ no formatting beyond line breaks.
     No account, no advertising, no analytics library, and no server
     belonging to the developer. What the app sends, it sends to the
     caster you configure. Credentials are stored encrypted on the
-    device; NTRIP itself sends them over a plain connection, and the app
-    says so where you type them.
+    device. If the caster offers TLS, tick "Use TLS" and the whole
+    connection is encrypted and verified against trusted roots; over a
+    plain connection the app says plainly, where you type the password,
+    that anything on the path can read what NTRIP sends.
 
     The app is a client: it connects where you tell it to, with your own
     credentials. Having permission to use a caster, and observing its
@@ -101,19 +104,27 @@ no formatting beyond line breaks.
 
     THIS EDITION ADDS
 
-    - Watch mode: keep measuring for hours, with availability, streak
-      and degradation counts
+    - Watch mode: keep measuring for hours, through the screen going
+      dark, with availability, streaks and reconnect counts
+    - Stability report: six metrics over the whole run -- availability,
+      frame integrity, signal, satellites held, ionosphere, delivery --
+      each with its own verdict: STABLE, DEGRADED or UNSTABLE
+    - Network-RTK (VRS) check: does the network accept your position
+      and deliver corrections fit for RTK where you stand
+    - Reference-position watch: know the moment a network hands you to
+      another station, and how far it moved
     - Live position: report where this phone actually is to a network
-      mountpoint, so the service answers for where you are standing
-      (asked once, explicitly, and revocable)
-    - Saved connections: several casters, switched from the main screen
-    - Import and export of the shared configuration file
-    - Pick mountpoints straight from the sourcetable
-    - Ephemeris side-stream for a complete sky view
+      mountpoint (asked once, explicitly, and revocable)
+    - Satellite tracks on the sky view, up to a day per satellite
+    - Statistics export: the full snapshot as JSON, or CSV in the
+      monitoring daemon's own dialect
+    - Saved connections, mountpoints picked from the sourcetable by
+      tapping them, an ephemeris side-stream for a complete sky view,
+      and import/export of the shared configuration file
 
     Bought once. No subscription, and nothing is measured differently
-    from the free edition -- the thresholds and the verdicts are the
-    same engine.
+    from the free edition -- the eight checks and their verdicts are
+    the same engine.
 
 ## Category and tags
 

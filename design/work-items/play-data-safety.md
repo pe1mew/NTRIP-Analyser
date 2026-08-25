@@ -10,8 +10,9 @@ an answer without changing the thing it describes.
 
 Sources: `design/telemetry.md` (nothing is collected, and why),
 `android/design/editions.md` (what pro transmits and when),
-`docs/privacy-policy.md` (what the user is told), `design/tls.md` (why
-nothing is encrypted in transit yet).
+`docs/privacy-policy.md` (what the user is told), `design/tls.md` and
+`design/work-items/tls-rollout.md` (TLS shipped 3.8.0; what that does
+-- and deliberately does not do -- to the answers below).
 
 ---
 
@@ -59,12 +60,20 @@ should be the last thing on the phone to take an exemption for
 transmitting a location, and a user comparing the two listings should
 be able to see the difference that the paid edition actually makes.
 
-**Why "No" to encryption in transit.** NTRIP sends the position and the
-credentials over a plain TCP connection. That is the protocol, not a
-shortcut taken here; it is stated in the app where the password is
-typed, and in the privacy policy. **It changes to "Yes" when TLS
-lands**, in both editions on the same day (`design/tls.md`), and this
-file must change with it.
+**Why "No" to encryption in transit — still, after TLS (2026-08-25).**
+TLS shipped in 3.8.0, both editions, and the answer does not flip:
+the form asks whether **all** shared data is encrypted in transit, and
+TLS is a per-connection choice the user makes caster by caster. A
+plain-text run remains a permitted path, so the honest binary answer
+remains **No** -- the form describes the worst permitted path, not the
+best available one. (An earlier version of this file, and a session
+note of 2026-08-25, said the answer would become "Yes" when TLS
+landed; that was optimism about a binary form.) What TLS does change:
+the in-app disclosure now follows the checkbox, and the free-text
+context in the console may say that TLS is available and verified on
+every connection where the caster offers it. The answer flips only if
+TLS ever becomes required or default-on -- a product decision nobody
+has taken.
 
 **Why "No" to deletion requests.** The developer holds nothing to
 delete. Everything is on the user's device and goes with the app when it
@@ -113,7 +122,7 @@ management, Developer communications, Fraud prevention.
 
 | Practice | Answer |
 |---|---|
-| Data is encrypted in transit | **No** (pro; not asked for free) |
+| Data is encrypted in transit | **No** (pro; not asked for free) — see Section 1: TLS is opt-in per connection, and "all" means all |
 | You can request that data be deleted | **No** |
 | Committed to follow the Play Families Policy | **No** — a professional measurement tool, not directed at children |
 | Independent security review | **No** — there has been a review (`design/security-review.md`), but it is the author's own, and claiming otherwise would be a lie about its independence |
@@ -144,8 +153,9 @@ above could quietly stop being true.
       collection ours to declare. There is none today, and
       `androidx.security-crypto`, kotlinx-serialization and Compose do
       not transmit anything.
-- [ ] **Has TLS landed?** Then encryption in transit becomes **Yes**,
-      here and in the privacy policy.
+- [ ] **TLS landed 2026-08-25 and the answer stayed "No"** -- it is
+      opt-in per connection, and the form's "all" means all. Re-answer
+      only if TLS becomes required or default-on.
 - [ ] **Has anything new left the device?** A shared report, a crash
       uploader, a "send us your log" button — none exist, and each would
       need declaring.
