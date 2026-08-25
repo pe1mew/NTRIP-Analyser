@@ -236,7 +236,14 @@ static int bridge_decode_eph(NtripBridge *b, const unsigned char *payload,
 static void bridge_on_event(const NsEvent *ev, void *user)
 {
     NtripBridge *b = (NtripBridge *)user;
-    if (!b || !ev || ev->type != NS_EV_FRAME) return;
+    if (!b || !ev) return;
+    /* The session already writes the sentence; in a debug build it goes
+     * to logcat too, because a phone has no stderr to read. */
+    if (ev->type == NS_EV_LOG && ev->u.log.level >= NS_LOG_WARN) {
+        BLOG("session: %s", ev->u.log.text);
+        return;
+    }
+    if (ev->type != NS_EV_FRAME) return;
 
     const unsigned char *payload = ev->u.frame.data + 3;
     int payload_len = ev->u.frame.len - 6;      /* header and CRC removed */
@@ -295,7 +302,7 @@ static NtripBridge *bridge_alloc(void)
 NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                          const char *user, const char *password,
                          double lat, double lon, bool send_gga, bool watch,
-                         bool vrs)
+                         bool vrs, bool tls)
 {
     NtripBridge *b = bridge_alloc();
     if (!b) return NULL;
@@ -316,6 +323,9 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
     opt.config.NTRIP_PORT = port;
     opt.config.LATITUDE   = lat;
     opt.config.LONGITUDE  = lon;
+    /* The sourcetable fetch below reads the same config, so the caster's
+     * flag covers both connections without a second decision. */
+    opt.config.TLS        = tls;
 
     opt.stats_interval_s = 0.0;      /* the app polls; no event needed */
     opt.send_gga         = false;    /* driven from bridge_pump; see below */
@@ -369,6 +379,7 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
         int n = 0;
         SourcetableEntry *e = bridge_parse_table(table, &n);
         BLOG("sourcetable: %zu bytes, %d entries parsed", strlen(table), n);
+        if (n == 0) BLOG("sourcetable head: %.200s", table);
         bool found = false;
         if (e) {
             for (int i = 0; i < n; i++) {
@@ -742,7 +753,7 @@ void bridge_close(NtripBridge *b)
 
 int bridge_sourcetable_json(const char *caster, int port,
                             const char *user, const char *password,
-                            char *out, size_t cap)
+                            bool tls, char *out, size_t cap)
 {
     if (!out || cap < 32) return -1;
 
@@ -752,6 +763,7 @@ int bridge_sourcetable_json(const char *caster, int port,
     snprintf(cfg.USERNAME,     sizeof(cfg.USERNAME),     "%s", user ? user : "");
     snprintf(cfg.PASSWORD,     sizeof(cfg.PASSWORD),     "%s", password ? password : "");
     cfg.NTRIP_PORT = port;
+    cfg.TLS        = tls;
 
     char *raw = receive_mount_table(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
     if (!raw) return -1;
@@ -793,7 +805,7 @@ int bridge_sourcetable_json(const char *caster, int port,
 
 bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
                      const char *mountpoint,
-                     const char *user, const char *password)
+                     const char *user, const char *password, bool tls)
 {
     if (!b || b->eph) return false;
 
@@ -808,6 +820,7 @@ bool bridge_open_eph(NtripBridge *b, const char *caster, int port,
     snprintf(opt.config.PASSWORD, sizeof(opt.config.PASSWORD),
              "%s", password ? password : "");
     opt.config.NTRIP_PORT  = port;
+    opt.config.TLS         = tls;   /* its own caster, its own flag */
     opt.stats_interval_s   = 0.0;
     opt.auto_reconnect     = true;
 

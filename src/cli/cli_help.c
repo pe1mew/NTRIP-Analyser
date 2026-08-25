@@ -64,6 +64,8 @@ void print_help(const char *progname) {
     printf("                           Override EPH_MOUNTPOINT       (env: NTRIP_EPH_MOUNTPOINT)\n");
     printf("      --eph-user <name>    Override EPH_USERNAME         (env: NTRIP_EPH_USERNAME)\n");
     printf("      --eph-password <pwd> Override EPH_PASSWORD         (env: NTRIP_EPH_PASSWORD)\n");
+    printf("      --tls on|off         Override TLS                  (env: NTRIP_TLS)\n");
+    printf("      --eph-tls on|off     Override EPH_TLS              (env: NTRIP_EPH_TLS)\n");
     printf("      --check-config       Validate config (apply overrides + env, DNS-resolve\n");
     printf("                           casters), print resolved values, then exit.  Useful\n");
     printf("                           as a CI fail-fast check.\n");

@@ -136,6 +136,14 @@ void CreateControls(HWND hwnd, AppState *state)
     state->hLblMountpoint = CreateLabel(hwnd, IDC_LBL_MOUNTPOINT, "Mountpoint:", x, y + 2, wMountpoint, eh);
     x += wMountpoint + lg;
     state->hEditMountpoint = CreateEdit(hwnd, IDC_EDIT_MOUNTPOINT, "", x, y, 160, eh, 0);
+    x += 160 + sp;
+
+    /* An explicit choice beside the port it usually pairs with (443),
+     * never inferred from it. */
+    state->hChkTls = CreateWindowEx(0, "BUTTON", "TLS",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
+        x, y + 2, 46, eh - 2, hwnd, (HMENU)(intptr_t)IDC_CHK_TLS,
+        hInst, NULL);
 
     /* Row B: User / Password / Lat / Lon */
     y += eh + 6;
@@ -220,6 +228,13 @@ void CreateControls(HWND hwnd, AppState *state)
     x += wEphMountpoint + lg;
     state->hEditEphMountpoint = CreateEdit(hwnd, IDC_EDIT_EPH_MOUNTPOINT,
                                            "", x, y, 160, eh, 0);
+    x += 160 + sp;
+
+    /* Its own flag: the ephemeris caster may be a different host. */
+    state->hChkEphTls = CreateWindowEx(0, "BUTTON", "TLS",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX,
+        x, y + 2, 46, eh - 2, hwnd, (HMENU)(intptr_t)IDC_CHK_EPH_TLS,
+        hInst, NULL);
 
     /* Row B: User / Password (mirrors Connection Row B's first two fields) */
     y += eh + 6;

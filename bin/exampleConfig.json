@@ -6,6 +6,7 @@
             "name": "Kadaster APEL00NLD0 (free, anonymous)",
             "caster": "ntrip.kadaster.nl",
             "port": 2101,
+            "tls": false,
             "mountpoint": "APEL00NLD0",
             "username": "",
             "password": "",
@@ -14,6 +15,7 @@
             "longitude": 5.942016,
             "eph_caster": "ntrip.kadaster.nl",
             "eph_port": 2101,
+            "eph_tls": false,
             "eph_mountpoint": "BCEP00KAD0",
             "eph_username": "",
             "eph_password": ""

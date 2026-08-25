@@ -7,7 +7,8 @@ Tap the connection tile on the main screen and fill in:
 | Field | What goes in it |
 |---|---|
 | **Caster host** | The caster's address, for example `ntrip.kadaster.nl`. No `http://` |
-| **Port** | Usually 2101 |
+| **Port** | Usually 2101 for plain connections; casters that offer TLS usually serve it on 443 |
+| **Use TLS** | Encrypt the connection. An explicit choice — the app suggests it when the port is 443, but never assumes |
 | **Mountpoint** | The stream's name, exactly as the caster publishes it. Case matters |
 | **Username**, **Password** | Leave both empty for an open caster |
 
@@ -37,6 +38,26 @@ them.
 None of this is unusual — it is the ordinary position of any NTRIP
 client — but a tool that makes connecting easy should say it once,
 plainly.
+
+### Encrypted connections
+
+NTRIP sends your username and password base64-encoded, which is an
+encoding, not encryption: on a plain connection anything on the
+network path can read them. If the caster offers TLS — by convention
+on port 443, where plain NTRIP uses 2101 — tick **Use TLS** and the
+whole connection is encrypted, credentials and stream alike.
+
+The certificate is always verified: against the same root authorities
+a browser trusts, and the certificate must name the caster you asked
+for. There is no "connect anyway" button, deliberately — a
+measurement tool that shrugs at a wrong certificate would happily
+measure an attacker's station. A refused connection tells you which
+side to distrust: *"did not complete a TLS handshake — check the port
+and the TLS setting"* points at the settings; a certificate sentence
+(expired, wrong name, untrusted) points at the caster.
+
+The ephemeris stream in the paid edition has a TLS switch of its own,
+because it may be a different caster.
 
 ## 2. Run the check
 

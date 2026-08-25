@@ -266,10 +266,17 @@ def check_generated():
         os.path.join("android", "app", "src", "main", "res", "raw",
                      "notices.txt"),
         os.path.join("packaging", "THIRD-PARTY-NOTICES.txt"),
+        # The embedded trust store: the C array must be the PEM, byte
+        # for byte, or the products trust something the vendored bundle
+        # does not say.
+        os.path.join("src", "session", "ns_ca_bundle.c"),
     ]
     before = {t: read(*t.split(os.sep)) for t in targets}
     subprocess.run([sys.executable,
                     os.path.join(ROOT, "tools", "make_notices.py")],
+                   cwd=ROOT, stdout=subprocess.DEVNULL, check=True)
+    subprocess.run([sys.executable,
+                    os.path.join(ROOT, "tools", "make_ca_bundle.py")],
                    cwd=ROOT, stdout=subprocess.DEVNULL, check=True)
     for t in targets:
         check(read(*t.split(os.sep)) == before[t],
@@ -552,6 +559,33 @@ def check_share_sections():
 # "wrong password" in Kotlin would put the wrong sentence under a fault
 # and send the reader to the wrong field -- worse than saying nothing.
 
+# The embedded trust store's age. The Mozilla roots rotate --
+# certificates are added and distrusted the year round -- and a client
+# verifying against a fossilised bundle eventually refuses casters the
+# world trusts. The design budgeted a refresh cadence; this notices
+# when it lapses. The date is Mozilla's own line, carried into the
+# generated array by tools/make_ca_bundle.py.
+
+CA_BUNDLE_MAX_AGE_DAYS = 365
+
+def check_ca_bundle_age():
+    print("embedded CA bundle age")
+    import datetime
+    text = read("src", "session", "ns_ca_bundle.c")
+    m = re.search(r'ns_ca_bundle_date\[\] = "([^"]+)"', text)
+    check(m is not None, "the generated bundle carries Mozilla's date line")
+    if not m:
+        return
+    when = datetime.datetime.strptime(m.group(1),
+                                      "%a %b %d %H:%M:%S %Y %Z")
+    age = (datetime.datetime.utcnow() - when).days
+    check(age <= CA_BUNDLE_MAX_AGE_DAYS,
+          "the embedded CA bundle is younger than a year (%d days)" % age,
+          "refresh lib/ca-bundle/cacert.pem and re-run "
+          "tools/make_ca_bundle.py -- the procedure is in "
+          "lib/ca-bundle/NTRIP-ANALYSER-NOTE.md")
+
+
 def check_failure_codes():
     print("failure codes")
     h = read("src", "core", "ns_failure.h")
@@ -757,6 +791,22 @@ def check_source_lists():
           "every documented omission still names a file that exists",
           ", ".join(stale) if stale else "")
 
+    # The vendored TLS library sits outside the src/ scope of the
+    # regexes above, deliberately: lib/ keeps no per-file parity,
+    # because every build takes library/*.c whole (by GLOB or by
+    # wildcard).  What can drift is a build forgetting the vendor tree
+    # entirely -- the desktop links it, the phone never gained it, and
+    # nobody notices until a TLS caster fails on Android only.  So each
+    # build must name the directory.
+    daemon_txt = read("service", "Makefile")
+    ndk_txt = read("android", "app", "src", "main", "cpp",
+                   "CMakeLists.txt")
+    for name, text in (("CMakeLists.txt", desktop_txt),
+                       ("the NDK CMakeLists.txt", ndk_txt),
+                       ("service/Makefile", daemon_txt)):
+        check("lib/mbedtls/library" in text,
+              "%s compiles the vendored Mbed TLS" % name, "")
+
 
 
 # -- Android artefacts -------------------------------------------------
@@ -886,6 +936,7 @@ def main():
     check_doc_links()
     check_thresholds()
     check_snapshot_fields()
+    check_ca_bundle_age()
     check_failure_codes()
     check_vrs_parity()
     check_handover_parity()

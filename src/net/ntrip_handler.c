@@ -1,5 +1,7 @@
 #include "net/ntrip_handler.h"
 #include "net/ntrip_proto.h"   /* NsFailure, shared with the session */
+#include "session/ns_transport.h"  /* the sourcetable fetch rides the
+                                    * same transport as the stream */
 #include "core/nmea_parser.h"
 #include "core/rtcm3x_parser.h"
 #include "core/version.h"
@@ -7,24 +9,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+/* Platform headers for ns_failure_from_socket() alone: the WSAE and
+ * errno numbers it reconciles.  Every socket this file once opened
+ * itself now comes from ns_transport. */
 #ifdef _WIN32
     #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #define CLOSESOCKET closesocket
-    #define SOCKET_TYPE SOCKET
-    #define SOCK_ERR(val) ((val) == INVALID_SOCKET)
-    #define SOCK_CONN_ERR(val) ((val) == SOCKET_ERROR)
 #else
-    #include <netdb.h>
-    #include <sys/socket.h>
-    #include <arpa/inet.h>
-    #include <unistd.h>
     #include <errno.h>
-    #define CLOSESOCKET close
-    #define SOCKET_TYPE int
-    #define SOCK_ERR(val) ((val) < 0)
-    #define SOCK_CONN_ERR(val) ((val) < 0)
-    #define SOCKET_ERROR   -1
 #endif
 
 /*
@@ -125,72 +116,89 @@ bool base64_encode_n(const char *input, char *output, size_t out_cap) {
     return true;
 }
 
-char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
-#ifdef _WIN32
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        fprintf(stderr, "WSAStartup failed: %d\n", WSAGetLastError());
-        return NULL;
-    }
-#endif
+/**
+ * @brief Strip Transfer-Encoding: chunked from a collected HTTP reply,
+ *        in place.
+ *
+ * NTRIP 2 casters -- Kadaster's TLS endpoint among them -- serve the
+ * sourcetable chunked, and a chunk boundary can land in the middle of
+ * an STR line, splitting one mountpoint into two junk lines.  The
+ * headers stay as they are (the parser skips them); only the body is
+ * rewritten.  Sizes are trusted no further than the buffer's edge.
+ */
+static void dechunk_in_place(char *buf, size_t *len)
+{
+    char *body = strstr(buf, "\r\n\r\n");
+    if (!body) return;
+    body += 4;
 
+    /* Header check, bounded to the header: a sourcetable entry could
+     * name a file called chunked. */
+    size_t head_len = (size_t)(body - buf);
+    char saved = buf[head_len];
+    buf[head_len] = 0;
+    bool chunked = false;
+    for (char *h = buf; *h; h++) {
+        if ((*h == 'T' || *h == 't') &&
+            strncasecmp(h, "Transfer-Encoding:", 18) == 0 &&
+            strstr(h, "chunked")) { chunked = true; break; }
+    }
+    buf[head_len] = saved;
+    if (!chunked) return;
+
+    char  *src = body, *dst = body;
+    char  *end = buf + *len;
+    while (src < end) {
+        /* the hex size line */
+        unsigned long sz = 0;
+        while (src < end && *src != '\r' && *src != '\n') {
+            char c = *src++;
+            if (c >= '0' && c <= '9')      sz = sz * 16 + (unsigned)(c - '0');
+            else if (c >= 'a' && c <= 'f') sz = sz * 16 + (unsigned)(c - 'a' + 10);
+            else if (c >= 'A' && c <= 'F') sz = sz * 16 + (unsigned)(c - 'A' + 10);
+            else if (c == ';') { while (src < end && *src != '\r') src++; break; }
+        }
+        if (src < end && *src == '\r') src++;
+        if (src < end && *src == '\n') src++;
+        if (sz == 0) break;
+        if ((size_t)(end - src) < sz) sz = (size_t)(end - src);
+        memmove(dst, src, sz);
+        dst += sz;
+        src += sz;
+        if (src < end && *src == '\r') src++;
+        if (src < end && *src == '\n') src++;
+    }
+    *dst = 0;
+    *len = (size_t)(dst - buf);
+}
+
+char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     if (!config) {
         fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
         return NULL; // -1
     }
 
-    SOCKET_TYPE sock;
-    struct sockaddr_in server;
-    struct addrinfo hints, *result;
     char request[1024];
     char buffer[BUFFER_SIZE];
     char *mount_table = NULL;
     size_t mount_table_size = 0;
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    int gai_ret = getaddrinfo(config->NTRIP_CASTER, NULL, &hints, &result);
-    if (gai_ret != 0) {
-#ifdef _WIN32
-        fprintf(stderr, "DNS lookup failed: %d\n", WSAGetLastError());
-        WSACleanup();
-#else
-        fprintf(stderr, "DNS lookup failed: %s\n", gai_strerror(errno));
-#endif
-        return NULL; // -2
-    }
-
-    sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-#ifdef _WIN32
-    if (sock == INVALID_SOCKET) {
-        fprintf(stderr, "Socket creation failed: %d\n", WSAGetLastError());
-        freeaddrinfo(result);
-        WSACleanup();
-        return NULL; // -3
-    }
-#else
-    if (sock < 0) {
-        perror("Socket creation failed");
-        freeaddrinfo(result);
-        return NULL; // -3
-    }
-#endif
-
-    server.sin_family = AF_INET;
-    server.sin_port = htons(config->NTRIP_PORT);
-    server.sin_addr = ((struct sockaddr_in *)result->ai_addr)->sin_addr;
-    memset(&(server.sin_zero), 0, 8);
-
-    freeaddrinfo(result);
-
-    if (SOCK_CONN_ERR(connect(sock, (struct sockaddr *)&server, sizeof(struct sockaddr)))) {
-        fprintf(stderr, "Connection failed\n");
-        CLOSESOCKET(sock);
-#ifdef _WIN32
-        WSACleanup();
-#endif
+    /* Same seam, same failure taxonomy as the stream -- and the same
+     * TLS flag: every connection to this caster inherits it, so the
+     * mountpoint list travels as protected as the stream it offers. */
+    NsFailure fail = NS_FAIL_NONE;
+    NsTransport *t = config->TLS
+        ? ns_transport_connect_tls(config->NTRIP_CASTER,
+                                   config->NTRIP_PORT, &fail, NULL, 0)
+        : ns_transport_connect(config->NTRIP_CASTER,
+                               config->NTRIP_PORT, &fail);
+    if (!t) {
+        if (fail == NS_FAIL_DNS)
+            fprintf(stderr, "DNS lookup failed\n");
+        else if (fail == NS_FAIL_TLS_HANDSHAKE || fail == NS_FAIL_TLS_CERT)
+            fprintf(stderr, "TLS failed: %s\n", ns_failure_short(fail));
+        else
+            fprintf(stderr, "Connection failed\n");
         return NULL; // -4
     }
 
@@ -225,22 +233,11 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
              agent ? agent : NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
              auth);
 
-#ifdef _WIN32
-    int sent = send(sock, request, strlen(request), 0);
-    if (sent == SOCKET_ERROR) {
-        fprintf(stderr, "[ERROR] Failed to send mountpoint list request: %d\n", WSAGetLastError());
-        CLOSESOCKET(sock);
-        WSACleanup();
+    if (ns_transport_send(t, request, (int)strlen(request)) <= 0) {
+        fprintf(stderr, "[ERROR] Failed to send mountpoint list request\n");
+        ns_transport_close(t);
         return NULL; // -5
     }
-#else
-    ssize_t sent = send(sock, request, strlen(request), 0);
-    if (sent < 0) {
-        perror("[ERROR] Failed to send mountpoint list request");
-        CLOSESOCKET(sock);
-        return NULL; // -5
-    }
-#endif
 
     /* A sourcetable is a few hundred kilobytes at the largest public
      * casters.  The ceiling is not tidiness: this loop grows the buffer
@@ -249,14 +246,29 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
      * exhausts memory -- on a phone, until the app is killed. */
     const size_t MOUNT_TABLE_MAX = 4u * 1024u * 1024u;
 
+    /* Bounded reads, twice over.  A first version blocked forever and
+     * searched for ENDSOURCETABLE one buffer at a time; a keep-alive
+     * caster whose marker straddled two reads hung the fetch for good
+     * -- found live, wedged inside bridge_open on the phone (L5).  So:
+     * a ten-second silence ends the fetch (a sourcetable is seconds,
+     * not minutes), and the marker is searched across the accumulated
+     * text, where a straddle cannot hide. */
     int received;
-    while (
-#ifdef _WIN32
-        (received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0
-#else
-        (received = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0
-#endif
-    ) {
+    int quiet = 0;
+    for (;;) {
+        received = ns_transport_recv(t, (unsigned char *)buffer,
+                                     (int)sizeof(buffer) - 1, 10000);
+        if (received < 0) break;
+        if (received == 0) {
+            /* Nothing this time is not the end: over TLS a zero also
+             * means a record still in flight, and treating it as done
+             * truncated a table to nine entries on the phone.  Two
+             * consecutive silent waits -- up to twenty seconds -- is
+             * the caster being finished without saying so. */
+            if (++quiet >= 2) break;
+            continue;
+        }
+        quiet = 0;
         buffer[received] = '\0';
         size_t old_size = mount_table_size;
         if (old_size + (size_t)received > MOUNT_TABLE_MAX) {
@@ -271,25 +283,25 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
         if (!new_table) {
             free(mount_table);
             fprintf(stderr, "[ERROR] Memory allocation failed for mount table.\n");
-            CLOSESOCKET(sock);
-#ifdef _WIN32
-            WSACleanup();
-#endif
+            ns_transport_close(t);
             return NULL; // -6
         }
         mount_table = new_table;
         memcpy(mount_table + old_size, buffer, received + 1);
-        if (strstr(buffer, "ENDSOURCETABLE")) {
+        /* From just before the seam, not from the start: the text can
+         * be hundreds of kilobytes and this runs per read. */
+        size_t from = old_size > 14 ? old_size - 14 : 0;
+        if (strstr(mount_table + from, "ENDSOURCETABLE")) {
             break;
         }
     }
-    if (mount_table)
-        mount_table[mount_table_size] = '\0';
 
-    CLOSESOCKET(sock);
-#ifdef _WIN32
-    WSACleanup();
-#endif
+    if (mount_table) {
+        mount_table[mount_table_size] = '\0';
+        dechunk_in_place(mount_table, &mount_table_size);
+    }
+
+    ns_transport_close(t);
     return mount_table; // 0 (success)
 }
 

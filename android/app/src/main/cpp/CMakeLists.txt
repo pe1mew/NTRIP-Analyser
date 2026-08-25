@@ -16,9 +16,22 @@ project(ntrip_android C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# Optimized C even in debug APKs.  The C core is debugged on the
+# desktop, through the test suite -- never through a debug APK -- and
+# unoptimized mbedTLS made a TLS handshake take half a minute on the
+# 2019 test handset, which read as a hang and cost an afternoon (L5).
+string(APPEND CMAKE_C_FLAGS_DEBUG " -O2")
+
 # ../../../../..  ->  android/app/src/main/cpp  to the repository root
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.."
                        ABSOLUTE)
+
+# ── Mbed TLS (vendored; see lib/mbedtls/NTRIP-ANALYSER-NOTE.md) ──────
+# The same arrangement as the desktop build: library/*.c compiled by
+# this target against the default configuration, upstream's own CMake
+# unused.  The GLOB is read at configure time -- a Gradle sync or clean
+# build picks up a refreshed vendor copy.
+file(GLOB MBEDTLS_SOURCES ${REPO_ROOT}/lib/mbedtls/library/*.c)
 
 add_library(ntrip_android SHARED
     ntrip_bridge.c
@@ -44,16 +57,21 @@ add_library(ntrip_android SHARED
 
     # ntrip_session
     ${REPO_ROOT}/src/session/ntrip_session.c
+    ${REPO_ROOT}/src/session/ns_transport.c
+    ${REPO_ROOT}/src/session/ns_ca_bundle.c
     ${REPO_ROOT}/src/net/ntrip_proto.c
     ${REPO_ROOT}/src/net/ntrip_handler.c
 
     ${REPO_ROOT}/lib/cJSON/cJSON.c
+    ${MBEDTLS_SOURCES}
 )
 
 target_include_directories(ntrip_android PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${REPO_ROOT}/src
     ${REPO_ROOT}/lib/cJSON
+    ${REPO_ROOT}/lib/mbedtls/include
+    ${REPO_ROOT}/lib/mbedtls/library
 )
 
 # Bionic declares clock_gettime, getaddrinfo and strncasecmp behind the

@@ -55,8 +55,8 @@ of `src/core/version.h`, so the build system cannot disagree with the
 binaries about the release number.
 
 **Executables land in `bin/`, not in the build directory** — the same
-place `build-gui.bat` and the VS Code tasks have always written, so
-every build system puts them in one spot. Object files and CMake's own
+place the retired hand-written builds always wrote, so nothing about
+where programs live moved when CMake became the only desktop build. Object files and CMake's own
 state stay in the build directory, which remains disposable.
 
 That separation is the point. The programs look for `config.json` in the
@@ -133,15 +133,16 @@ Required link libraries: `-lws2_32 -lcomctl32 -lcomdlg32 -lgdiplus -lm`.
 `-lgdiplus` is needed for the PNG snapshot support in the Sky Plot,
 Signal Quality and Session History windows.
 
-`build-gui.bat` holds the authoritative source list; treat any table or
-command elsewhere in the docs as a description of it rather than a second
-source of truth.
+The `ntrip-analyser-gui` target in `CMakeLists.txt` holds the
+authoritative source list; treat any table elsewhere in the docs as a
+description of it rather than a second source of truth. (The
+hand-written `build-gui.bat` retired with the TLS rollout.)
 
 For detailed GUI compilation instructions, build methods, and troubleshooting, see the **[GUI Documentation](gui.md#building-the-gui)**.
 
 **Quick build:**
 ```batch
-build-gui.bat
+cmake --build build --target ntrip-analyser-gui
 ```
 
 ## Building release assets

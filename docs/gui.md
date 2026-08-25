@@ -106,67 +106,24 @@ writes the capture file, and the session belongs to the worker thread.
 - **Code::Blocks with MinGW compiler** (or any GCC-compatible compiler)
 - **windres** (Windows Resource Compiler, included with MinGW)
 
-### Build Methods
+### Build Method
 
-#### 1. Automated Build Scripts (Recommended)
+One build, shared with everything else. The `ntrip-analyser-gui`
+target in `CMakeLists.txt` owns the source list, compiles
+`gui/resource.rc` through windres, and links the Windows libraries
+(`ws2_32`, `comctl32`, `comdlg32`, `gdiplus` — the last for the PNG
+snapshots — plus the vendored Mbed TLS). The hand-written
+`build-gui.bat` / `build-gui.ps1` scripts retired with the TLS
+rollout: a one-line gcc command cannot absorb a TLS library, and a
+second source list is a second place to forget a file.
 
-**Batch script:**
 ```batch
-build-gui.bat
+cmake -S . -B build
+cmake --build build --target ntrip-analyser-gui
 ```
 
-**PowerShell script:**
-```powershell
-.\build-gui.ps1
-```
-
-Both scripts automatically:
-1. Compile GUI resources (`resource.rc` → `resource.o`)
-2. Build the executable with all required source files
-3. Link against necessary Windows libraries
-4. Report build status
-
-#### 2. Visual Studio Code
-
-Press `Ctrl+Shift+B` and select **"Build NTRIP-Analyser GUI (CodeBlocks MinGW)"** from the task list.
-
-The VS Code task automatically handles resource compilation as a dependency.
-
-#### 3. Manual Build
-
-**Step 1: Compile resources**
-```batch
-windres gui/resource.rc -o gui/resource.o
-```
-
-**Step 2: Build executable**
-```batch
-gcc -g -mwindows -std=c99 -D_USE_MATH_DEFINES -o bin/ntrip-analyser-gui.exe ^
-    gui/gui_main.c gui/gui_layout.c gui/gui_events.c gui/gui_thread.c ^
-    gui/gui_log.c gui/gui_parsers.c gui/gui_detail.c ^
-    gui/gui_sky_window.c gui/gui_snapshot.c gui/gui_sv_detail.c ^
-    gui/gui_vrs_window.c gui/gui_signal_window.c gui/gui_hist_window.c ^
-    src/session/ntrip_session.c src/net/ntrip_proto.c src/net/ntrip_handler.c ^
-    src/core/ns_stats.c src/core/rtcm3x_parser.c src/core/config.c ^
-    src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c ^
-    src/core/rinex_nav.c ^
-    lib/cJSON/cJSON.c gui/resource.o ^
-    -Isrc -Ilib/cJSON -Igui ^
-    -lws2_32 -lcomctl32 -lcomdlg32 -lgdiplus -lm -Wall
-```
-
-`build-gui.bat` is the authoritative source list — if this command and that
-script ever disagree, the script is right.
-
-**Compile flags explained:**
-- `-mwindows` — GUI subsystem (no console window)
-- `-std=c99` — Use C99 standard
-- `-D_USE_MATH_DEFINES` — Enable math constants (M_PI, etc.)
-- `-lws2_32` — Windows Sockets 2 (networking)
-- `-lcomctl32` — Common Controls (modern UI widgets)
-- `-lcomdlg32` — Common Dialogs (file open/save dialogs)
-- `-lgdiplus` — GDI+ flat C API (used for the Sky Plot PNG snapshot)
-- `-lm` — Math library
+In Visual Studio Code, `Ctrl+Shift+B` runs the same CMake build; the
+executable lands in `bin\ntrip-analyser-gui.exe`.
 
 ## Using the GUI
 

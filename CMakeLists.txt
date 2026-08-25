@@ -85,6 +85,20 @@ add_compile_definitions(_USE_MATH_DEFINES)
 add_library(cjson STATIC lib/cJSON/cJSON.c)
 target_include_directories(cjson PUBLIC lib/cJSON)
 
+# ── Mbed TLS (vendored; lib/mbedtls/NTRIP-ANALYSER-NOTE.md) ───────────
+# Our own target over library/*.c, like cJSON at larger scale: upstream's
+# CMake wants Python and a test framework this tree does not carry.  The
+# GLOB is read at configure time -- re-run CMake after refreshing the
+# vendor copy.
+file(GLOB MBEDTLS_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/lib/mbedtls/library/*.c)
+add_library(mbedtls STATIC ${MBEDTLS_SOURCES})
+target_include_directories(mbedtls PUBLIC lib/mbedtls/include
+                                   PRIVATE lib/mbedtls/library)
+if(WIN32)
+    # bcrypt for the OS entropy source (BCryptGenRandom).
+    target_link_libraries(mbedtls PUBLIC bcrypt ws2_32)
+endif()
+
 # ── ntrip_core ────────────────────────────────────────────────────────
 add_library(ntrip_core STATIC
     src/core/ns_stats.c
@@ -114,10 +128,12 @@ endif()
 # ── ntrip_session (with the NTRIP protocol + client beneath it) ───────
 add_library(ntrip_session STATIC
     src/session/ntrip_session.c
+    src/session/ns_transport.c
+    src/session/ns_ca_bundle.c
     src/net/ntrip_proto.c
     src/net/ntrip_handler.c
 )
-target_link_libraries(ntrip_session PUBLIC ntrip_core)
+target_link_libraries(ntrip_session PUBLIC ntrip_core mbedtls)
 if(WIN32)
     target_link_libraries(ntrip_session PUBLIC ws2_32)
 endif()
@@ -201,6 +217,21 @@ add_executable(test_failure test/test_failure.c)
 target_link_libraries(test_failure PRIVATE ntrip_session)
 add_test(NAME failure COMMAND test_failure)
 
+# The valuable TLS tests are the refusals. A real TLS caster on the
+# loopback presents the committed fixtures from test/data/tls -- good,
+# expired, wrong-host, self-signed -- plus a plain-text port answering
+# where TLS was demanded, and each case must land on the right failure
+# code with the right sentence. If pthread is needed it comes with
+# ntrip_session's platform libs already.
+add_executable(test_tls test/test_tls.c)
+target_link_libraries(test_tls PRIVATE ntrip_session)
+if(NOT WIN32)
+    find_package(Threads REQUIRED)
+    target_link_libraries(test_tls PRIVATE Threads::Threads)
+endif()
+add_test(NAME tls
+         COMMAND test_tls "${CMAKE_SOURCE_DIR}/test/data/tls")
+
 # The network-RTK assertions had no test: the only thing that had ever
 # exercised vrs_check.c was a live caster. The engine is pure -- a
 # snapshot struct and the caller's clock -- so both endings (gated,
@@ -274,7 +305,7 @@ add_custom_target(test_all
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
             test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall test_failure test_vrs test_bridge_vrs)
+            test_stall test_failure test_vrs test_bridge_vrs test_tls)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)

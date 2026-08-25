@@ -20,6 +20,7 @@
  */
 
 #include "session/ntrip_session.h"
+#include "session/ns_transport.h" /* the byte transport under the loop */
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"   /* crc24q, msm_get_epoch, get_bits */
 #include "core/nmea_parser.h"     /* GGA construction */
@@ -34,22 +35,11 @@
 #include <time.h>
 #include <errno.h>       /* why a capture write failed */
 
+/* No socket headers here, deliberately: every socket this session ever
+ * touches lives behind ns_transport.  windows.h is for the monotonic
+ * clock alone. */
 #ifdef _WIN32
-  #include <winsock2.h>
-  #include <ws2tcpip.h>
-  typedef SOCKET ns_sock_t;
-  #define NS_INVALID_SOCK INVALID_SOCKET
-#else
-  #include <sys/socket.h>
-  #include <sys/select.h>
-  #include <netinet/in.h>
-  #include <arpa/inet.h>
-  #include <netdb.h>
-  #include <unistd.h>
-  #include <errno.h>
-  typedef int ns_sock_t;
-  #define NS_INVALID_SOCK (-1)
-  #define closesocket(s) close(s)
+  #include <windows.h>
 #endif
 
 /** Largest RTCM 3.x frame: 3 header + 1023 payload + 3 CRC. */
@@ -110,7 +100,7 @@ struct NtripSession {
     void      *user;
 
     /* Transport: exactly one of these is active. */
-    ns_sock_t  sock;
+    NsTransport *tr;      /* NULL when disconnected or replaying */
     FILE      *file;
     bool       is_file;
     bool       own_file;   /* false when the caller owns it, e.g. stdin */
@@ -118,6 +108,15 @@ struct NtripSession {
     bool       stopped;
     bool       ended;
     bool       connected;
+
+    /* Chunked transfer decoding.  NTRIP 2 over HTTP -- Kadaster's TLS
+     * endpoint, found live at L5 of the TLS rollout -- wraps the RTCM
+     * in Transfer-Encoding: chunked, and the chunk-size lines cost a
+     * fifth of the frames their CRCs until this existed.  Gated on
+     * handshake.chunked, which ns_proto has parsed since the handshake
+     * struct existed; the GUI displayed it and nothing consumed it. */
+    int        ck_state;
+    uint64_t   ck_remain;
     NsFailure  failure;    /**< why this session cannot run, if it cannot */
     bool       header_done;
     bool       announced_streaming;
@@ -297,92 +296,9 @@ static void cap_maybe_flush(NtripSession *s, double now)
 
 /* ── Socket helpers ──────────────────────────────────────────────── */
 
-static bool sock_startup(void)
-{
-#ifdef _WIN32
-    static bool done = false;
-    if (done) return true;
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return false;
-    done = true;
-#endif
-    return true;
-}
-
-/**
- * @brief Connect to host:port.  Returns NS_INVALID_SOCK on failure.
- *
- * @param fail Set to why it failed, which is the whole point: the
- *             difference between a name that does not resolve and a
- *             port with nothing behind it is the difference between two
- *             fields the user typed, and this is where it is knowable.
- */
-static ns_sock_t sock_connect(const char *host, int port, NsFailure *fail)
-{
-    if (fail) *fail = NS_FAIL_NONE;
-    if (!sock_startup()) {
-        if (fail) *fail = NS_FAIL_UNREACHABLE;
-        return NS_INVALID_SOCK;
-    }
-
-    char portstr[16];
-    snprintf(portstr, sizeof(portstr), "%d", port);
-
-    struct addrinfo hints, *res = NULL;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;      /* IPv4 or IPv6 */
-    hints.ai_socktype = SOCK_STREAM;
-
-    if (getaddrinfo(host, portstr, &hints, &res) != 0 || !res) {
-        if (fail) *fail = NS_FAIL_DNS;
-        return NS_INVALID_SOCK;
-    }
-
-    ns_sock_t sk = NS_INVALID_SOCK;
-    int last_err = 0;
-    for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
-        sk = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-        if (sk == NS_INVALID_SOCK) continue;
-        if (connect(sk, ai->ai_addr, (int)ai->ai_addrlen) == 0) break;
-        /* Read before closing: closesocket() clobbers the error on
-         * Windows, which is how the reason for a refusal disappears. */
-#ifdef _WIN32
-        last_err = WSAGetLastError();
-#else
-        last_err = errno;
-#endif
-        closesocket(sk);
-        sk = NS_INVALID_SOCK;
-    }
-    freeaddrinfo(res);
-    if (sk == NS_INVALID_SOCK && fail)
-        *fail = ns_failure_from_socket(last_err);
-    return sk;
-}
-
-/**
- * @brief Receive with a timeout.
- * @return >0 bytes, 0 on timeout, <0 on close or error.
- */
-static int sock_recv(ns_sock_t sk, unsigned char *buf, int cap, int timeout_ms)
-{
-    fd_set rd;
-    FD_ZERO(&rd);
-    FD_SET(sk, &rd);
-
-    struct timeval tv;
-    tv.tv_sec  = timeout_ms / 1000;
-    tv.tv_usec = (timeout_ms % 1000) * 1000;
-
-    int r = select((int)sk + 1, &rd, NULL, NULL, &tv);
-    if (r == 0)  return 0;
-    if (r < 0)   return -1;
-
-    int n = (int)recv(sk, (char *)buf, cap, 0);
-    if (n == 0) return -1;      /* peer closed */
-    if (n < 0)  return -1;
-    return n;
-}
+/* The socket helpers that stood here -- startup, connect, timed recv --
+ * moved whole to ns_transport.c, where they are the plaintext
+ * implementation of the transport seam. */
 
 /* ── Stream clock ─────────────────────────────────────────────────────
  *
@@ -837,6 +753,80 @@ NsFailure ns_failure(const NtripSession *s)
     return s ? s->failure : NS_FAIL_NONE;
 }
 
+/* ── Chunked transfer decoding ────────────────────────────────────
+ *
+ * States for one byte-at-a-time pass over the chunk framing.  The data
+ * bytes themselves go to feed() in whole runs; only the framing is
+ * walked byte by byte, and framing is a few bytes per chunk.
+ */
+enum {
+    CK_SIZE = 0,   /* reading the hex size line              */
+    CK_EXT,        /* a ;extension -- skipped to the CR      */
+    CK_SIZE_LF,    /* the LF after the size line             */
+    CK_DATA,       /* ck_remain data bytes belong to feed()  */
+    CK_DATA_CR,    /* the CR after a chunk's data            */
+    CK_DATA_LF,    /* the LF after that                      */
+    CK_END,        /* the 0-chunk arrived; swallow trailers  */
+};
+
+/**
+ * @brief Feed payload through the chunk decoder.
+ *
+ * Everything between the chunk-size lines is stream; everything else
+ * is HTTP.  A last chunk of size zero means the caster is done -- the
+ * socket close that follows is handled where closes are handled.
+ */
+static void feed_dechunk(NtripSession *s, const unsigned char *data,
+                         int len)
+{
+    int i = 0;
+    while (i < len) {
+        unsigned char c = data[i];
+        switch (s->ck_state) {
+            case CK_SIZE:
+                if (c >= '0' && c <= '9')
+                    { s->ck_remain = s->ck_remain * 16 + (c - '0'); i++; }
+                else if (c >= 'a' && c <= 'f')
+                    { s->ck_remain = s->ck_remain * 16 + (c - 'a' + 10); i++; }
+                else if (c >= 'A' && c <= 'F')
+                    { s->ck_remain = s->ck_remain * 16 + (c - 'A' + 10); i++; }
+                else if (c == ';') { s->ck_state = CK_EXT; i++; }
+                else if (c == '\r') { s->ck_state = CK_SIZE_LF; i++; }
+                else i++;          /* tolerate; a lost byte resyncs here */
+                break;
+            case CK_EXT:
+                if (c == '\r') s->ck_state = CK_SIZE_LF;
+                i++;
+                break;
+            case CK_SIZE_LF:
+                s->ck_state = s->ck_remain ? CK_DATA : CK_END;
+                i++;
+                break;
+            case CK_DATA: {
+                int run = len - i;
+                if ((uint64_t)run > s->ck_remain) run = (int)s->ck_remain;
+                feed(s, data + i, run);
+                s->ck_remain -= (uint64_t)run;
+                i += run;
+                if (s->ck_remain == 0) s->ck_state = CK_DATA_CR;
+                break;
+            }
+            case CK_DATA_CR:
+                s->ck_state = CK_DATA_LF;
+                i++;
+                break;
+            case CK_DATA_LF:
+                s->ck_state  = CK_SIZE;
+                s->ck_remain = 0;
+                i++;
+                break;
+            case CK_END:
+            default:
+                return;            /* trailers are nobody's stream */
+        }
+    }
+}
+
 /**
  * @brief Record why this session cannot run, in one place.
  *
@@ -866,10 +856,22 @@ static void do_connect(NtripSession *s)
     emit(s, &ev);
 
     NsFailure fail = NS_FAIL_NONE;
-    s->sock = sock_connect(s->opt.config.NTRIP_CASTER,
-                           s->opt.config.NTRIP_PORT, &fail);
-    if (s->sock == NS_INVALID_SOCK) {
+    char tls_why[160];
+    tls_why[0] = 0;
+    s->tr = s->opt.config.TLS
+          ? ns_transport_connect_tls(s->opt.config.NTRIP_CASTER,
+                                     s->opt.config.NTRIP_PORT, &fail,
+                                     tls_why, sizeof(tls_why))
+          : ns_transport_connect(s->opt.config.NTRIP_CASTER,
+                                 s->opt.config.NTRIP_PORT, &fail);
+    if (!s->tr) {
         set_failure(s, fail);
+        /* The transport knows *which* certificate fault it saw --
+         * expired, wrong host, untrusted -- and that sentence beats the
+         * generic one the vocabulary writes. */
+        if (tls_why[0])
+            snprintf(s->stats.failure_detail,
+                     sizeof(s->stats.failure_detail), "%s", tls_why);
         emit_log(s, NS_LOG_ERROR, "%s", s->stats.failure_detail);
         if (!s->opt.auto_reconnect) { emit_end(s, NS_END_NET_ERROR); return; }
         s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
@@ -886,6 +888,7 @@ static void do_connect(NtripSession *s)
     const char *agent = s->opt.user_agent ? s->opt.user_agent
                                           : NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB);
     int n = ns_proto_build_request(req, sizeof(req),
+                                   s->opt.config.TLS,
                                    s->opt.config.NTRIP_CASTER,
                                    s->opt.config.MOUNTPOINT,
                                    s->opt.config.USERNAME,
@@ -893,22 +896,24 @@ static void do_connect(NtripSession *s)
                                    agent);
     if (n <= 0 || (size_t)n >= sizeof(req)) {
         emit_log(s, NS_LOG_ERROR, "Request too long to build");
-        closesocket(s->sock);
-        s->sock = NS_INVALID_SOCK;
+        ns_transport_close(s->tr);
+        s->tr = NULL;
         emit_end(s, NS_END_NET_ERROR);
         return;
     }
 
-    if (send(s->sock, req, n, 0) <= 0) {
+    if (ns_transport_send(s->tr, req, n) <= 0) {
         emit_log(s, NS_LOG_ERROR, "Failed to send the request");
-        closesocket(s->sock);
-        s->sock = NS_INVALID_SOCK;
+        ns_transport_close(s->tr);
+        s->tr = NULL;
         emit_end(s, NS_END_NET_ERROR);
         return;
     }
 
     s->connected   = true;
     s->header_len  = 0;
+    s->ck_state    = CK_SIZE;    /* a reconnect renegotiates chunking */
+    s->ck_remain   = 0;
     s->header_done = false;
     s->backoff_s   = 0;
     s->last_rx_t   = ns_now();   /* silence is counted from here */
@@ -930,8 +935,8 @@ static void do_connect(NtripSession *s)
 static void drop_connection(NtripSession *s, double now,
                             const char *why, NsEndReason reason)
 {
-    closesocket(s->sock);
-    s->sock = NS_INVALID_SOCK;
+    ns_transport_close(s->tr);
+    s->tr = NULL;
     s->connected = false;
     s->stats.connected = false;
     emit_log(s, NS_LOG_WARN, "%s", why);
@@ -1001,8 +1006,8 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
         emit_log(s, NS_LOG_ERROR, "%s (%s)", s->stats.failure_detail,
                  s->handshake.status_line[0] ? s->handshake.status_line
                                              : "(unrecognised response)");
-        closesocket(s->sock);
-        s->sock = NS_INVALID_SOCK;
+        ns_transport_close(s->tr);
+        s->tr = NULL;
         s->connected = false;
         emit_end(s, NS_END_REJECTED);
         return -1;
@@ -1019,7 +1024,7 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
 /** @brief Send a GGA sentence, as VRS mountpoints require. */
 static void maybe_send_gga(NtripSession *s, double now)
 {
-    if (!s->opt.send_gga || !s->connected || s->sock == NS_INVALID_SOCK) return;
+    if (!s->opt.send_gga || !s->connected || !s->tr) return;
     double iv = s->opt.gga_interval_s > 0.0 ? s->opt.gga_interval_s : 1.0;
     if (now - s->last_gga_t < iv) return;
     s->last_gga_t = now;
@@ -1031,9 +1036,9 @@ static void maybe_send_gga(NtripSession *s, double now)
     if (n && gga[n - 1] != '\n') {
         char line[300];
         snprintf(line, sizeof(line), "%s\r\n", gga);
-        send(s->sock, line, (int)strlen(line), 0);
+        ns_transport_send(s->tr, line, (int)strlen(line));
     } else {
-        send(s->sock, gga, (int)n, 0);
+        ns_transport_send(s->tr, gga, (int)n);
     }
 }
 
@@ -1059,7 +1064,7 @@ static NtripSession *alloc_session(const NsOptions *opt, NsEventFn cb, void *use
 
     s->cb   = cb;
     s->user = user;
-    s->sock = NS_INVALID_SOCK;
+    s->tr   = NULL;
     s->framing_enabled = true;
     s->t0   = ns_now();
     s->t_start_unix  = (double)time(NULL);
@@ -1192,7 +1197,7 @@ int ns_pump(NtripSession *s, int timeout_ms)
     maybe_send_gga(s, now);
 
     unsigned char buf[NS_RECV_BUF];
-    int n = sock_recv(s->sock, buf, sizeof(buf), timeout_ms);
+    int n = ns_transport_recv(s->tr, buf, sizeof(buf), timeout_ms);
     if (n == 0) {
         /* Nothing this time round is ordinary; nothing for long enough
          * is the fault that has no other symptom.  Checked here, on the
@@ -1232,7 +1237,10 @@ int ns_pump(NtripSession *s, int timeout_ms)
         if (s->ended) return -1;
         if (off < 0) return n;       /* header still incomplete */
     }
-    if (off < n) feed(s, buf + off, n - off);
+    if (off < n) {
+        if (s->handshake.chunked) feed_dechunk(s, buf + off, n - off);
+        else                      feed(s, buf + off, n - off);
+    }
 
     stats_refresh(s, now);
     maybe_emit_stats(s, now);
@@ -1256,7 +1264,7 @@ void ns_close(NtripSession *s)
     /* Before the socket: the capture is the artefact the run existed to
      * produce, and fclose() is what commits its tail to the disk. */
     cap_close(s);
-    if (s->sock != NS_INVALID_SOCK) closesocket(s->sock);
+    ns_transport_close(s->tr);
     /* Only close what this session opened.  Closing a caller's handle --
      * stdin, above all -- would break the program around us. */
     if (s->file && s->own_file) fclose(s->file);
@@ -1350,7 +1358,7 @@ const NsHandshake *ns_handshake(const NtripSession *s)
 
 bool ns_send_gga(NtripSession *s, double lat, double lon)
 {
-    if (!s || s->is_file || !s->connected || s->sock == NS_INVALID_SOCK)
+    if (!s || s->is_file || !s->connected || !s->tr)
         return false;
 
     char gga[256];
@@ -1363,7 +1371,7 @@ bool ns_send_gga(NtripSession *s, double lat, double lon)
     else
         snprintf(line, sizeof(line), "%s", gga);
 
-    return send(s->sock, line, (int)strlen(line), 0) > 0;
+    return ns_transport_send(s->tr, line, (int)strlen(line)) > 0;
 }
 
 void ns_set_framing_enabled(NtripSession *s, bool enabled)

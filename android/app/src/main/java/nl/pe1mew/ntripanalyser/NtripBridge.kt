@@ -47,9 +47,9 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
      */
     fun openEph(
         caster: String, port: Int, mountpoint: String,
-        user: String, password: String,
+        user: String, password: String, tls: Boolean = false,
     ): Boolean = handle != 0L &&
-        nativeOpenEph(handle, caster, port, mountpoint, user, password)
+        nativeOpenEph(handle, caster, port, mountpoint, user, password, tls)
 
     /**
      * Load orbits from a RINEX navigation file the user supplied.
@@ -146,9 +146,16 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
              * the user asked for a network-RTK check.
              */
             vrs: Boolean = false,
+            /**
+             * Speak TLS to the caster. Both editions -- protection is
+             * never the paid difference -- and verification is not
+             * optional: a wrong certificate is a failure code, not a
+             * dialog with a proceed button.
+             */
+            tls: Boolean = false,
         ): NtripBridge? {
             val h = nativeOpen(caster, port, mountpoint, user, password,
-                               lat, lon, sendGga, watch, vrs)
+                               lat, lon, sendGga, watch, vrs, tls)
             return if (h == 0L) null else NtripBridge(h)
         }
 
@@ -161,7 +168,8 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
          */
         fun sourcetable(
             caster: String, port: Int, user: String, password: String,
-        ): String? = nativeSourcetable(caster, port, user, password)
+            tls: Boolean = false,
+        ): String? = nativeSourcetable(caster, port, user, password, tls)
 
         /** Open a session replaying a captured `.rtcm3` file. */
         fun openFile(path: String, watch: Boolean = false): NtripBridge? {
@@ -200,12 +208,13 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
             caster: String, port: Int, mountpoint: String,
             user: String, password: String,
             lat: Double, lon: Double, sendGga: Boolean, watch: Boolean,
-            vrs: Boolean,
+            vrs: Boolean, tls: Boolean,
         ): Long
 
         @JvmStatic private external fun nativeOpenFile(path: String, watch: Boolean): Long
         @JvmStatic private external fun nativeSourcetable(
             caster: String, port: Int, user: String, password: String,
+            tls: Boolean,
         ): String?
         @JvmStatic private external fun nativePump(h: Long, timeoutMs: Int, nowS: Double): Int
         @JvmStatic private external fun nativeSnapshotJson(h: Long): String?
@@ -213,7 +222,7 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         @JvmStatic private external fun nativeOverall(h: Long): Int
         @JvmStatic private external fun nativeOpenEph(
             h: Long, caster: String, port: Int, mountpoint: String,
-            user: String, password: String,
+            user: String, password: String, tls: Boolean,
         ): Boolean
         @JvmStatic private external fun nativeEphCount(h: Long): Int
         @JvmStatic private external fun nativeEphFrames(h: Long): Int

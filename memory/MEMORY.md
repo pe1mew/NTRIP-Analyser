@@ -72,12 +72,12 @@
   fix. 3.7.2 (same day) shipped GH#2/GH#3; both issues closed.
 - **The issue tracker is live**: #1 is a PR; issues start at #2.
   Backlog items carry `[GH#n]` tags (`design/todo.md`).
-- **check_release.py is at 98 checks**; the gate-table guard has
+- **check_release.py is at 106 checks with release artefacts present** (fewer report when no artefact exists to judge); the gate-table guard has
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.
-- **Fifteen C tests**, including the desktop-built bridge harness
-  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 15 -->
+- **Sixteen C tests**, including the desktop-built bridge harness
+  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 16 -->
   (`test_bridge_vrs.c`) that drives the phone's own plumbing over a
   loopback socket with a synthetic clock.
 
@@ -299,12 +299,14 @@ Supplementing CLAUDE.md's list with paths found during work:
   identical report; tier 2 says STABLE / DEGRADED / UNSTABLE and never
   borrows tier 1's words (`design/work-items/measurement-tiers.md`,
   `design/kpi-candidates.md`).
-- **Where two build systems describe one source set, CI must run both.**
-  `service/Makefile` lists its sources by hand and had silently stopped
-  linking, because CMake keeps its own list and never noticed. The Win32
-  GUI still carries the same exposure through `build-gui.bat`, which no
-  runner builds — that gap is stated in `.github/workflows/ci.yml` rather
-  than hidden, and closing it is Phase 3 of `design/work-items/gui-track.md`.
+- **Where two build systems describe one source set, CI must run both —
+  better, have one list.** `service/Makefile` fell behind by hand and now
+  builds by wildcard; `build-gui.bat` and the hand-listed VS Code tasks
+  retired outright with the TLS rollout (2026-08-25), leaving
+  `CMakeLists.txt` as the only desktop source list. The GUI is still not
+  CI-built (Windows-only); that gap stays stated in
+  `.github/workflows/ci.yml`, and a compile-only Windows job remains
+  Phase 3 of `design/work-items/gui-track.md`.
 - **TLS is coming, after the free launch**, as a bundled library behind a
   transport abstraction — chosen over per-platform native APIs to keep one
   code path for four frontends. It ships in **both editions** on the same

@@ -76,6 +76,8 @@ const char *ns_failure_name(NsFailure f)
         case NS_FAIL_REJECTED:      return "rejected";
         case NS_FAIL_DROPPED:       return "dropped";
         case NS_FAIL_STALLED:       return "stalled";
+        case NS_FAIL_TLS_HANDSHAKE: return "tls-handshake";
+        case NS_FAIL_TLS_CERT:      return "tls-cert";
     }
     return "none";
 }
@@ -130,6 +132,20 @@ int ns_failure_text(char *buf, size_t cap, NsFailure f,
         case NS_FAIL_STALLED:
             return snprintf(buf, cap,
                 "Connected, but nothing is arriving.");
+        case NS_FAIL_TLS_HANDSHAKE:
+            /* Points at the two fields the user controls: the port and
+             * the TLS setting.  The commonest cause by far is a
+             * plain-text port with TLS demanded of it. */
+            return snprintf(buf, cap,
+                "%s:%d did not complete a TLS handshake. The port may "
+                "be plain-text -- check the port and the TLS setting.",
+                h, port);
+        case NS_FAIL_TLS_CERT:
+            /* The generic form; the session replaces it with the
+             * transport's specific sentence (expired / wrong host /
+             * untrusted) when one is available. */
+            return snprintf(buf, cap,
+                "The caster's certificate was not accepted.");
         case NS_FAIL_NONE:
             break;
     }
@@ -154,6 +170,8 @@ const char *ns_failure_short(NsFailure f)
         case NS_FAIL_REJECTED:      return "The caster refused the request";
         case NS_FAIL_DROPPED:       return "The caster closed the connection";
         case NS_FAIL_STALLED:       return "Connected, but nothing arrived";
+        case NS_FAIL_TLS_HANDSHAKE: return "TLS handshake failed";
+        case NS_FAIL_TLS_CERT:      return "Certificate not accepted";
     }
     return "";
 }

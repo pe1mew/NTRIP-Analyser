@@ -87,7 +87,7 @@ or forms a verdict; that rule is what makes the next row true.
 | Tray minimise, layout reset | Desktop ergonomics for a program left running for days. | ○ | ● | ○ | ○ | ○ |
 | Scripting surface | `-q`, `--json`, and documented exit codes 0–7 — including 7, capture failed, which outranks every other verdict because a missing artefact is the news. The daemon's `--oneshot` writes a single snapshot and exits, which is the same idea for a cron job that wants one sample. | ● | ○ | ○ | ○ | ◐ |
 | Telemetry | None, anywhere: no SDK, no endpoint, no consent flow. Install figures come from Play Console. | ○ | ○ | ○ | ○ | ○ |
-| TLS to the caster | Not built in any product. Scheduled after the free launch, as a bundled library behind a transport abstraction, and it ships in **both editions on the same day** — the paid edition withholds convenience, never protection. | ⋯ | ⋯ | ⋯ | ⋯ | ⋯ |
+| TLS to the caster | Shipped 2026-08-25 (TLS rollout, `tls` branch; releases as 3.8.0): mbedTLS behind the `ns_transport` seam, verification mandatory against the embedded Mozilla roots, hostname checked, chunked NTRIP 2 decoded. An explicit per-connection flag — the stream, the sourcetable fetch and the ephemeris side-stream each carry their own — in **both editions the same day**, ungated: the paid edition withholds convenience, never protection. | ● | ● | ● | ● | ● |
 
 ## The shape of the split
 

@@ -19,7 +19,7 @@ frame that lies about its contents*.
 |---|---|---|---|
 | F1 | RTCM 1033 read past the payload and printed what it found | Medium | **fixed** + regression test |
 | F2 | Sourcetable accumulated without limit from an untrusted caster | Low–Medium | **fixed** |
-| F3 | Credentials cross the network in the clear; no TLS support | Medium | **mitigated** — disclosed in the app and on every session; TLS is a decision |
+| F3 | Credentials cross the network in the clear on plain-text connections | Medium | **narrowed** (2026-08-25) — TLS shipped in every product; the disclosure remains for casters that offer none |
 | F4 | `get_bits()` has no bounds checking; safety rests on callers | Low (latent) | **mitigated** — `get_bits_checked()` added, hazard documented at the declaration |
 | F5 | `base64_encode()` took no output capacity | Low (latent) | **fixed** — `base64_encode_n()`, every caller moved |
 | F6 | cJSON 1.7.18 is affected by CVE-2025-57052 (CVSS 9.8) | None as built | **removed** — the vulnerable file is deleted from the vendored copy |
@@ -77,7 +77,18 @@ exhausts memory — on a phone, until the app is killed.
 Capped at 4 MB, well above any real sourcetable (the largest public ones
 are a few hundred kilobytes), with a warning when it triggers.
 
-## F3 — Credentials cross the network in the clear *(mitigated; TLS is a decision)*
+## F3 — Credentials cross the network in the clear *(narrowed 2026-08-25: TLS shipped; the disclosure survives for plain-text casters)*
+
+**Update, TLS rollout (design/work-items/tls-rollout.md).** The
+decision this finding asked for was made and built: mbedTLS behind the
+transport seam, in all four frontends, both editions, verification
+mandatory. The disclosure below *narrows* rather than retires — many
+casters still offer no TLS, and a plain-text connection still sends
+credentials readably. The CLI's session line is now printed only over
+plain text and ends "Enable TLS if the caster offers it."; the app's
+password caption says which kind of connection the password will
+cross, following the checkbox. What follows is the original finding,
+kept for the record.
 
 NTRIP authenticates with HTTP Basic: `username:password`, **base64, not
 encrypted**, over a plain TCP connection. Anyone on the path — a hotel

@@ -60,8 +60,9 @@ because people will point it at real stations and believe what it says.
 - **A remembered or inferred value must never satisfy the KPI that asks
   for it.** The sky view may draw from a remembered station position;
   KPI 3 still waits for a real 1005/1006.
-- **Never add a GUI source file to only one build.** `CMakeLists.txt`
-  *and* `build-gui.bat` both list every `gui/*.c` by hand.
+- **The desktop has one source list**: `CMakeLists.txt`.
+  `build-gui.bat` and the hand-listed VS Code tasks retired with the
+  TLS rollout (2026-08-25); `service/Makefile` builds by wildcard.
 - **Never document a function in both header and `.c`.** Doxygen merges
   them and reports nonsense.
 - **Verify against a live caster before claiming something works.** A
@@ -124,8 +125,8 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/java/.../Navigation.kt` | `Dest` and the hand-rolled `NavStack`. No `navigation-compose` |
 | `android/app/src/{free,pro}/.../Registry.kt` | **The list is the layout** — what an edition shows, in order, hub and report alike |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
-| `test/` | Fifteen tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity, stream capture, station report, stream clock, snapshot serialisation, threshold policy, KPI 1's stopped-stream wording, stall detection, failure classification, the network-RTK assertions, the bridge's VRS workflow over a loopback socket |
-<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 15 -->
+| `test/` | Sixteen tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, legacy observations, ephemeris validity, stream capture, station report, stream clock, snapshot serialisation, threshold policy, KPI 1's stopped-stream wording, stall detection, failure classification, the network-RTK assertions, the bridge's VRS workflow over a loopback socket, TLS against a loopback caster with deliberately bad certificates |
+<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 16 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
 | `.github/workflows/ci.yml` | Core, tests, release checks, the daemon's own Makefile and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
 | `.github/workflows/release-linux.yml` | On a `v*` tag: build, test, package, attach the Linux assets. `ubuntu-22.04` deliberately — its glibc 2.35 is the floor the binaries then require |

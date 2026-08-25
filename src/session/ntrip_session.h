@@ -157,6 +157,12 @@ typedef struct {
     int    reconnect_backoff_max_s;
     const char *user_agent;       /**< NULL selects a default                */
 
+    /* TLS is not an option here, deliberately: it rides
+     * NTRIP_Config.TLS inside `config`, because the flag describes the
+     * caster, and everything that copies a config -- a frontend, an
+     * eph worker mapping EPH_* fields, the sourcetable fetch -- must
+     * carry it without remembering to. */
+
     /**
      * @brief Give up on a connected but silent socket after this long;
      *        0 = wait forever.  Default 60 s.

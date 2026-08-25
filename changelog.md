@@ -115,6 +115,25 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Added — TLS to the caster, in both editions
+
+The largest security improvement available to this project, and it is
+deliberately not a paid feature: the paid edition withholds
+convenience, never protection. Tick **Use TLS** beside the port (the
+apps suggest it when the port is 443) and every connection to that
+caster — the stream, the mountpoint list, and pro's ephemeris
+side-stream, each with its own flag — runs inside TLS, verified
+against the embedded Mozilla roots with the hostname checked. There
+is no connect-anyway mode: a certificate that is expired, belongs to
+another host, or is signed by nobody is a classified failure that
+says which, and a plain-text port answering where TLS was demanded is
+told apart from a dead one. NTRIP 2's chunked transfer encoding is
+decoded — found live when a fifth of every frame's CRCs paid for the
+chunk framing — and the settings say in so many words which kind of
+connection the password will cross. The CLI takes `--tls on|off` and
+`--eph-tls on|off`; config files gain `tls` and `eph_tls`, absent
+meaning plain text, so an old file keeps meaning what it meant.
+
 ### Added — the stability report, in the paid edition
 
 Has this station *been* fit, and is it staying that way — the question

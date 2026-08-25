@@ -22,11 +22,11 @@
 #            the network and a checker that cries wolf gets ignored.
 #
 # **What this does NOT cover, deliberately**: the Win32 GUI. It is
-# Windows-only, has a second hand-written build path (build-gui.bat), and
-# building it here would need a MinGW toolchain whose failures would say
-# more about the runner than about the code. It is verified by hand on
-# the machine that ships it -- see docs/RUNBOOK.md -- and that gap is
-# stated rather than hidden.
+# Windows-only, and building it here would need a MinGW toolchain whose
+# failures would say more about the runner than about the code. Its only
+# build is the CMake target -- build-gui.bat retired with the TLS
+# rollout -- and it is verified by hand on the machine that ships it,
+# see docs/RUNBOOK.md; that gap is stated rather than hidden.
 #
 # The UNIX daemon *is* covered, twice: CMake builds it in the core job,
 # and `make -C service` exercises the hand-written path that a packager
@@ -85,8 +85,8 @@ jobs:
       # builds here and breaks `make -C service` silently -- and that is
       # the path a packager, or anyone deploying to a VPS, actually uses.
       #
-      # Same class of gap as the GUI's build-gui.bat; unlike that one, it
-      # costs seconds to close.
+      # Same class of gap the GUI's build-gui.bat once was (retired with
+      # the TLS rollout); this one costs seconds to close.
       - name: The daemon's own build path
         run: make -C service
 

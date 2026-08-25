@@ -324,21 +324,17 @@ evidence.
 
 ### Building
 
-**Windows CLI:**
-```batch
-gcc -g -o bin/ntrip-analyser.exe src/cli/main.c lib/cJSON/cJSON.c src/core/rtcm3x_parser.c src/core/ns_stats.c src/net/ntrip_proto.c src/session/ntrip_session.c src/cli/cli_stream.c src/net/ntrip_handler.c src/core/config.c src/cli/cli_help.c src/core/nmea_parser.c src/core/sv_ephemeris.c src/core/sv_orbit.c src/core/sky_collect.c src/core/sky_render.c src/core/rinex_nav.c -Isrc -Ilib/cJSON -lws2_32 -lm -Wall
-```
+One build system for every desktop program — the CLI everywhere, the
+GUI on Windows, the daemon on UNIX:
 
-**Windows GUI:**
-```batch
-build-gui.bat
-```
-
-**Linux CLI:**
 ```bash
-mkdir -p bin
-gcc -g -o bin/ntrip-analyser src/cli/*.c src/core/*.c src/net/*.c src/session/*.c lib/cJSON/cJSON.c -Isrc -Ilib/cJSON -Wall -lm -lpthread
+cmake -S . -B build
+cmake --build build
 ```
+
+Binaries land in `bin/`. (The hand-listed gcc one-liners that stood
+here fell behind the source tree twice and retired with the TLS
+rollout; `CMakeLists.txt` is the only source list.)
 
 See [compilation guide](docs/compile.md) for complete build instructions.
 

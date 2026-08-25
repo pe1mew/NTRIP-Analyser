@@ -24,6 +24,7 @@ usable everywhere.
       "mountpoint": "APEL00NLD0",
       "username": "ntrip-analyser",
       "password": "password",
+      "tls": false,
       "send_gga": false,
       "latitude": 52.230481,
       "longitude": 5.942016,
@@ -32,7 +33,8 @@ usable everywhere.
       "eph_port": 2101,
       "eph_mountpoint": "BCEP00KAD0",
       "eph_username": "ntrip-analyser",
-      "eph_password": "password"
+      "eph_password": "password",
+      "eph_tls": false
     }
   ]
 }
@@ -95,10 +97,11 @@ someone signed up for, sometimes a paid one.
 | `port` | number | Caster port, usually 2101 |
 | `mountpoint` | string | Mountpoint to open |
 | `username`, `password` | string | Caster credentials, **in the clear** |
+| `tls` | boolean | Speak TLS to the caster. An explicit choice, never inferred from the port; absent means plain text, so an older file keeps meaning what it meant. The certificate is always verified — there is no connect-anyway mode |
 | `send_gga` | boolean | Send the periodic GGA uplink. Network (VRS) mountpoints require it; a single base ignores it |
 | `latitude`, `longitude` | number | Position for that uplink, degrees |
 | `name` | string | A label for people. Optional, and ignored by every parser that does not need it |
-| `eph_caster`, `eph_port`, `eph_mountpoint`, `eph_username`, `eph_password` | string / number | **Optional.** A second connection carrying broadcast ephemerides (RTCM 1019/1020/1041/1042/1044/1045/1046), which the sky plot needs to place satellites. Only for stations that do not broadcast them on the observation stream — those are decoded from it directly. Leave the block out to disable it |
+| `eph_caster`, `eph_port`, `eph_mountpoint`, `eph_username`, `eph_password`, `eph_tls` | string / number / boolean | **Optional.** A second connection carrying broadcast ephemerides (RTCM 1019/1020/1041/1042/1044/1045/1046), which the sky plot needs to place satellites. Only for stations that do not broadcast them on the observation stream — those are decoded from it directly. Leave the block out to disable it |
 
 A missing key leaves its field empty rather than terminating the
 program — one typo used to take a whole run down. The cost is that a
@@ -150,6 +153,7 @@ keys:
 {
   "NTRIP_CASTER": "ntrip.kadaster.nl",
   "NTRIP_PORT": 2101,
+  "TLS": false,
   "MOUNTPOINT": "APEL00NLD0",
   "USERNAME": "ntrip-analyser",
   "PASSWORD": "password",
@@ -159,7 +163,8 @@ keys:
   "EPH_PORT": 2101,
   "EPH_MOUNTPOINT": "BCEP00KAD0",
   "EPH_USERNAME": "ntrip-analyser",
-  "EPH_PASSWORD": "password"
+  "EPH_PASSWORD": "password",
+  "EPH_TLS": false
 }
 ```
 

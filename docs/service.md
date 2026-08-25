@@ -147,6 +147,7 @@ should be readable by the service group and nobody else.
       "mountpoint": "EXAMPLE1",
       "username": "user",
       "password": "password",
+      "tls": false,
       "send_gga": false,
       "latitude": 52.0,
       "longitude": 6.0,
@@ -171,6 +172,10 @@ should be readable by the service group and nobody else.
   are ignored, because 600 seconds is the least evidence the report will
   judge on at all and a shorter setting could only ever publish
   `INSUFFICIENT EVIDENCE`.
+- `tls: true` speaks TLS to that caster. An explicit choice, never
+  inferred from the port, and the certificate is always verified
+  against the embedded Mozilla roots — a failed handshake or a wrong
+  certificate is a classified failure, not a silent retry loop.
 - `send_gga: true` enables a periodic GGA uplink at the configured
   position — required by VRS / network mountpoints, harmless elsewhere.
 - `stall_timeout_s` is how long a connected but silent socket is

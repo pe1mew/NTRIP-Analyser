@@ -708,6 +708,7 @@ int run_eph_stream(const NTRIP_Config *config,
     snprintf(opt.config.NTRIP_CASTER, sizeof(opt.config.NTRIP_CASTER), "%.*s",
              (int)sizeof(opt.config.NTRIP_CASTER) - 1, config->EPH_CASTER);
     opt.config.NTRIP_PORT = config->EPH_PORT;
+    opt.config.TLS        = config->EPH_TLS;   /* its own caster, its own flag */
     snprintf(opt.config.MOUNTPOINT, sizeof(opt.config.MOUNTPOINT), "%.*s",
              (int)sizeof(opt.config.MOUNTPOINT) - 1, config->EPH_MOUNTPOINT);
     snprintf(opt.config.USERNAME, sizeof(opt.config.USERNAME), "%.*s",
