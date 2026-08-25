@@ -95,7 +95,16 @@ waits (the share control's rule).
 
 ## Steps
 
-### E1 — the bridge writes CSV too
+### E1 — the bridge writes CSV too  *(done 2026-08-25)*
+
+`bridge_stats_csv()` as planned -- core header, newline, core row,
+refusing truncation -- with its JNI beside the JSON one. Proven in the
+desktop bridge harness: the first line equals `ns_stats_csv_header()`
+byte for byte, the row fills every column the header names, and a
+64-byte buffer is refused rather than half-written. Falsified by
+corrupting the newline joint: red by name, restored, 15 of 15.
+
+*(As planned:)*
 
 `bridge_stats_csv(NtripBridge*, char*, size_t)`: core header + `\n` +
 core row for the current snapshot, refusing truncation. JNI beside

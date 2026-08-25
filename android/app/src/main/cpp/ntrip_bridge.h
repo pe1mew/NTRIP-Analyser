@@ -152,6 +152,19 @@ void bridge_set_position(NtripBridge *b, double lat, double lon);
 int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap);
 
 /**
+ * @brief The current snapshot as CSV: the core's header, then one row.
+ *
+ * The statistics export (phase 2 item 4). Through the core's own
+ * serialisers for the desktop's stated reason: an exported file and a
+ * Munin sample must describe a stream identically, not in two dialects
+ * that drift apart. A sample, not a log -- exactly the GUI's export.
+ *
+ * @return Length written, or -1 on truncation or no session; a partial
+ *         file must never be written out as though it were complete.
+ */
+int bridge_stats_csv(NtripBridge *b, char *out, size_t cap);
+
+/**
  * @brief Fetch and parse a caster's sourcetable, as JSON.
  *
  * **Blocking**: this opens a connection and waits for the caster, so it

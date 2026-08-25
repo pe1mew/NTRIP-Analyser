@@ -675,6 +675,20 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
     return pos;
 }
 
+int bridge_stats_csv(NtripBridge *b, char *out, size_t cap)
+{
+    if (!b || !b->sess || !out || cap < 2) return -1;
+
+    int hdr = ns_stats_csv_header(out, cap);
+    if (hdr < 0 || (size_t)hdr >= cap - 1) return -1;
+    out[hdr] = '\n';
+
+    int row = ns_stats_to_csv_row(ns_stats(b->sess),
+                                  out + hdr + 1, cap - (size_t)hdr - 1);
+    if (row < 0 || (size_t)row >= cap - (size_t)hdr - 1) return -1;
+    return hdr + 1 + row;
+}
+
 void bridge_close(NtripBridge *b)
 {
     if (!b) return;

@@ -30,6 +30,7 @@
  */
 #include "ntrip_bridge.h"
 #include "core/rtcm3x_parser.h"   /* crc24q, for valid junk frames */
+#include "core/ns_stats.h"        /* the CSV dialect the export must match */
 
 #include <stdio.h>
 #include <string.h>
@@ -279,6 +280,31 @@ int main(void)
         int n = pump_json(b, 1.0);
         check(n > 0 && strstr(doc, "\"vrs\"") == NULL,
               "a normal run's document carries no vrs object");
+
+        /* The statistics export speaks the daemon's dialect or it does
+         * not ship: the first line must be the core's own header, byte
+         * for byte, and the row must fill every column it names. */
+        char csv[8192];
+        int c = bridge_stats_csv(b, csv, sizeof(csv));
+        check(c > 0, "the bridge writes the CSV export");
+        if (c > 0) {
+            char hdr[4096];
+            int h = ns_stats_csv_header(hdr, sizeof(hdr));
+            check(h > 0 && strncmp(csv, hdr, (size_t)h) == 0 &&
+                  csv[h] == '\n',
+                  "its first line is the core's header, byte for byte");
+
+            int cols_hdr = 1, cols_row = 1;
+            for (int i = 0; i < h; i++)
+                if (hdr[i] == ',') cols_hdr++;
+            for (int i = h + 1; i < c; i++)
+                if (csv[i] == ',') cols_row++;
+            check(cols_hdr == cols_row,
+                  "the row fills every column the header names");
+        }
+
+        check(bridge_stats_csv(b, csv, 64) < 0,
+              "a buffer too small is refused, never half-written");
         bridge_close(b);
     }
 

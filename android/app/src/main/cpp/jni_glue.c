@@ -114,6 +114,20 @@ JNI_FN(nativeSnapshotJson)(JNIEnv *env, jobject thiz, jlong handle)
     return out;
 }
 
+JNIEXPORT jstring JNICALL
+JNI_FN(nativeStatsCsv)(JNIEnv *env, jobject thiz, jlong handle)
+{
+    (void)thiz;
+    const size_t cap = 8192;
+    char *buf = (char *)malloc(cap);
+    if (!buf) return NULL;
+
+    int n = bridge_stats_csv((NtripBridge *)(intptr_t)handle, buf, cap);
+    jstring out = (n < 0) ? NULL : (*env)->NewStringUTF(env, buf);
+    free(buf);
+    return out;
+}
+
 JNIEXPORT jint JNICALL
 JNI_FN(nativeOverall)(JNIEnv *env, jobject thiz, jlong handle)
 {
