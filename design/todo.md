@@ -5,7 +5,7 @@ This is the single source of truth for planned and considered features. Every it
 discussion that produced it is forgotten.
 
 **The GitHub issue tracker is in use as of 2026-08-24.** The free Android edition is on
-Play (3.7.1) and the first user report has arrived as **GH#1** — exactly the moment the
+Play (3.7.1) and the first user report has arrived as **GH#2** (#1 being a pull request) — exactly the moment the
 paragraph that used to stand here said the tracker would open. Issues take what users
 report; this file keeps the design-level work, and an item born from an issue carries the
 issue number as its tag so the two lists cannot drift apart silently.
@@ -509,7 +509,7 @@ out on their merits, their DF401 phase range being 22 bits at a coarser scale.
 Found while widening C/N0 to MSM4/5/6 (§0). Same family of error: a limit of the reader documented
 as a property of the format.
 
-### 1.9 Sky view: phone-placed satellites survive a screen lock — **Shipped** 2026-08-24 `[GH#1]`
+### 1.9 Sky view: phone-placed satellites survive a screen lock — **Shipped** 2026-08-24 `[GH#2]`
 
 Reported by a free-edition tester: lock the phone for even a second on the sky view and
 every satellite "reloads" on unlock; Signal quality and C/N0-vs-elevation do not do this.
@@ -544,7 +544,7 @@ position ages past the window. What the window must **not** become is a licence 
 hours-old azimuth/elevation as current while fresh reports flow — the merge rule prevents
 that by construction.
 
-### 1.10 The connection is editable while a run measures the old one — **Shipped** 2026-08-24 `[GH#2]`
+### 1.10 The connection is editable while a run measures the old one — **Shipped** 2026-08-24 `[GH#3]`
 
 Reported by a free-edition tester: during a run, the caster settings can be opened, edited
 and — in pro — switched to another saved connection, while the test keeps running against

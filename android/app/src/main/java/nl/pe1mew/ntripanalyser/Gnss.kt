@@ -164,7 +164,7 @@ class PhoneGnss(private val context: Context) {
 
         val cb = object : GnssStatus.Callback() {
             override fun onSatelliteStatusChanged(status: GnssStatus) {
-                // Merge, never replace (backlog 1.9, GH#1). This used to
+                // Merge, never replace (backlog 1.9, GH#2). This used to
                 // assign the fresh map wholesale -- and the receiver's
                 // first reports after a screen unlock carry almost
                 // nothing, so a one-second lock wiped every placed
@@ -249,7 +249,7 @@ data class Fix(val lat: Double, val lon: Double, val accuracyM: Float)
 /**
  * How long a phone-supplied placement is trusted without a fresh report.
  *
- * The author's rule (backlog 1.9, GH#1): one trust duration for every
+ * The author's rule (backlog 1.9, GH#2): one trust duration for every
  * position source -- this is the four-hour grace `sv_eph_is_valid_at()`
  * already gives an ephemeris, for the same sky plot.
  */

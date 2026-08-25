@@ -74,7 +74,7 @@ object ConnectionPanel : Panel {
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        // A nameplate while a run is going, a door otherwise (GH#2).
+        // A nameplate while a run is going, a door otherwise (GH#3).
         // The tile itself stays -- the subject of a measurement belongs
         // on screen -- but a run's settings were captured when it
         // started, so an edit here would change only the *next* run

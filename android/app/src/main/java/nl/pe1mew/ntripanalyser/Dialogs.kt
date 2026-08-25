@@ -129,7 +129,7 @@ internal fun SettingsDialog(
     focus: FailureFix = FailureFix.NONE,
     /**
      * A run keeps the settings it started with, so while one is going
-     * this dialog shows and does not edit (GH#2). Reached then only via
+     * this dialog shows and does not edit (GH#3). Reached then only via
      * the overflow menu; the hub tile's tap is withdrawn with its mark.
      */
     readOnly: Boolean = false,
