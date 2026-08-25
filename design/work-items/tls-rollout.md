@@ -340,7 +340,38 @@ CLI `--check` over TLS, the app on the Huawei over TLS end to end
 live: the same caster demanded on a plaintext port classifies as
 handshake failure, not as a hang.
 
-### L6 — say so, everywhere
+### L6 — say so, everywhere  *(done 2026-08-25)*
+
+Matrix row 90 is five filled dots with the shipped shape in its prose;
+no Features gate exists, as promised, so the gate-table check had
+nothing to demand. The F3 disclosure narrowed exactly as `tls.md`
+said it would: the security review's table row and finding carry a
+dated update (TLS shipped everywhere; the finding survives for
+plain-text casters), the CLI's session line was already conditional
+since L5, and the app's password caption now follows the checkbox --
+"inside the encrypted TLS connection" when TLS is on, the plain-text
+warning when it is not, because a caption that says "plain connection"
+over TLS is the lie the reviewer's rule exists to prevent. The wiki's
+Getting-started gained the Use TLS field row, the port conventions
+(2101 plain, 443 TLS), and an "Encrypted connections" section that
+says why there is no connect-anyway button and which side each
+failure sentence points at. The changelog entry sits under
+[Unreleased] until 3.8.0 cuts. The CA-bundle age check joined
+check_release.py (Mozilla's own date line, parsed from the generated
+array; falsified red at a zero-day threshold, restored green at 365).
+
+Beside L6 proper, the session closed one live finding from the GUI:
+the eph worker was the only eph consumer without a discard sink, so
+every ephemeris from a busy caster dumped its full decode into the
+log tab -- the CLI and the bridge both had the pattern; the GUI
+forgot it. It brackets a thread-local sink now, like the others.
+
+**Flagged for the author** (the plan promised this flag): Play's
+data-safety form can now answer that data is encrypted in transit
+when the user enables TLS -- the form is the author's to edit, at
+both listings, when pro goes to Play.
+
+*(As planned:)*
 
 Matrix row 90 ⋯→● five columns; **no Features gate** — both editions,
 so there is nothing to gate, and the gate-table check has nothing to

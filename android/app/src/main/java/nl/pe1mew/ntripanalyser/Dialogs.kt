@@ -323,7 +323,15 @@ internal fun SettingsDialog(
                 // they type it (security review, F3).
                 if (user.isNotBlank()) {
                     Text(
-                        stringResource(R.string.field_password_plain),
+                        // The sentence follows the checkbox: the F3
+                        // disclosure narrows connection by connection
+                        // (design/security-review.md), and a caption
+                        // that says "plain connection" over TLS is a
+                        // lie the reviewer's rule exists to prevent.
+                        stringResource(
+                            if (tls) R.string.field_password_tls
+                            else R.string.field_password_plain
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
