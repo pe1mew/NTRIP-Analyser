@@ -26,6 +26,21 @@
     <string name="export_csv">CSV</string>
     <string name="export_done">Statistics exported.</string>
     <string name="export_failed">Export failed writing the file.</string>
+    <!-- Tier 2 (pro). The frozen keys and verdict codes cross the
+         bridge; these are the app’s words for them, translatable like
+         the failure sentences. Details and the headline arrive as the
+         engine wrote them. -->
+    <string name="sr_title">Stability</string>
+    <string name="sr_availability">Availability</string>
+    <string name="sr_integrity">Frame integrity</string>
+    <string name="sr_signal">Signal level</string>
+    <string name="sr_satellites">Satellites held</string>
+    <string name="sr_ionosphere">Ionosphere</string>
+    <string name="sr_delivery">Delivery rate</string>
+    <string name="sr_v_insufficient">…</string>
+    <string name="sr_v_stable">STABLE</string>
+    <string name="sr_v_degraded">DEGRADED</string>
+    <string name="sr_v_unstable">UNSTABLE</string>
     <string name="vrs_title">Network-RTK</string>
     <string name="vrs_service">Service: %1$s</string>
     <string name="vrs_running">Testing the service — the gate test ends the run by itself</string>

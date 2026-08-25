@@ -124,7 +124,20 @@ epochs, so stream time never advances there. The engine's verdicts are
 `test_station_report`'s job and already done; the live rollup is
 T2.3's.
 
-### T2.2 — the model and the card
+### T2.2 — the model and the card  *(done 2026-08-25)*
+
+As planned, shaped by T2.1's dialect decision: `SrDoc` decodes the
+daemon's flat keys directly -- eighteen per-metric scalars with a
+`rows` view over them -- rather than the nested rows the plan first
+sketched. Verdicts that arrive null (live-only, absent) draw the
+insufficient grey, never a zero. One consequence accepted and named:
+the flat dialect carries no per-row limit text, so the expandable
+value-against-limit line the plan sketched is dropped -- the engine's
+detail sentences already carry the deciding figures, and inventing
+limit text app-side would break the one-vocabulary rule the dialect
+exists for. The card is therefore six plain rows, no per-row fold.
+
+*(As planned:)*
 
 `SrDoc`/`SrRow` (rows reuse the KPI item shape where fields align, as
 `VrsDoc` did); `HAS_TIER2` in both editions; `Tier2Panel` in pro's

@@ -39,6 +39,7 @@ internal val hubPanels: List<Panel> = listOf(
     KpiPanel,
     VrsPanel,
     HandoverPanel,
+    Tier2Panel,
     RunControlsPanel,
     EphemerisPanel,
     SetupHintPanel,

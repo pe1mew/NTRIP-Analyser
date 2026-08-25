@@ -53,6 +53,13 @@ object Features {
      */
     const val HAS_EXPORT = true
 
+    /**
+     * Tier 2, the stability report: has this station *been* fit. Pro
+     * by arithmetic rather than policy -- the evidence floor is ten
+     * minutes of stream, and only a watch can out-wait it.
+     */
+    const val HAS_TIER2 = true
+
     const val MAX_MOUNTPOINTS = 16
 
     const val SOURCETABLE_SELECTABLE = true

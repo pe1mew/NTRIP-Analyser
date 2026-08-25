@@ -48,6 +48,9 @@ object Features {
     /** Statistics export is paid; the report shares the same numbers as prose. */
     const val HAS_EXPORT = false
 
+    /** A two-minute check can never out-wait tier 2's ten-minute floor. */
+    const val HAS_TIER2 = false
+
     const val MAX_MOUNTPOINTS = 1
 
     /**

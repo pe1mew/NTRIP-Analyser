@@ -348,6 +348,100 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
  * resolved gate test outranks the guess. The same count reads as a
  * network doing its job or a base that should worry you -- never both.
  */
+/**
+ * Tier 2: stability over the run, in its own vocabulary.
+ *
+ * Never tier 1's words -- fit *now* and stable *lately* are different
+ * questions, and STATION OK belongs to the check alone. The headline
+ * and every detail are the engine's sentences; the labels and the
+ * verdict words are the app's, mapped from the frozen keys and codes,
+ * which is what leaves room for a translated build (Failure.kt's
+ * rule). INSUFFICIENT is a real state and draws as one: a grey chip
+ * and the engine's own explanation of what evidence is still owed.
+ */
+@Composable
+internal fun Tier2Card(sr: SrDoc) {
+    FoldableCard(
+        "tier2",
+        header = {
+            Text(
+                stringResource(R.string.sr_title),
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                sr.headline,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        body = {
+            sr.rows.forEach { row ->
+                Row(
+                    Modifier.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        color = srVerdictColour(row.verdict),
+                        shape = RoundedCornerShape(6.dp),
+                    ) {
+                        Text(
+                            srVerdictWord(row.verdict),
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(
+                                horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(srLabel(row.key), fontWeight = FontWeight.Medium)
+                        Text(
+                            row.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        },
+    )
+}
+
+/** The app's word for a tier-2 verdict code; null means live-only, absent. */
+@Composable
+internal fun srVerdictWord(verdict: Int?): String = stringResource(
+    when (verdict) {
+        1 -> R.string.sr_v_stable
+        2 -> R.string.sr_v_degraded
+        3 -> R.string.sr_v_unstable
+        else -> R.string.sr_v_insufficient
+    })
+
+/** Tier 2's own colours; insufficient is grey, never a failure red. */
+@Composable
+internal fun srVerdictColour(verdict: Int?): Color = when (verdict) {
+    1 -> verdictColour(Verdict.PASS)
+    2 -> verdictColour(Verdict.WARN)
+    3 -> verdictColour(Verdict.FAIL)
+    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+}
+
+/** The app's label for a frozen tier-2 metric key. */
+@Composable
+internal fun srLabel(key: String): String = stringResource(
+    when (key) {
+        "availability" -> R.string.sr_availability
+        "integrity" -> R.string.sr_integrity
+        "signal" -> R.string.sr_signal
+        "satellites" -> R.string.sr_satellites
+        "ionosphere" -> R.string.sr_ionosphere
+        "delivery" -> R.string.sr_delivery
+        else -> R.string.sr_title
+    })
+
 /** What both the card and the detail screen say about the ARP. */
 internal data class HoSummary(
     val distM: Double,

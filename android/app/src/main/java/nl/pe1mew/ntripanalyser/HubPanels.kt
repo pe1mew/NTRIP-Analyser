@@ -359,6 +359,33 @@ object HandoverPanel : Panel {
     }
 }
 
+/**
+ * Tier 2 on the hub (phase 2 item 5, `tier2-on-the-phone.md`): the
+ * stability report, pro's registry only -- the evidence floor is ten
+ * minutes of stream, and only a watch can out-wait it. A card, not a
+ * screen: six rows and a headline are a card's shape, and the detail
+ * contract is one override away if a metric ever grows a plot.
+ */
+object Tier2Panel : Panel {
+    override val key = "tier2"
+
+    @Composable
+    override fun Content(state: HubState, actions: HubActions) {
+        state.doc?.sr?.let { Tier2Card(it) }
+    }
+
+    override fun shareSection(state: HubState): ShareSection? {
+        val sr = state.doc?.sr ?: return null
+        val words = arrayOf("...", "STABLE", "DEGRADED", "UNSTABLE")
+        val lines = mutableListOf(sr.headline)
+        sr.rows.forEach { r ->
+            val w = words.getOrElse(r.verdict ?: 0) { "..." }
+            lines += "${r.key}: $w -- ${r.detail}"
+        }
+        return ShareSection("Stability", lines)
+    }
+}
+
 object RunControlsPanel : Panel {
     override val key = "run"
 

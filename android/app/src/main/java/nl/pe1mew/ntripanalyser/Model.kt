@@ -52,6 +52,55 @@ data class VrsDoc(
     val gateResolved: Boolean get() = gate >= 2
 }
 
+/**
+ * Tier 2, in the daemon's own flat dialect (`sr_to_json`): frozen keys,
+ * one scalar per fact, so the app reads exactly what a Munin plugin
+ * reads. A metric that cannot be measured here carries null, never
+ * zero -- absence must not read as "measured, and fine". The verdict
+ * *codes* cross; the app supplies its own words for them
+ * (`Failure.kt`'s precedent), while details and the headline arrive as
+ * the engine wrote them.
+ */
+@Serializable
+data class SrDoc(
+    @SerialName("window_s") val windowS: Double = 0.0,
+    val samples: Int = 0,
+    val overall: Int = 0,
+    @SerialName("overall_name") val overallName: String = "",
+    val headline: String = "",
+    @SerialName("availability_verdict") val availabilityVerdict: Int? = null,
+    @SerialName("availability_value") val availabilityValue: Double? = null,
+    @SerialName("availability_detail") val availabilityDetail: String = "",
+    @SerialName("integrity_verdict") val integrityVerdict: Int? = null,
+    @SerialName("integrity_value") val integrityValue: Double? = null,
+    @SerialName("integrity_detail") val integrityDetail: String = "",
+    @SerialName("signal_verdict") val signalVerdict: Int? = null,
+    @SerialName("signal_value") val signalValue: Double? = null,
+    @SerialName("signal_detail") val signalDetail: String = "",
+    @SerialName("satellites_verdict") val satellitesVerdict: Int? = null,
+    @SerialName("satellites_value") val satellitesValue: Double? = null,
+    @SerialName("satellites_detail") val satellitesDetail: String = "",
+    @SerialName("ionosphere_verdict") val ionosphereVerdict: Int? = null,
+    @SerialName("ionosphere_value") val ionosphereValue: Double? = null,
+    @SerialName("ionosphere_detail") val ionosphereDetail: String = "",
+    @SerialName("delivery_verdict") val deliveryVerdict: Int? = null,
+    @SerialName("delivery_value") val deliveryValue: Double? = null,
+    @SerialName("delivery_detail") val deliveryDetail: String = "",
+) {
+    /** One row: the frozen key, and the scalars filed under it. */
+    data class Row(val key: String, val verdict: Int?, val detail: String)
+
+    /** The six, in the engine's display order. */
+    val rows: List<Row> get() = listOf(
+        Row("availability", availabilityVerdict, availabilityDetail),
+        Row("integrity", integrityVerdict, integrityDetail),
+        Row("signal", signalVerdict, signalDetail),
+        Row("satellites", satellitesVerdict, satellitesDetail),
+        Row("ionosphere", ionosphereVerdict, ionosphereDetail),
+        Row("delivery", deliveryVerdict, deliveryDetail),
+    )
+}
+
 @Serializable
 data class KpiReport(
     val overall: Int = 0,
@@ -294,6 +343,7 @@ data class BridgeDocument(
     val kpi: KpiReport = KpiReport(),
     val watch: Watch? = null,
     val vrs: VrsDoc? = null,
+    val sr: SrDoc? = null,
     val sats: List<SatEntry> = emptyList(),
     val eph: EphState = EphState(),
     val arp: ArpInfo? = null,
