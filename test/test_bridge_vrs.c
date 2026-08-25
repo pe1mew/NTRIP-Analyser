@@ -305,6 +305,20 @@ int main(void)
 
         check(bridge_stats_csv(b, csv, 64) < 0,
               "a buffer too small is refused, never half-written");
+
+        /* Tier 2 travels in the document, in the daemon's own flat
+         * dialect. A junk-frame loopback carries no observation
+         * epochs, so the stream clock never advances and the only
+         * honest rollup here is INSUFFICIENT EVIDENCE -- the settled
+         * verdicts are test_station_report's job, and the live one is
+         * T2.3's. */
+        check(strstr(doc, "\"sr\":{") != NULL,
+              "the document carries the stability report");
+        check(strstr(doc, "\"overall_name\":\"INSUFFICIENT EVIDENCE\"") != NULL,
+              "with the honest rollup for a stream without epochs");
+        check(strstr(doc, "\"availability_verdict\"") != NULL &&
+              strstr(doc, "\"delivery_detail\"") != NULL,
+              "and the frozen per-metric keys");
         bridge_close(b);
     }
 

@@ -12,6 +12,7 @@
 #include "session/ntrip_session.h"
 #include "core/kpi.h"
 #include "core/vrs_check.h"
+#include "core/station_report.h"
 #include "core/sourcetable.h"
 #include "core/rtcm3x_parser.h"  /* eph decoders, ARP, output sink */
 #include "core/sky_collect.h"
@@ -180,6 +181,13 @@ struct NtripBridge {
     bool      vrs_gated;       /**< the gate test has begun: GGA stopped */
     VrsRun    vrun;
     VrsReport vrep;
+
+    /* Tier 2: stability over the run, judged by the shared engine.
+     * Fed on the *stream's* clock, one sample per second of it -- the
+     * CLI's own pacing -- never on wall time, so a replayed capture
+     * would report exactly what the live run did. */
+    SrState   sr;
+    double    sr_fed_at;       /**< stream time of the last sample     */
 };
 
 /** @brief GGA cadence, matching what the session's own timer used. */
@@ -410,6 +418,8 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
         kpi_run_start(&b->run, now_s, NULL);
         kpi_watch_start(&b->w, now_s);
         if (b->vrs_mode) vrs_run_start(&b->vrun, now_s, NULL);
+        sr_reset(&b->sr, false, NULL);
+        b->sr_fed_at = -1e9;
         b->started = true;
     }
 
@@ -437,6 +447,18 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
 
     kpi_update(&b->run, ns_stats(b->sess), now_s, &b->rep);
     kpi_watch_update(&b->w, &b->rep, now_s);
+
+    /* One tier-2 sample per second of stream time, like the CLI. A
+     * stream that carries no epochs never advances this clock, and
+     * such a run honestly ends INSUFFICIENT. */
+    {
+        const NsStatsSnapshot *snap = ns_stats(b->sess);
+        if (snap && snap->stream_time_s >= 0.0 &&
+            snap->stream_time_s - b->sr_fed_at >= 1.0) {
+            b->sr_fed_at = snap->stream_time_s;
+            sr_feed(&b->sr, snap, snap->stream_time_s);
+        }
+    }
 
     if (b->vrs_mode) {
         /* Every pump, even when nothing changed: the engine sees
@@ -569,6 +591,26 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
             app(out, cap, &pos, "\"}");
         }
         app(out, cap, &pos, "]}");
+    }
+
+    /* Tier 2, as the daemon publishes it: sr_to_json verbatim, flat
+     * keys frozen for Munin, so the app's export carries the exact
+     * dialect a server-side sample would. Labels are deliberately
+     * absent from it -- the frozen *keys* cross to Kotlin, which maps
+     * them to its own strings, the Failure.kt precedent; details and
+     * the headline stay the engine's words. */
+    {
+        StationReport rep;
+        sr_build(&b->sr, &rep);
+        SrJsonCtx ctx;
+        memset(&ctx, 0, sizeof(ctx));
+        ctx.mountpoint = b->mountpoint;
+        app(out, cap, &pos, ",\"sr\":");
+        if (pos >= 0 && (size_t)pos < cap) {
+            int n = sr_to_json(&rep, &ctx, out + pos, cap - (size_t)pos);
+            if (n < 0) return -1;
+            pos += n;
+        }
     }
 
     /* What the station says about itself.  More than the position: an

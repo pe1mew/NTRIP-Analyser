@@ -93,7 +93,26 @@ reading; hidden entirely when there has never been a run.
 
 ## Steps
 
-### T2.1 — the engine joins the build, and the bridge feeds it
+### T2.1 — the engine joins the build, and the bridge feeds it  *(done 2026-08-25)*
+
+As planned, with one sharpening the header itself suggested: the
+document embeds **`sr_to_json()` verbatim** -- the daemon's flat
+Munin-frozen dialect -- rather than a third nested shape, exactly as
+`"stats"` embeds the snapshot serialiser. Labels are deliberately
+absent from that dialect; the frozen *keys* cross to Kotlin, which
+maps them to its own strings (the `Failure.kt` precedent, and the
+translatable half), while details and the headline stay engine words.
+The statistics export inherits the server-identical report object for
+free.
+
+The first falsification attempt failed honestly: removing `sr_feed`
+changed nothing the harness could see, because a junk-frame loopback
+never advances the stream clock and the feed never fires there. The
+harness therefore pins the *emission* (falsified red by renaming the
+key), and the feeding is observable only where stream time moves --
+which is T2.3's live run, and now said here rather than assumed.
+
+*(As planned:)*
 
 `station_report.c` into the NDK list (`check_source_lists` collects
 either way); `SrState` in the bridge, reset with the KPI run, fed on
