@@ -20,6 +20,8 @@ package nl.pe1mew.ntripanalyser
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -249,6 +251,7 @@ object VrsPanel : Panel {
                 onClick = { actions.startVrsCheck() },
                 enabled = state.settings.isComplete,
                 modifier = Modifier.fillMaxWidth(),
+                shape = TRANSPORT_SHAPE,
                 contentPadding = TRANSPORT_PADDING,
             ) { TransportLabel(stringResource(R.string.action_vrs), "▶") }
         }
@@ -371,7 +374,9 @@ object Tier2Panel : Panel {
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        state.doc?.sr?.let { Tier2Card(it) }
+        state.doc?.sr?.let {
+            Tier2Card(it, isWatch = state.doc?.watch != null)
+        }
     }
 
     override fun shareSection(state: HubState): ShareSection? {
@@ -383,6 +388,38 @@ object Tier2Panel : Panel {
             lines += "${r.key}: $w -- ${r.detail}"
         }
         return ShareSection("Stability", lines)
+    }
+}
+
+/**
+ * The watch, started where its products live (run-flow.md F1).
+ *
+ * Watch feeds the Watch card, the hand-over history and the stability
+ * report -- hub products all -- yet its start button lived only on the
+ * analysis screen, where its name said "analysis" and the hub said
+ * nothing. The hub already grew a second run verb without ceremony
+ * (the network-RTK row); this completes the column: three verbs, one
+ * place, each naming what it starts. Pro's registry only; HAS_WATCH
+ * already names the capability, the registry gates the row.
+ */
+object WatchControlPanel : Panel {
+    override val key = "watch-start"
+
+    @Composable
+    override fun Content(state: HubState, actions: HubActions) {
+        if (state.run.running) return   // Stop already owns a running run
+        OutlinedButton(
+            onClick = { actions.startWatch() },
+            enabled = state.settings.isComplete,
+            modifier = Modifier.fillMaxWidth(),
+            shape = TRANSPORT_SHAPE,
+            contentPadding = TRANSPORT_PADDING,
+        ) {
+            TransportLabel(
+                stringResource(R.string.action_watch), "▶",
+                stringResource(R.string.action_watch_hint),
+            )
+        }
     }
 }
 
@@ -403,6 +440,7 @@ object RunControlsPanel : Panel {
             Button(
                 onClick = { actions.stopRun() },
                 modifier = Modifier.fillMaxWidth(),
+                shape = TRANSPORT_SHAPE,
                 contentPadding = TRANSPORT_PADDING,
             ) { TransportLabel(stringResource(R.string.action_stop), "■") }
         } else {
@@ -410,6 +448,7 @@ object RunControlsPanel : Panel {
                 onClick = { actions.startCheck() },
                 enabled = state.settings.isComplete,
                 modifier = Modifier.fillMaxWidth(),
+                shape = TRANSPORT_SHAPE,
                 contentPadding = TRANSPORT_PADDING,
             ) {
                 TransportLabel(
@@ -418,6 +457,7 @@ object RunControlsPanel : Panel {
                         else R.string.action_run
                     ),
                     "▶",
+                    stringResource(R.string.action_run_hint),
                 )
             }
         }
@@ -442,16 +482,33 @@ private val TRANSPORT_PADDING = PaddingValues(
     start = 24.dp, top = 8.dp, end = HUB_MARK_INSET, bottom = 8.dp,
 )
 
+/**
+ * The run verbs share the verdict banner's corner radius. Material's
+ * full pill read fine on one-line buttons; with the tier hint under
+ * the label the pills grew tall and "ugly" (author, 2026-08-25) --
+ * one shape for the banner and the verbs makes the hub one family.
+ */
+private val TRANSPORT_SHAPE = RoundedCornerShape(12.dp)
+
 /** A button's label and its transport mark, one at each end. */
 @Composable
-private fun TransportLabel(label: String, mark: String) {
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label)
-        Text(mark, fontSize = 12.sp)
+private fun TransportLabel(label: String, mark: String, hint: String? = null) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label)
+            Text(mark, fontSize = 12.sp)
+        }
+        // Which tier answers, and what it costs in time -- the label
+        // names the verb, this names the measurement behind it, so the
+        // choice between the run types is made on the hub rather than
+        // learned by running the wrong one (author, 2026-08-25).
+        if (hint != null) {
+            Text(hint, fontSize = 11.sp)
+        }
     }
 }
 

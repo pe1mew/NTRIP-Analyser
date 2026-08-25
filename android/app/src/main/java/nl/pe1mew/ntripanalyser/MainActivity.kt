@@ -503,6 +503,7 @@ fun MainScreen() {
         startVrsCheck = {
             MonitorService.start(context, settings, watch = false, vrs = true)
         },
+        startWatch = { MonitorService.start(context, settings, watch = true) },
         stopRun = { MonitorService.stop(context) },
         openAnalysis = { openSky = true },
         openDetail = { nav.push(it) },
@@ -603,10 +604,6 @@ fun MainScreen() {
             rinexAgeS = rinexAgeS,
             tab = tab,
             onTab = { tab = it },
-            onToggleWatch = {
-                if (runState.running) MonitorService.stop(context)
-                else MonitorService.start(context, settings, watch = true)
-            },
             onLeave = { nav.pop() },
             menu = menuActions,
             // Free passes none, so its canvas draws exactly what it did.

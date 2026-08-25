@@ -90,8 +90,44 @@ internal fun VerdictBadge(
                     color = Color.White,
                     fontSize = 13.sp,
                 )
+                // The watch's own line (run-flow.md F2): during a
+                // watch, tier 1 settles in the first minute and the
+                // number the user actually waits on is the stability
+                // evidence floor -- so the subtitle says which run is
+                // going and the bar changes duty to that floor. The
+                // headline above stays tier 1's word alone; tier 2
+                // appears named as itself, never borrowed.
+                val watch = doc.watch
+                val sr = doc.sr
+                if (running && watch != null && sr != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (sr.overall == 0)
+                            stringResource(
+                                R.string.banner_watch_evidence,
+                                dur(watch.elapsedS),
+                                sr.windowS.toInt(), 600,
+                            )
+                        else
+                            stringResource(
+                                R.string.banner_watch_stability,
+                                dur(watch.elapsedS), sr.headline,
+                            ),
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
-                if (running) {
+                if (running && watch != null && sr != null && sr.overall == 0) {
+                    LinearProgressIndicator(
+                        progress = {
+                            (sr.windowS / 600.0).toFloat().coerceIn(0f, 1f)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color.White,
+                    )
+                } else if (running) {
                     LinearProgressIndicator(
                         progress = { k.sustainFraction },
                         modifier = Modifier.fillMaxWidth(),
@@ -360,7 +396,7 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
  * and the engine's own explanation of what evidence is still owed.
  */
 @Composable
-internal fun Tier2Card(sr: SrDoc) {
+internal fun Tier2Card(sr: SrDoc, isWatch: Boolean) {
     FoldableCard(
         "tier2",
         header = {
@@ -374,6 +410,18 @@ internal fun Tier2Card(sr: SrDoc) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // A check ends at two minutes against a ten-minute floor:
+            // without this line the card is a promise the run cannot
+            // keep, which is how it read in first field use
+            // (run-flow.md F3). Gone on a watch, where the countdown
+            // stands alone and the banner echoes it.
+            if (!isWatch && sr.overall == 0) {
+                Text(
+                    stringResource(R.string.sr_check_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         },
         body = {
             sr.rows.forEach { row ->

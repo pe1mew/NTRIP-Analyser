@@ -118,6 +118,36 @@ together) describes the banner countdown. Screenshots for the store
 are *not* retaken here: pro's listing refresh belongs to pro's
 release, one item, not each.
 
+## Built 2026-08-25 — F1-F3 plus four directives from live review
+
+The author drove the build on the device as it happened, and four
+directives landed alongside the plan:
+
+* **Tier hints on the run verbs** — each button says which tier
+  answers and what it costs in time, so the choice is made on the hub
+  rather than learned by running the wrong one.
+* **The analysis screen lost start/stop entirely** — one place for
+  every verb; the plan's "alias" is gone, only the status line stays.
+  The orphaned string and import went with it.
+* **The verbs share the banner's 12 dp corners** — Material's pill
+  grew tall and ugly under two-line labels; one shape family now.
+* **The banner's evidence line was shortened** after wrapping with a
+  lone "s" on its own line — the reconnect-wrap fault's second coming,
+  caught by the author as "a rollover in the status badge".
+
+And one wall: the author started a network-RTK check over a running
+test and broke it. `startRun` had a silent `worker != null` guard; it
+is now `worker?.isAlive` with a logged refusal — a dead thread cannot
+wedge the door shut, and a second start cannot break a run. The
+service is not exported, so the door is only reachable from inside the
+app; the author's own route retried on this build is the closing
+verification.
+
+All seen on the Huawei: the three verbs with hints in one shape, the
+un-wrapped banner counting evidence with its bar, the analysis screen
+with only its status line, the check-hint present on a check and
+absent on a watch.
+
 ## Relationship to T2.5
 
 T2.5 (tier 2's changelog and wiki) is still open; F4 and T2.5 touch

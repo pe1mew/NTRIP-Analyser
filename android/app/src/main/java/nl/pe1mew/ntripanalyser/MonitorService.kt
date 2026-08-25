@@ -91,12 +91,22 @@ class MonitorService : Service() {
     }
 
     private fun startRun(intent: Intent) {
-        if (worker != null) return
 
         // Watch is a property of *this run*, not of the mountpoint: the
         // caster settings say what to connect to, the run mode says how
         // to test it.  So it arrives with the start request and is never
         // persisted alongside credentials.
+        // One run at a time, enforced at the door rather than trusted
+        // to the buttons. The hub hides its verbs while a run is going,
+        // but a hidden button is a promise and this is a wall: a second
+        // start spawned a second worker over the first and broke the
+        // running measurement -- reproduced by the author and by the
+        // agent within one minute of each other (run-flow, 2026-08-25).
+        if (worker?.isAlive == true) {
+            Log.w(TAG, "start ignored: a run is already going")
+            return
+        }
+
         val watchMode = intent.getBooleanExtra(EXTRA_WATCH, false) &&
             Features.HAS_WATCH
         // Like watch: a property of this run, guarded by the edition at

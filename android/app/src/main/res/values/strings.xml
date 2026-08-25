@@ -41,6 +41,16 @@
     <string name="sr_v_stable">STABLE</string>
     <string name="sr_v_degraded">DEGRADED</string>
     <string name="sr_v_unstable">UNSTABLE</string>
+    <string name="sr_check_hint">A check ends before ten minutes — watch the station to gather evidence.</string>
+    <!-- The banner's run-aware subtitle (run-flow.md F2). The stability
+         headline is the engine's own sentence, prefixed and named as
+         itself: tier 2 never borrows the banner's headline. -->
+    <!-- Short enough for one banner line on a 1080-wide phone: the
+         first wording wrapped, leaving a lone "s" on its own line;
+         the same fault the reconnect line had (author: "a rollover in
+         the status badge"). -->
+    <string name="banner_watch_evidence">watch %1$s · evidence %2$d/%3$d s</string>
+    <string name="banner_watch_stability">watch %1$s · stability: %2$s</string>
     <string name="vrs_title">Network-RTK</string>
     <string name="vrs_service">Service: %1$s</string>
     <string name="vrs_running">Testing the service — the gate test ends the run by itself</string>
@@ -71,7 +81,6 @@
     <string name="ho_legend_hist">where it was</string>
     <string name="ho_chart">last five minutes</string>
     <string name="action_again">Run again</string>
-    <string name="action_watch">Watch</string>
     <string name="action_stop">Stop</string>
     <string name="action_browse">Browse mountpoints…</string>
     <string name="action_share">Share</string>
@@ -139,7 +148,15 @@
     <string name="rinex_unreadable">That file could not be read.</string>
     <string name="mode_station">Station check</string>
     <string name="mode_analysis">Analysis</string>
-    <string name="action_analyse">Start analysis</string>
+    <!-- The analysis screen's own start button is gone entirely: every
+         run begins and ends on the hub, one place for every verb
+         (run-flow.md, author's direction). -->
+    <string name="action_watch">Watch station</string>
+    <!-- The tier reference under each run verb (author's direction,
+         2026-08-25): the buttons name what they start, these say which
+         tier answers and roughly how long it takes. -->
+    <string name="action_run_hint">The eight checks (tier 1) — a verdict in about two minutes</string>
+    <string name="action_watch_hint">Checks plus stability (tier 2) — needs ten minutes of evidence, runs for hours</string>
     <string name="analysis_running">Analysing for %1$s</string>
     <string name="analysis_static">Showing what the station check captured. The pro edition analyses live, for as long as you like.</string>
     <string name="axis_cn0">C/N0 (dB-Hz)</string>

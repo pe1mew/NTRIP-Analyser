@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
@@ -78,7 +77,6 @@ fun AnalysisScreen(
     rinexAgeS: Double?,
     tab: AnalysisTab,
     onTab: (AnalysisTab) -> Unit,
-    onToggleWatch: () -> Unit,
     onLeave: () -> Unit,
     menu: MenuActions,
     tracks: TrackAccumulator? = null,
@@ -174,24 +172,19 @@ fun AnalysisScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(1f)) {
-                    // Pro runs analysis as its own session; free shows
-                    // what the station check captured, frozen at its end.
+                    // No start or stop here any more: every run begins
+                    // and ends on the hub, one place for every verb
+                    // (author's direction, 2026-08-25, run-flow.md).
+                    // This screen shows what a run is doing; the status
+                    // line stays because a viewer deserves to know the
+                    // age of what it is viewing.
                     if (Features.HAS_WATCH) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { onToggleWatch() }) {
-                                Text(stringResource(
-                                    if (running) R.string.action_stop
-                                    else R.string.action_analyse
-                                ))
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            doc?.watch?.let { w ->
-                                Text(
-                                    stringResource(R.string.analysis_running,
-                                                   dur(w.elapsedS)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
+                        doc?.watch?.let { w ->
+                            Text(
+                                stringResource(R.string.analysis_running,
+                                               dur(w.elapsedS)),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     } else {
                         Text(
