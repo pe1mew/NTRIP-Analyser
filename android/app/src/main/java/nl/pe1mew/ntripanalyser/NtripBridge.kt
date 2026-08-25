@@ -31,6 +31,14 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         if (handle == 0L) null else nativeSnapshotJson(handle)
 
     /**
+     * The current snapshot as CSV -- the core's header and one row, the
+     * daemon's dialect by construction (phase 2 item 4). Null when the
+     * text would be truncated: no text rather than bad text.
+     */
+    fun statsCsv(): String? =
+        if (handle == 0L) null else nativeStatsCsv(handle)
+
+    /**
      * Attach an ephemeris side-stream, enabling the sky plot.
      *
      * The observation stream says which satellites are tracked but not
@@ -201,6 +209,7 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         ): String?
         @JvmStatic private external fun nativePump(h: Long, timeoutMs: Int, nowS: Double): Int
         @JvmStatic private external fun nativeSnapshotJson(h: Long): String?
+        @JvmStatic private external fun nativeStatsCsv(h: Long): String?
         @JvmStatic private external fun nativeOverall(h: Long): Int
         @JvmStatic private external fun nativeOpenEph(
             h: Long, caster: String, port: Int, mountpoint: String,

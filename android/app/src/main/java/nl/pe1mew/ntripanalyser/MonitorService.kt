@@ -193,6 +193,8 @@ class MonitorService : Service() {
                 fun publish(running: Boolean, outcome: Outcome) {
                     lastPublish = SystemClock.elapsedRealtime()
                     b.snapshotJson()?.let { json ->
+                        lastStatsJson = json
+                        lastStatsCsv = b.statsCsv()
                         runCatching { bridgeJson.decodeFromString<BridgeDocument>(json) }
                             .onSuccess { doc ->
                                 if (doc.stats.failure != 0 &&
@@ -754,6 +756,21 @@ class MonitorService : Service() {
         val arpTrail = ArpTrail()
 
         /**
+         * The latest snapshot, as the texts an export writes out
+         * (phase 2 item 4): the bridge's own JSON verbatim, and the
+         * core's CSV header-and-row. Captured together at the publish
+         * so both describe the same instant; kept past the end of the
+         * run, because an export usually happens after the measurement,
+         * when the bridge is already closed; cleared when the next run
+         * starts, like every run-scoped record. Nothing decodes them --
+         * they are held for the file they will become.
+         */
+        @Volatile var lastStatsJson: String? = null
+            private set
+        @Volatile var lastStatsCsv: String? = null
+            private set
+
+        /**
          * The run's configured position, for the rover end of the
          * distance ring when there is no live fix. Stamped at start(),
          * like the accumulators are cleared there: the worker's own
@@ -814,6 +831,8 @@ class MonitorService : Service() {
             tracks.clear()
             elevation.clear()
             arpTrail.clear()
+            lastStatsJson = null
+            lastStatsCsv = null
             runLat = s.latitude
             runLon = s.longitude
             val i = Intent(context, MonitorService::class.java).apply {

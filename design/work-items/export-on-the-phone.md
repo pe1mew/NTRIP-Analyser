@@ -113,7 +113,15 @@ core row for the current snapshot, refusing truncation. JNI beside
 equals `ns_stats_csv_header()`'s output byte for byte, and the row
 parses to the same column count.
 
-### E2 — the service keeps the latest texts
+### E2 — the service keeps the latest texts  *(done 2026-08-25)*
+
+As planned, with both texts captured inside the same `snapshotJson`
+success block so they can never describe two different instants, and
+the JNI symbol confirmed present in the packaged library rather than
+assumed. Verification of the survival-past-run-end property is E3's
+on-device export, which is the only honest reader of it.
+
+*(As planned:)*
 
 `lastStatsJson` / `lastStatsCsv` in the companion, written where the
 document is published, cleared at run start, surviving run end.
