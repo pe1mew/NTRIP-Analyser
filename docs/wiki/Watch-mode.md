@@ -96,9 +96,14 @@ screen going dark, and leaving the app for something else. It does not
 survive swiping the app away, restarting the phone, or Android
 reclaiming the app's memory while you are elsewhere.
 
-So **share a capture worth keeping before the phone goes back in a
-pocket**: the share control in the top bar sends the report from the
-main screen and the picture from a plot, and those are files.
+So **get a capture worth keeping out of the app before the phone goes
+back in a pocket**, and there are two ways out: the share control in
+the top bar sends the report from the main screen and the picture from
+a plot, and Pro's **Export statistics…** (in the ⋮ menu) writes the
+numbers themselves as a file — the full snapshot as JSON, or the same
+CSV columns the desktop tools produce, for a spreadsheet. The export
+works during a run and after it; only a capture that was never taken
+cannot be saved.
 
 **A fresh watch is a fresh capture.** The plots belong to one run and
 are cleared when the next one starts, which is why a period longer than

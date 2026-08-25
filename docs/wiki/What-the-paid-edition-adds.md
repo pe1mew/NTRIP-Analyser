@@ -19,6 +19,7 @@ the free edition deliberately does not do at all.
 | Satellite trails on the sky view — where each satellite has been, for a whole session | — | yes |
 | Ephemeris side-stream for a complete sky view | — | yes |
 | Import and export of the shared configuration file | — | yes |
+| Statistics export — the snapshot as JSON or the desktop's CSV | — | yes |
 | Position sent to a network mountpoint | the one you set | this phone's own, after an explicit agreement |
 | Per-message-type statistics and the full ARP detail | — | yes |
 

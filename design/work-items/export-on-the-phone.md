@@ -183,7 +183,16 @@ byte for byte against the core header. **93 checks.**
 it); row 76 Free ⋯ → ○, Pro ⋯ → ●; a parity line confirming neither
 edition redefines an `export_` string, in the failure-codes fashion.
 
-### E5 — say so
+### E5 — say so  *(done 2026-08-25; wiki prepared, push is the author's)*
+
+Changelog under `[Unreleased]`, carrying the structural find with the
+feature. Wiki: Watch mode's survival section now names the export as
+the second way out of the app, Pro-edition gains the bullet, the
+comparison table the row. The three open questions closed as
+recommended: pro-only, the filename carries the moment, one control in
+the menu.
+
+*(As planned:)*
 
 Changelog under `[Unreleased]`. Wiki: the **Watch mode** page's *"What
 survives is in the app, not on the phone"* section currently ends at

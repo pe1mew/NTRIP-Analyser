@@ -23,6 +23,13 @@ These pages cover only what is different.
 
 ## The smaller differences
 
+- **Export statistics.** The ⋮ menu writes the current snapshot as a
+  file: JSON carrying everything the app knows, or CSV in exactly the
+  columns the desktop GUI exports and the monitoring daemon logs — so
+  a phone's export and a server's sample can sit in one spreadsheet.
+  Available during a run (a timestamped snapshot) and after it (the
+  settled result).
+
 - **Pick a mountpoint from the sourcetable.** Tap an entry in *Browse
   mountpoints…* and it becomes the connection — with its published
   position and its NMEA setting, so a network mountpoint is configured

@@ -82,6 +82,27 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Added — statistics export, in the paid edition
+
+The run's numbers as a file another program eats. One overflow row,
+two formats, one dialect: **JSON is the bridge's own document,
+verbatim** — the exact text the app decodes, whose stats object is the
+core serialiser's output unchanged, so it stays bit-compatible with
+what the daemon publishes — and **CSV is the core's header and row**,
+the same 38 columns the GUI exports and Munin reads, proven byte for
+byte against the core in the bridge's own test harness. Works mid-run
+(a snapshot whose verdicts honestly read RUNNING) and after (the
+settled result), through the same Storage Access Framework pickers the
+configuration uses, under the desktop's timestamped filename.
+
+Building it found a fault older than itself: every dialog the overflow
+menu can open — Settings, About, and now this — was composed after the
+`return` the analysis and detail screens exit through, so on those
+screens the row set its flag and nothing appeared. The dialogs now
+compose before the screen branches, and the menu's promise of being
+identical everywhere is true for the first time. Phase 2, item 4
+(`design/work-items/export-on-the-phone.md`).
+
 ### Added — where the reference position stands, in the paid edition
 
 How far the service's reference position is from where you stand, live
