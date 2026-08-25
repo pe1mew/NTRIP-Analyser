@@ -371,6 +371,18 @@ data-safety form can now answer that data is encrypted in transit
 when the user enables TLS -- the form is the author's to edit, at
 both listings, when pro goes to Play.
 
+**And one from CI, after the steps were "done"** (2026-08-25): the
+loopback TLS suite died of SIGPIPE on Linux while passing on Windows,
+which has no such signal -- TLS made writes to peer-closed sockets
+routine (a close_notify at teardown, a record to a caster that
+refused), and POSIX's default for those is process death. The
+transport sends with MSG_NOSIGNAL now and the test ignores the signal
+for its server thread. The daemon and CLI had carried the same latent
+exposure on every plain-text send since before the seam existed; the
+transport-level flag retires it for all of them. This is the draft PR
+doing the job the branch plan gave it: a platform-specific death no
+Windows desk could see, caught before the merge.
+
 *(As planned:)*
 
 Matrix row 90 ⋯→● five columns; **no Features gate** — both editions,

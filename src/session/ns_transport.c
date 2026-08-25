@@ -60,6 +60,18 @@
   #define closesocket(s) close(s)
 #endif
 
+/* A send to a peer that has closed must be an error code, not a
+ * process death: on POSIX the default is SIGPIPE, and TLS made such
+ * sends routine -- a close_notify at teardown, a handshake record to
+ * a caster that refused.  Found by CI: the loopback TLS suite died of
+ * SIGPIPE on Linux while passing on Windows, which has no signal to
+ * raise. */
+#ifdef MSG_NOSIGNAL
+  #define NS_SEND_FLAGS MSG_NOSIGNAL
+#else
+  #define NS_SEND_FLAGS 0
+#endif
+
 /** How long a silent peer may sit inside the TLS handshake before the
  *  attempt is called failed.  Generous: a healthy handshake is
  *  round-trips, not seconds.  A plain-text port usually fails far
@@ -201,7 +213,8 @@ NsTransport *ns_transport_connect(const char *host, int port,
 static int bio_send(void *ctx, const unsigned char *buf, size_t len)
 {
     NsTransport *t = (NsTransport *)ctx;
-    int n = (int)send(t->sock, (const char *)buf, (int)len, 0);
+    int n = (int)send(t->sock, (const char *)buf, (int)len,
+                      NS_SEND_FLAGS);
     if (n <= 0) return MBEDTLS_ERR_NET_SEND_FAILED;
     return n;
 }
@@ -377,7 +390,7 @@ int ns_transport_send(NsTransport *t, const void *buf, int len)
     if (!t) return -1;
 
     if (!t->tls)
-        return (int)send(t->sock, (const char *)buf, len, 0);
+        return (int)send(t->sock, (const char *)buf, len, NS_SEND_FLAGS);
 
     int done = 0;
     while (done < len) {

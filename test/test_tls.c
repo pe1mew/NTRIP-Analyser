@@ -54,6 +54,7 @@
 #  include <unistd.h>
 #  include <pthread.h>
 #  include <time.h>
+#  include <signal.h>
    typedef int sock_t;
 #  define SOCK_BAD    (-1)
 #  define close_sock  close
@@ -356,6 +357,12 @@ int main(int argc, char **argv)
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2, 2), &wsa);
+#else
+    /* The server thread writes to clients that are refusing it -- that
+     * is the test working.  The transport sends with MSG_NOSIGNAL; the
+     * server side here writes through mbedTLS's own BIO too, so the
+     * process-wide default must not be death. */
+    signal(SIGPIPE, SIG_IGN);
 #endif
 
     /* Trust the toy CA, exactly as the header warns nobody else to. */
