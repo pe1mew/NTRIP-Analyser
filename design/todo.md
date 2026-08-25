@@ -4,9 +4,11 @@ This is the single source of truth for planned and considered features. Every it
 **Inspiration** tag recording where the idea came from, so the provenance survives after the
 discussion that produced it is forgotten.
 
-**The GitHub issue tracker is not in use yet.** It opens when the free Android edition is
-released, and takes what users report from then on; this file keeps the design-level work
-either way. Two lists before there are any users would only drift apart.
+**The GitHub issue tracker is in use as of 2026-08-24.** The free Android edition is on
+Play (3.7.1) and the first user report has arrived as **GH#1** — exactly the moment the
+paragraph that used to stand here said the tracker would open. Issues take what users
+report; this file keeps the design-level work, and an item born from an issue carries the
+issue number as its tag so the two lists cannot drift apart silently.
 
 **Reconciled against `main` on 2026-08-10.** The first draft of this list was written against
 commit `e7a8757` and had drifted badly: two items were already shipped, and every source line
@@ -31,6 +33,7 @@ Item numbers are stable and are never reused or renumbered, so shipped items kee
 |---|---|
 | `[ESP32]` | [aryesil/RTK-BASE-ESP32](https://github.com/aryesil/RTK-BASE-ESP32) — an ESP32-based RTK base station. It is a correction *producer* while this project is a *consumer*, so its configuration features do not transfer, but its monitoring and analysis layer maps directly onto our problem domain. |
 | `[design.md]` | Migrated from the former "Future Enhancements" list in `gui/design.md` §12, or originated in this project. |
+| `[GH#n]` | A user report on the GitHub issue tracker, open since free 3.7.1 reached Play. |
 
 ---
 
@@ -505,6 +508,41 @@ out on their merits, their DF401 phase range being 22 bits at a coarser scale.
 
 Found while widening C/N0 to MSM4/5/6 (§0). Same family of error: a limit of the reader documented
 as a property of the format.
+
+### 1.9 Sky view: phone-placed satellites survive a screen lock — **Open** `[GH#1]`
+
+Reported by a free-edition tester: lock the phone for even a second on the sky view and
+every satellite "reloads" on unlock; Signal quality and C/N0-vs-elevation do not do this.
+
+**Diagnosed 2026-08-24, no code changed yet.** The sky view is the only view whose drawing
+depends on the phone's own receiver — in free without a navigation file, placement is
+phone GNSS. Three things conspire:
+
+1. Locking the screen pauses GNSS delivery to the app (the recorded no-background-location
+   decision — nothing wrong there).
+2. On unlock the receiver re-acquires, and its first status reports carry few satellites,
+   many still at 0/0 — which the placement filter rightly drops as unplaceable.
+3. `Gnss.kt` (`onSatelliteStatusChanged`, the `_positions.value = map` assignment)
+   **replaces the whole positions map on every callback** rather than merging. The
+   near-empty first report after unlock therefore wipes every placed satellite, and the
+   plot refills one by one as the chipset recomputes.
+
+**The fix**: merge with per-satellite retention instead of wholesale replacement. A fresh
+report for a satellite always wins; a satellite absent from a report is *retained* rather
+than dropped, and ages out.
+
+**Retention window — decided by the author, 2026-08-24: as long as the ephemeris/RINEX
+validity the orbit cache already applies** (`sv_eph_is_valid_at()`: under four hours,
+half-day wrap for GLONASS), not a seconds-scale grace. One vocabulary: a position source is
+trusted for one length of time, whoever supplied it.
+
+Implementation note for whoever picks this up: the long window is safe *because of the
+merge semantics* — while the app is on screen the receiver reports every second and fresh
+data overwrites a coasted entry immediately, so the window only ever bridges gaps (a lock,
+a receiver hiccup). A satellite genuinely gone still disappears the honest way: its last
+position ages past the window. What the window must **not** become is a licence to draw an
+hours-old azimuth/elevation as current while fresh reports flow — the merge rule prevents
+that by construction.
 
 ### 1.7 Legacy observation messages — **Shipped**, see §0
 
