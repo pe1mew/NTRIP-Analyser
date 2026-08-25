@@ -47,9 +47,18 @@ CAPTIONS = {
                "Averaged in power, as it should be"),
     'sourcetable': ("The caster's own sourcetable",
                     "Every mountpoint, its format and its constellations"),
+    # Pro only -- free has no stability card and simply never supplies
+    # the capture.  The card judges on its own evidence and says so;
+    # the caption repeats nothing the screen does not show.
+    'stability': ("Has it been fit all along?",
+                  "Six stability verdicts over the whole run"),
+    # Pro only: the reference-position detail, drawn on the analysis
+    # screens' own template.
+    'handover': ("Where the service really stands",
+                 "Know the moment a network hands you to another station"),
 }
 
-ORDER = ['main', 'elevation', 'sky', 'signal', 'sourcetable']
+ORDER = ['main', 'stability', 'handover', 'elevation', 'sky', 'signal', 'sourcetable']
 
 TILE_BG = (230, 224, 233)      # the connection tile's surface colour
 TILE_INK = (29, 27, 32)        # and its text
@@ -95,12 +104,18 @@ REDACTIONS = {
         'main': [
             # (box, replacement, monospace, size, fill, ink) -- the
             # connection tile's caster line, monospace in the app.
-            # Re-measured for GUI v3 (3.7.0): the tile sits higher now
-            # that the hub's margins scroll with the content, and the
-            # old box painted a documentation host into the gap *above*
-            # the tile while the real one stayed readable below it.
-            ((84, 818, 470, 866), 'ntrip.example.com:2101', True, 44,
+            # Re-measured for 3.8.0's pro capture: a *running watch*
+            # banner carries a subtitle and a progress bar, so the tile
+            # sits lower than after a finished check -- the drift the
+            # gate below exists to catch, and did (twice: the first
+            # "re-measure" was made against the wrong capture).
+            ((84, 845, 640, 888), 'ntrip.example.com:443', True, 44,
              TILE_BG, TILE_INK),
+            # The GGA uplink line carries the phone's own position --
+            # the author's, in these captures -- to five decimals.
+            # Same shape-preserving treatment as the ARP.
+            ((84, 1022, 700, 1060), 'GGA uplink from 52,xxxxx, 5,xxxxx',
+             False, 38, TILE_BG, PAGE_INK),
         ],
         'sky': [
             # Likewise: v3 moved the footer up, clear of the navigation

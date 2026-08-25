@@ -73,7 +73,38 @@ plainly.
 **Verify.** The copy quotes nothing the matrix does not show as ●-pro;
 the check count and edition-parity sentences match `Features.kt`.
 
-### S2 — the assets
+### S2 — the assets  *(done 2026-08-25 — the captures are a real run's)*
+
+Shot on the S23, release 3.8.0, in one evening session — with the
+best possible provenance: the author was already running a **50-minute
+watch on APEL00NLD0 over TLS**, so pro's captures are an actual
+field run, not a staged one. The author drove the screens; the agent
+captured. Pro's set grew beyond the plan: main (the run-aware banner
+reading "watch 50 min · stability: STABLE over 0.8 h"), the
+**stability card** (STABLE over 0.7 h, six green verdicts with their
+evidence), the **hand-over detail** (author's suggestion, mid-session),
+the 102k-sample elevation heatmap, the sky with 37 minutes of tracks,
+and live signal bars — two new captions joined the tool for the
+tier-2 screens. Free's set came from an APEL TLS check plus the
+existing conventions.
+
+The redaction gate earned its keep twice: it refused pro's main
+because a *running watch* banner sits taller than a finished check's
+(the box was re-measured -- the first re-measure was made against the
+wrong capture, which the gate also refused), and the author caught
+that the **GGA uplink line carries the phone's own position** -- it
+now gets the same shape-preserving treatment as the ARP
+("52,xxxxx, 5,xxxxx"). AGRS mountpoint names stay visible: NSGI's
+free streams are public infrastructure with anonymous access, which
+is the terms-allow test the verify line asks.
+
+Open at framing time, author's call at upload: free's `1-main.png`
+shows CAUTION (the station's evening wobble was consistent) -- ship
+it honest, reshoot on RFSEE01 for a STATION OK, or keep the live
+listing's current main. The pro feature graphic is unchanged (not
+version-bearing).
+
+*(As planned:)*
 
 The screenshot reshoot (open question 2), both listings in one
 session; pro's feature graphic from `tools/make_feature_graphic.py`;
