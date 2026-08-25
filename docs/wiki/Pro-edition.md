@@ -15,6 +15,7 @@ These pages cover only what is different.
 | | |
 |---|---|
 | **[Watch mode](Watch-mode)** | Keep measuring for hours: availability, streaks, degradations |
+| **[Stability report](Watch-mode#the-stability-report)** | Six metrics over stream time with their own verdicts — has this station *been* fit |
 | **[Network-RTK check](Network-RTK-check)** | Five assertions and a gate test for VRS and network services, where the eight checks alone mislead |
 | **[Reference position](Network-RTK-check#watching-the-reference-position-pro)** | Live rover-to-ARP distance, and the hand-over history that shows a network switching stations under you |
 | **[Saved connections](Saved-connections)** | Up to sixteen casters, and the shared configuration file |

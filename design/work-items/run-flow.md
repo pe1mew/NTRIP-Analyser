@@ -150,7 +150,8 @@ absent on a watch.
 
 ## Relationship to T2.5
 
-T2.5 (tier 2's changelog and wiki) is still open; F4 and T2.5 touch
-the same Watch-mode page and land together in one wiki push, so the
-page tells one story: what the watch is, how it starts, what the
-banner says while it runs, what stability means when it settles.
+F4 and T2.5 landed together on 2026-08-25, one story in one wiki push:
+what the watch is, how it starts from the hub, what the banner says
+while it runs, what stability means when it settles. The changelog
+carries the run-flow change with the field-finding as its reason and
+the door-guard with its reproduction.

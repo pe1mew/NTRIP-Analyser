@@ -82,6 +82,37 @@ So this release also removes the way that happened:
 
 ## [Unreleased]
 
+### Added — the stability report, in the paid edition
+
+Has this station *been* fit, and is it staying that way — the question
+ninety seconds cannot reach at any price. Six metrics over **stream**
+time on the hub's new Stability card: availability, frame integrity,
+signal level, satellites held, ionosphere, delivery rate, judged by
+the same engine the CLI and the daemon have always used, now in the
+phone's build. Its own vocabulary, never the check's: STABLE, DEGRADED,
+UNSTABLE — and **INSUFFICIENT EVIDENCE is a real verdict**, shown with
+the engine's own countdown until ten minutes of stream have been seen.
+The matrix's old reason for Android's absence — no runtime to sustain
+a ten-minute run — expired the day watch mode shipped; this release
+collects. Phase 2, item 5.
+
+### Changed — runs start in one place, and the app says which is going
+
+First field use of the stability card found the watch had outgrown its
+home: its products moved to the hub years after its start button, the
+card promised ten minutes to a two-minute run, and the banner narrated
+only tier 1. Now the hub owns all three run verbs — check, watch,
+network-RTK — each with a line saying which tier answers and what it
+costs in time; the analysis screen's start and stop are gone entirely;
+the banner's bar changes duty during a watch to the ten-minute
+evidence floor and its subtitle counts it; and the stability card
+tells a check honestly that it ends before the evidence can arrive.
+
+Two faults fixed on the way: the run verbs share the verdict banner's
+corners instead of growing into tall pills, and a second start can no
+longer spawn a second worker over a running measurement — the service
+door refuses with a logged reason.
+
 ### Fixed — the sky header credited a file for the stream's orbits
 
 The source line is decided per run, but the orbit cache lives as long

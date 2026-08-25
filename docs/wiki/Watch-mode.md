@@ -9,12 +9,49 @@ passes every spot check anyone ever runs on it.
 
 ## Running one
 
-Open **Analysis** and tap **Start analysis**. The run keeps going until
-you stop it — through the screen going dark, and with a notification for
-its whole life so the system leaves the connection alone.
+Tap **Watch station** on the station screen — every run starts and
+stops there, and each run button says beneath its name which tier
+answers and roughly what it costs: the check gives a verdict in about
+two minutes; the watch adds stability and needs ten minutes of
+evidence before it says anything at all.
 
-Everything else behaves as during a check: the eight rows keep updating,
-and the analysis views keep filling.
+The run keeps going until you stop it — through the screen going dark,
+and with a notification for its whole life so the system leaves the
+connection alone. While it runs, the verdict banner says so: its
+subtitle reads *watch 4 min · evidence 98/600 s* and its progress bar
+climbs toward the ten-minute stability floor; once the floor is
+passed, the bar retires and the subtitle carries the stability verdict
+instead.
+
+Everything else behaves as during a check: the eight rows keep
+updating, and the analysis views keep filling — the **Analysis**
+screen is the viewing room, not the cockpit; it starts and stops
+nothing.
+
+## The stability report
+
+Below the eight checks, a watch fills the **Stability** card: six
+metrics over the whole run — availability, frame integrity, signal
+level, satellites held, ionosphere, delivery rate — each with the
+figure that decided it.
+
+**Its words are deliberately not the check's.** A station can be fit
+this minute and have been unstable all week, or the reverse; so the
+card says STABLE, DEGRADED or UNSTABLE, and *STATION OK* stays the
+check's word alone.
+
+**INSUFFICIENT EVIDENCE is an answer, not an error.** The card needs
+ten minutes of stream before it judges anything, and until then it
+says exactly how much is still owed. During a plain check — which ends
+long before ten minutes — the card says so and points you at the
+watch. Windows are measured in the *stream's* time, which is what
+makes a replayed capture report exactly what the live run did; and a
+report whose stream has stopped moving declines to keep judging,
+rather than publishing STABLE from evidence that stopped being about
+now.
+
+The longer the watch, the more the verdict means: *STABLE over 0.2 h*
+is a start; *STABLE over 4.0 h* is a sign-off.
 
 ## Reading the Watch card
 

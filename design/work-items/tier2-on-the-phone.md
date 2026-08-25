@@ -191,7 +191,17 @@ row 46 Pro ○ → ●; the `SrVerdict` enum order pinned against Kotlin's
 reading of it, exactly as the VRS gate enum is, if the card colours by
 ordinal — and it will.
 
-### T2.5 — say so
+### T2.5 — say so  *(done 2026-08-25; wiki prepared, push is the author's)*
+
+Landed together with run-flow F4, as both plans promised: one story on
+the Watch-mode page. Running-one rewritten around the hub's verb
+column and the banner's evidence narration; a Stability section
+carrying the vocabulary rule, the ten-minute floor, why INSUFFICIENT
+is an answer, and the stream-time and staleness rules in a reader's
+words. The changelog entry leads with the question ninety seconds
+cannot reach and ends with the expired blocker this item collected on.
+
+*(As planned:)*
 
 Changelog under `[Unreleased]`. Wiki: **Watch mode** is this page's
 natural home — its own opening question is *does it stay healthy* —
