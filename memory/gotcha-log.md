@@ -349,6 +349,26 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: judging a rendered string by reading its source. Nothing in the file says how wide it is.
 **Fix**: shortened to the shape of the line above it and measured from the accessibility tree -- 48 px, one line, the same height as a KPI row's evidence. Text is a rendered artefact like any other; measure it where it lands.
 
+### A pause that lives in prose is not a checklist (2026-08-25) [x2]
+**Problem**: two releases running (3.7.2, 3.7.3), the author pasted my release command list top to bottom and hit `no matches found` at the upload -- the desktop packaging step lived in a sentence ("tell me *tagged* and I'll package") between the commands, and sentences do not execute.
+**Root cause**: handing over commands whose prerequisites do not yet exist, with the gap marked only in prose. The runbook's own order was correct both times; the handoff format was the bug.
+**Fix**: release commands are handed over only when everything they name already exists on disk. Promoted below.
+
+### The provenance flag outlived nothing; the cache outlived the run (2026-08-25)
+**Problem**: the sky header credited a day-old navigation file for placements the ephemeris stream had made minutes earlier.
+**Root cause**: source attribution by a per-run flag (`usedEphStream`, reset in `startRun`) over a cache that lives with the process. The flag's own doc comment stated the right rule and the reset defeated it. Family: the matrix's "a stale file used to read as a full cache", in the other direction.
+**Fix**: the reset is deleted; a flag's lifetime must match the thing it describes. Reproduced against the fix in the author's exact scenario.
+
+### A hidden button is a promise; a guarded door is a wall (2026-08-25)
+**Problem**: starting a network-RTK check over a running test spawned a second worker and broke the measurement (author-reproduced).
+**Root cause**: the UI hides run verbs while running, but `startRun`'s guard was a silent `worker != null` -- and the field survives thread death, so it could both let a race through and wedge shut after a crash.
+**Fix**: `worker?.isAlive` with a logged refusal at the single door every run passes through. The service is not exported, so the door is only reachable from inside the app; the author's route retried green.
+
+### touch is not enough when write and build share a second (2026-08-25) [x3]
+**Problem**: three times in two days a test stayed red (or green) after a source change because make skipped recompiling -- the restore landed in the same clock second as the previous build and mtime comparison saw nothing.
+**Root cause**: one-second mtime resolution on this MinGW/make setup; `touch` alone raced the same wall.
+**Fix**: delete the object file (`rm build/CMakeFiles/<target>.dir/.../file.obj`) before rebuilding when a just-edited file's test result looks impossible. Candidate for promotion at next recurrence.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -361,7 +381,7 @@ Found by probe rather than by reading: a background colour showed the empty band
 | 2026-08-13 | Judge constellations by NavSys, never the 1005/1006 bits | **3** — 2026-08-12 three times in one session | project file, domain facts; `memory/MEMORY.md` active decisions |
 | 2026-08-14 | Scripted file edits corrupt what they rewrite — escapes, then line endings, then the whole file | **9** — heredoc 2026-08-12, doubled CRs and a literal newline 2026-08-14, `sed -i` deleting a table row 2026-08-16, four eaten backslashes and one truncated file 2026-08-22 | project file, hard constraint |
 | 2026-08-14 | A data property appears in every renderer, so fix it in all of them | **2** — Android 2026-08-13, GUI 2026-08-14 | `memory/MEMORY.md` active decisions |
-| 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **4** — 16 KB alignment, bundle ABIs, signing key, all 2026-08-14; a string that fitted in the file and wrapped on the phone, 2026-08-23 | project file, hard constraint |
+| 2026-08-14 | Read the artefact; a toolchain's reputation is not evidence | **6** — 16 KB alignment, bundle ABIs, signing key (2026-08-14); wrapped strings on-device 2026-08-23 (reconnect line) and 2026-08-25 twice (export filename template, banner evidence line) | project file, hard constraint |
 | 2026-08-15 | Measure the way the build measures, or report no number | **2** — `-fsyntax-only` blind to truncation warnings, `-std=c99` hiding `M_PI`, both 2026-08-15 | project file, hard constraint |
 | 2026-08-15 | Two build systems over one source set: CI must run both | **2** — `build-gui.bat` (open), `service/Makefile` (found broken 2026-08-15) | `memory/MEMORY.md` active decisions |
 | 2026-08-16 | A snapshot field nothing fills is worse than a missing one | **3** — ARP fields (until a live run tripped over them), `latency_s` and `sourcetable_offset_m` (both found 2026-08-16) | `memory/MEMORY.md` active decisions |
@@ -371,3 +391,5 @@ Found by probe rather than by reading: a background colour showed the empty band
 | 2026-08-18 | An entry is only `[RESOLVED]` when code or procedure changed | **1** — the v3.4.0 tag gotcha was retired on advice alone and recurred in three days | this log's header, promotion lifecycle |
 | 2026-08-20 | The shell between you and the device edits what passes through it | **2** — paths rewritten by Git Bash 2026-08-14 and again 2026-08-20, a PNG CRLF-mangled by the PTY 2026-08-20 | `memory/MEMORY.md` active decisions; `MSYS_NO_PATHCONV=1` for paths, `adb exec-out` for bytes |
 | 2026-08-22 | The device under test holds the author's data | **2** — `pm clear` wiped pro's caster and credentials; free on the S23 was left alone for the same reason | `memory/MEMORY.md` active decisions |
+| 2026-08-25 | A pause that lives in prose is not a checklist | **2** — 3.7.2 and 3.7.3 both hit `no matches found` at the upload because packaging lived in a sentence between the commands | `docs/RUNBOOK.md` release sequence; hand over commands only when everything they name exists |
+| 2026-08-25 | A flag's lifetime must match the thing it describes | **2** — `usedEphStream` reset per run over a process-lived cache (2026-08-25); the same family as the matrix's stale-file-as-full-cache | `memory/MEMORY.md` active decisions |

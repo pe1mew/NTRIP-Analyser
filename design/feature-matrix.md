@@ -97,14 +97,13 @@ Every paid capability is more of something, never a different verdict.
 The entitlement is the installed APK rather than an in-app unlock,
 because that works in a field with no signal.
 
-That intent is ahead of the build. Answering *over time* is tier 2, and
-tier 2 is in neither edition — `station_report.c` and `thresholds.c` are
-absent from the Android source list, so both were invisible to the
-roadmap until these rows existed. They are the clearest paid/free line
-the product has, precisely because they leave the ninety-second verdict
-untouched: the free `STATION OK` stays exactly as free and exactly as
-trustworthy. What they need is not measurement work but a phone that can
-hold a ten-minute run — foreground service, doze, battery.
+That intent is now the build (2026-08-25): answering *over time* is
+tier 2, shipped in pro as the Stability card the day the runtime
+argument expired — watch mode holds a ten-minute run, so the evidence
+floor is reachable. It is the clearest paid/free line the product has,
+precisely because it leaves the ninety-second verdict untouched: the
+free `STATION OK` stays exactly as free and exactly as trustworthy,
+and free deliberately has no card to shrug with.
 
 **CLI against GUI.** They diverge by role rather than by rank. The GUI is
 the analysis instrument — ionosphere, history, VRS monitor and signal

@@ -483,6 +483,12 @@ gh release edit v3.7.1 --title "NTRIP-Analyser 3.7.1" --notes-file notes.md
 gh release edit v3.7.1 --draft=false
 ```
 
+**Hand the release commands over only when everything they name
+already exists.** Two releases (3.7.2, 3.7.3) hit `no matches found`
+at the asset upload because the desktop packaging step lived in a
+sentence between the commands -- a pause that lives in prose is not a
+checklist. Package first, then write the upload commands.
+
 **Push the tag before reaching for `gh release create`.** This order
 used to read the other way round -- create the release, then push the
 tag -- and it does not work once the tag exists locally: *"tag v3.7.1
