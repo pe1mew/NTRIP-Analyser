@@ -17,7 +17,7 @@ antenna or siting problem for what it is.
 | | |
 |---|---|
 | **NTRIP Analyser** | free. The full eight-check verdict, the analysis views, and the sourcetable browser, for one caster at a time. |
-| **NTRIP Analyser Pro** | *under development.* Adds watch mode for hours-long measurement, live position for network mountpoints, saved connections, and an ephemeris side-stream for a complete sky. |
+| **NTRIP Analyser Pro** | *in closed testing.* Adds watch mode for hours-long measurement, the stability report, the network-RTK check, the reference-position watch, satellite tracks, statistics export, live position for network mountpoints, saved connections, and an ephemeris side-stream for a complete sky. |
 
 <table>
 <tr>
@@ -48,6 +48,33 @@ with the caster, the mountpoint and what you expected. A verdict that
 disagrees with a station you know is the most useful bug report this
 project can receive, because every threshold behind it is a judgement
 rather than a fact ([which ones, and how well founded](https://pe1mew.github.io/NTRIP-Analyser/thresholds.html)).
+
+### NTRIP Analyser Pro: testers wanted, and it costs nothing
+
+Pro is finished and released — TLS was the last thing it was waiting
+for — and it now has to serve the same fortnight the free edition
+served: **twelve testers, opted in and staying opted in for fourteen
+continuous days**, before a personal developer account may ask for
+production access. That rule counts **per app**, so free's testers do
+not carry across. Joining is, quite literally, the thing standing
+between pro and the store.
+
+**Testing it is free.** Pro is a paid app, but testers are added as
+license testers and install it without being charged.
+
+**→ [Join the pro test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.pro)**
+— or [open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues)
+asking to be added, and we will add you.
+
+What pro adds over free is measurement over time rather than a
+different measurement: watch mode for runs lasting hours, the
+stability report with its own six verdicts, the network-RTK check for
+VRS services, the reference-position watch that catches a network
+handing you to another station, satellite tracks, and statistics
+export — [the full list](https://github.com/pe1mew/NTRIP-Analyser/wiki/What-the-paid-edition-adds).
+**The eight checks and their verdicts are identical in both
+editions**, which is the point: nothing is withheld to make the free
+edition look worse.
 
 ### Samsung Galaxy Store, and F-Droid from our own repository
 

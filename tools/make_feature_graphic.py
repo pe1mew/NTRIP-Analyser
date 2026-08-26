@@ -58,6 +58,29 @@ EDITIONS = {
 }
 
 
+# Text must end this far from the right edge, as a fraction of the
+# width. Play crops this graphic on some surfaces and the first
+# casualty is always text near a border.
+RIGHT_MARGIN = 0.06
+
+
+def fitted(d, text, px, bold, avail):
+    """The largest size at or below @p px whose text fits @p avail.
+
+    The sizes above were chosen against the free edition's title and
+    never measured against anything else, so "NTRIP Analyser Pro" ran
+    off the canvas and the listing showed "NTRIP Analyser P" -- caught
+    by the author's eye at upload, 2026-08-26. A layout that depends on
+    the length of a string has to measure the string.
+    """
+    while px > 8:
+        f = font(px, bold=bold)
+        if d.textlength(text, font=f) <= avail:
+            return f
+        px -= 2
+    return font(8, bold=bold)
+
+
 def font(px, bold=False):
     for name in (("segoeuib.ttf", "arialbd.ttf") if bold
                  else ("segoeui.ttf", "arial.ttf")):
@@ -80,10 +103,16 @@ def build(edition):
     icons.draw_mark(d, cx, cy, r, accent)
 
     x = w * 0.38
-    t = font(int(h * 0.155), bold=True)
-    s = font(int(h * 0.077))
+    avail = w - x - w * RIGHT_MARGIN
+    t = fitted(d, title, int(h * 0.155), True, avail)
+    s = fitted(d, promise, int(h * 0.077), False, avail)
     tw = d.textbbox((0, 0), title, font=t)
     sw = d.textbbox((0, 0), promise, font=s)
+    # Both lines are measured after fitting, so an overflow cannot ship
+    # quietly the way the first pro graphic did.
+    for label, text, f in (("title", title, t), ("promise", promise, s)):
+        assert d.textlength(text, font=f) <= avail, (
+            "%s overflows the %s graphic" % (label, edition))
     block = (tw[3] - tw[1]) + int(h * 0.06) + (sw[3] - sw[1])
     y = (h - block) / 2 - tw[1]
 

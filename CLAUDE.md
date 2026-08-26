@@ -65,6 +65,12 @@ because people will point it at real stations and believe what it says.
   TLS rollout (2026-08-25); `service/Makefile` builds by wildcard.
 - **Never document a function in both header and `.c`.** Doxygen merges
   them and reports nonsense.
+- **Cite the basis, or say there isn't one.** A recommendation that
+  sounds researched must be researched: "the comparison set sits at
+  €5-20" was an impression, and the author was one click from pricing
+  a listing on it (2026-08-26). The same discipline the memory index
+  applies to state claims applies to advice — evidence, or an explicit
+  "I haven't checked".
 - **Verify against a live caster before claiming something works.** A
   clean build proves nothing here. The same rule for anything published:
   fetch the page, do not trust the deploy status.

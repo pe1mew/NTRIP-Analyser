@@ -206,7 +206,7 @@
 ### A hand-written source list drifted until a second build system was run (2026-08-15) [RESOLVED]
 **Problem**: `make -C service` failed to link — undefined reference to `get_gnss_id_from_rtcm` — on its first CI run. It had been broken for some time.
 **Root cause**: `service/Makefile` lists its sources by hand and never gained `src/net/ntrip_handler.c`. CMake keeps its own list and built the daemon happily, so the failure was invisible to everyone except a packager or a VPS deployment.
-**Fix**: Wildcard the shared directories (`src/core`, `src/net`, `src/session` are shared *by definition*; anything platform-specific lives elsewhere). **If two build systems describe the same sources, CI must run both** — the same gap the GUI's `build-gui.bat` still has.
+**Fix**: Wildcard the shared directories (`src/core`, `src/net`, `src/session` are shared *by definition*; anything platform-specific lives elsewhere). **If two build systems describe the same sources, CI must run both** — the gap the GUI's `build-gui.bat` had until it was retired outright on 2026-08-25 (TLS L2), leaving `CMakeLists.txt` as the only desktop list.
 
 ### A tag on a tree whose bump was never committed (2026-08-15) [x2]
 *Recurred 2026-08-18, identically, with `v3.5.0`: same staged-not-committed bump, same failed run, same message with the numbers changed. It had been marked `[RESOLVED]` three days earlier — wrongly, because the recorded fix was **advice** ("check `git show <tag>:version.h` first"), and advice is not a mechanism. What actually works is already in place and worked twice: `CheckReleaseTag.cmake` failed the run before anything was published. Retiring an entry needs a change to the code or the procedure, not a resolution to be careful.*
@@ -414,6 +414,36 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: `ns_proto` had parsed `handshake.chunked` since the field existed and the GUI displayed it; nothing ever decoded the framing. A parsed-but-unconsumed field is a decision postponed until a live wire forces it.
 **Fix**: the session de-chunks (gated on the handshake), the sourcetable fetch de-chunks in place, and the loopback caster serves chunked with boundaries cut mid-frame -- falsified by gating the decoder off, which reproduced the live corruption exactly.
 
+### A recommendation dressed as research (2026-08-26)
+**Problem**: the agent recommended a €12.99 price "mid-upper of the comparison set -- NTRIP clients and GNSS field tools sit at €5-20", and the author was one click from attaching that number to a real listing.
+**Root cause**: the band was an impression, not a search. Nothing had been looked up; the phrase "comparison set" implied evidence that did not exist. The project has a verified-claims discipline for *state* ("shipped", "16 tests") and none for *recommendations*, which decay the same way and cost more.
+**Fix**: the author asked for the real table, the search found there is **no paid NTRIP app market on Play at all** (clients free because they sell hardware; the nearest analogue, NtripChecker, free with 10,000+ installs; the next rung $100-300 survey suites), and the price became €5 on evidence. Promoted below: cite the basis or say plainly there isn't one.
+
+### A release build cannot replace a debug build in place (2026-08-26)
+**Problem**: `install -r` of pro's release APK over the Huawei's leftover debug build failed with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; the only route is uninstall, which wipes saved connections and credentials on a phone that holds the author's real data.
+**Root cause**: different signing keys. A debug build left on a test phone is not a neutral state -- it is a one-way door that costs data to leave.
+**Fix**: asked before uninstalling, then rebuilt the RFSEE01 profile from `bin/config.json` and **proved the retyped password by running a check** rather than asserting it. Rule: after a debugging session, put the release build back the same day, while its settings are still cheap to restore.
+
+### The device is not the same device twice (2026-08-26) [x2]
+**Problem**: `adb shell screenrecord` -- "inaccessible or not found" on the Huawei; and the same command wrote nothing because Git Bash rewrote `/sdcard/fsvc.mp4` into `C:/Program Files/Git/sdcard/fsvc.mp4`.
+**Root cause**: EMUI ships no `screenrecord` binary (Samsung does), and MSYS path conversion mangles absolute device paths that look like POSIX paths.
+**Fix**: record on the S23; `export MSYS_NO_PATHCONV=1` for every adb command naming a device path.
+
+### A screen recording carries whatever the shade holds (2026-08-26)
+**Problem**: a video destined for Google -- and an unlisted YouTube upload -- pulled down the notification shade twice, capturing the author's Google Payments mail about verifying a bank account, and on the retake the phone's own charging and USB notifications.
+**Root cause**: demonstrating an ongoing notification means showing the shade, and the shade is not ours.
+**Fix**: inspect the shade with a screenshot **before** recording, never after; and record **unplugged over Wi-Fi adb** (`adb tcpip 5555`), which removes the charging notifications the cable itself creates. Screen timeout and battery saver are raised for the take and restored afterwards, both values read first.
+
+### A layout that depends on a string must measure the string (2026-08-26)
+**Problem**: pro's Play feature graphic read "NTRIP Analyser P" -- title and tagline both ran off the 1024x500 canvas. Caught by the author's eye at upload, not by any check.
+**Root cause**: `make_feature_graphic.py` chose font sizes as fractions of the canvas height, sized against free's shorter title, and never measured the text it drew. Its own docstring promised "everything sits inside a wide safe area".
+**Fix**: fit the text to the available width and **assert** both lines fit before saving. Free's graphic and the social preview regenerated byte-identical, which is the fitter proving it shrinks only what overflows.
+
+### Play Console mechanics that cost a step each (2026-08-26)
+**Problem**: four wrong assumptions in one sitting -- that the package name binds at first upload, that the price could wait until production, that a bundle uploaded once is available to every track, and that a version code can be uploaded twice.
+**Root cause**: none of it is guessable; all of it is stated by the forms.
+**Fix**: package binds **at app creation** and is permanent; the price is padlocked behind a **seller/payments account** and blocks rollout to *any* track including closed; **tracks do not share releases** (an empty internal release reads as three separate errors); a version code exists once per app, so a second track attaches it with **"Toevoegen vanuit bibliotheek"**. Recorded in `design/work-items/pro-to-play.md` S3.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -438,4 +468,5 @@ Found by probe rather than by reading: a background colour showed the empty band
 | 2026-08-20 | The shell between you and the device edits what passes through it | **2** — paths rewritten by Git Bash 2026-08-14 and again 2026-08-20, a PNG CRLF-mangled by the PTY 2026-08-20 | `memory/MEMORY.md` active decisions; `MSYS_NO_PATHCONV=1` for paths, `adb exec-out` for bytes |
 | 2026-08-22 | The device under test holds the author's data | **2** — `pm clear` wiped pro's caster and credentials; free on the S23 was left alone for the same reason | `memory/MEMORY.md` active decisions |
 | 2026-08-25 | A pause that lives in prose is not a checklist | **2** — 3.7.2 and 3.7.3 both hit `no matches found` at the upload because packaging lived in a sentence between the commands | `docs/RUNBOOK.md` release sequence; hand over commands only when everything they name exists |
+| 2026-08-26 | Cite the basis, or say there isn't one | **1** — a €12.99 price "band" the agent had never looked up, nearly attached to a live listing; the real search found no paid NTRIP market at all | `CLAUDE.md` hard constraint |
 | 2026-08-25 | A flag's lifetime must match the thing it describes | **2** — `usedEphStream` reset per run over a process-lived cache (2026-08-25); the same family as the matrix's stale-file-as-full-cache | `memory/MEMORY.md` active decisions |

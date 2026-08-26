@@ -67,6 +67,18 @@
   comes next. The rollout record with every deviation and live find is
   `design/work-items/tls-rollout.md`.
   <!-- verify: git rev-parse v3.8.0 -->
+- **Pro is in Play's closed-test preparation** (2026-08-26). The app
+  entry exists, born paid, package bound; listing, graphics, all nine
+  content declarations, tester lists, bundle and notes are in, and the
+  `FOREGROUND_SERVICE_DATA_SYNC` declaration carries a demonstration
+  video recorded on the S23. Price **€5** on evidence (there is no
+  paid NTRIP market on Play; the nearest analogue is free). The Play
+  **internal** track verified what local installs never could: the
+  Play-signed artefact runs on hardware
+  (`installerPackageName=com.android.vending`, 30800). Blocked only on
+  Google verifying the payments profile, which gates the price and so
+  the rollout. Plan and deviations: `design/work-items/pro-to-play.md`.
+  <!-- verify: manual — the Play Console is the only source for track state -->
 - **Phase 2's earlier five**: VRS check, hand-over, statistics export
   <!-- verify: grep -c "done 2026-08" design/work-items/tier2-on-the-phone.md -->
   and tier 2 shipped pro-gated in one day each, every plan in
