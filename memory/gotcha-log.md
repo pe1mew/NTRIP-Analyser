@@ -444,6 +444,11 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: none of it is guessable; all of it is stated by the forms.
 **Fix**: package binds **at app creation** and is permanent; the price is padlocked behind a **seller/payments account** and blocks rollout to *any* track including closed; **tracks do not share releases** (an empty internal release reads as three separate errors); a version code exists once per app, so a second track attaches it with **"Toevoegen vanuit bibliotheek"**. Recorded in `design/work-items/pro-to-play.md` S3.
 
+### A verify command that only works on a desk (2026-08-26)
+**Problem**: CI was red for two days, on two pushes, and neither of us looked. The failing check was `git rev-parse v3.8.0`, the evidence behind "3.8.0 released" in the memory index.
+**Root cause**: the claim was true and the checker's environment was not -- `actions/checkout` fetches no tags by default, so the tag existed on the remote, resolved on every desk, and was invisible to the runner. A guard that fails on a good tree is the exact failure mode this project already has a comment about.
+**Fix**: both checkouts that run `verify_memory.py` now use `fetch-depth: 0`. Rule for a new verify command: it has to pass **in CI**, not only where it was written -- and after adding one, watch the run it first appears in.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

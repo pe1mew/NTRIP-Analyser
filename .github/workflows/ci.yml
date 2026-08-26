@@ -51,6 +51,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Tags, because the memory index proves "3.8.0 released" with
+          # `git rev-parse v3.8.0` and a default checkout fetches none.
+          # That made a *true* claim fail here from 2026-08-25, red on
+          # two pushes, while passing on every desk -- the verify
+          # command was right and its environment was not.
+          fetch-depth: 0
 
       # CMakeLists.txt sets no warning flags, so every build of this
       # project -- here and on a developer's machine -- runs on the
@@ -145,6 +152,8 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # tags: several claims are proved by them
 
       # Some verify commands run the tests; they need something to run.
       - name: Configure and build
