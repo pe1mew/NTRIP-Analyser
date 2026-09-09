@@ -449,6 +449,16 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the claim was true and the checker's environment was not -- `actions/checkout` fetches no tags by default, so the tag existed on the remote, resolved on every desk, and was invisible to the runner. A guard that fails on a good tree is the exact failure mode this project already has a comment about.
 **Fix**: both checkouts that run `verify_memory.py` now use `fetch-depth: 0`. Rule for a new verify command: it has to pass **in CI**, not only where it was written -- and after adding one, watch the run it first appears in.
 
+### The console's error banner threw away the reason (2026-09-09)
+**Problem**: pro's price refused to save for two weeks behind `Je wijzigingen kunnen niet worden opgeslagen`, with nothing marked on the page. Three sittings went into guessing -- the payments profile, per-country minima, the free/paid flag -- and the closed test stayed blocked throughout.
+**Root cause**: the console discards what its own API returns. `UpdateAppPrice` answers HTTP 400 with a localised, actionable sentence: `Verwijder Rest van de wereld als je je app betaald wilt maken`, and then the same for China, Cuba, Iran and Soedan.
+**Fix**: read the failed request's response before theorising -- one HAR ended two weeks of it. The substance is worth keeping too: **a paid app cannot target "Rest of the world" or the embargoed countries**, and they must come out of the **tracks'** country lists as well as the price table; clearing the price page alone does not satisfy it. €5 saved 2026-09-09 once all five were gone.
+
+### Support answered a question about someone else's app (2026-09-09)
+**Problem**: Google support explained that an app saved as free can never become paid and that pro needed a new package name. The agent accepted it, told the author the package was burned, and sized a rename across six files.
+**Root cause**: a canned reply matched to the phrase "cannot set a price", not to this app. The console's own pricing page said `Je app is: Betaald`, with `Je app gratis maken` beside it and `wijzigen van betaald in kosteloos totdat je publiceert` above -- which also proved pro had never been published. The author doubted the diagnosis; the agent had not looked.
+**Fix**: the console page is the state, a support reply is only a claim about it. Read the page that holds the setting before acting on any answer about it.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
