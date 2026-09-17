@@ -39,7 +39,7 @@ jobs:
     name: Build and attach
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The release target asks git whether HEAD carries a tag, and
           # compares it with version.h. Without the tags present that
