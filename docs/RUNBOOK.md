@@ -347,6 +347,20 @@ eight.
 Add a check whenever drift is found by hand, so that the next time it is
 found by machine.
 
+**App access needs a reviewer credential set, on both editions.** The app
+has no accounts, but Play's review automation reads the Caster dialog's
+*Username* and *Password* as a login wall and rejects a release without
+credentials — free's first production release was refused for exactly
+that (2026-09-16). The set lives in the console at *Controleren en
+verbeteren → Beleid en programma's → App-content → tab Actie ondernomen
+→ App-toegang*: a dedicated account on the author's caster, a backup
+mountpoint, and English instructions written as one paragraph under
+Play's 500 characters. **The credentials live only in the console,
+never in this repository**, and neither does anything that would help
+someone guess them. Before any production submission, confirm the
+account still works — from mobile data, not the home network. The
+full procedure is in `design/work-items/pro-to-play.md` S5.
+
 The rest of the submission checklist — the ones no script can settle —
 is in [`design/work-items/play-listing.md`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/play-listing.md).
 

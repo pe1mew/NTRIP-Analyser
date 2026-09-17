@@ -74,11 +74,16 @@ because people will point it at real stations and believe what it says.
 - **Verify against a live caster before claiming something works.** A
   clean build proves nothing here. The same rule for anything published:
   fetch the page, do not trust the deploy status.
-- **Read the artefact, not the toolchain's promise.** What ships is the
-  `.aab`, the `.so`, the page — open them. NDK 27 was assumed to align
-  the library to 16 KB pages and had not; the bundle was assumed to
-  carry both ABIs and the signature was assumed to be the release key.
-  All three were one command away from being known.
+- **Read the artefact, not the toolchain's promise — or anyone's
+  account of it.** What ships is the `.aab`, the `.so`, the page — open
+  them. NDK 27 was assumed to align the library to 16 KB pages and had
+  not; the bundle was assumed to carry both ABIs and the signature was
+  assumed to be the release key. All three were one command away from
+  being known. The same holds for a *report about* an artefact — a
+  support reply, a summary, a paraphrase, a comment pointing at code:
+  in one week four of them contradicted the console page, the
+  checkout, the order and the gate they described (2026-09-09 to -13).
+  Read the page, the order, the gate itself.
 - **Measure the way the build measures, or report no number.**
   `-fsyntax-only` cannot see the truncation warnings (they need `-O2`),
   and `-std=c99` hides `M_PI` where the build uses `gnu99` — both gave a

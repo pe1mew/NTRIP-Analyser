@@ -401,8 +401,9 @@ Supplementing CLAUDE.md's list with paths found during work:
   app has no accounts, but Play's automation reads the Caster dialog's
   password field as a login wall, and a release-note hint for a human
   did not survive production review. A dedicated reviewer account on
-  the author's caster -- always up, no geo-IP or rate banning, never
-  rotated during a review, with a backup mountpoint -- sits in
+  the author's caster -- always up, reachable from anywhere, rate
+  limiting kept on but loose, never rotated during a review, with a
+  backup mountpoint -- sits in
   *App-toegang* on both editions (2026-09-16, `pro-to-play.md` S5).
 - **Pro picks up where free left off by consent, not by signature**
   (GH#5, 2026-09-13). Play re-signs each app with its own key, so the

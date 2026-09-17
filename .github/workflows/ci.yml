@@ -132,7 +132,14 @@ jobs:
       # tools on PATH -- the first run of this workflow died on
       # "sdkmanager: command not found". This action puts them there and
       # accepts the licences.
+      #
+      # Its default package list starts with the legacy `tools` package,
+      # which cmdline-tools 16 no longer carries: on 2026-09-17 the step
+      # failed on "Failed to find package 'tools'" before anything was
+      # built. Nothing here uses `tools`, so ask only for platform-tools.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       # Pinned in app/build.gradle.kts; the runner ships a different one,
       # and a mismatch fails at configuration time with a path error

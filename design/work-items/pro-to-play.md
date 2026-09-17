@@ -310,9 +310,15 @@ There, switch to *some or all functionality is restricted* and use
 
 - **Naam** `NTRIP caster reviewer account`;
 - a **dedicated reviewer account on the author's own caster** —
-  always up, no geo-IP restriction or rate banning (reviewers connect
-  from anywhere), ASCII-only, never rotated while a review is open —
-  so no third party carries review traffic;
+  always up and reachable from anywhere (reviewers connect from any
+  country), an unguessable ASCII username and a long random password,
+  access limited to the review mountpoints, never rotated while a
+  review is open — so no third party carries review traffic. **Rate
+  limiting stays on**, set loose enough for a reviewer's few
+  connections: an account known never to lock out is an invitation to
+  guess its password. *(Corrected 2026-09-17: this line first advised
+  exempting the account from rate banning, and was public when the
+  trade was noticed.)*
 - a **backup mountpoint**, since one base being down during review is
   a rejection;
 - English instructions quoting the app's own strings, so a reviewer

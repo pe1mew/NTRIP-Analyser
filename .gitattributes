@@ -13,3 +13,9 @@ service/*.sysusers           text eol=lf
 lib/ca-bundle/cacert.pem     -text
 lib/ca-bundle/cacert.pem.sha256 text eol=lf
 src/session/ns_ca_bundle.c   text eol=lf
+
+# Generated notices: tools/make_notices.py writes LF, and check_release.py
+# regenerates them to compare. Without a rule, a CRLF checkout shows both
+# as modified after every claim check, with an empty diff (2026-09-17).
+android/app/src/main/res/raw/notices.txt  text eol=lf
+packaging/THIRD-PARTY-NOTICES.txt         text eol=lf
