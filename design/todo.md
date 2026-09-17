@@ -687,6 +687,23 @@ Still open here: item 3 above, plus two assertions the design lists that need fr
 first — station-ID sanity via 1007/1033, and the two-position shift test that proves a VRS is
 genuinely dynamic.
 
+### 2.5 Pro picks up where free left off — **Open**, after both editions reach production `[GH#5]`
+
+A user who buys pro should not retype the caster they already set up in free. There is no route
+today: free's profiles live in its own `EncryptedSharedPreferences` under its own Keystore key,
+and free has no *Save config* at all (`AppMenu` in `Dialogs.kt` gates both config rows on
+`Features.IS_PRO`).
+
+**Decided 2026-09-13: a consent handshake.** Pro launches an activity in free, free asks the user
+and returns the connections via `setResult`; `Settings.mergeConnections` already does the merge,
+and free's single connection cannot overflow pro's sixteen. A `signature`-permission provider was
+the cleaner design and is impossible: the two Play-installed APKs carry **different** app signing
+certificates (free `3ef1c272…d88090`, pro `3f8a94b4…fadf9b`, read with `apksigner`), so the
+consent screen is the security control, not a courtesy. Pro also needs a `<queries>` entry for
+free. The full option list with the reason each was taken or not is on the issue.
+
+Scheduled after production because it is a release of **both** editions.
+
 ---
 
 ## 3. Tier 3 — Flagship, high effort

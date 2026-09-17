@@ -33,12 +33,13 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly | Problem→root cause→fix archive; six entries are resolved history |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 89 entries, 44 resolved in code or procedure |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
 | `design/feature-matrix.md` | Asking "which product has X?" | Every feature against CLI, GUI, free, pro and the daemon, with the rationale for each split |
 | `design/work-items/{release-to-play,cli-track,gui-track,measurement-tiers}.md` | Picking up work | Four parallel tracks — Android, CLI, GUI, and one that follows a capability rather than an artefact |
+| `design/work-items/pro-to-play.md` | Anything in the Play Console, for either edition | Pro's store rollout, and every console mechanic that cost a step: price and regions, licence testing as the tester sees it, reviewer credentials and where the form lives |
 | `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§15 are the check, the stability window and threshold loading, as built |
@@ -52,6 +53,36 @@
 | `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Twelve published pages; the app links into them, so a claim here is a claim in the product |
 
 ## Current State
+
+<!-- 2026-09-17 -->
+
+- **Free has production access; its first production release was
+  rejected and resubmitted** (2026-09-16). Access was granted and the
+  same day an automated review refused 30800 for missing login
+  credentials -- the Caster dialog's *Username*/*Password* read as a
+  login wall, the 2026-08-14 problem recurring. Resubmitted with a
+  reviewer account on the author's own caster in *App-toegang*.
+  **Free is not yet public**, and the readme still invites testers.
+  <!-- verify: manual — the Play Console is the only source for review state -->
+- **Pro is in closed testing** (track live 2026-09-09, release 3.8.0
+  accepted). Price €5.00 base, **€5,99 in NL**, saved once *Rest van de
+  wereld*, China, Cuba, Iran and Soedan were out of the price table
+  *and* the tracks. The app was paid all along -- a support reply said
+  otherwise. Licence testing verified from both ends: a tester's
+  checkout read "Dit is een testbestelling", the order booked €0,00.
+  Fourteen testers on lists `Free` and `Pro`, ticked on both pages;
+  the Dutch invitation (what a tester sees, and not to press
+  *Teruggave starten*) is going out individually. Reviewer credentials
+  are already entered for pro's production review. The fortnight's
+  start date is not yet recorded. Plan: `design/work-items/pro-to-play.md`.
+  <!-- verify: manual — the Play Console is the only source for track state -->
+- **GH#5 decided: pro picks up where free left off, by consent**
+  (2026-09-13). Free's and pro's Play app signing certificates differ
+  (read from both Play-installed APKs), so a signature-permission
+  import is impossible; a consent handshake in free is chosen, built
+  after both editions reach production. Options and rationale are on
+  the issue; backlog item 2.5.
+  <!-- verify: grep -q 'GH#5' design/todo.md -->
 
 <!-- 2026-08-25 -->
 
@@ -67,18 +98,14 @@
   comes next. The rollout record with every deviation and live find is
   `design/work-items/tls-rollout.md`.
   <!-- verify: git rev-parse v3.8.0 -->
-- **Pro is in Play's closed-test preparation** (2026-08-26). The app
-  entry exists, born paid, package bound; listing, graphics, all nine
-  content declarations, tester lists, bundle and notes are in, and the
-  `FOREGROUND_SERVICE_DATA_SYNC` declaration carries a demonstration
-  video recorded on the S23. Price **€5** on evidence (there is no
-  paid NTRIP market on Play; the nearest analogue is free). The Play
-  **internal** track verified what local installs never could: the
-  Play-signed artefact runs on hardware
-  (`installerPackageName=com.android.vending`, 30800). Blocked only on
-  Google verifying the payments profile, which gates the price and so
-  the rollout. Plan and deviations: `design/work-items/pro-to-play.md`.
-  <!-- verify: manual — the Play Console is the only source for track state -->
+- **Pro's Play entry was prepared** (2026-08-26): born paid, package
+  bound, listing, graphics, declarations and the
+  `FOREGROUND_SERVICE_DATA_SYNC` demonstration video in; price chosen
+  on evidence (there is no paid NTRIP market on Play). The internal
+  track proved the Play-signed artefact runs on hardware
+  (`installerPackageName=com.android.vending`, 30800). *Superseded by
+  the 2026-09-17 entry above: the price block turned out to be regions,
+  not the payments profile.*
 - **Phase 2's earlier five**: VRS check, hand-over, statistics export
   <!-- verify: grep -c "done 2026-08" design/work-items/tier2-on-the-phone.md -->
   and tier 2 shipped pro-gated in one day each, every plan in
@@ -113,7 +140,7 @@
   bundle built four and a half hours earlier: the Android release is
   built by two commands, one for the APK and one for the bundle, and only
   the first was re-run. `tools/check_release.py` now compares every
-  artefact under `app/build/outputs` with the sources it came from and
+  artefact under `android/app/build/outputs` with the sources it came from and
   with this tree's version, and is at **79 checks**; the runbook builds
   APKs and bundles in one command. Expect those four checks to be red
   between an edit and a rebuild -- that is what they are for.
@@ -156,9 +183,12 @@
   in the app leading to the field at fault. `err_open`, the one sentence
   that stood for every fault, is gone. Thirteen tests; `check_release.py`
   is at 70 checks, up from 51.
-- **Both editions' Play screenshots show the v3 layout** (2026-08-22),
+- **Both editions' Play screenshots were re-taken for v3** (2026-08-22),
+  and again for 3.8.0 on 2026-08-25 (`pro-to-play.md` S2). Whether
+  free's *live* listing carries the 3.8.0 set is a console fact nobody
+  has read back.
   <!-- verify: manual — the images are what they are; a checksum proves nothing about what they show -->
-  re-taken from runs that pass, and `tools/make_store_shots.py` now
+  They are taken from runs that pass, and `tools/make_store_shots.py` now
   refuses to write when a redaction box has drifted off the line it
   hides. It had drifted: the first framing exposed the caster address
   and the station's ARP.
@@ -229,6 +259,11 @@ Supplementing CLAUDE.md's list with paths found during work:
   entry points and the serializers. Both failures are release-only.
 - `design/work-items/play-listing.md` — listing text and the data-safety
   answers, with the reasoning behind each.
+- `android/app/src/main/java/nl/pe1mew/ntripanalyser/Dialogs.kt` — `AppMenu`
+  is where the overflow rows are **gated by edition**; `Shell.kt` only
+  wires them. An edition's capability is settled here.
+- `src/session/ns_transport.{c,h}` — the transport seam: plain TCP and
+  TLS behind one set of calls, OS entropy, `MSG_NOSIGNAL`.
 
 ## Active Decisions
 
@@ -331,10 +366,10 @@ Supplementing CLAUDE.md's list with paths found during work:
   CI-built (Windows-only); that gap stays stated in
   `.github/workflows/ci.yml`, and a compile-only Windows job remains
   Phase 3 of `design/work-items/gui-track.md`.
-- **TLS is coming, after the free launch**, as a bundled library behind a
-  transport abstraction — chosen over per-platform native APIs to keep one
-  code path for four frontends. It ships in **both editions** on the same
-  day: the paid edition withholds convenience, never protection
+- **TLS is a bundled library behind a transport seam** (mbedTLS 3.6 LTS,
+  `src/session/ns_transport.c`) — chosen over per-platform native APIs to
+  keep one code path for four frontends. Shipped in 3.8.0 in **both
+  editions**: the paid edition withholds convenience, never protection
   (`design/tls.md`).
 - **The list is the layout, and both editions share the framework.** A
   capability is a `Panel` -- card, detail screen, share section -- named
@@ -359,14 +394,20 @@ Supplementing CLAUDE.md's list with paths found during work:
   gives a blank hub, a release-signed build upgrades in place where a
   debug build demands an uninstall -- and where only a destructive route
   exists, hand it to the author (2026-08-22).
-- **Pro does not go to Play until the last feature is in** (decided
-  2026-08-22). Free ships on its own cadence -- 3.7.0 went up the day it
-  was released -- while pro's bundle is built and verified each release
-  and kept back. So a pro release means a tag, Windows assets and an
-  APK, not a store upload, and the paid listing stays a release behind
-  by intention rather than by oversight. What "the last feature" is
-  belongs to the author; the phase-2 list it is drawn from is in
-  `design/guiV3rollout.md`.
+- **Pro went to Play once the last feature was in** (decided
+  2026-08-22, **lifted 2026-08-25** when TLS shipped). From 3.8.0 both
+  editions share a release: one tag, one version code, two bundles.
+- **Store reviewers get a real credential set on our own caster.** The
+  app has no accounts, but Play's automation reads the Caster dialog's
+  password field as a login wall, and a release-note hint for a human
+  did not survive production review. A dedicated reviewer account on
+  the author's caster -- always up, no geo-IP or rate banning, never
+  rotated during a review, with a backup mountpoint -- sits in
+  *App-toegang* on both editions (2026-09-16, `pro-to-play.md` S5).
+- **Pro picks up where free left off by consent, not by signature**
+  (GH#5, 2026-09-13). Play re-signs each app with its own key, so the
+  installed editions share no signing identity; the user's approval in
+  free is the security control. Built after both are in production.
 - **One frame, and the rules live in it.** The app bar takes no title
   parameter, the analysis bar is absent because no other screen passes
   one, and a row's mark comes from `Panel.affordance(state)` rather than
@@ -383,5 +424,7 @@ Supplementing CLAUDE.md's list with paths found during work:
   and `adb shell` allocates a PTY that turns every `LF` into `CRLF`, which
   silently corrupts any binary read through it (`adb exec-out`). Both
   failures look like success: the command exits 0 and a file appears.
+  With `MSYS_NO_PATHCONV=1` set, local paths must be given in Windows
+  form (`C:/...`) — the switch stops *every* conversion (2026-09-13).
 
 ---

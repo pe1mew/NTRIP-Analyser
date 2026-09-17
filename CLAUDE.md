@@ -1,6 +1,6 @@
 ---
 stack: C99 (core, CLI, Win32 GUI, UNIX daemon), Kotlin/Compose + NDK (Android), CMake + Gradle
-status: Production (desktop, v3.3.0) · Pre-release (Android, two editions)
+status: Production (desktop, v3.8.0) · Android on Play — free in production review, pro in closed testing
 repo: github.com/pe1mew/NTRIP-Analyser
 framework: agent-ready-projects v1.25.0
 ---
@@ -101,8 +101,9 @@ because people will point it at real stations and believe what it says.
 
 ```
 src/core/     parsing, orbits, KPIs, statistics — no I/O, no platform headers
-src/net/      NTRIP protocol + socket client
-src/session/  the stream loop every frontend drives (ns_open/ns_pump/ns_stats)
+src/net/      NTRIP protocol, sourcetable fetch
+src/session/  the stream loop every frontend drives (ns_open/ns_pump/ns_stats),
+              and the transport seam: plain TCP or TLS (lib/mbedtls)
    ├── src/cli/    ntrip-analyser        CLI, Windows + Linux
    ├── gui/        ntrip-analyser-gui    Win32, Windows only
    ├── service/    ntrip-monitord        UNIX only, writes Munin snapshots
@@ -123,7 +124,8 @@ NDK, so nothing testable on a desktop belongs there.
 | `src/core/sv_ephemeris.{c,h}` | Orbit cache; `sv_orbit.c` propagates |
 | `src/core/rinex_nav.c` | RINEX 3 NAV loader — pinned by `test/test_rinex_nav.c` |
 | `src/core/config.c` | The one JSON config format, plus the legacy reader |
-| `src/session/ntrip_session.c` | Stream loop and statistics snapshot |
+| `src/session/ntrip_session.c` | Stream loop, statistics snapshot, NTRIP 2 chunk decoding |
+| `src/session/ns_transport.{c,h}` | Every socket: plain TCP and TLS behind one set of calls. Certificate verification is mandatory — there is no connect-anyway path |
 | `src/core/ns_failure.{c,h}` | The twelve ways a stream fails to open, and the words for each. The `errno`/`WSAE*` half lives in `src/net/ntrip_handler.c`, which has the platform headers |
 | `gui/gui_state.h` | `AppState` — everything the GUI knows |
 | `gui/gui_events.c` | Command dispatch, Stream Health, station classification |
@@ -177,8 +179,8 @@ $env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot'
 cd android; .\gradlew.bat assembleFreeDebug assembleProDebug
 ```
 
-Full detail, including the GUI's second build path and the device
-workflow: `docs/RUNBOOK.md`.
+Full detail, including the device workflow and the release sequence:
+`docs/RUNBOOK.md`.
 
 ## Commit Conventions
 
