@@ -120,12 +120,12 @@ the privacy policy; 4 onwards are sequential.
 | 6 | Samsung S23 verification | submission | **run** 2026-08-14 on Android 16 — everything but the signature |
 | 7 | Wiki (free) | free launch | **done** 2026-08-14 → twelve pages published |
 | 8 | Wiki (pro) | pro launch | **done** 2026-08-14 → same wiki, Pro section |
-| 9 | Play closed testing: 12 testers × 14 days | free on Play | **served**; **production access granted 2026-09-16**. The first production release (30800) was rejected the same day for missing reviewer credentials — the 2026-08-14 login-wall problem, recurring; being fixed with a reviewer account on the author's caster ([pro-to-play.md](pro-to-play.md) S5 has the procedure). Free is not yet public |
+| 9 | Play closed testing: 12 testers × 14 days | free on Play | **served**; **production access granted 2026-09-16**. The first production release (30800) was rejected the same day for missing reviewer credentials — the 2026-08-14 login-wall problem, recurring; fixed with a reviewer account on the author's caster ([pro-to-play.md](pro-to-play.md) S5 has the procedure) and resubmitted the same day. **Published** (submission 16); the [public store page](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free) answered HTTP 200 on 2026-09-19. The closed track stays open for early builds |
 | 9b | **Pro on Play** | — | **startable 2026-08-25** — the hold expired with TLS; the plan is [pro-to-play.md](pro-to-play.md): paid listing, license-tester fortnight, price at listing time |
 | 10 | Samsung Galaxy Store rules study | phase 11 | not started — nothing known blocks free |
 | 11 | Free on the Samsung Galaxy Store | — | blocked by 10 |
 | 12 | Free from a self-hosted F-Droid repository | — | **decided** 2026-08-14; not built |
-| 13 | Pro beyond Play: Samsung sale feasibility, and whether pro belongs in a self-hosted repo at all | pro elsewhere | deferred until free is out |
+| 13 | Pro beyond Play: Samsung sale feasibility, and whether pro belongs in a self-hosted repo at all | pro elsewhere | **startable** — it waited for free to be out, and free is public (2026-09-19); what pro's own Play fortnight teaches is its best input |
 
 ---
 

@@ -361,6 +361,17 @@ someone guess them. Before any production submission, confirm the
 account still works — from mobile data, not the home network. The
 full procedure is in `design/work-items/pro-to-play.md` S5.
 
+Google reuses the credentials for **every update's review**, so the
+account has to stay alive for the life of the apps. Its master copy is
+in the author's password manager; the console holds the only other
+copies. A daily `--check` on the server, run by cron from a mode-600
+config outside the repository, alerts when the login stops working —
+a check, not the daemon, because a permanent connection would occupy a
+slot the reviewer needs. **Rotate by adding, never by changing**: create
+the new account on the caster, put it in App-toegang on both apps,
+test it, and only then remove the old one — and never while a review
+is in progress.
+
 The rest of the submission checklist — the ones no script can settle —
 is in [`design/work-items/play-listing.md`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/play-listing.md).
 

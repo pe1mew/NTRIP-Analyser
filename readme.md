@@ -35,12 +35,12 @@ Free, no advertising, no account, and nothing leaves the phone but the
 NTRIP connection you configure — see the
 [privacy policy](https://pe1mew.github.io/NTRIP-Analyser/privacy-policy.html).
 
-**Testers are wanted.** Google requires **twelve testers who stay
-opted in for fourteen days** before a new developer account may go to
-production, so joining the test is a genuine help rather than a
-formality. Submit an issue with your request and we will add you to the test-group.
-
-**→ [Join the test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.free)**
+**Thank you, testers.** Google lets a new developer account publish
+only after **twelve testers have stayed opted in for fourteen days**,
+and the free edition is public because people did exactly that. The
+test track stays open for early builds —
+[open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues) if
+you would like to try them first.
 
 What would help most is telling us about a station where the verdict
 looks wrong — [open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues)

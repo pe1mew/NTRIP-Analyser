@@ -56,14 +56,15 @@
 
 <!-- 2026-09-17 -->
 
-- **Free has production access; its first production release was
-  rejected and resubmitted** (2026-09-16). Access was granted and the
-  same day an automated review refused 30800 for missing login
-  credentials -- the Caster dialog's *Username*/*Password* read as a
-  login wall, the 2026-08-14 problem recurring. Resubmitted with a
-  reviewer account on the author's own caster in *App-toegang*.
-  **Free is not yet public**, and the readme still invites testers.
-  <!-- verify: manual — the Play Console is the only source for review state -->
+- **Free is public on Google Play** (confirmed 2026-09-19). Production
+  access was granted 2026-09-16; the same day an automated review
+  refused 30800 for missing login credentials -- the Caster dialog's
+  *Username*/*Password* read as a login wall, the 2026-08-14 problem
+  recurring -- and the resubmission with a reviewer account on the
+  author's own caster was published. The readme thanks the testers;
+  the closed track stays open for early builds. A daily check on the
+  author's server keeps the reviewer login honest (`docs/RUNBOOK.md`).
+  <!-- verify-net: test "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -A Mozilla/5.0 'https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free&hl=en')" = 200 -->
 - **Pro is in closed testing** (track live 2026-09-09, release 3.8.0
   accepted). Price €5.00 base, **€5,99 in NL**, saved once *Rest van de
   wereld*, China, Cuba, Iran and Soedan were out of the price table

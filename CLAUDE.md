@@ -1,6 +1,6 @@
 ---
 stack: C99 (core, CLI, Win32 GUI, UNIX daemon), Kotlin/Compose + NDK (Android), CMake + Gradle
-status: Production (desktop, v3.8.0) · Android on Play — free in production review, pro in closed testing
+status: Production (desktop, v3.8.0) · Android on Play — free in production, pro in closed testing
 repo: github.com/pe1mew/NTRIP-Analyser
 framework: agent-ready-projects v1.25.0
 ---

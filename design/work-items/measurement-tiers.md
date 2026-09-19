@@ -43,12 +43,17 @@ Stability window. Android has tier 1 only.
 
 **Phase 1's block has changed shape, not lifted.** It was "wait until
 free clears closed testing", so that the published claim of *eight
-checks* was not moving during review. The free edition
-[went live on 2026-08-17](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free),
-so the question is no longer about review risk: adding a ninth check now
-means updating a store listing and the five other surfaces that state
-the number. That is a decision to take deliberately rather than a
-condition to wait for.
+checks* was not moving during review. The free edition's listing went
+live on 2026-08-17 — to **closed testing**; it became
+[public in production](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free)
+in September (resubmitted 2026-09-16, the store page public by
+2026-09-19), which is when that condition was really met. For free the
+question is no longer about review risk: adding a ninth check means
+updating a store listing and the five other surfaces that state the
+number, a decision to take deliberately rather than a condition to wait
+for. **Pro has the same exposure now**: its listing states the same
+count and is in its own closed test, so `design/work-items/pro-to-play.md`
+holds this work until pro is through.
 
 ---
 
