@@ -29,7 +29,7 @@ antenna or siting problem for what it is.
 
 ### It is on Google Play
 
-**→ [Get NTRIP Analyser on Google Play](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free)**
+<a href="https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free"><img alt="Get NTRIP Analyser on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80"></a>
 
 Free, no advertising, no account, and nothing leaves the phone but the
 NTRIP connection you configure — see the
@@ -384,6 +384,8 @@ Documentation is Creative Commons Attribution-NonCommercial 4.0
 International (http://creativecommons.org/licenses/by-nc/4.0/) by Remko Welling — E-mail: pe1mew_at_gmail.com
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">Creative Commons Attribution-NonCommercial 4.0 International License</a>.
+
+Google Play and the Google Play logo are trademarks of Google LLC.
 
 # Disclaimer
 This project is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

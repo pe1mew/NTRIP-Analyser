@@ -46,9 +46,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Every job pins ubuntu-24.04 rather than ubuntu-latest. The label moves
+  # to Ubuntu 26 from 2026-10-19, and a label that moves brings a new
+  # compiler and new SDK tooling with no change here to point at -- the
+  # way setup-android's `tools` default broke on 2026-09-17. Move up by
+  # editing these three lines, on purpose, and watch that run.
   core:
     name: Core and tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -117,7 +122,7 @@ jobs:
 
   android:
     name: Both editions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -160,7 +165,7 @@ jobs:
 
   claims:
     name: Verified claims
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v7
