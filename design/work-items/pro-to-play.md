@@ -307,8 +307,11 @@ casters and passed the daily check before either console was changed.
 The instructions text did not change; only the credentials did. The
 author's server now checks this account every morning and reports to
 Node-RED, so a login Google depends on cannot go stale unnoticed.
-Still to do: the in-app test over mobile data, then removing the
-previous account from both casters.
+The in-app test over mobile data **passed** the same day. The previous
+account **stays** on both casters, deliberately: the testers use it
+too, so the runbook's "remove the old one" step does not apply — that
+step is for an account that served only the reviewers. From here the
+two accounts have separate jobs: one for Google, one for people.
 
 **Where it lives** — the console's current menu, which no longer has a
 top-level *Beleid en programma's*: **Controleren en verbeteren →
