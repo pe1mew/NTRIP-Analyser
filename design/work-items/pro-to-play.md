@@ -299,6 +299,17 @@ log). So pro carries, before S5 starts, the same credential set free
 now uses — **entered on pro 2026-09-16**, free resubmitted for review
 the same day.
 
+**Rotated 2026-09-19** to a dedicated reviewer account, on both apps at
+one sitting. The switch waited for free's resubmission to be published
+first — rotating during an open review is the one thing the runbook
+forbids — then followed its order: the new account existed on both
+casters and passed the daily check before either console was changed.
+The instructions text did not change; only the credentials did. The
+author's server now checks this account every morning and reports to
+Node-RED, so a login Google depends on cannot go stale unnoticed.
+Still to do: the in-app test over mobile data, then removing the
+previous account from both casters.
+
 **Where it lives** — the console's current menu, which no longer has a
 top-level *Beleid en programma's*: **Controleren en verbeteren →
 Beleid en programma's → App-content → tab *Actie ondernomen* →
