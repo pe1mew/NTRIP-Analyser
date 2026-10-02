@@ -266,13 +266,28 @@ Worth confirming once from the other end, since a test purchase
 should leave no real order: *Bestellingen* in the console, or the
 tester's own Play order history.
 
-### S4 — the fortnight
+### S4 — the fortnight  *(running; twelve testers since 2026-09-28)*
 
 Recruitment and patience, as free's was. Watch Android vitals for
 crashes and ANRs on hardware we do not own; every station a tester
 points it at that the checks misread is the reason to test in
 public. Fixes ship as 3.8.x patches to the track — each through the
 ordinary release sequence, tag and all.
+
+**The clock.** The track opened 2026-09-09; the twelfth tester opted in
+on **Monday 2026-09-28**, which is the date that matters — Google counts
+opt-ins, not invitations, and fourteen *continuous* days at twelve or
+more testers. That completes around **2026-10-12**, and the console's
+own counter on *Toegang tot productie aanvragen* is the authority, not
+this arithmetic: it may believe a different start date.
+
+**Twelve is the bare minimum and has no margin.** One tester leaving the
+programme drops the count to eleven and restarts the fortnight for
+everyone — which is why the invitation says not to press *Teruggave
+starten* and to stay opted in. A thirteenth and fourteenth tester cost
+nothing and remove the single point of failure; a short "halfway,
+please stay opted in" message around the midpoint costs less than a
+restart.
 
 ### S5 — production
 

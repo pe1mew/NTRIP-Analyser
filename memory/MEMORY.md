@@ -74,8 +74,12 @@
   Fourteen testers on lists `Free` and `Pro`, ticked on both pages;
   the Dutch invitation (what a tester sees, and not to press
   *Teruggave starten*) is going out individually. Reviewer credentials
-  are already entered for pro's production review. The fortnight's
-  start date is not yet recorded. Plan: `design/work-items/pro-to-play.md`.
+  are already entered for pro's production review (rotated to a
+  dedicated account 2026-09-19, watched daily). **The fortnight has
+  twelve testers opted in since 2026-09-28**, so fourteen continuous
+  days complete around **2026-10-12** — twelve being the bare minimum,
+  one person leaving restarts it. The console's own counter is the
+  authority. Plan: `design/work-items/pro-to-play.md`.
   <!-- verify: manual — the Play Console is the only source for track state -->
 - **GH#5 decided: pro picks up where free left off, by consent**
   (2026-09-13). Free's and pro's Play app signing certificates differ
