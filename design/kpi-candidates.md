@@ -347,3 +347,68 @@ designed yet.
   the report computed live from the same stream. That is testable, in
   the way `test_capture` is, and it is the property that makes a
   captured session a durable record rather than a screenshot.
+
+## Prior art: Onocoy's station statistics — read 2026-10-02
+
+Onocoy publishes a per-station dashboard, and the author brought three
+of its screens to this study. They are worth recording because they are
+the same four candidates seen from the other side of the fence, and
+because one of them nearly cost us a definition.
+
+**What it shows.** A *live view* (code RMS, phase RMS, clock drift and
+bias; mean signal level per band L1/L2/L5/L6; a constellation × band
+satellite matrix; a C/N0-coloured sky view; antenna position and
+velocity as N/E/U scatter), a *metric selector* (satellites, sky
+visibility, cycle-slip rate, code & phase RMS, latency), and an
+*activity* view over 24 h / 7 d / 30 d: online percentage, a connection
+bar with outages marked, latency events, and satellite count as a time
+series.
+
+**It is computed on a different machine.** Onocoy is a network
+operator: the numbers come from its own processing on its own servers,
+over continuous data from a station it already knows, because station
+quality is what its rewards rest on. This project is a client that a
+user points at any caster and that judges in ninety seconds, on a phone
+as well as a desktop. Matching the dashboard panel for panel means
+building that backend, not adding metrics.
+
+**The definition trap.** Onocoy's *code RMS* and *phase RMS* sit beside
+clock bias and drift, so they are almost certainly **residuals of a
+position solve** — not the TEQC-style multipath combination section 4
+above assumes. MP1/MP2 need no position; solve residuals need an
+engine. **Same label, different quantity**: whoever builds phase 5 must
+say which one is meant, in the report and in the words beside it.
+
+**Sorted against this study:**
+
+- *Mean signal level per band*, and the constellation × band matrix:
+  **takeable now**, and not one of the four candidates. The parser
+  already keeps a per-band CNR cache (`rtcm3x_parser.c`); this is
+  aggregation and presentation over data already decoded, adds no
+  verdict, and leaves the eight-check count alone.
+- *Satellites over time*, *online percentage*, *outage marks*: the
+  second tier as already built -- availability and delivery rate in
+  `station_report.c`. The dashboard's ranges are days where the
+  daemon's default window is an hour; that is a window question, not a
+  new metric.
+- *Sky visibility*, *cycle-slip rate*, *code & phase RMS*, *latency*:
+  sections 1-4 above, verdicts unchanged.
+- *Clock bias, clock drift, antenna position, antenna velocity*:
+  **out of scope**, and not merely expensive. They are the states and
+  residuals of one point-positioning solution. The store listing says
+  in published text that the app "does not compute a position", and
+  `docs/base-declaration.md` already chooses the opposite route --
+  write RINEX, let **CSRS-PPP** return the solution. Nothing here has
+  been formally tested against the RTCM and NTRIP standards, which
+  makes a home-grown GNSS engine the worst place to start making
+  claims. Reopening this is a decision about what the product is, and
+  the listing text is the first thing it would change.
+
+**The use worth having is calibration, not imitation.** Every threshold
+behind the eight verdicts is a choice, not a law of nature, and this
+project has never had a second opinion with numbers attached. Onocoy
+publishes independently computed quality figures for stations whose
+streams can also be fed to the analyser. Run a watch over the same
+window and compare: agreement defends a threshold, disagreement is the
+measurable version of the tester report this project asks for -- and it
+is evidence the KPI 9/10 work will want anyway.
