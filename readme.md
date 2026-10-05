@@ -388,4 +388,19 @@ International (http://creativecommons.org/licenses/by-nc/4.0/) by Remko Welling 
 Google Play and the Google Play logo are trademarks of Google LLC.
 
 # Disclaimer
-This project is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+This project is distributed in the hope that it will be useful.
+
+The software is provided "as is", without warranty of any kind, express
+or implied, including but not limited to the warranties of
+merchantability, fitness for a particular purpose and noninfringement of
+third party rights. In no event shall the copyright holder or holders
+included in this notice be liable for any claim, or any special indirect
+or consequential damages, or any damages whatsoever resulting from loss
+of use, data or profits, whether in an action of contract, negligence or
+other tortious action, arising out of or in connection with the use or
+performance of this software.
+
+This states in full what the licences in [`LICENSE`](LICENSE) and
+[`license.md`](license.md) already say in their own words; it replaces
+neither.
