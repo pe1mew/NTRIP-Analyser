@@ -199,6 +199,55 @@ int main(void)
         printf("MSM3 (type 1073): %d satellites, and no C/N0 to report\n", sats);
     }
 
+    /* The message-detail decoder's own arithmetic.
+     *
+     * It converts the fine fields to metres for the GUI's detail view
+     * and the CLI's verbose output, and it used one scale for all three:
+     * 0.0001, which belongs to the phase rate alone.  The pseudorange
+     * column was 5.6x out and the phase column 1.4x, from the day the
+     * decoder was written until 2026-10-09, because no measurement ever
+     * read those columns -- only a person looking at a table.  This
+     * check is that person.
+     *
+     * The expected strings are computed here from RTCM 10403.3's scales
+     * rather than taken from the code under test, and formatted exactly
+     * as the decoder formats them, so a wrong scale cannot produce a
+     * matching substring. */
+    {
+        const unsigned long raw[4] = { 528, 700, 812, 320 };
+        unsigned char payload[128];
+        int len = build_msm(7, 1077, raw, payload);
+
+        /* build_msm writes 0x2AAA into every fine pseudorange and
+         * 0x155555 into every fine phase; both are positive in MSM7's
+         * 20- and 24-bit fields. */
+        const double pr_lsb_m = 299792.458 / 536870912.0;   /* 2^-29 ms */
+        const double ph_lsb_m = 299792.458 / 2147483648.0;  /* 2^-31 ms */
+        char want_pr[32], want_ph[32], wrong_pr[32];
+        snprintf(want_pr,  sizeof want_pr,  "%+10.4f", 0x2AAA   * pr_lsb_m);
+        snprintf(want_ph,  sizeof want_ph,  "%+11.4f", 0x155555 * ph_lsb_m);
+        snprintf(wrong_pr, sizeof wrong_pr, "%+10.4f", 0x2AAA   * 0.0001);
+
+        RtcmStrBuf sb;
+        rtcm_strbuf_init(&sb, 4096);
+        rtcm_set_output_buffer(&sb);
+        decode_rtcm_1077(payload, len);
+        rtcm_set_output_buffer(NULL);
+
+        CHECK(sb.buf && strstr(sb.buf, want_pr) != NULL,
+              "detail view: expected a fine pseudorange of '%s' in the table",
+              want_pr);
+        CHECK(sb.buf && strstr(sb.buf, want_ph) != NULL,
+              "detail view: expected a fine phase of '%s' in the table",
+              want_ph);
+        CHECK(!sb.buf || strstr(sb.buf, wrong_pr) == NULL,
+              "detail view: the phase-rate scale is back on the pseudorange ('%s')",
+              wrong_pr);
+
+        printf("MSM7 detail view: fine PR '%s', fine PH '%s'\n", want_pr, want_ph);
+        rtcm_strbuf_free(&sb);
+    }
+
     if (failures) {
         printf("\n%d check(s) FAILED\n", failures);
         return 1;
