@@ -112,6 +112,13 @@ when pro is in production and not before. The work is nevertheless
      beyond what tier 2 already keeps. If any step needs unbounded
      memory or heavy iteration, that is a design fault to fix on the
      desktop, not a phone problem to discover later.
+9. **The word is "self-position"** (author, 2026-10-09), everywhere:
+   the GUI window, the report fields, the snapshot keys and the
+   documentation. Not "antenna position" — that is Onocoy's label for
+   a quantity measured differently, and borrowing it would promise
+   their numbers. The velocity half is the *self-position velocity*.
+   A name chosen once here is a name `check_release.py` can hold the
+   surfaces to later.
 
 ## What already exists, so the estimate is honest
 
@@ -199,13 +206,22 @@ INSUFFICIENT EVIDENCE.
 **Verify.** `--report` on a replayed capture equals the live report from
 the same stream; `check_release.py` sees no claim it cannot verify.
 
-### P6 — the GUI
+### P6 — the GUI: a Self-position window
 
-The Stability window gains the section, or a window of its own — the
-author's call (`design/gui-design.md` §14 is the neighbour). Scatter
-over the run, not one epoch, because one epoch means nothing here.
+**Its own window** (author, 2026-10-09), beside the Stability window
+rather than inside it — `design/gui-design.md` §14 is the neighbour to
+follow for patterns, and the new section documents this one. It shows
+the scatter over the run, not one epoch, because one epoch means
+nothing here: the north/east/up offset against the stated reference,
+its spread, the velocity with its own scale in mm/s, the satellites
+used, and the code and phase residual RMS.
 
-**Verify.** Started from Explorer, not a shell — the GUI's own rule.
+A single-frequency station shows *not computable* with the reason,
+per decision 3 — an empty window with no explanation is the failure
+this project keeps writing down.
+
+**Verify.** Started from Explorer, not a shell — the GUI's own rule,
+and the one that found a whole class of stdio faults.
 
 ### P7 — the paid Android edition  *(not in this branch: after pro is in production, and after the listing decision)*
 
@@ -251,14 +267,19 @@ pro pages, the feature matrix's phone columns.
 1. ~~The listing sentence, or desktop only?~~ **Answered 2026-10-09:
    desktop only, no listing change, and built for reuse in pro from
    the first commit** — the gate above and decision 8.
-2. **Single-frequency stations**: refuse, as decision 3 proposes, or
-   compute with a model and label the bias?
-3. **GUI placement**: a section in the Stability window, or its own
-   window?
-4. **The name.** "Antenna position" is Onocoy's. Here the thing being
-   measured is the station placing itself, so *station self-position*
-   is this file's working name, and the report's wording should be
-   decided before P5 rather than inherited from a screenshot.
+2. ~~Single-frequency stations?~~ **Answered 2026-10-09: refuse.**
+   Decision 3 stands as written — a single-frequency station gets
+   *not computable*, never a number carrying tens of metres of
+   ionosphere.
+3. ~~GUI placement?~~ **Answered 2026-10-09: its own window**, not a
+   section of the Stability window. See P6.
+4. ~~The name?~~ **Answered 2026-10-09: self-position.** Not
+   "antenna position", which is Onocoy's word for a quantity measured
+   differently. The window, the report fields and the snapshot keys
+   all use it, and the velocity half is the *self-position velocity*
+   rather than an antenna velocity.
+
+**Every open question is now answered; P1 may start.**
 
 ## Process
 
