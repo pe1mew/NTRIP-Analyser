@@ -50,8 +50,12 @@ broadcast solution is a quality metric, not a coordinate.
 **Nothing here may change either listing while pro is in review.** Pro's
 fortnight ends about 2026-10-12 (`pro-to-play.md` S4).
 
-There is an alternative worth weighing, in *Open* below: the desktop
-programs carry no store listing at all.
+**Decided 2026-10-09 (author): the desktop first, and no listing
+change.** P1–P6 ship in the GUI, the CLI and the daemon, which carry no
+store text, so nothing published becomes false. P7, the paid Android
+panel, waits behind a deliberate decision about that sentence, taken
+when pro is in production and not before. The work is nevertheless
+**built for the phone from the first commit** — decision 8.
 
 ## The decisions this plan adds (open until the author confirms)
 
@@ -78,6 +82,36 @@ programs carry no store listing at all.
    hours of evidence, so it does not join the ninety-second check and
    **the "eight checks" count is untouched** — the constraint
    `kpi-candidates.md` is firmest about.
+8. **Built for the phone from the first commit, shipped there later**
+   (author, 2026-10-09). Shipping the desktop first must not mean
+   porting afterwards, so every step obeys the constraints the NDK
+   build imposes, and P7 becomes a panel plus a list entry rather than
+   a second implementation:
+
+   - **The solver is core C99** in `src/core/spp.{c,h}`: no I/O, no
+     platform headers, no threads, no allocation the core does not
+     already do. The architecture rule — one measurement core, four
+     frontends — is the portability plan; there is no second one.
+   - **Results reach every frontend through the snapshot**
+     (`ns_stats`), never through a GUI-side calculation. A number the
+     Stability window can show that the bridge cannot is a number that
+     will be reimplemented on the phone.
+   - **Fields are absent until computed, never zero-filled.** The
+     snapshot's own rule: a field nothing fills is worse than a
+     missing one, so the Kotlin model takes them as nullable when P7
+     comes.
+   - **`src/core/spp.c` joins both source lists in the same commit** —
+     `CMakeLists.txt` *and*
+     `android/app/src/main/cpp/CMakeLists.txt`, which names each core
+     file by hand. CI builds both editions on every push, so a file
+     added to one list and not the other is caught the day it is
+     written rather than at P7. This is the project's oldest
+     two-build-systems trap, and the only defence is the same commit.
+   - **Bounded and cheap enough for a handset**: one epoch of
+     observables, a few hundred operations per satellite, no history
+     beyond what tier 2 already keeps. If any step needs unbounded
+     memory or heavy iteration, that is a design fault to fix on the
+     desktop, not a phone problem to discover later.
 
 ## What already exists, so the estimate is honest
 
@@ -173,20 +207,29 @@ over the run, not one epoch, because one epoch means nothing here.
 
 **Verify.** Started from Explorer, not a shell — the GUI's own rule.
 
-### P7 — the paid Android edition
+### P7 — the paid Android edition  *(not in this branch: after pro is in production, and after the listing decision)*
 
-A `Panel` in pro's `Registry.kt`, as tier 2 on the phone already is.
-The solver is in the core, so the phone inherits it through the bridge
-rather than reimplementing anything. The six-hour foreground ceiling
-applies as it does to every tier-2 run.
+A `Panel` in pro's `Registry.kt`, as tier 2 on the phone already is,
+reading snapshot fields the bridge already carries. Decision 8 is what
+makes this a panel and a list entry rather than a port: if P7 turns
+out to need changes in `src/core`, decision 8 was not kept.
 
 **Verify.** On hardware, against the desktop's result for the same
-station over the same window.
+station over the same window. And before any of it: the sentence in
+`play-listing.md` changed on both listings, deliberately.
 
 ### P8 — say so
 
-The listing sentence (see the gate), the wiki, the feature matrix, the
-changelog entry with the measurement behind the claim.
+Split by the decision above.
+
+**With P1–P6, desktop only:** the GUI's own documentation
+(`docs/gui.md`), the CLI's `--report` wording, the feature matrix's
+desktop columns, and a changelog entry carrying the measurement behind
+the claim. **No listing text changes here**, because nothing published
+about the Android editions becomes false.
+
+**With P7, later:** the listing sentence on both editions, the wiki's
+pro pages, the feature matrix's phone columns.
 
 ## What this will not claim
 
@@ -205,11 +248,9 @@ changelog entry with the measurement behind the claim.
 
 ## Open, and worth the author's word before P1
 
-1. **The listing sentence, or desktop only?** The GUI, the CLI and the
-   daemon carry no store text. Shipping P1–P6 there needs no listing
-   change at all, and P7 can wait behind a deliberate decision once
-   pro is in production. This is the cheapest honest order, and it
-   matches "GUI first" anyway.
+1. ~~The listing sentence, or desktop only?~~ **Answered 2026-10-09:
+   desktop only, no listing change, and built for reuse in pro from
+   the first commit** — the gate above and decision 8.
 2. **Single-frequency stations**: refuse, as decision 3 proposes, or
    compute with a model and label the bias?
 3. **GUI placement**: a section in the Stability window, or its own
