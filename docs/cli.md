@@ -203,6 +203,32 @@ A stream carrying no observations at all — station and antenna messages
 only — has no clock to measure with, and the report says so rather than
 guessing.
 
+**Self-position is printed below the table and carries no verdict.** The
+analyser solves the station's own position from the observations it
+streams, and reports the offset from the reference position the station
+advertises, the scatter about that offset, the worst code residual and
+the fastest apparent motion.
+
+```
+Self-position (no threshold yet -- figures only), 3410 epoch(s) solved
+    offset from reference   E +1.842  N -0.317  U +2.015 m
+    scatter about that      0.934 m
+    worst code residual     1.903 m RMS
+    fastest apparent motion 3.21 mm/s
+```
+
+None of it is graded, deliberately: what counts as abnormal scatter for a
+station's own position is not yet known from evidence, and a threshold
+invented to fill the column would be worse than no column at all.
+
+Read the offset as an offset. Most of it is the dual-frequency code
+solution's own bias — metres of it — and it says nothing about the
+station. The *scatter* is the half that measures something, and the
+apparent motion is the figure that would reveal an antenna that moved.
+A station streaming one frequency cannot be solved at all; the line then
+reads `Self-position: nothing solved -- single-frequency station: not
+computable`, which is a statement about the stream rather than a fault.
+
 ### 2b. Capturing the stream to a file
 
 `--capture` writes the stream to disk so that a converter can read it

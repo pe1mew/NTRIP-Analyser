@@ -250,6 +250,32 @@ typedef struct {
     int      overall;      /**< @ref SrVerdict                           */
     char     headline[160];/**< the worst finding, with its evidence     */
     SrMetric metric[SR_METRIC_COUNT];
+
+    /* ── Self-position ────────────────────────────────────────────────
+     * Reported as numbers, **not yet as a seventh metric with a
+     * verdict**. A verdict needs a threshold, and what counts as
+     * abnormal scatter for a station's own position is not yet known
+     * from evidence; choosing a number now would be the invented
+     * threshold this project keeps catching. It becomes a metric when
+     * real stations have said what normal looks like.
+     */
+    int      sp_samples;       /**< epochs that solved in the window;
+                                *   zero means the figures below are
+                                *   absent, not measured as zero         */
+    double   sp_mean_enu[3];   /**< mean offset from the reference: for
+                                *   the most part the solution's own bias.
+                                *   Signed, so it has no sentinel --
+                                *   @ref sp_samples is what says whether
+                                *   it means anything at all             */
+    double   sp_scatter_m;     /**< RMS distance from that mean, which is
+                                *   the half that measures something;
+                                *   NS_UNSET when nothing solved         */
+    double   sp_rms_worst;     /**< worst code residual RMS in the window;
+                                *   NS_UNSET when nothing solved         */
+    double   sp_speed_max_mms; /**< fastest apparent motion; NS_UNSET when
+                                *   the stream carried no phase rates    */
+    int      sp_last_status;   /**< SppStatus of the last epoch, which
+                                *   names why a station produced nothing */
 } StationReport;
 
 /** @brief Accumulator.  Opaque in spirit; exposed so callers can stack it. */
@@ -278,6 +304,17 @@ typedef struct {
     int      sats_min;
     float    roti_worst;
     int      offrate_samples;
+
+    /* Self-position over the window.  Sums, not a history: the scatter
+     * needs only the first two moments, which keeps this bounded on a
+     * handset as everything else here is. */
+    int      sp_samples;        /**< epochs that solved                  */
+    double   sp_sum_e, sp_sum_n, sp_sum_u;
+    double   sp_sum_sq;         /**< e^2 + n^2 + u^2, summed             */
+    double   sp_rms_worst;      /**< worst post-fit code residual RMS    */
+    double   sp_speed_max;      /**< fastest apparent motion, mm/s;
+                                 *   negative until an epoch had one     */
+    int      sp_last_status;    /**< why the last epoch did not solve    */
 
     /** The thresholds this window is judged by; a copy, so the
      *  caller's policy need not outlive @ref sr_reset. */
@@ -369,8 +406,13 @@ const char *sr_metric_limit_text(const SrMetric *m, int metric_id,
  *
  * Emitted under the key `report_schema_version`, which is deliberately
  * *not* the snapshot's key name — see the note in the implementation.
+ *
+ * Version 2 added the `selfpos_*` keys. Purely additive, so a reader
+ * written against 1 keeps working; the bump is so a reader can tell
+ * whether a document *without* them came from an older build or from a
+ * station that solved nothing.
  */
-#define SR_JSON_SCHEMA_VERSION 1
+#define SR_JSON_SCHEMA_VERSION 2
 
 /**
  * @struct SrJsonCtx

@@ -28,6 +28,7 @@ bool        cli_replay_stdin      = false; /* set by --rtcm-stdin  */
 #include "session/ntrip_session.h"
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"
+#include "core/spp.h"         /* names why a self-position did not solve */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -306,6 +307,32 @@ void cli_report_print(const SrState *sr)
 
     printf("\n== %s ==  window %.0f s, %d samples\n",
            r.headline, r.window_s, r.samples);
+
+    /* ── Self-position ──────────────────────────────────────────────
+     * Below the table and outside its numbering, because it is not one
+     * of the graded rows: no threshold for a station's own scatter has
+     * been established from evidence, so there is nothing here to call
+     * STABLE.  Printed anyway -- an operator can read a scatter and a
+     * residual perfectly well without a verdict attached to it. */
+    if (r.sp_samples > 0) {
+        printf("\nSelf-position (no threshold yet -- figures only), "
+               "%d epoch(s) solved\n", r.sp_samples);
+        /* The offset is mostly the single-frequency solution's own
+         * bias, so it is labelled as an offset and never as an error. */
+        printf("    offset from reference   E %+.3f  N %+.3f  U %+.3f m\n",
+               r.sp_mean_enu[0], r.sp_mean_enu[1], r.sp_mean_enu[2]);
+        printf("    scatter about that      %.3f m\n", r.sp_scatter_m);
+        printf("    worst code residual     %.3f m RMS\n", r.sp_rms_worst);
+        if (r.sp_speed_max_mms != NS_UNSET)
+            printf("    fastest apparent motion %.2f mm/s\n",
+                   r.sp_speed_max_mms);
+        else
+            printf("    fastest apparent motion --  (no phase-range rates "
+                   "in this stream)\n");
+    } else {
+        printf("\nSelf-position: nothing solved -- %s\n",
+               spp_status_text((SppStatus)r.sp_last_status));
+    }
 
     /* Nothing was measured at all, which has two causes and no way here
      * to tell them apart -- so say both rather than let a blank report

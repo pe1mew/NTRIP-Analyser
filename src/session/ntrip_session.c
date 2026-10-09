@@ -26,6 +26,7 @@
 #include "core/nmea_parser.h"     /* GGA construction */
 #include "core/sv_track.h"        /* satellites and C/N0 per constellation */
 #include "core/iono.h"            /* ionospheric ROTI from dual-freq MSM7 */
+#include "core/spp.h"             /* where the station places itself */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -497,12 +498,26 @@ static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
     if (!has_epoch) return false;
 
     NsObsCell cells[NS_OBS_MAX_CELLS];
-    int total = 0;
+    int total = 0, gnss = 0;
     int n = msm_extract_obs(s->frame + 3, payload_len, msg_type,
-                            cells, NS_OBS_MAX_CELLS, NULL, &total);
+                            cells, NS_OBS_MAX_CELLS, &gnss, &total);
     if (n <= 0 && total == 0) return false;       /* not an MSM we read */
 
-    if (!s->obs.open || s->obs.epoch_ms != epoch)
+    /* When a new set begins.
+     *
+     * Not "the epoch field changed": a multi-constellation base sends
+     * GPS, GLONASS and Galileo for the same instant, and their epoch
+     * fields are not comparable -- GPS counts milliseconds of week,
+     * GLONASS of day -- so comparing them would reset the set in the
+     * middle of every bundle and leave each epoch holding one system.
+     *
+     * Instead: the previous set is closed, or this system has already
+     * contributed, which means the bundle has come round again. The
+     * second is the guard for a base whose multiple-message bit never
+     * clears. */
+    const bool repeat = (gnss > 0 && gnss < 32) &&
+                        (s->obs.gnss_seen & ((uint32_t)1u << gnss)) != 0;
+    if (!s->obs.open || repeat)
         ns_obs_reset(&s->obs, epoch);
 
     for (int i = 0; i < n; i++) ns_obs_add(&s->obs, &cells[i]);
@@ -515,6 +530,67 @@ static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
         return true;
     }
     return false;
+}
+
+/**
+ * @brief Solve the closed epoch for where the station places itself.
+ *
+ * Runs once per epoch, against the broadcast ARP when the station has
+ * sent one -- which is the reference the offsets are quoted against and
+ * which the report must name. Without an ARP the solve still runs, from
+ * the Earth's centre, and only the ENU offsets are missing.
+ *
+ * The GPS week is passed as 0 on purpose: every consumer of it in the
+ * orbit code ignores it and works modulo a week, because RTCM 1019
+ * carries ten bits of week and mixing that with a host clock's full
+ * week is how you get a 1024-week offset. `sv_eph_is_valid_at` says so
+ * in its own comment.
+ */
+static void selfpos_solve(NtripSession *s, uint32_t epoch_ms)
+{
+    double ref[3];
+    const double *refp = NULL;
+    if (s->stats.arp_valid) {
+        geodetic_to_ecef(s->stats.arp_lat, s->stats.arp_lon, s->stats.arp_alt,
+                         &ref[0], &ref[1], &ref[2]);
+        refp = ref;
+    }
+
+    SppSolution sol;
+    const SppStatus st = spp_solve(&s->obs, 0, epoch_ms / 1000.0, refp, &sol);
+
+    s->stats.selfpos_status = (int)st;
+    s->stats.selfpos_sats   = sol.n_used;
+
+    if (st != SPP_OK) {
+        /* Leave the numbers unset: an epoch that did not solve must not
+         * publish an offset of zero, which reads as a station sitting
+         * exactly where it says it does. */
+        s->stats.selfpos_e = s->stats.selfpos_n = s->stats.selfpos_u = NS_UNSET;
+        s->stats.selfpos_code_rms_m = NS_UNSET;
+        s->stats.selfpos_pdop       = NS_UNSET;
+        s->stats.selfpos_has_vel    = false;
+        s->stats.selfpos_speed_mms  = NS_UNSET;
+        s->stats.selfpos_drift_ms   = NS_UNSET;
+        return;
+    }
+
+    s->stats.selfpos_e = refp ? sol.enu[0] : NS_UNSET;
+    s->stats.selfpos_n = refp ? sol.enu[1] : NS_UNSET;
+    s->stats.selfpos_u = refp ? sol.enu[2] : NS_UNSET;
+    s->stats.selfpos_code_rms_m = sol.code_rms_m;
+    s->stats.selfpos_pdop       = sol.pdop;
+    s->stats.selfpos_has_vel    = sol.has_velocity;
+    if (sol.has_velocity) {
+        const double sp = sqrt(sol.vel_ecef[0] * sol.vel_ecef[0]
+                             + sol.vel_ecef[1] * sol.vel_ecef[1]
+                             + sol.vel_ecef[2] * sol.vel_ecef[2]);
+        s->stats.selfpos_speed_mms = sp * 1000.0;
+        s->stats.selfpos_drift_ms  = sol.clock_drift_ms;
+    } else {
+        s->stats.selfpos_speed_mms = NS_UNSET;
+        s->stats.selfpos_drift_ms  = NS_UNSET;
+    }
 }
 
 /**

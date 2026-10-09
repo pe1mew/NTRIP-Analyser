@@ -21,7 +21,9 @@
  * License: Apache License 2.0 with Commons Clause
  */
 #include "core/station_report.h"
+#include "core/spp.h"       /* SppStatus, to name why an epoch failed */
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -415,6 +417,90 @@ int main(void)
         sr_build(&st, &r);
         check(r.overall == SR_STABLE,
               "a snapshot without an uptime is judged as it always was");
+    }
+
+    /* ── 15. Self-position: numbers, and the absence of numbers ─────
+     *
+     * These fields carry no verdict -- no threshold for a station's own
+     * scatter exists yet -- so what has to hold is arithmetic and
+     * honesty: the mean separates the solution's bias from the scatter
+     * about it, and an epoch that did not solve publishes nothing
+     * rather than a reassuring zero. */
+    {
+        /* A station solving every epoch, offset two metres east by the
+         * single-frequency solution's own bias, scattering a known
+         * amount about that: e = 2.0 +/- 0.3, u = +/- 0.4, n = 0.
+         * Mean distance from the mean is then sqrt(0.09 + 0.16) = 0.5 m
+         * exactly, and the bias must not leak into it. */
+        NsStatsSnapshot s = healthy();
+        sr_reset(&st, false, NULL);
+        for (int i = 0; i < 60; i++) {
+            const double sign = (i % 2) ? -1.0 : 1.0;
+            s.selfpos_status      = 0;
+            s.selfpos_sats        = 11;
+            s.selfpos_e           = 2.0 + sign * 0.3;
+            s.selfpos_n           = 0.0;
+            s.selfpos_u           = sign * 0.4;
+            s.selfpos_code_rms_m  = 1.0 + (i == 7 ? 2.5 : 0.0);  /* one bad */
+            s.selfpos_has_vel     = true;
+            s.selfpos_speed_mms   = (i == 42) ? 9.0 : 1.0;       /* one fast */
+            sr_feed(&st, &s, 60.0 + i * 60.0);
+        }
+        sr_build(&st, &r);
+
+        check(r.sp_samples == 60, "every epoch that solved is counted");
+        check(fabs(r.sp_mean_enu[0] - 2.0) < 1e-9,
+              "the mean holds the solution's bias");
+        check(fabs(r.sp_scatter_m - 0.5) < 1e-9,
+              "and the scatter about it is free of that bias");
+        check(fabs(r.sp_rms_worst - 3.5) < 1e-9,
+              "the worst code residual is the worst, not the mean");
+        check(fabs(r.sp_speed_max_mms - 9.0) < 1e-9,
+              "and the fastest apparent motion is the fastest");
+        /* No seventh row appeared: that is the decision, held in a test
+         * so that adding one has to be deliberate. */
+        check(SR_METRIC_COUNT == 6,
+              "self-position is reported without becoming a graded metric");
+
+        /* A station that never solved -- single-frequency, which is most
+         * of them. Absent, not zero, and it says why. */
+        NsStatsSnapshot q = healthy();
+        q.selfpos_status = SPP_SINGLE_FREQ;
+        sr_reset(&st, false, NULL);
+        for (int i = 0; i < 60; i++) sr_feed(&st, &q, 60.0 + i * 60.0);
+        sr_build(&st, &r);
+
+        check(r.sp_samples == 0, "an epoch that did not solve is not a sample");
+        check(r.sp_scatter_m == NS_UNSET && r.sp_rms_worst == NS_UNSET,
+              "a station that solved nothing publishes no scatter");
+        check(r.sp_last_status == SPP_SINGLE_FREQ,
+              "and the report keeps the reason the last epoch failed");
+
+        /* Solved, but from a stream carrying no phase-range rates: the
+         * position is measured and the motion is not. Two different
+         * absences, and the speed is the one that must stay absent. */
+        NsStatsSnapshot v = healthy();
+        v.selfpos_status     = 0;
+        v.selfpos_sats       = 9;
+        v.selfpos_e          = 0.4;
+        v.selfpos_n          = -0.2;
+        v.selfpos_u          = 1.1;
+        v.selfpos_code_rms_m = 1.2;
+        /* A speed is left in the snapshot beside `has_vel == false` on
+         * purpose.  The report must be protected by the flag, not by
+         * the session's good manners in blanking the field: written the
+         * polite way the case passed with the flag ignored entirely. */
+        v.selfpos_has_vel    = false;
+        v.selfpos_speed_mms  = 7.0;
+        sr_reset(&st, false, NULL);
+        for (int i = 0; i < 60; i++) sr_feed(&st, &v, 60.0 + i * 60.0);
+        sr_build(&st, &r);
+
+        check(r.sp_samples == 60, "a position without a velocity still counts");
+        check(r.sp_speed_max_mms == NS_UNSET,
+              "but a stream without rates reports no speed");
+        check(fabs(r.sp_scatter_m) < 1e-9,
+              "sixty identical epochs scatter by nothing at all");
     }
 
     printf("\n%s\n", failures ? "FAILURES" : "all station-report cases pass");

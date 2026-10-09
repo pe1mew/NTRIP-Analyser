@@ -374,7 +374,7 @@ falsification fail loudly — 1.0 mm/s of phantom motion. **A test whose
 inputs are too uniform cannot see a common-mode mistake**, and
 common-mode is precisely what a clock unknown hides.
 
-### P5 — into the report
+### P5 — into the report  *(done 2026-10-09)*
 
 New tier-2 fields beside the six that exist, each carrying its window
 and its evidence count, as every tier-2 number already does. The
@@ -383,6 +383,69 @@ INSUFFICIENT EVIDENCE.
 
 **Verify.** `--report` on a replayed capture equals the live report from
 the same stream; `check_release.py` sees no claim it cannot verify.
+
+**Built 2026-10-09, and one sentence of the step above was not kept.**
+Self-position is reported as figures with **no verdict**: no
+`SR_SELFPOS` row, `SR_METRIC_COUNT` still 6. Grading it would have
+meant choosing a number for "abnormal scatter at a station" today, from
+no measurements of any real station — the invented threshold this
+project keeps catching itself at, and `docs/thresholds.md` exists
+precisely so that every limit can name its evidence. The fields are
+published, the decision is recorded on the struct, and a test asserts
+`SR_METRIC_COUNT == 6` so that adding the row later has to be
+deliberate rather than accidental. It becomes a metric when real
+stations have said what normal looks like.
+
+Where it lives: nine snapshot fields (`NsStats.selfpos_*`), six
+accumulated in `SrState`, six published in `StationReport`, printed by
+`cli_report_print` below the table and outside its numbering, and
+serialised under `selfpos_*`. `SR_JSON_SCHEMA_VERSION` goes to **2** —
+purely additive, so a reader written against 1 keeps working; the bump
+is what lets a reader tell a document from an older build from one
+whose station solved nothing.
+
+*The mean is published beside the scatter because they measure
+different things.* The offset is mostly the solution's own bias, metres
+of it, and says nothing about the station; the scatter about that mean
+is the half that measures something. Computed as
+`sqrt(E[|x|²] − |E[x]|²)` and clamped at zero, since the difference of
+two sums can go a hair negative when the scatter is far smaller than
+the offset.
+
+*An unsolved epoch publishes `null`, never zero* — the rule the six
+metrics already follow, one level further on. A graph fed `0.000`
+scatter would draw a station standing perfectly still when what
+happened is that nothing was measured. The three means are the
+exception that proves the rule: an offset is **signed**, so `NS_UNSET`
+(−1.0) is a value it could legitimately hold and cannot serve as its
+sentinel. `sp_samples` is the only thing that says whether they mean
+anything, and the serialiser keys the nulls off it.
+
+**A falsification caught a passing test that was protecting nothing.**
+Removing the `has_vel` gate from the accumulation left "a stream
+without rates reports no speed" green: the test's snapshot had left
+`selfpos_speed_mms` at its `NS_UNSET` initialiser, so the comparison
+rejected it for the wrong reason and the flag was never consulted. The
+case now puts a speed of 7 mm/s in the snapshot *beside*
+`has_vel = false` — a snapshot carrying a number it has no right to —
+and the gate is what has to stop it. **A test written politely tests
+the caller's manners, not the code's defences.**
+
+*Falsified by name, each restored:* dropping the bias subtraction from
+the scatter reddens "the scatter about it is free of that bias" and
+"sixty identical epochs scatter by nothing at all"; removing the
+`has_vel` gate reddens "but a stream without rates reports no speed"
+(once that case was made hostile); emitting the scatter unconditionally
+reddens "and its scatter is null, not a flattering zero".
+
+**19/19 tests pass; `check_release.py` stays at 106 checks**, the four
+stale-artefact failures being the known ones. The *`--report` equals
+live* check is **outstanding**, for the same reason P3's `rnx2rtkp`
+comparison is: it needs a real `.rtcm3` capture from the author's
+caster, and nothing in the repository replays an observation stream.
+Smoke-checked meanwhile against an empty replay, which prints
+`Self-position: nothing solved -- no observations in this epoch` rather
+than a clean zero.
 
 ### P6 — the GUI: a Self-position window
 

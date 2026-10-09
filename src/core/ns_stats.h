@@ -234,6 +234,33 @@ typedef struct {
     int      iono_sats_dualfreq;  /**< satellites with a usable pair     */
     int      iono_slips;          /**< arcs broken this session          */
 
+    /* ── Self-position ────────────────────────────────────────────────
+     * Where the station's own observations place it, and how fast it is
+     * moving: `design/work-items/station-self-position.md`.  The offset
+     * is against the broadcast ARP and is **metre-level by
+     * construction** -- a broadcast-ephemeris solution's own error, not
+     * the antenna having moved -- so the information is in the scatter
+     * over a run, never in one epoch.  The velocity is the sharper
+     * half: a base that is standing still must read zero.
+     *
+     * Additive fields, like the ionosphere block above: consumers read
+     * by key, so the schema version stays.  `selfpos_status` is 0 when
+     * solved and an @ref SppStatus otherwise, which is how a
+     * single-frequency station says *not computable* rather than
+     * publishing a zero that reads like an answer.
+     */
+    int      selfpos_status;      /**< 0 = solved; else SppStatus        */
+    double   selfpos_e;           /**< east offset from the ARP, metres  */
+    double   selfpos_n;           /**< north offset, metres              */
+    double   selfpos_u;           /**< up offset, metres                 */
+    double   selfpos_code_rms_m;  /**< post-fit code residual RMS        */
+    double   selfpos_pdop;        /**< geometry of the epoch solved      */
+    int      selfpos_sats;        /**< satellites in the solution        */
+    bool     selfpos_has_vel;     /**< false where the stream has no
+                                   *   phase rates: MSM4, MSM6, legacy   */
+    double   selfpos_speed_mms;   /**< speed, millimetres per second     */
+    double   selfpos_drift_ms;    /**< receiver clock drift, m/s         */
+
     /* ── Stream clock ─────────────────────────────────────────────────
      * How much stream has been observed, as the *data* measures it:
      * seconds accumulated from the observation epochs themselves, not

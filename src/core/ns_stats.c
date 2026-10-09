@@ -12,6 +12,7 @@
  */
 
 #include "core/ns_stats.h"
+#include "core/spp.h"   /* SppStatus, for the unsolved-epoch default */
 
 #include <stdio.h>      /* vsnprintf into caller buffers only -- no I/O */
 #include <stdarg.h>
@@ -171,6 +172,19 @@ void ns_stats_init(NsStatsSnapshot *s)
     s->sourcetable_offset_m  = NS_UNSET;
     s->latency_s             = NS_UNSET;
     s->stream_time_s         = NS_UNSET;
+
+    /* An unsolved epoch must not read as an antenna sitting exactly on
+     * its declared coordinates, so the offsets start unset and the
+     * status starts at "no observations" rather than at zero, which is
+     * the code for *solved*. */
+    s->selfpos_status        = SPP_NO_EPOCH;
+    s->selfpos_e             = NS_UNSET;
+    s->selfpos_n             = NS_UNSET;
+    s->selfpos_u             = NS_UNSET;
+    s->selfpos_code_rms_m    = NS_UNSET;
+    s->selfpos_pdop          = NS_UNSET;
+    s->selfpos_speed_mms     = NS_UNSET;
+    s->selfpos_drift_ms      = NS_UNSET;
 }
 
 NsTypeStats *ns_stats_type(NsStatsSnapshot *s, int msg_type)

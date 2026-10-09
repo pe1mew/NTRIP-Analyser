@@ -519,6 +519,19 @@ int main(void)
         check(strstr(json, "\"availability_verdict\":null") != NULL,
               "an unmeasurable metric is null, not a passing zero");
 
+        /* Self-position, on a stream that solved nothing: the same rule
+         * one level further on.  A graph fed `0.000` here would draw a
+         * station standing perfectly still when what happened is that
+         * nothing was measured at all. */
+        check(strstr(json, "\"selfpos_samples\":0,") != NULL,
+              "a report with no solved epoch says so by count");
+        check(strstr(json, "\"selfpos_scatter_m\":null") != NULL,
+              "and its scatter is null, not a flattering zero");
+        check(strstr(json, "\"selfpos_mean_e_m\":null") != NULL,
+              "an offset nobody measured is null as well");
+        check(strstr(json, "\"selfpos_status_name\":") != NULL,
+              "the report names why nothing solved");
+
         char tiny[24];
         memset(tiny, 'x', sizeof(tiny));
         n = sr_to_json(&rep, &ctx, tiny, sizeof(tiny));

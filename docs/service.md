@@ -55,9 +55,11 @@ standing behind a window that ended. Watch for that as well as for
 stopped.
 
 ```json
-{"report_schema_version":1,"mountpoint":"HANESE","window_s":3600.000,
+{"report_schema_version":2,"mountpoint":"HANESE","window_s":3600.000,
  "samples":3598,"overall":1,"overall_name":"STABLE",
- "headline":"STABLE over 1.0 h","integrity_verdict":1,...}
+ "headline":"STABLE over 1.0 h","integrity_verdict":1,...,
+ "selfpos_samples":3410,"selfpos_status":0,"selfpos_status_name":"solved",
+ "selfpos_mean_e_m":1.842,"selfpos_scatter_m":0.934,...}
 ```
 
 The version key is `report_schema_version`, not `schema_version`, and the
@@ -73,6 +75,19 @@ already reads, so nothing needs a JSON parser. Every metric contributes
 `<name>_value` and `<name>_detail`. A metric that **cannot** be measured
 emits `null` rather than a zero, so a graph cannot draw "not applicable"
 as "fine".
+
+**Version 2 added the `selfpos_*` keys**, and they are the one group with
+no `_verdict`: the station's own position is reported as figures because
+no threshold for its scatter has been established from evidence yet, and
+inventing one would be worse than reporting none. `selfpos_samples` is
+how many epochs solved; when it is zero every figure beside it is `null`
+and `selfpos_status_name` says why — most often a single-frequency
+station, where the measurement is not computable at all. The addition is
+purely additive, so a reader written against version 1 keeps working; the
+bump exists so that a document *without* these keys can be told from one
+whose station solved nothing. `selfpos_mean_*_m` is an *offset* from the
+reference position, mostly the solution's own bias, and must not be read
+as an accuracy; `selfpos_scatter_m` is the part that measures something.
 
 **The window rolls, and it is measured in stream time.** The report
 covers between one and two `report_window_s` — the daemon keeps two

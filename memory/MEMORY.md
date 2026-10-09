@@ -225,6 +225,13 @@ Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md).
   artefact its version before reading any code (pro's APK 2026-08-14,
   the VPS binary 2026-08-16) — promoted from gotcha-log 2026-08-16,
   generalising the Android-only wording in Active Decisions above.
+- If a **falsification leaves a check green**, the test is the defect:
+  feed it the input the defence exists for, not the input a cooperating
+  caller would send (synthetic ephemerides sharing one `af1`, so a
+  removed clock-drift term was common-mode and invisible, 2026-10-09;
+  a snapshot that politely blanked `selfpos_speed_mms`, so a removed
+  `has_vel` gate was never consulted, 2026-10-09) — promoted from
+  gotcha-log 2026-10-09 to Active Decisions below.
 
 ## Key File Paths
 
@@ -272,6 +279,16 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **A falsification that stays green accuses the test, not the code.**
+  Both times it has happened the input was too cooperative to reach the
+  defence: synthetic ephemerides sharing one `af1` made a deleted
+  satellite-clock-drift term common-mode, absorbed exactly by the
+  receiver's clock unknown; a snapshot that blanked `selfpos_speed_mms`
+  beside `has_vel = false` meant a deleted `has_vel` gate was never
+  consulted, because the sentinel rejected the sample first (both
+  2026-10-09, `design/work-items/station-self-position.md` P4 and P5).
+  **Feed a test the input its defence exists for** — wrong where it
+  should be wrong, different where uniformity would hide the fault.
 - **A flag's lifetime must match the thing it describes** — and a
   record of a run outlives the screen that draws it. Three faces of one
   rule, all paid for: run-scoped accumulators in composables lost a

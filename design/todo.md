@@ -767,6 +767,14 @@ published "eight checks" count does not move. And both Play listings say the app
 a position" — true until the Android step, which is why the desktop half goes first and the
 listing decision waits for pro to be in production.
 
+**Progress, 2026-10-09: P1–P5 of the plan are built** on the `self-position` branch — observables
+retained per epoch, satellite state at transmit time (0.0000 m against RTKLIB), the position solve,
+the velocity solve, and the figures in the tier-2 report and its JSON (`SR_JSON_SCHEMA_VERSION` 2).
+It went **one step further than the constraint above**: self-position is reported with **no verdict
+at all**, not as a graded tier-2 row, because no threshold for a station's own scatter exists from
+evidence yet — `SR_METRIC_COUNT` stays 6, and a test asserts it. P6 (the GUI window) and P7 (pro)
+remain, and P3's `rnx2rtkp` comparison still needs a real capture from the author's caster.
+
 ---
 
 ## 4. Migrated from `gui/design.md` §12
