@@ -34,6 +34,7 @@ Item numbers are stable and are never reused or renumbered, so shipped items kee
 | `[ESP32]` | [aryesil/RTK-BASE-ESP32](https://github.com/aryesil/RTK-BASE-ESP32) — an ESP32-based RTK base station. It is a correction *producer* while this project is a *consumer*, so its configuration features do not transfer, but its monitoring and analysis layer maps directly onto our problem domain. |
 | `[design.md]` | Migrated from the former "Future Enhancements" list in `gui/design.md` §12, or originated in this project. |
 | `[GH#n]` | A user report on the GitHub issue tracker, open since free 3.7.1 reached Play. |
+| `[onocoy]` | Onocoy's public per-station dashboard, read as prior art on 2026-10-02 and sorted against this project's own candidates in `design/kpi-candidates.md`. |
 
 ---
 
@@ -738,6 +739,33 @@ ionosphere, and misreports a quiet day as DISTURBED.
 chart, sky-plot overlay (including painting the existing 24 h trail buffer by ROTI, which is a
 timelapse in one image; note `SkyTrackPoint` widens 16→20 B, ~11.8→14.7 MB), and the dedicated
 Ionosphere window. Plus `sats_dualfreq`/`roti_median` in the snapshot for the daemon and Munin.
+
+### 3.3 The station's own position and velocity — **Open** `[onocoy]`
+
+Plan: [`design/work-items/station-self-position.md`](work-items/station-self-position.md) (2026-10-09).
+
+Solve a single-point position and a velocity from the station's *own* observations, and report the
+north/east/up offset against the broadcast ARP, its scatter, and the velocity a static base should
+read as zero. The author asked for it after seeing Onocoy's *antenna position* and *antenna
+velocity* panels: **GUI first, the paid Android edition second.**
+
+**What it measures.** Not an antenna that moved a metre: the offset is the error of a
+broadcast-ephemeris solution, metre-level by construction, so the signal is in the scatter over
+time. The velocity is the sharper half — a base that is not moving must read zero, and a sustained
+non-zero is either a moving antenna or a broken solve. It complements the ARP checks rather than
+repeating them: KPI 3 catches a station claiming a position it is not at, this catches an antenna
+that moved while the station kept broadcasting its surveyed coordinates.
+
+**Why it is tier 3.** It needs observable retention (phase 5 of `measurement-tiers.md`), satellite
+clock and group-delay handling, a troposphere model, and two least-squares solves. Much of the
+groundwork is already in: MSM7 decodes pseudorange, phase and phase rate; `SvEphemeris` carries
+`af0/af1/af2`; `sv_orbit.c` propagates; the ECEF/ENU/az-el geometry exists. Verification is against
+RTKLIB's `rnx2rtkp` on a capture converted with `convbin`, the route `cli-track.md` V5 proved.
+
+**Two constraints it inherits.** It stays a **tier-2 monitor metric, never a ninth KPI**, so the
+published "eight checks" count does not move. And both Play listings say the app "does not compute
+a position" — true until the Android step, which is why the desktop half goes first and the
+listing decision waits for pro to be in production.
 
 ---
 
