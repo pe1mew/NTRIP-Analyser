@@ -37,12 +37,13 @@ name: CI
 
 on:
   push:
-    # `self-position` is a long-lived feature branch built in steps, and
-    # `pull_request` only fires while a PR is open -- so between merging
-    # one step's PR and opening the next, a push ran nothing at all.
-    # That happened three times before the branch was listed here
-    # (2026-10-09). Remove it when the branch is done.
-    branches: [main, self-position]
+    # A long-lived feature branch built in steps belongs in this list
+    # while it lasts: `pull_request` only fires while a PR is open, so
+    # between merging one step's PR and opening the next, a push runs
+    # nothing at all. That cost `self-position` three silent pushes
+    # before it was listed here, and it was taken out again when its
+    # desktop work finished (2026-10-09).
+    branches: [main]
   pull_request:
   schedule:
     # Monday morning: the claims job, which is about decay over time
