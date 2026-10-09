@@ -27,6 +27,11 @@ The Windows GUI application (`ntrip-analyser-gui.exe`) provides a user-friendly 
   siting problems
 - **Session history** - Six metrics plotted over time on a shared axis, so
   dropouts and reconnects are visible instead of averaged away
+- **Self-position** - Where the station's own observations put it against
+  the position it broadcasts: the east/north scatter plotted over the run,
+  the offset, the residuals and the apparent motion. Figures only, with no
+  verdict, because no threshold for a station's own scatter has been
+  established from evidence yet
 - **VRS monitor** - Rover-to-virtual-station distance, direction plot and
   rolling distance chart for network mountpoints
 - **Multi-GNSS ephemerides** - GPS / GLONASS / Galileo / QZSS / BeiDou
@@ -660,6 +665,55 @@ with the hour that prompted the change.
 Closing the window does not stop it. The evidence belongs to the
 session, so an hour of it survives a window being closed and reopened.
 
+#### 📍 Self-position (View > Self-position)
+
+**Purpose:** where the station's **own observations** put it, against
+the reference position it broadcasts in 1005/1006. The analyser solves a
+position and a velocity from the stream itself — the same solver the
+CLI's `--report` block and the daemon's `selfpos_*` keys use — and shows
+the difference.
+
+**There is no verdict here, and that is deliberate.** No `STABLE`, no
+`STATION OK`, no coloured rows: figures only. A verdict needs a
+threshold, and what counts as abnormal scatter for a station's own
+position is not yet known from measurements of real stations. Inventing
+a number to fill that column would be worse than leaving it out, so the
+column does not exist. It becomes a graded measurement when real
+stations have said what normal looks like.
+
+**Read the offset as an offset.** Most of it is the solution's own bias
+— metres of it, by construction, because this is a broadcast-ephemeris
+code solution — and it says nothing about the antenna. The two figures
+that mean something are the **scatter** about that offset and the
+**apparent motion**: a base that is standing still must read zero, and a
+sustained non-zero is either an antenna that moved or a solve that
+broke.
+
+The left half of the window plots east and north about the broadcast
+reference, one dot per solved epoch, with the latest in orange and a red
+cross where the run centres; rings are drawn at round distances so the
+cloud can be measured rather than guessed at. The plot is **not
+self-centring** — the origin stays the position the station claims,
+because an offset that scrolled under its own middle would hide the one
+thing worth seeing. Up is in the figures beside it, with the mean
+offsets, the scatter, the worst code residual, the fastest apparent
+motion, and the latest epoch's satellites, PDOP, code residual, rate
+residual and clock drift.
+
+**A single-frequency station cannot be solved at all**, and the window
+says so in the reason's own words — `single-frequency station: not
+computable` — rather than showing an empty frame. The dual-frequency
+requirement is not a limitation to work around: the ionosphere has to be
+removed from the measurement before a metre-level position means
+anything.
+
+The figures come from the same window of stream time the Stability
+window shows, so the two cannot disagree, and **Restart window** there
+empties this plot too. An epoch that did not solve adds no dot: a dot at
+the origin is what a station sitting exactly on its declared coordinates
+would look like, which is the one thing a station nobody can place must
+not appear to be doing.
+
 #### Judging by your own thresholds
 
 **File > Load Thresholds...** takes a JSON policy and applies it to both
@@ -734,6 +788,7 @@ by capture time.
 **View Menu:**
 - **Station Check...** — the acceptance test over the open stream
 - **Stability...** — tier 2: has it *been* fit, over hours of stream
+- **Self-position...** — where its own observations put it, no verdict
 
 Under **File**: **Load Thresholds...** — judge by a policy of your own
 - **Sky Plot...** — floating polar sky-visibility window
@@ -849,6 +904,7 @@ gui/
 ├── gui_vrs_window.c    — Floating VRS Monitor (distance, polar, chart)
 ├── gui_check_window.c  — Floating Station Check (KPI rows, verdict, VRS)
 ├── gui_report_window.c — Floating Stability (tier-2 rows, rolling verdict)
+├── gui_selfpos_window.c— Floating Self-position (E/N scatter + figures)
 ├── gui_snapshot.c      — GDI+ PNG snapshot + shared save-with-prompt flow
 ├── gui_sv_detail.c     — Per-SV detail popup (left-click on marker)
 ├── gui_state.h         — AppState structure, constants, function prototypes

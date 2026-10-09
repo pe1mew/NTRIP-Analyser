@@ -569,9 +569,10 @@ static void selfpos_solve(NtripSession *s, uint32_t epoch_ms)
         s->stats.selfpos_e = s->stats.selfpos_n = s->stats.selfpos_u = NS_UNSET;
         s->stats.selfpos_code_rms_m = NS_UNSET;
         s->stats.selfpos_pdop       = NS_UNSET;
-        s->stats.selfpos_has_vel    = false;
-        s->stats.selfpos_speed_mms  = NS_UNSET;
-        s->stats.selfpos_drift_ms   = NS_UNSET;
+        s->stats.selfpos_has_vel     = false;
+        s->stats.selfpos_speed_mms   = NS_UNSET;
+        s->stats.selfpos_drift_ms    = NS_UNSET;
+        s->stats.selfpos_rate_rms_ms = NS_UNSET;
         return;
     }
 
@@ -585,11 +586,13 @@ static void selfpos_solve(NtripSession *s, uint32_t epoch_ms)
         const double sp = sqrt(sol.vel_ecef[0] * sol.vel_ecef[0]
                              + sol.vel_ecef[1] * sol.vel_ecef[1]
                              + sol.vel_ecef[2] * sol.vel_ecef[2]);
-        s->stats.selfpos_speed_mms = sp * 1000.0;
-        s->stats.selfpos_drift_ms  = sol.clock_drift_ms;
+        s->stats.selfpos_speed_mms   = sp * 1000.0;
+        s->stats.selfpos_drift_ms    = sol.clock_drift_ms;
+        s->stats.selfpos_rate_rms_ms = sol.rate_rms_ms;
     } else {
-        s->stats.selfpos_speed_mms = NS_UNSET;
-        s->stats.selfpos_drift_ms  = NS_UNSET;
+        s->stats.selfpos_speed_mms   = NS_UNSET;
+        s->stats.selfpos_drift_ms    = NS_UNSET;
+        s->stats.selfpos_rate_rms_ms = NS_UNSET;
     }
 }
 

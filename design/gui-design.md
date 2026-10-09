@@ -129,9 +129,11 @@ gui/
 since grown several modules that this document does not cover — the
 floating Sky Plot, Signal Quality, Session History, VRS Monitor and
 per-SV detail windows, the GDI+ snapshot helper, and the RTCM detail
-viewer — plus two that it now does: `gui_check_window.{c,h}` (§13) and
-`gui_report_window.{c,h}` (§14). For the current file inventory see
-[`docs/gui.md`](../docs/gui.md); `build-gui.bat` is authoritative. The
+viewer — plus three that it now does: `gui_check_window.{c,h}` (§13),
+`gui_report_window.{c,h}` (§14) and `gui_selfpos_window.{c,h}` (§16).
+For the current file inventory see
+[`docs/gui.md`](../docs/gui.md); `CMakeLists.txt` is authoritative, and
+has been since `build-gui.bat` was retired in 3.8.0. The
 design rationale below is retained as a record of the decisions that
 shaped the codebase, not as a description of its present shape.
 
@@ -386,6 +388,7 @@ has been added since, and where it is designed:
 | View → Station Check… | §13 |
 | View → Stability… | §14 |
 | File → Load Thresholds… | §15 |
+| View → Self-position… | §16 |
 | File → Start/Stop RTCM Capture, Replay RTCM File… | `docs/gui.md` |
 | View → Sky Plot, VRS Monitor, Signal Quality, Session History, Ionosphere, Ionosphere Sky | `docs/gui.md` |
 
@@ -963,7 +966,106 @@ silently become a different standard either.
 
 ---
 
-## 16. Reference
+## 16. Self-position
+
+Where the station's own observations put it, against the reference
+position it broadcasts. Same solver as the CLI's `--report` block and
+the daemon's `selfpos_*` keys (`src/core/spp.c`), over the stream the
+GUI already has open.
+
+`gui_selfpos_window.{c,h}`, class `NtripSelfPosClass`, opened from
+**View → Self-position**. Its own window rather than a panel inside
+Stability (author, 2026-10-09): it answers a different question, and the
+window it needs is a plot rather than a row.
+
+### 16.1 It has no verdict, on purpose
+
+Every other measurement window in this program grades what it shows.
+This one states figures and grades nothing — no `SR_SELFPOS` row, no
+fourth column, `SR_METRIC_COUNT` still 6 — because a verdict needs a
+threshold and no measurement of a real station has yet said what normal
+scatter is. `docs/thresholds.md` exists so that every limit can name its
+evidence; a number chosen today to fill this column could not.
+
+So the header's third line says *why* there is no verdict rather than
+leaving a reader to wonder, and the banner is neutral blue-grey: it
+borrows neither tier 2's green nor its red. A test asserts
+`SR_METRIC_COUNT == 6`, so promoting this to a graded row later has to
+be a deliberate act.
+
+### 16.2 What it shows, and what it refuses to show
+
+| | |
+|---|---|
+| Plot | east/north about the broadcast reference, one dot per solved epoch, latest in orange, red cross at the run's centre, rings at round distances |
+| Figures | mean offset E/N/U, scatter about that mean, worst code residual, fastest apparent motion — over the report's window |
+| Latest epoch | satellites, PDOP, code residual, rate residual, receiver clock drift |
+| Nothing solved | the reason in `SppStatus`'s own words, never an empty frame |
+
+Three refusals, each a decision:
+
+- **The plot never self-centres.** The origin stays the position the
+  station claims. A cloud scrolled under its own middle would hide the
+  offset, which is half of what the window exists to show.
+- **An unsolved epoch adds no dot.** A dot at the origin is exactly what
+  a station sitting on its declared coordinates looks like, and that is
+  the one thing a station nobody can place must not appear to be doing.
+- **The offset is labelled an offset, never an error or an accuracy.**
+  Metres of it are the broadcast-ephemeris code solution's own bias.
+  The scatter beside it is the half that measures something.
+
+### 16.3 Where the state lives
+
+The figures come from `AppState::reportOut` — core's accumulation over
+the same window of stream time the Stability window shows, so the two
+windows cannot state different numbers for one stream. The only thing
+this window owns is `AppState::selfpos`, a ring of 7 200 points (two
+hours at one epoch a second, 115 KB) kept **for drawing**:
+
+```c
+/* in AppState */
+SelfPosRing selfpos;   /* points, and what paces them */
+HWND        hSelfPosWnd;
+RECT        selfposWndRect;
+BOOL        selfposWndRectValid;
+```
+
+Nothing computed from that ring is shown as a measurement: the plot's
+scale and its crosshair are the plot's own, and every figure stated in
+words is core's. The ring is reset inside `ReportReset()` rather than at
+each of its callers — one reset verb, so a plot of one hour can never
+sit beside a mean of another.
+
+### 16.4 What drives it, and on which clock
+
+`NS_EV_STATS`, beside `ReportOnStats()`, on the worker thread. Points
+are stamped by `NsStatsSnapshot::stream_time_s` and skipped when that
+value has not advanced, so a replay plots the span the capture holds and
+a snapshot republished unchanged is not plotted twice.
+
+A point is written whole before `count` is raised, so the painter cannot
+read a slot that holds nothing. The worst cases are a repaint one epoch
+behind and, at the moment the ring wraps, one dot drawn from a point
+being overwritten; neither survives the next repaint, and no figure is
+derived from the ring. Painting is double-buffered, because a cloud of
+several thousand dots redrawn every epoch flickers otherwise.
+
+### 16.5 Verified, and what was not
+
+Started the way the rule requires — from a launcher with no console,
+never a shell — the window class registers, the window is created,
+titled and visible, and a second **View → Self-position** raises it
+instead of making another. Checked by driving the running program with
+the same `WM_COMMAND` the menu item sends.
+
+What that cannot check is what the window *looks like* with a station on
+the other end: the plot's scale, the figures' spacing, whether the
+caption is readable at the default size. That is the author's eye on a
+live stream, and it is the step this section is waiting on.
+
+---
+
+## 17. Reference
 
 - Win32 API: [Microsoft Learn — Desktop Win32 Apps](https://learn.microsoft.com/en-us/windows/win32/)
 - Common Controls: [Microsoft Learn — About Common Controls](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)

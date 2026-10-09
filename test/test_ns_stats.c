@@ -30,6 +30,7 @@
  */
 #include "core/ns_stats.h"
 #include "core/station_report.h"
+#include "core/spp.h"       /* SppStatus: why an epoch did not solve */
 
 #include <stdio.h>
 #include <string.h>
@@ -411,6 +412,90 @@ int main(void)
               "an unmeasured latency serialises as null");
         check(strstr(json, "\"stream_time_s\":null") != NULL,
               "a stream with no clock serialises as null");
+
+        /* Self-position, never solved.  The status is the only key that
+         * says anything, and every figure beside it is null -- an
+         * antenna sitting exactly on its declared coordinates and an
+         * antenna nobody could place are different statements.
+         *
+         * The numbers are left in the snapshot on purpose, and against
+         * the status that says nothing solved: written the polite way,
+         * with the fields at their `NS_UNSET` initialisers, the whole
+         * case passed with the status gate removed -- the serialiser's
+         * null came from the sentinel and the gate was never consulted.
+         * A caller is free to leave stale figures behind; the gate is
+         * what has to stop them. */
+        NsStatsSnapshot q = e;
+        q.selfpos_status      = SPP_SINGLE_FREQ;
+        q.selfpos_sats        = 0;
+        q.selfpos_e           = 1.234;
+        q.selfpos_n           = -0.567;
+        q.selfpos_u           = 2.001;
+        q.selfpos_code_rms_m  = 1.75;
+        q.selfpos_pdop        = 1.8;
+        q.selfpos_has_vel     = true;
+        q.selfpos_speed_mms   = 7.0;
+        q.selfpos_rate_rms_ms = 0.0031;
+        ns_stats_to_json(&q, json, sizeof(json));
+        json_check(json, "an unsolved epoch is well-formed JSON");
+
+        check(strstr(json, "\"selfpos_status\":") != NULL,
+              "an unsolved epoch still publishes its status");
+        check(strstr(json, "\"selfpos_e_m\":null") != NULL &&
+              strstr(json, "\"selfpos_u_m\":null") != NULL,
+              "and no offset at all, rather than an offset of zero");
+        check(strstr(json, "\"selfpos_pdop\":null") != NULL &&
+              strstr(json, "\"selfpos_sats\":0") != NULL,
+              "no geometry either, for a solution that does not exist");
+        check(strstr(json, "\"selfpos_speed_mms\":null") != NULL,
+              "nor a speed, which a zero would read as a still antenna");
+        check(strstr(json, "\"selfpos_rate_rms_ms\":null") != NULL,
+              "nor a residual for a velocity that was never solved");
+    }
+
+    /* ── 2b. A solved epoch publishes its figures ─────────────────── */
+    {
+        /* The other half of the rule above: the nulls must be the
+         * absence of a measurement, not a serialiser that never emits
+         * anything. One `sats` short of a solution and the whole block
+         * would read as absent -- so this proves the keys carry values
+         * when there are values to carry. */
+        NsStatsSnapshot v;
+        ns_stats_init(&v);
+        v.selfpos_status      = 0;
+        v.selfpos_sats        = 11;
+        v.selfpos_e           = 1.234;
+        v.selfpos_n           = -0.567;
+        v.selfpos_u           = 2.001;
+        v.selfpos_code_rms_m  = 1.75;
+        v.selfpos_pdop        = 1.8;
+        v.selfpos_has_vel     = true;
+        v.selfpos_speed_mms   = 3.25;
+        v.selfpos_drift_ms    = -0.0042;
+        v.selfpos_rate_rms_ms = 0.0031;
+
+        ns_stats_to_json(&v, json, sizeof(json));
+        json_check(json, "a solved epoch is well-formed JSON too");
+        check(strstr(json, "\"selfpos_e_m\":1.234") != NULL,
+              "a solved offset is published, not nulled");
+        check(strstr(json, "\"selfpos_n_m\":-0.567") != NULL,
+              "and a negative offset keeps its sign");
+        check(strstr(json, "\"selfpos_sats\":11") != NULL,
+              "the satellite count is a count, not a decimal");
+        check(strstr(json, "\"selfpos_speed_mms\":3.25") != NULL &&
+              strstr(json, "\"selfpos_rate_rms_ms\":0.0031") != NULL,
+              "the velocity and what it was measured to travel together");
+
+        /* Solved, but from a stream with no phase-range rates: the
+         * position is measured and the motion is not.  The speed is
+         * left in the snapshot on purpose -- the flag must be what
+         * suppresses it, not the caller's good manners. */
+        v.selfpos_has_vel = false;
+        ns_stats_to_json(&v, json, sizeof(json));
+        check(strstr(json, "\"selfpos_e_m\":1.234") != NULL,
+              "a position without a velocity is still published");
+        check(strstr(json, "\"selfpos_speed_mms\":null") != NULL,
+              "but a stream without rates publishes no speed");
     }
 
     /* ── 3. The CSV header and the row describe the same columns ──── */

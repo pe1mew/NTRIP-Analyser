@@ -38,6 +38,7 @@ BEGIN
     BEGIN
         MENUITEM "Station &Check...",                 IDM_VIEW_STATION_CHECK
         MENUITEM "Sta&bility...",                     IDM_VIEW_STABILITY
+        MENUITEM "Self-&position...",                 IDM_VIEW_SELFPOS
         MENUITEM SEPARATOR
         MENUITEM "&Sky Plot...",                      IDM_VIEW_SKY_PLOT
         MENUITEM "&VRS Monitor...",                   IDM_VIEW_VRS_MONITOR

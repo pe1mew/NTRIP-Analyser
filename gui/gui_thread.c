@@ -21,6 +21,7 @@
 #include "core/version.h"
 #include "gui_check_window.h"
 #include "gui_report_window.h"
+#include "gui_selfpos_window.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -531,6 +532,10 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
              * the window the capture holds rather than the seconds the
              * disk took. */
             ReportOnStats(state, ev->u.stats);
+            /* The self-position plot, from the same event: the epoch
+             * just solved is in this snapshot, and the plot is paced by
+             * the stream clock inside it rather than by a timer. */
+            SelfPosOnStats(state, ev->u.stats);
         }
         break;
 

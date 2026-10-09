@@ -35,6 +35,19 @@ temporary file and `rename()`d into place, so a reader never sees a
 half-written document. The same file is directly usable by anything
 else: `cat`, `jq`, a cron job.
 
+The snapshot gained `selfpos_*` keys — the station's own position for
+**this epoch** — without a `schema_version` bump, as the `iono_*` keys
+did before them: consumers read by key, and nothing already published
+changed meaning. One epoch's offset is metre-level by construction and
+measures nothing on its own; the figure worth watching is its scatter
+over a window, which is in the report rather than here. `selfpos_status`
+is `0` for solved and an `SppStatus` otherwise, and when it is not zero
+every figure beside it is `null` — a single-frequency station cannot be
+solved at all, and that is not an antenna standing still at its declared
+coordinates. The same keys are appended to the CSV row, where an
+unsolved epoch writes empty cells: a spreadsheet plots a blank as a gap
+and a zero as a reading.
+
 ### The two documents answer different questions
 
 The snapshot says what is true **now** — bytes a second, satellites this

@@ -464,6 +464,77 @@ this project keeps writing down.
 **Verify.** Started from Explorer, not a shell — the GUI's own rule,
 and the one that found a whole class of stdio faults.
 
+**Built 2026-10-09.** `gui/gui_selfpos_window.{c,h}`, class
+`NtripSelfPosClass`, **View → Self-position**, designed in
+`design/gui-design.md` §16. The left half is an east/north scatter about
+the broadcast reference — one dot per solved epoch, latest in orange, a
+red cross where the run centres, rings at round distances — and the
+right half is the figures: mean offset E/N/U, scatter about it, worst
+code residual, fastest apparent motion, then the latest epoch's
+satellites, PDOP, code residual, rate residual and clock drift. No
+verdict and no fourth column, per P5's decision, with the header's third
+line saying why rather than leaving a reader to wonder.
+
+*The figures are core's, the plot is the window's.* Everything stated in
+words comes from `AppState::reportOut` — the same accumulation, over the
+same window of stream time, that the Stability window shows, so the two
+cannot disagree about one stream. The window owns only a 7 200-point
+ring (two hours at an epoch a second, 115 KB) for drawing, and nothing
+computed from it is presented as a measurement. It is emptied inside
+`ReportReset()` rather than at each caller, so one reset verb covers
+both: a plot of one hour beside a mean of another is a disagreement
+nobody can read.
+
+*Two refusals worth naming.* The plot never self-centres — the origin
+stays the position the station claims, because a cloud scrolled under
+its own middle would hide the offset. And an epoch that did not solve
+adds no dot, since a dot at the origin is exactly what a station sitting
+on its declared coordinates looks like.
+
+**P5 had left the snapshot's own serialisers behind**, found while
+wiring this window: `NsStats` carried the nine `selfpos_*` fields and
+`ns_stats_to_json()` published none of them, though the field block's
+own comment said consumers would read them by key. So the daemon's
+snapshot, `File > Export Statistics` and the CSV row all described a
+stream without ever mentioning where it put itself. Fixed here —
+`selfpos_*` in both serialisers under the same null-not-zero rule, and
+`selfpos_rate_rms_ms` added so the window can state what the *velocity*
+was measured to, which the code residual does not say. New cases in
+`test_ns_stats` cover both directions: nulls when nothing solved, and
+values when something did, because a null is only honest if the key can
+carry a figure at all.
+
+**And the polite test was written a third time.** The first version of
+the "nothing solved" case used a freshly initialised snapshot, so when
+the falsification removed the status gate from the serialiser the check
+stayed green: the null came from the `NS_UNSET` initialiser and the gate
+was never consulted. This is the same mistake P5 had just recorded and
+promoted to `memory/MEMORY.md` — **knowing the pattern did not prevent
+it; running the falsification did.** The case now carries real figures
+beside a status that says nothing solved, which is also the honest
+model: a caller is free to leave stale numbers behind, and the gate is
+what has to stop them. *Falsified by name, each restored:* removing the
+solved gate reddens "and no offset at all, rather than an offset of
+zero"; removing the velocity gate reddens "nor a speed, which a zero
+would read as a still antenna" and the solved-epoch case beside it.
+
+**Verified the way the rule requires**, from a launcher with no console:
+the class registers, the window is created, titled and visible, and a
+second **View → Self-position** raises it rather than making another —
+driven by the same `WM_COMMAND` the menu item sends. 19/19 tests, build
+warning-free. **What that cannot verify is how it looks** against a real
+station: the plot's scale, the spacing of the figures, whether the
+caption reads at the default size. That is the author's eye on a live
+stream, and it is what this step is waiting on.
+
+*Two traps in the harness, not the program, both now in the gotcha log:*
+this host enumerates windows on a different desktop, so `FindWindow`
+returns zero for a class `GetClassName` reads straight off the live
+handle; and inside a callback used as a delegate, PowerShell's
+`Write-Output` becomes the delegate's **return value**, so the lines
+never appear and the enumeration stops on the first window. Both looked
+exactly like "the window was never created".
+
 ### P7 — the paid Android edition  *(not in this branch: after pro is in production, and after the listing decision)*
 
 A `Panel` in pro's `Registry.kt`, as tier 2 on the phone already is,

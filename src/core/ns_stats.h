@@ -260,6 +260,10 @@ typedef struct {
                                    *   phase rates: MSM4, MSM6, legacy   */
     double   selfpos_speed_mms;   /**< speed, millimetres per second     */
     double   selfpos_drift_ms;    /**< receiver clock drift, m/s         */
+    double   selfpos_rate_rms_ms; /**< post-fit phase-rate residual RMS,
+                                   *   m/s -- what the *velocity* was
+                                   *   measured to, which the code
+                                   *   residual above does not say       */
 
     /* ── Stream clock ─────────────────────────────────────────────────
      * How much stream has been observed, as the *data* measures it:

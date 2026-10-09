@@ -42,7 +42,7 @@
 | `design/work-items/pro-to-play.md` | Anything in the Play Console, for either edition | Pro's store rollout, and every console mechanic that cost a step: price and regions, licence testing as the tester sees it, reviewer credentials and where the form lives |
 | `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
-| `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§15 are the check, the stability window and threshold loading, as built |
+| `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§16 are the check, the stability window, threshold loading and self-position, as built |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
@@ -230,8 +230,9 @@ Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md).
   caller would send (synthetic ephemerides sharing one `af1`, so a
   removed clock-drift term was common-mode and invisible, 2026-10-09;
   a snapshot that politely blanked `selfpos_speed_mms`, so a removed
-  `has_vel` gate was never consulted, 2026-10-09) — promoted from
-  gotcha-log 2026-10-09 to Active Decisions below.
+  `has_vel` gate was never consulted, 2026-10-09; the same mistake again
+  in the snapshot serialiser's own test hours later, 2026-10-09) —
+  promoted from gotcha-log 2026-10-09 to Active Decisions below.
 
 ## Key File Paths
 
@@ -280,15 +281,20 @@ Supplementing CLAUDE.md's list with paths found during work:
 ## Active Decisions
 
 - **A falsification that stays green accuses the test, not the code.**
-  Both times it has happened the input was too cooperative to reach the
-  defence: synthetic ephemerides sharing one `af1` made a deleted
+  Three times now the input was too cooperative to reach the defence:
+  synthetic ephemerides sharing one `af1` made a deleted
   satellite-clock-drift term common-mode, absorbed exactly by the
   receiver's clock unknown; a snapshot that blanked `selfpos_speed_mms`
   beside `has_vel = false` meant a deleted `has_vel` gate was never
-  consulted, because the sentinel rejected the sample first (both
-  2026-10-09, `design/work-items/station-self-position.md` P4 and P5).
-  **Feed a test the input its defence exists for** — wrong where it
-  should be wrong, different where uniformity would hide the fault.
+  consulted, because the sentinel rejected the sample first; and then,
+  hours after writing this entry, a snapshot left at its `NS_UNSET`
+  initialisers hid a deleted status gate in the snapshot serialiser —
+  **knowing the pattern did not stop it; running the falsification
+  did** (all 2026-10-09, `design/work-items/station-self-position.md`
+  P4-P6). **Feed a test the input its defence exists for** — wrong where
+  it should be wrong, stale where a caller would have blanked it,
+  different where uniformity would hide the fault. And **falsify every
+  new check by name**, because that is what catches this.
 - **A flag's lifetime must match the thing it describes** — and a
   record of a run outlives the screen that draws it. Three faces of one
   rule, all paid for: run-scoped accumulators in composables lost a
