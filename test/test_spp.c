@@ -80,7 +80,11 @@ static SvEphemeris eph_at(int prn, double m0, double omega0)
     e.sqrt_a = 5153.65;  e.e = 0.004;  e.i0 = 0.9617;
     e.omega0 = omega0;   e.omega = 0.3;  e.m0 = m0;
     e.af0 = 1.0e-4 + prn * 1.0e-6;   /* each satellite its own clock */
-    e.af1 = 2.0e-12;
+    /* Its own *drift* too, and that matters: with one af1 shared by
+     * every satellite, a solver that forgot the satellite clock drift
+     * entirely still passed, because a common term is absorbed by the
+     * receiver's own drift unknown. Only a spread exposes it. */
+    e.af1 = 2.0e-12 + prn * 3.0e-13;
     e.health = 0;  e.valid = true;
     return e;
 }
@@ -251,6 +255,143 @@ static void case_survives_a_bad_receiver_clock(void)
           "clock bias %.4f m, expected %.3f", s.clock_bias_m, bias);
 }
 
+/**
+ * @brief Build an epoch carrying phase rates as well as ranges.
+ *
+ * The rate a receiver moving at @p vrx would measure:
+ * (v_sat - v_rx) . u  -  c dts/dt  +  c dtr/dt.
+ */
+static int build_epoch_rates(NsObsEpoch *ep, const double rx[3],
+                             const double vrx[3], double drift_ms)
+{
+    double lat, lon, alt;
+    ecef_to_geodetic(rx[0], rx[1], rx[2], 0.0, &lat, &lon, &alt);
+
+    ns_obs_reset(ep, 0);
+    int n = 0;
+
+    for (int prn = 1; prn <= 10; prn++) {
+        const SvEphemeris *e = sv_eph_get(1, prn);
+        if (!e) continue;
+
+        double flight = 0.075, rho = 0.0;
+        SvState st; memset(&st, 0, sizeof st);
+        for (int it = 0; it < 3; it++) {
+            if (!sv_state_at(e, WEEK, TOW - flight, &st)) break;
+            double p[3] = { st.pos[0], st.pos[1], st.pos[2] };
+            sv_state_derotate(p, flight, 1);
+            rho = sqrt((p[0]-rx[0])*(p[0]-rx[0]) + (p[1]-rx[1])*(p[1]-rx[1])
+                     + (p[2]-rx[2])*(p[2]-rx[2]));
+            flight = rho / C_M_S;
+            st.pos[0] = p[0]; st.pos[1] = p[1]; st.pos[2] = p[2];
+        }
+        if (rho <= 0.0) continue;
+
+        double az, el;
+        azel_from_ecef(rx[0], rx[1], rx[2], st.pos[0], st.pos[1], st.pos[2],
+                       &az, &el);
+        if (el < 15.0) continue;
+
+        const double u[3] = { (st.pos[0]-rx[0]) / rho,
+                              (st.pos[1]-rx[1]) / rho,
+                              (st.pos[2]-rx[2]) / rho };
+        const double rel = (st.vel[0] - vrx[0]) * u[0]
+                         + (st.vel[1] - vrx[1]) * u[1]
+                         + (st.vel[2] - vrx[2]) * u[2];
+        const double rate = rel - C_M_S * st.clock_rate + drift_ms;
+
+        const double p_if = rho - C_M_S * st.clock_s
+                          + tropo(el * M_PI / 180.0, alt);
+
+        NsObsCell c;
+        memset(&c, 0, sizeof c);
+        c.gnss_id = 1; c.prn = (uint8_t)prn;
+        c.flags = NS_OBS_HAS_PHASE | NS_OBS_HAS_RATE;
+        c.pseudorange_m = p_if;
+        c.rate_ms = rate;
+        c.sig_id = SIG_L1; ns_obs_add(ep, &c);
+        c.sig_id = SIG_L2; ns_obs_add(ep, &c);
+        n++;
+    }
+    return n;
+}
+
+/** @brief A station that is standing still must read zero. */
+static void case_static_reads_zero(void)
+{
+    double rx[3];
+    geodetic_to_ecef(52.0, 6.0, 50.0, &rx[0], &rx[1], &rx[2]);
+    const double still[3] = { 0.0, 0.0, 0.0 };
+
+    NsObsEpoch ep;
+    if (build_epoch_rates(&ep, rx, still, 0.0) < 4) return;
+
+    SppSolution s;
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &s) == SPP_OK, "static solve failed");
+    if (s.status != SPP_OK) return;
+
+    CHECK(s.has_velocity, "a stream carrying rates must yield a velocity");
+    const double speed = sqrt(s.vel_ecef[0]*s.vel_ecef[0]
+                            + s.vel_ecef[1]*s.vel_ecef[1]
+                            + s.vel_ecef[2]*s.vel_ecef[2]);
+    printf("static: %.4f mm/s, drift %.4f m/s, rms %.6f, %d rates\n",
+           speed * 1000.0, s.clock_drift_ms, s.rate_rms_ms, s.n_rate_used);
+
+    CHECK(speed < 0.001, "a still antenna reads %.4f mm/s", speed * 1000.0);
+    CHECK(fabs(s.clock_drift_ms) < 0.001,
+          "a steady clock reads %.6f m/s of drift", s.clock_drift_ms);
+}
+
+/** @brief An antenna that *is* moving must be recovered, not flattened. */
+static void case_moving_is_seen(void)
+{
+    double rx[3];
+    geodetic_to_ecef(52.0, 6.0, 50.0, &rx[0], &rx[1], &rx[2]);
+    /* 12 mm/s east, the scale at which a mast leaning would show. */
+    double lat, lon, alt;
+    ecef_to_geodetic(rx[0], rx[1], rx[2], 0.0, &lat, &lon, &alt);
+    const double la = lat * M_PI / 180.0, lo = lon * M_PI / 180.0;
+    const double east[3] = { -sin(lo), cos(lo), 0.0 };
+    const double vrx[3] = { 0.012 * east[0], 0.012 * east[1], 0.012 * east[2] };
+    (void)la;
+
+    NsObsEpoch ep;
+    if (build_epoch_rates(&ep, rx, vrx, 2.5) < 4) return;
+
+    SppSolution s;
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &s) == SPP_OK, "moving solve failed");
+    if (s.status != SPP_OK || !s.has_velocity) return;
+
+    printf("moving: ENU %.4f %.4f %.4f mm/s, drift %.4f m/s\n",
+           s.vel_enu[0]*1000.0, s.vel_enu[1]*1000.0, s.vel_enu[2]*1000.0,
+           s.clock_drift_ms);
+
+    CHECK(fabs(s.vel_enu[0] - 0.012) < 0.0005,
+          "east velocity %.4f mm/s, expected 12.0", s.vel_enu[0] * 1000.0);
+    CHECK(fabs(s.vel_enu[1]) < 0.0005 && fabs(s.vel_enu[2]) < 0.0005,
+          "north/up should be still, got %.4f %.4f mm/s",
+          s.vel_enu[1]*1000.0, s.vel_enu[2]*1000.0);
+    CHECK(fabs(s.clock_drift_ms - 2.5) < 0.001,
+          "clock drift %.5f m/s, expected 2.5", s.clock_drift_ms);
+}
+
+/** @brief A stream without rates must say so, not report standing still. */
+static void case_no_rates_is_not_zero(void)
+{
+    double rx[3];
+    geodetic_to_ecef(52.0, 6.0, 50.0, &rx[0], &rx[1], &rx[2]);
+
+    NsObsEpoch ep;
+    int prns[16];
+    if (build_epoch(&ep, rx, 0.0, prns, 16) < 4) return;   /* no HAS_RATE */
+
+    SppSolution s;
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &s) == SPP_OK, "solve failed");
+    CHECK(!s.has_velocity,
+          "MSM4-style data has no rates; a velocity must not be invented");
+    CHECK(s.n_rate_used == 0, "used %d rates that do not exist", s.n_rate_used);
+}
+
 /** @brief What must be refused, and named when refused. */
 static void case_refusals(void)
 {
@@ -320,6 +461,9 @@ int main(void)
     case_recovers_the_truth();
     case_converges_from_nothing();
     case_survives_a_bad_receiver_clock();
+    case_static_reads_zero();
+    case_moving_is_seen();
+    case_no_rates_is_not_zero();
     case_refusals();
 
     if (failures) {

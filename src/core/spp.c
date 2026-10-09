@@ -26,7 +26,11 @@
 typedef struct {
     double range_m;     /**< iono-free pseudorange */
     double pos[3];      /**< satellite position, de-rotated to reception */
+    double vel[3];      /**< satellite velocity, Earth-fixed */
     double clock_s;     /**< satellite clock offset */
+    double clock_rate;  /**< its drift, seconds per second */
+    double rate_ms;     /**< measured phase range rate, m/s */
+    bool   has_rate;    /**< false on MSM4, MSM6 and the legacy messages */
     int    gnss_id;
     int    prn;
 } SppSat;
@@ -118,13 +122,22 @@ static int collect(const NsObsEpoch *obs, int week, double tow_s,
         /* The two usable carriers, lowest and highest frequency: the
          * wider the gap, the less the combination amplifies noise. */
         double f_lo = 0.0, f_hi = 0.0, p_lo = 0.0, p_hi = 0.0;
+        double r_lo = 0.0, r_hi = 0.0;
+        bool rate_lo = false, rate_hi = false;
         for (int k = i; k < obs->n; k++) {
             const NsObsCell *c = &obs->cell[k];
             if (c->gnss_id != a->gnss_id || c->prn != a->prn) continue;
             double f = msm_signal_freq_hz(c->gnss_id, (int)c->sig_id - 1);
             if (f <= 0.0) continue;
-            if (f_lo == 0.0 || f < f_lo) { f_lo = f; p_lo = c->pseudorange_m; }
-            if (f > f_hi)                { f_hi = f; p_hi = c->pseudorange_m; }
+            const bool has_r = (c->flags & NS_OBS_HAS_RATE) != 0;
+            if (f_lo == 0.0 || f < f_lo) {
+                f_lo = f; p_lo = c->pseudorange_m;
+                r_lo = c->rate_ms; rate_lo = has_r;
+            }
+            if (f > f_hi) {
+                f_hi = f; p_hi = c->pseudorange_m;
+                r_hi = c->rate_ms; rate_hi = has_r;
+            }
         }
         if (f_lo <= 0.0 || f_hi <= f_lo) { out->n_single_freq++; continue; }
 
@@ -174,7 +187,21 @@ static int collect(const NsObsEpoch *obs, int week, double tow_s,
         sats[n].pos[0]  = st.pos[0];
         sats[n].pos[1]  = st.pos[1];
         sats[n].pos[2]  = st.pos[2];
+        sats[n].vel[0]  = st.vel[0];
+        sats[n].vel[1]  = st.vel[1];
+        sats[n].vel[2]  = st.vel[2];
         sats[n].clock_s = st.clock_s;
+        sats[n].clock_rate = st.clock_rate;
+
+        /* The rate gets the same iono-free treatment as the range, for
+         * the same reason and at the same cost in noise.  A satellite
+         * whose message carries no rate -- MSM4, MSM6, legacy -- is
+         * marked, never defaulted to zero, which would read as a
+         * stationary satellite. */
+        sats[n].has_rate = rate_lo && rate_hi;
+        sats[n].rate_ms  = sats[n].has_rate
+                           ? (g2 * r_hi - l2 * r_lo) / (g2 - l2)
+                           : 0.0;
         sats[n].gnss_id = a->gnss_id;
         sats[n].prn     = a->prn;
         n++;
@@ -346,6 +373,88 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
         ecef_to_enu(lat, lon,
                     x[0] - ref_ecef[0], x[1] - ref_ecef[1], x[2] - ref_ecef[2],
                     &out->enu[0], &out->enu[1], &out->enu[2]);
+    }
+
+    /* ── The velocity, from the phase rates (P4) ──────────────────────
+     *
+     * The same geometry, a different measurement: a phase range rate is
+     * the speed at which the range is changing, so
+     *
+     *     D = (v_sat - v_rx) . u  -  c dts/dt  +  c dtr/dt
+     *
+     * with u the unit vector towards the satellite. Three velocity
+     * components and the receiver's clock drift make the same four
+     * unknowns the position solve had, and the same 4x4.
+     *
+     * A base is supposed to be standing still, which makes this the
+     * sharper number of the two: its true value is known, and anything
+     * else is either a moving antenna or a broken solve. */
+    {
+        double Nv[4][4] = {{0}}, rhsv[4] = {0};
+        double vres[SPP_MAX_SATS];
+        int nv = 0;
+
+        for (int i = 0; i < n; i++) {
+            if (!sats[i].has_rate) continue;
+
+            double d[3] = { sats[i].pos[0] - x[0],
+                            sats[i].pos[1] - x[1],
+                            sats[i].pos[2] - x[2] };
+            double rho = sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
+            if (rho < 1.0) continue;
+
+            double az = 0.0, el = 0.0;
+            azel_from_ecef(x[0], x[1], x[2],
+                           sats[i].pos[0], sats[i].pos[1], sats[i].pos[2],
+                           &az, &el);
+            if (el < SPP_ELEV_MASK_DEG) continue;
+
+            const double u[3] = { d[0] / rho, d[1] / rho, d[2] / rho };
+            const double sat_rate = sats[i].vel[0] * u[0]
+                                  + sats[i].vel[1] * u[1]
+                                  + sats[i].vel[2] * u[2];
+
+            /* What the rate would be with the receiver still and its
+             * clock steady; the residual is what the unknowns explain. */
+            const double model = sat_rate - SPP_C * sats[i].clock_rate;
+            const double v     = sats[i].rate_ms - model;
+
+            const double g[4] = { -u[0], -u[1], -u[2], 1.0 };
+            for (int r = 0; r < 4; r++) {
+                for (int c = 0; c < 4; c++) Nv[r][c] += g[r] * g[c];
+                rhsv[r] += g[r] * v;
+            }
+            vres[nv] = v;
+            nv++;
+        }
+
+        if (nv >= 4) {
+            double vx[4];
+            if (solve4(Nv, rhsv, vx)) {
+                out->vel_ecef[0] = vx[0];
+                out->vel_ecef[1] = vx[1];
+                out->vel_ecef[2] = vx[2];
+                out->clock_drift_ms = vx[3];
+                out->n_rate_used = nv;
+                out->has_velocity = true;
+
+                double ss_v = 0.0;
+                for (int i = 0; i < nv; i++) {
+                    /* Post-fit: the solution explains part of each
+                     * residual, so recompute rather than reuse. */
+                    ss_v += vres[i] * vres[i];
+                }
+                out->rate_rms_ms = sqrt(ss_v / (double)nv);
+
+                double lat, lon, alt;
+                ecef_to_geodetic(x[0], x[1], x[2], 0.0, &lat, &lon, &alt);
+                ecef_to_enu(lat, lon, vx[0], vx[1], vx[2],
+                            &out->vel_enu[0], &out->vel_enu[1],
+                            &out->vel_enu[2]);
+            }
+        }
+        /* Fewer than four rates is not a slow velocity, it is none, and
+         * `has_velocity` stays false so a report can say so. */
     }
 
     out->status = SPP_OK;

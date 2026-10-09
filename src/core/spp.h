@@ -64,6 +64,22 @@ typedef struct {
     int       n_single_freq; /**< dropped: only one usable carrier */
     int       n_low_elev;    /**< dropped: below the elevation mask */
     SppStatus status;
+
+    /* The velocity half (P4).  A station is supposed to be standing
+     * still, so this is the sharper of the two numbers: the position's
+     * offset is dominated by the solution's own error, while the
+     * velocity has a known true value of zero and anything else is a
+     * finding. */
+    bool      has_velocity;  /**< false when the stream carries no phase
+                                  rates at all -- MSM4, MSM6 and the
+                                  legacy messages do not, and a velocity
+                                  of zero must never be invented for
+                                  them */
+    double    vel_ecef[3];   /**< metres per second, Earth-fixed */
+    double    vel_enu[3];    /**< east, north, up */
+    double    clock_drift_ms;/**< receiver clock drift, metres per second */
+    double    rate_rms_ms;   /**< RMS of the post-fit rate residuals */
+    int       n_rate_used;   /**< satellites carrying a usable rate */
 } SppSolution;
 
 /** Satellites below this are more troposphere than signal. */

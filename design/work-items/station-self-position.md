@@ -339,7 +339,7 @@ against `rnx2rtkp` on a **real capture**. Closure proves the solver
 inverts its own model; only real data proves the model. RTKLIB is
 installed and `docs/RUNBOOK.md` carries the route.
 
-### P4 — the velocity solve
+### P4 — the velocity solve  *(done 2026-10-09)*
 
 Phase range rate against satellite velocity, receiver clock drift as
 the fourth unknown, the same weighting.
@@ -348,6 +348,31 @@ the fourth unknown, the same weighting.
 threshold for "zero" is derived from measured scatter rather than
 chosen. Cross-checked against `rnx2rtkp`'s Doppler velocity on the same
 capture.
+
+**Built 2026-10-09**, inside `spp_solve` rather than beside it: the
+position solve already holds the geometry and the satellite states, and
+a second entry point would have recomputed both. The measurement is the
+iono-free combination of the phase rates, the model is
+`(v_sat − v_rx)·u − c·dts/dt + c·dtr/dt`, and the unknowns are the three
+velocity components and the receiver's clock drift — the same 4×4 the
+position uses.
+
+*Checked by closure, both ways.* A still antenna reads **0.0000 mm/s**
+with zero drift; an antenna moving 12 mm/s east is recovered as
+**12.0000 mm/s east, 0.0000 north and up**, with its 2.5 m/s clock
+drift. And a stream whose messages carry no rates — MSM4, MSM6, legacy
+— yields `has_velocity = false` rather than a velocity of zero, which
+is the failure mode that would read as *the antenna is perfectly
+still*.
+
+**A falsification found the test weak before it found the code wrong.**
+Removing the satellite clock-drift term from the model changed nothing:
+every synthetic ephemeris shared one `af1`, so the error was common to
+all satellites and the receiver's own drift unknown absorbed it
+exactly. Giving each satellite its own `af1` makes the same
+falsification fail loudly — 1.0 mm/s of phantom motion. **A test whose
+inputs are too uniform cannot see a common-mode mistake**, and
+common-mode is precisely what a clock unknown hides.
 
 ### P5 — into the report
 
