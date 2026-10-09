@@ -55,6 +55,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "net/ntrip_handler.h"
+#include "core/ns_obs.h"      /* NsObsCell, filled by msm_extract_obs */
 
 #ifdef __cplusplus
 extern "C" {
@@ -190,6 +191,38 @@ int msm_extract_cnr(const unsigned char *payload, int payload_len,
                     int msg_type,
                     int *prns_out, float *cnr_out, int max_prns,
                     int *gnss_id_out);
+
+/**
+ * @brief Extract the observables of one MSM frame: range, phase, rate.
+ *
+ * The sibling of @ref msm_extract_cnr, reading the whole cell rather
+ * than its C/N0, so that something can solve with it
+ * (`design/work-items/station-self-position.md` P1).  The pseudorange is
+ * the satellite's rough range **combined with** the cell's fine part,
+ * because the fine part alone is a plausible number that is wrong by the
+ * distance to the satellite.
+ *
+ * What a message cannot give is marked absent, never defaulted: MSM4 and
+ * MSM6 carry no phase rate, so their cells lack @ref NS_OBS_HAS_RATE and
+ * no velocity may be formed from them.  A cell whose pseudorange field
+ * holds the invalid pattern is skipped entirely; one whose phase is
+ * invalid is kept without @ref NS_OBS_HAS_PHASE.
+ *
+ * @param payload         RTCM payload (starting at the message-number bit).
+ * @param payload_len     Payload length in bytes.
+ * @param msg_type        MSM4, 5, 6 or 7. MSM1-3 return 0.
+ * @param out             Output cells.
+ * @param max_cells       Capacity of @p out.
+ * @param gnss_id_out     [out, optional] GNSS ID (1=GPS, 2=GLONASS, …).
+ * @param cells_total_out [out, optional] Cells the message holds, which
+ *                        exceeds the return value when @p max_cells was
+ *                        reached — the caller's only way to know it lost
+ *                        some.
+ * @return Cells written.
+ */
+int msm_extract_obs(const unsigned char *payload, int payload_len,
+                    int msg_type, NsObsCell *out, int max_cells,
+                    int *gnss_id_out, int *cells_total_out);
 
 /**
  * @brief Extract satellites and C/N0 from a legacy observation message.
