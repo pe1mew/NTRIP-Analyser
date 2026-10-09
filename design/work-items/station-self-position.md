@@ -1,0 +1,227 @@
+# The station's own position — a solution computed from the station's own data
+
+Two panels on Onocoy's station dashboard prompted this: **antenna
+position** as a north/east/up offset, and **antenna velocity** in
+millimetres per second, both with a satellite count beside them
+(`design/kpi-candidates.md`, *Prior art*, 2026-10-02). The author wants
+them, **first in the Windows GUI, then in the paid Android edition**.
+
+This item specifies what they are, what it costs to compute them
+honestly, and the one decision that has to be taken before the second
+half can ship.
+
+## What these two numbers actually measure
+
+Onocoy's example reads **N 1.26, E 0.90, U 0.13 m** against a station
+whose position is known to millimetres. That is not an antenna that
+moved a metre. It is the **error of a single-point solution computed
+from broadcast ephemeris**, which is metre-level by construction. The
+information is in the **scatter and the drift over time**, never in the
+absolute offset of one epoch.
+
+The velocity panel is the sharper instrument. A static base must read
+zero; the 0.0 / −0.1 / 0.4 mm/s shown is the noise floor of the solve.
+A sustained non-zero reading means an antenna that is moving, or a
+solution that is broken — and either is worth knowing.
+
+So the metric this item adds is: **how well does this station's own
+data place itself, and does it sit still?**
+
+**It does not duplicate the ARP checks.** KPI 3, the sourcetable-versus
+-ARP comparison and pro's reference-position watch all catch *a station
+claiming a position it is not at*. This catches the complementary
+fault: *an antenna that moved while the station kept broadcasting the
+coordinates it was surveyed at*. Neither sees the other's failure.
+
+## The gate: it contradicts a published sentence
+
+Both Play listings say, in text that is live for free and in review for
+pro:
+
+> It does not steer a rover and it does not compute a position.
+
+Computing a position is precisely what this item does. The sentence
+would have to change, deliberately, on both listings — and
+`docs/base-declaration.md` separately chooses to send RINEX to
+**CSRS-PPP** rather than solve in-house, which stays the right answer
+for *surveying a base*. This item does not touch that: a metre-level
+broadcast solution is a quality metric, not a coordinate.
+
+**Nothing here may change either listing while pro is in review.** Pro's
+fortnight ends about 2026-10-12 (`pro-to-play.md` S4).
+
+There is an alternative worth weighing, in *Open* below: the desktop
+programs carry no store listing at all.
+
+## The decisions this plan adds (open until the author confirms)
+
+1. **Static stations only.** One receiver, no rover, no baseline, no
+   ambiguity resolution. The solve answers a question about a base.
+2. **Broadcast ephemeris only** — no precise products, no SSR, no
+   network. Expected accuracy is one to two metres horizontally, and
+   **the report says so beside the number**, so nobody reads the offset
+   as a survey result.
+3. **Dual-frequency, iono-free, or nothing.** A single-frequency
+   station gets an explicit *not computable* rather than a number
+   biased by tens of metres of ionosphere. Tier 2 already has the
+   vocabulary for this: INSUFFICIENT EVIDENCE is a real verdict.
+4. **Velocity from the phase range rate** already decoded in MSM7,
+   not from time-differenced carrier phase. The data is there; the
+   simpler estimator is the one that can be checked.
+5. **Thresholds in the core**, beside `kpi.h`, never in a frontend —
+   the project's standing rule, and this item is no exception.
+6. **The reference for north/east/up is the broadcast ARP** (1005/1006),
+   falling back to the sourcetable position, and **the report states
+   which was used**. An offset against an unstated reference is a
+   rumour.
+7. **A tier-2 monitor metric, not a ninth KPI.** It needs minutes to
+   hours of evidence, so it does not join the ninety-second check and
+   **the "eight checks" count is untouched** — the constraint
+   `kpi-candidates.md` is firmest about.
+
+## What already exists, so the estimate is honest
+
+- **The observables are decoded.** The MSM7 path reads rough range,
+  fine pseudorange, fine phase and **fine phase rate**
+  (`src/core/rtcm3x_parser.c`). They are parsed and then dropped.
+- **Orbits are solved for already.** `SvEphemeris` carries the whole
+  Keplerian set *and* `af0/af1/af2`; `sv_orbit.c` propagates GPS and
+  Galileo by Kepler and GLONASS by numerical integration, for the sky
+  plot.
+- **The geometry is there**: `ecef_to_geodetic`, `geodetic_to_ecef`,
+  `ecef_to_enu`, `azel_from_ecef`.
+- **Capture and replay** exist, and with them the property that makes
+  any of this testable offline.
+- **Tier 2 exists** — `src/core/station_report.c`, the CLI's `--report`,
+  the daemon's `<mountpoint>.report.json`, the GUI's Stability window.
+
+What is missing: retention of the observables, satellite clock and
+group-delay handling, a troposphere model, Earth-rotation correction,
+two least-squares solves, the report fields, and the two frontends.
+
+## Steps
+
+### P1 — the observables survive the epoch
+
+Phase 5 of `measurement-tiers.md`, deferred there by decision and
+unblocked here. A bounded per-epoch observation set owned by the
+session: satellite, signal, pseudorange, carrier phase, phase rate,
+lock, C/N0. Bounded by construction — one epoch, not a history.
+
+**Verify.** The existing suite green unchanged; a capture replays to a
+byte-identical report; memory per epoch measured and stated, not
+estimated.
+
+### P2 — satellite position, velocity and clock at transmit time
+
+Signal transmit time from the pseudorange, satellite clock from
+`af0/af1/af2` with the relativistic term, group delay applied as the
+chosen combination requires, Earth rotation during flight. Velocity by
+differentiating the propagator — numerically, at ±0.5 s, unless the
+analytic form proves cheaper.
+
+**Verify.** Satellite positions compared against RTKLIB's for the same
+epoch and the same navigation data, with a stated tolerance; a sanity
+assertion on orbital radius and speed per constellation. This step is
+checkable on its own, and it is the one everything downstream inherits.
+
+### P3 — the position solve
+
+Iono-free combination, Saastamoinen troposphere with a standard
+atmosphere, elevation weighting, least squares over the epoch, with
+the receiver clock as the fourth unknown. Output: the ECEF position,
+the north/east/up offset against the reference of decision 6, the
+number of satellites used, and the **residual RMS of code and of
+phase**.
+
+Those last two are what Onocoy labels *code RMS* and *phase RMS*. The
+report must say they are **solve residuals**, because the same words
+mean the multipath combination in `kpi-candidates.md` §4. One label,
+two quantities, and this is where they would be confused.
+
+**Verify.** The same capture converted with `convbin` and solved by
+RTKLIB's `rnx2rtkp` in single-point mode; agreement within a stated
+tolerance, per epoch and in the mean. The route is proven —
+`cli-track.md` V5 already took a capture through `convbin` to a
+CSRS-PPP solution.
+
+### P4 — the velocity solve
+
+Phase range rate against satellite velocity, receiver clock drift as
+the fourth unknown, the same weighting.
+
+**Verify.** A static station reads zero within the noise, and the
+threshold for "zero" is derived from measured scatter rather than
+chosen. Cross-checked against `rnx2rtkp`'s Doppler velocity on the same
+capture.
+
+### P5 — into the report
+
+New tier-2 fields beside the six that exist, each carrying its window
+and its evidence count, as every tier-2 number already does. The
+verdict vocabulary stays tier 2's own: STABLE / DEGRADED / UNSTABLE /
+INSUFFICIENT EVIDENCE.
+
+**Verify.** `--report` on a replayed capture equals the live report from
+the same stream; `check_release.py` sees no claim it cannot verify.
+
+### P6 — the GUI
+
+The Stability window gains the section, or a window of its own — the
+author's call (`design/gui-design.md` §14 is the neighbour). Scatter
+over the run, not one epoch, because one epoch means nothing here.
+
+**Verify.** Started from Explorer, not a shell — the GUI's own rule.
+
+### P7 — the paid Android edition
+
+A `Panel` in pro's `Registry.kt`, as tier 2 on the phone already is.
+The solver is in the core, so the phone inherits it through the bridge
+rather than reimplementing anything. The six-hour foreground ceiling
+applies as it does to every tier-2 run.
+
+**Verify.** On hardware, against the desktop's result for the same
+station over the same window.
+
+### P8 — say so
+
+The listing sentence (see the gate), the wiki, the feature matrix, the
+changelog entry with the measurement behind the claim.
+
+## What this will not claim
+
+- Not a survey-grade coordinate, and not a replacement for the
+  CSRS-PPP route in `docs/base-declaration.md`.
+- Not a rover, not RTK, no ambiguity resolution, no baseline.
+- Not a ninth KPI, and not part of the ninety-second check.
+- Not available where the data cannot support it: single-frequency
+  stations get *not computable*, stated.
+
+## Out of scope, stated
+
+- Precise orbits and clocks, SSR streams, any network processing.
+- The free Android edition — this lands with tier 2, which is pro's.
+- Reproducing Onocoy's other panels; `kpi-candidates.md` sorts those.
+
+## Open, and worth the author's word before P1
+
+1. **The listing sentence, or desktop only?** The GUI, the CLI and the
+   daemon carry no store text. Shipping P1–P6 there needs no listing
+   change at all, and P7 can wait behind a deliberate decision once
+   pro is in production. This is the cheapest honest order, and it
+   matches "GUI first" anyway.
+2. **Single-frequency stations**: refuse, as decision 3 proposes, or
+   compute with a model and label the bias?
+3. **GUI placement**: a section in the Stability window, or its own
+   window?
+4. **The name.** "Antenna position" is Onocoy's. Here the thing being
+   measured is the station placing itself, so *station self-position*
+   is this file's working name, and the report's wording should be
+   decided before P5 rather than inherited from a screenshot.
+
+## Process
+
+On a branch, as the TLS rollout was: this adds a solver to the core
+that four programs link, and a half-landed state would strand them all.
+Step commits, each with its verification run, and the branch merges
+only when P1–P6 are green together.
