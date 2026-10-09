@@ -130,8 +130,8 @@
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.
-- **Nineteen C tests**, including the desktop-built bridge harness
-  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 19 -->
+- **Twenty C tests**, including the desktop-built bridge harness
+  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 20 -->
   (`test_bridge_vrs.c`) that drives the phone's own plumbing over a
   loopback socket with a synthetic clock.
 
@@ -280,6 +280,24 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **A test that starts below the wiring cannot see the wiring.** The
+  self-position solve was defined and never called for two whole steps
+  of its plan — the call site discarded the `obs_feed()` return value
+  that says an epoch closed — under a suite of nineteen green tests
+  that each began *below* `ntrip_session`: the solver with its own
+  epoch, the report with its own snapshots, the serialisers with
+  theirs. Every surface handled "nothing solved" correctly, so the
+  absence looked like a property of the station. Found by connecting a
+  real one. `test/test_selfpos_session.c` now replays RTCM through
+  `ns_open_file()` and asks only whether a closed epoch reaches the
+  solve. **When a feature spans layers, one test must cross all of
+  them.**
+- **`-Wall` is on our targets as of 2026-10-09** — the build until then
+  passed `-O3 -DNDEBUG -std=gnu99` and nothing else, so a static
+  function nobody called drew no warning and "the build is
+  warning-free" was measured with an instrument that asks nothing.
+  Check what the build asks before quoting it:
+  `grep C_FLAGS build/CMakeFiles/<target>.dir/flags.make`.
 - **A screen may only say what its evidence supports, and "not yet" is
   evidence of nothing.** Four times a window has stated a finding about
   a station that only described how long it had been watched: "fewest

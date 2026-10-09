@@ -83,8 +83,16 @@ static void TrayFillBase(NOTIFYICONDATA *nid, HWND hwnd)
  */
 static void TrayFormatTip(AppState *state, char *out, size_t cap)
 {
-    const char *mp = state->config.MOUNTPOINT[0] ? state->config.MOUNTPOINT
-                                                 : "no mountpoint";
+    /* The mountpoint is bounded explicitly rather than left to
+     * snprintf's own truncation: a 255-character mountpoint would
+     * otherwise push the satellite count and the rate -- the part that
+     * changes, and the reason the tooltip exists -- off the end of a
+     * 128-byte tip. Forty characters is longer than any mountpoint in
+     * any sourcetable this program has read. */
+    char mp[48];
+    snprintf(mp, sizeof(mp), "%.40s", state->config.MOUNTPOINT[0]
+                                      ? state->config.MOUNTPOINT
+                                      : "no mountpoint");
     if (!state->bWorkerRunning) {
         /* Name the mountpoint even when idle.  Running two analysers at
          * once is normal -- comparing a base against a reference, say --

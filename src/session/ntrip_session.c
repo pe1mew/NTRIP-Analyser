@@ -820,7 +820,15 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                                   msg_type, t_obs);
                     iono_feed(&s->iono, s->frame + 3, payload_len,
                               msg_type, t_obs);
-                    obs_feed(s, msg_type, payload_len, epoch, has_epoch);
+                    /* The observables are retained for one epoch, and
+                     * the epoch is solved the moment it closes -- while
+                     * the cells are still in hand.  Dropping this
+                     * return value is how the self-position feature
+                     * shipped unable to run at all: every surface
+                     * handled "nothing solved" correctly, so nothing
+                     * looked broken. */
+                    if (obs_feed(s, msg_type, payload_len, epoch, has_epoch))
+                        selfpos_solve(s, epoch);
 
                     /* The broadcast reference position.  These snapshot
                      * fields existed since the schema was written but

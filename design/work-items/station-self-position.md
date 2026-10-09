@@ -560,6 +560,57 @@ the dots, how a mean two metres off the reference looks when the scale
 steps up. That needs a station on the other end, and it is what this
 step is now waiting on.
 
+### P5/P6 — the feature was never called  *(found 2026-10-09, on a live station)*
+
+Connected to RFSEE01, the window read `GATHERING` after 170 s and 157
+snapshots: **0 epochs solved**, reason *"no observations in this
+epoch"*. That status is the field's **initial value**. `selfpos_solve()`
+was defined in `ntrip_session.c` and called from nowhere — the call site
+discarded the return value of `obs_feed()`, the one thing that says an
+epoch has closed. The entire feature was dead through P5 and P6.
+
+Three things had to line up for it to get this far:
+
+- **Every test of it starts below the session.** `test_spp` builds its
+  own epoch, `test_observables` its own payload, `test_station_report`
+  and `test_ns_stats` their own snapshots. Nineteen green tests, none
+  of which asked whether a closed epoch reaches the solver.
+- **Every surface handled "nothing solved" correctly** — null in the
+  JSON, a reason in the CLI, a reason in the window. The care each
+  surface took over absence is what made the absence look like a
+  property of the station.
+- **The build asked the compiler almost nothing**: `-O3 -DNDEBUG
+  -std=gnu99`, no `-Wall`, so an unused static function drew no
+  warning. The committed file compiled with `-Wall` names it in one
+  line.
+
+**Fixed, with the two defences that were missing.** `-Wall` on our own
+targets, not the vendored libraries; the codebase was clean under it
+except four `strncpy` truncations in `gui_thread.c` (the ephemeris
+side-stream could leave a caster name wearing the tail of the one it
+replaced) and a tray tooltip, all fixed. And
+`test/test_selfpos_session.c`, which replays RTCM through
+`ns_open_file()` — the same framing a caster feeds — and asserts that a
+closed epoch reaches the solve. It is **red on the shipped defect**
+(status stays `SPP_NO_EPOCH`), and its control is one bit away: the same
+frames with DF393 set, so the epoch never closes and the status must
+stay `SPP_NO_EPOCH`. Twenty tests now.
+
+*Verified live after the fix:* the CLI's `--report` against RFSEE01 moved
+from `no observations in this epoch` to **`observations without
+orbits`** — the solve now runs and says what it lacks.
+
+**Which leaves one gap, stated rather than fixed.** RFSEE01 streams
+MSM7 for six constellations and no ephemerides, so its orbits come from
+the configured side-stream — and the CLI opens that **only in `-S/--sky`
+mode**. In `-t --report` the self-position block can therefore never
+solve for a station that does not broadcast its own orbits. The GUI does
+not have this problem: it starts the ephemeris worker whenever
+`EPH_CASTER`/`EPH_MOUNTPOINT` are set, and the ephemeris cache is a
+process-wide store that `spp_solve()` reads. Wiring the side-stream (and
+`-R`) into the timed modes is a separate change, because it makes a mode
+that opened one connection open two.
+
 *Two traps in the harness, not the program, both now in the gotcha log:*
 this host enumerates windows on a different desktop, so `FindWindow`
 returns zero for a class `GetClassName` reads straight off the live
