@@ -1050,7 +1050,38 @@ being overwritten; neither survives the next repaint, and no figure is
 derived from the ring. Painting is double-buffered, because a cloud of
 several thousand dots redrawn every epoch flickers otherwise.
 
-### 16.5 Verified, and what was not
+### 16.5 Defects found by looking at it
+
+Four, from one screenshot of an empty window thirty-two seconds into a
+stream — and the first of them is §14.5's second entry again, in a new
+window, by the same author, a month later.
+
+- **A verdict from a clock, not from the station.** The banner read
+  **NOT COMPUTABLE** at 32 s, with *"no observations in this epoch"*
+  under it. Nothing had solved because nothing had had time to; the
+  only status that is a property of the *stream* is
+  `SPP_SINGLE_FREQ`, because a station sending one frequency will not
+  start sending two. There are now four states — solved, **gathering**,
+  **not computable**, and **not solved** once the window is long enough
+  that it should have — and the gathering text names what is being
+  waited for rather than a status that reads as a fault.
+- **Rings labelled for a scale nothing had set.** With no points the
+  radius chooser returns its smallest step, so the empty plot was
+  annotated *"0.125 m"* and *"0.25 m"* — a station appearing to hold to
+  a tenth of a metre before it had solved once. The labels now appear
+  with the points that justify them.
+- **Columns guessed, and clipped.** `190 / 90 / 210` px, which cut
+  *"What it means"* to *"What it mea…"* in its own heading and pushed
+  the notes under a horizontal scrollbar. §14.6 records this lesson from
+  this very document; **writing a lesson down did not transfer it.**
+  Widths are now measured from the longest string each column can hold,
+  the plot is capped so the figures keep theirs, and the default window
+  is 1000 px wide rather than 860.
+- **A caption written as one line and cut mid-word.** Now two lines
+  through `DrawText` with `DT_WORDBREAK | DT_END_ELLIPSIS`, so a narrow
+  window loses the end of a sentence visibly instead of silently.
+
+### 16.6 Verified, and what was not
 
 Started the way the rule requires — from a launcher with no console,
 never a shell — the window class registers, the window is created,
@@ -1058,10 +1089,21 @@ titled and visible, and a second **View → Self-position** raises it
 instead of making another. Checked by driving the running program with
 the same `WM_COMMAND` the menu item sends.
 
-What that cannot check is what the window *looks like* with a station on
-the other end: the plot's scale, the figures' spacing, whether the
-caption is readable at the default size. That is the author's eye on a
-live stream, and it is the step this section is waiting on.
+**And then looked at**, which is what found §16.5: `PrintWindow` into a
+bitmap, saved as a PNG and read. Worth keeping, because none of those
+four defects shows up in anything a build or a test can check — every
+one of them is a sentence or a width that is only wrong on screen.
+
+The harness must call `SetProcessDPIAware()` **first**. Without it
+Windows tells a DPI-unaware process that a 1000×620 window is 800×496
+at 125 % scaling, and the capture clips the right-hand edge and the
+bottom — which looks exactly like the layout bug it is not.
+
+What a capture of an idle window still cannot check is the **solved**
+state: the cloud's density, whether the ring labels sit clear of the
+dots, how a mean two metres off the reference looks when the scale
+jumps to the next step. That needs a station on the other end, and it
+is the step this section is waiting on.
 
 ---
 

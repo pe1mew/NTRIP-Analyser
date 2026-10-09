@@ -45,9 +45,14 @@
 #ifndef GUI_SELFPOS_WINDOW_H
 #define GUI_SELFPOS_WINDOW_H
 
-/* Default window size; also used by View > Reset window layout. */
-#define SELFPOS_WIN_DEF_W  860
-#define SELFPOS_WIN_DEF_H  560
+/* Default window size; also used by View > Reset window layout.
+ *
+ * Wide enough that the plot and three measured columns both fit without
+ * a horizontal scrollbar: the first default was 860 and the figures
+ * opened under one, with the last column's heading cut to
+ * "What it mea...". */
+#define SELFPOS_WIN_DEF_W  1000
+#define SELFPOS_WIN_DEF_H  620
 
 #include "gui_state.h"
 

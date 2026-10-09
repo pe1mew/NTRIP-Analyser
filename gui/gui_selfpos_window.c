@@ -31,7 +31,9 @@
 /* Height of the painted header above the plot and the figures. */
 #define SP_HEADER_H   86
 /* Height of the painted caption strip under the plot. */
-#define SP_CAPTION_H  22
+/* Two lines of caption: the legend needs a line of its own rather than
+ * being run on to the end of the first and cut. */
+#define SP_CAPTION_H  36
 #define SP_PAD        10
 
 #define SP_BG         RGB(255, 255, 255)
@@ -101,6 +103,143 @@ void SelfPosOnStats(AppState *state, const NsStatsSnapshot *s)
         PostMessage(state->hSelfPosWnd, WM_APP_SELFPOS_UPDATE, 0, 0);
 }
 
+/* The longest string each column can hold.  Named here so the widths
+ * measured when the list is built and the width reserved for it when
+ * the window is laid out cannot drift apart. */
+#define SP_WIDEST_FIGURE "Latest epoch: rate residual"
+#define SP_WIDEST_VALUE  "not computable"
+/* Forty characters, and both of these are exactly that long: the
+ * longest note a solved window writes, and the longest reason a stream
+ * that cannot be solved gives. Anything longer belongs in the header,
+ * which has the width for it. */
+#define SP_WIDEST_NOTE   "single-frequency station: not computable"
+
+/**
+ * @brief Width of @p s in the font @p hwnd actually draws with.
+ *
+ * Measured rather than guessed, which is the only way a column fits on
+ * a machine that is not the developer's.
+ */
+static int TextWidth(HWND hwnd, const char *s)
+{
+    SIZE sz = { 0, 0 };
+    HDC hdc = GetDC(hwnd);
+    if (!hdc) return 8 * (int)strlen(s);     /* a poor guess, but bounded */
+
+    HFONT f = (HFONT)SendMessage(hwnd, WM_GETFONT, 0, 0);
+    HFONT old = f ? (HFONT)SelectObject(hdc, f) : NULL;
+    GetTextExtentPoint32(hdc, s, (int)strlen(s), &sz);
+    if (old) SelectObject(hdc, old);
+    ReleaseDC(hwnd, hdc);
+    return sz.cx;
+}
+
+/** @brief A column wide enough for its heading and its longest value. */
+static int SpColWidth(HWND hLv, const char *header, const char *widest)
+{
+    const int a = TextWidth(hLv, header);
+    const int b = TextWidth(hLv, widest);
+    /* The list draws a margin either side, so a column exactly as wide
+     * as its content still shows an ellipsis. */
+    return (a > b ? a : b) + 24;
+}
+
+/* ── What this window is entitled to say ─────────────────────────────── */
+
+/**
+ * @brief Solved, still gathering, never going to, or tried and failed.
+ *
+ * The distinction is the whole difference between a fact about the
+ * station and a fact about the clock. Thirty seconds into a stream
+ * nothing has solved yet, and the first version of this window said
+ * **NOT COMPUTABLE** at it -- a verdict on the station, from a window
+ * too short to carry one. The Signal level and Ionosphere rows of the
+ * Stability window had each made exactly that mistake before, which is
+ * why they say "gathering" until there is evidence to judge on.
+ *
+ * `SPP_SINGLE_FREQ` is the one status that is a property of the stream
+ * rather than of how long we have watched it: a station sending one
+ * frequency will not start sending two. Everything else -- no epoch
+ * yet, no orbits yet, too few satellites, a solve that did not settle
+ * -- is ordinary at the start of a run and only becomes a finding once
+ * the window is long enough that it should have resolved.
+ */
+typedef enum {
+    SP_SOLVED,          /**< at least one epoch in this window solved   */
+    SP_GATHERING,       /**< too early to say anything                  */
+    SP_NOT_COMPUTABLE,  /**< single-frequency: it never will            */
+    SP_NOT_SOLVED       /**< long enough to have solved, and did not    */
+} SpState;
+
+static SpState SelfPosState(const AppState *state)
+{
+    const StationReport *r = &state->reportOut;
+
+    if (state->reportHave && r->sp_samples > 0) return SP_SOLVED;
+
+    /* A single-frequency stream is told apart at once: waiting longer
+     * cannot change it, and saying "gathering" would be a promise. */
+    if (state->reportHave && r->sp_last_status == SPP_SINGLE_FREQ)
+        return SP_NOT_COMPUTABLE;
+
+    if (state->reportHave && r->window_s >= SR_MIN_WINDOW_S)
+        return SP_NOT_SOLVED;
+
+    return SP_GATHERING;
+}
+
+/**
+ * @brief The same thing in a column's worth of words.
+ *
+ * The header has a window's width to explain itself in; the note column
+ * has about forty characters, measured from @ref SP_WIDEST_NOTE. Given
+ * the header's sentence it ellipsised it, which left the shortened
+ * half of an explanation sitting beside the whole one.
+ */
+static const char *SelfPosWhyShort(const AppState *state, SpState st)
+{
+    const StationReport *r = &state->reportOut;
+
+    if (st == SP_NOT_COMPUTABLE || st == SP_NOT_SOLVED)
+        return spp_status_text((SppStatus)r->sp_last_status);
+    if (!state->bWorkerRunning)
+        return "open a stream or replay a capture";
+    if (state->reportHave && r->sp_last_status == SPP_NO_EPHEMERIS)
+        return "waiting for orbits (ephemerides)";
+    if (state->reportHave && r->sp_last_status == SPP_TOO_FEW_SATS)
+        return "waiting for four usable satellites";
+    return "waiting for the first epoch to solve";
+}
+
+/** @brief The sentence under the banner: why there is nothing yet. */
+static const char *SelfPosWhy(const AppState *state, SpState st)
+{
+    const StationReport *r = &state->reportOut;
+
+    switch (st) {
+    case SP_SOLVED:
+        return "No verdict: no threshold for a station's own scatter has "
+               "been established from evidence";
+    case SP_NOT_COMPUTABLE:
+    case SP_NOT_SOLVED:
+        return spp_status_text((SppStatus)r->sp_last_status);
+    default:
+        break;
+    }
+
+    /* Gathering.  Say what is being waited for, and how long it takes,
+     * rather than naming a status a reader would read as a fault. */
+    if (!state->bWorkerRunning)
+        return "open a stream or replay a capture; this watches what it "
+               "carries";
+    if (state->reportHave && r->sp_last_status == SPP_NO_EPHEMERIS)
+        return "waiting for orbits: a station's own position needs the "
+               "ephemerides its stream or a RINEX file supplies";
+    if (state->reportHave && r->sp_last_status == SPP_TOO_FEW_SATS)
+        return "waiting for four usable satellites on two frequencies";
+    return "waiting for the first observation epoch to solve";
+}
+
 /* ── Figures ─────────────────────────────────────────────────────────── */
 
 static void SetRow(HWND hLv, int row, const char *name, const char *value,
@@ -136,7 +275,8 @@ static void RefreshRows(HWND hwnd, AppState *state)
 
     const StationReport *r  = &state->reportOut;
     const NsStatsSnapshot *s = state->haveStats ? &state->lastStats : NULL;
-    const BOOL solved_window = state->reportHave && r->sp_samples > 0;
+    const SpState st = SelfPosState(state);
+    const BOOL solved_window = (st == SP_SOLVED);
 
     int row = 0;
     char v[64], note[160];
@@ -173,15 +313,13 @@ static void RefreshRows(HWND hwnd, AppState *state)
                    "no phase-range rates in this stream (MSM4, MSM6, legacy)");
         }
     } else {
-        /* Nothing solved.  The reason, in SppStatus's own words, rather
+        /* Nothing solved.  Which of the three that is, and why, rather
          * than an empty window that leaves a reader guessing whether
          * the station is silent or the program is broken. */
-        SetRow(hLv, row++, "Position", "not computable",
-               state->reportHave
-                   ? spp_status_text((SppStatus)r->sp_last_status)
-                   : (state->bWorkerRunning
-                          ? "waiting for the first observation epoch"
-                          : "open a stream or replay a capture"));
+        SetRow(hLv, row++, "Position",
+               (st == SP_NOT_COMPUTABLE) ? "not computable"
+                                         : "gathering",
+               SelfPosWhyShort(state, st));
     }
 
     /* ── The latest epoch ──────────────────────────────────────────── */
@@ -212,14 +350,21 @@ static void RefreshRows(HWND hwnd, AppState *state)
 static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
 {
     const StationReport *r = &state->reportOut;
-    const BOOL solved = state->reportHave && r->sp_samples > 0;
+    const SpState st = SelfPosState(state);
+    const BOOL solved = (st == SP_SOLVED);
 
     /* No verdict colours here, and that is the point: this window has no
      * verdict to colour.  One neutral band for "solved", one for "not",
      * neither borrowing tier 2's green or red. */
     COLORREF bg = solved ? RGB(240, 244, 250) : RGB(245, 245, 245);
     COLORREF fg = solved ? RGB( 30,  60, 120) : RGB( 70,  70,  70);
-    const char *title = solved ? "SELF-POSITION" : "NOT COMPUTABLE";
+    const char *title;
+    switch (st) {
+    case SP_SOLVED:         title = "SELF-POSITION";  break;
+    case SP_NOT_COMPUTABLE: title = "NOT COMPUTABLE"; break;
+    case SP_NOT_SOLVED:     title = "NOT SOLVED";     break;
+    default:                title = "GATHERING";      break;
+    }
 
     HBRUSH br = CreateSolidBrush(bg);
     FillRect(hdc, rc, br);
@@ -244,30 +389,32 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
     old = (HFONT)SelectObject(hdc, small_f);
     SetTextColor(hdc, RGB(60, 60, 60));
 
-    char line[sizeof(state->config.NTRIP_CASTER) +
-              sizeof(state->config.MOUNTPOINT) + 160];
-    if (state->reportHave) {
+    /* "caster / mountpoint" -- unless there is no stream, when that
+     * formatting leaves a bare "/" on the line and says nothing. */
+    char who[sizeof(state->config.NTRIP_CASTER) +
+             sizeof(state->config.MOUNTPOINT) + 8];
+    if (state->config.NTRIP_CASTER[0] || state->config.MOUNTPOINT[0])
+        snprintf(who, sizeof(who), "%s / %s",
+                 state->config.NTRIP_CASTER, state->config.MOUNTPOINT);
+    else
+        snprintf(who, sizeof(who), "no stream open");
+
+    char line[sizeof(who) + 160];
+    if (state->reportHave)
         snprintf(line, sizeof(line),
-                 "%s / %s   %.0f s of stream, %d epoch(s) solved%s",
-                 state->config.NTRIP_CASTER, state->config.MOUNTPOINT,
+                 "%s   %.0f s of stream, %d epoch(s) solved%s", who,
                  r->window_s, r->sp_samples,
                  state->reportFromCapture ? "   (from a capture)" : "");
-    } else {
-        snprintf(line, sizeof(line), "%s / %s",
-                 state->config.NTRIP_CASTER, state->config.MOUNTPOINT);
-    }
+    else
+        snprintf(line, sizeof(line), "%s", who);
     TextOut(hdc, rc->left + 16, rc->top + 46, line, (int)strlen(line));
 
     /* The third line says what is missing rather than leaving a gap:
-     * either why nothing solved, or -- when it did -- that nothing here
-     * is graded, which a reader who has just come from the Stability
-     * window with its four verdicts will otherwise wonder about. */
-    const char *why =
-        solved ? "No verdict: no threshold for a station's own scatter has "
-                 "been established from evidence"
-               : (state->reportHave
-                      ? spp_status_text((SppStatus)r->sp_last_status)
-                      : "nothing measured yet");
+     * either why nothing has solved, or -- when something has -- that
+     * nothing here is graded, which a reader who has just come from the
+     * Stability window and its four verdicts will otherwise wonder
+     * about. */
+    const char *why = SelfPosWhy(state, st);
     SetTextColor(hdc, RGB(110, 110, 110));
     TextOut(hdc, rc->left + 16, rc->top + 64, why, (int)strlen(why));
 
@@ -356,20 +503,36 @@ static void PaintPlot(HDC hdc, const RECT *area, AppState *state)
     DeleteObject(grid);
 
     SetTextColor(hdc, SP_LABEL);
-    char lbl[48];
-    snprintf(lbl, sizeof(lbl), "%.4g m", radius);
-    TextOut(hdc, cx + half - 44, cy + 3, lbl, (int)strlen(lbl));
-    snprintf(lbl, sizeof(lbl), "%.4g m", radius / 2.0);
-    TextOut(hdc, cx + half / 2 - 34, cy + 3, lbl, (int)strlen(lbl));
+    /* Inside the frame, not on it: against the border the E was half a
+     * letter into the line. */
     TextOut(hdc, cx + 4, area->top + 4, "N", 1);
-    TextOut(hdc, area->right - 16, cy - 16, "E", 1);
+    TextOut(hdc, area->right - 20, cy - 18, "E", 1);
 
+    /* The rings are labelled only when points set the scale.  An empty
+     * plot was labelling its rings "0.125 m" and "0.25 m" -- the
+     * smallest step the chooser can return, which measured nothing and
+     * read as a station holding to a tenth of a metre. */
     if (n == 0) {
         const char *none = "no epoch has solved yet";
+        SIZE sz = { 0, 0 };
+        GetTextExtentPoint32(hdc, none, (int)strlen(none), &sz);
         SetTextColor(hdc, RGB(140, 140, 140));
-        TextOut(hdc, cx - 70, cy - 30, none, (int)strlen(none));
+        TextOut(hdc, cx - sz.cx / 2, cy - half / 2 - sz.cy,
+                none, (int)strlen(none));
         SelectObject(hdc, oldFont);
         return;
+    }
+
+    {
+        char lbl[48];
+        SIZE sz;
+        snprintf(lbl, sizeof(lbl), "%.4g m", radius);
+        GetTextExtentPoint32(hdc, lbl, (int)strlen(lbl), &sz);
+        TextOut(hdc, cx + half - sz.cx - 4, cy + 3, lbl, (int)strlen(lbl));
+        snprintf(lbl, sizeof(lbl), "%.4g m", radius / 2.0);
+        GetTextExtentPoint32(hdc, lbl, (int)strlen(lbl), &sz);
+        TextOut(hdc, cx + half / 2 - sz.cx - 4, cy + 3, lbl,
+                (int)strlen(lbl));
     }
 
     /* The points.  Two pixels each: at one epoch a second an hour is
@@ -424,26 +587,49 @@ static void PaintPlot(HDC hdc, const RECT *area, AppState *state)
 static void PaintCaption(HDC hdc, const RECT *rc, AppState *state)
 {
     const SelfPosRing *r = &state->selfpos;
-    FillRect(hdc, (RECT *)rc, GetSysColorBrush(COLOR_BTNFACE));
 
-    char line[200];
+    /* The page's own background, not a button face: a grey band under
+     * the plot reads as a toolbar nobody put anything in. */
+    HBRUSH bg = CreateSolidBrush(SP_BG);
+    FillRect(hdc, (RECT *)rc, bg);
+    DeleteObject(bg);
+
+    char line[256];
     double span = 0.0;
     if (r->count > 0) {
         const int start = (r->count < SELFPOS_CAP) ? 0 : r->head;
         span = (double)r->pts[(r->head + SELFPOS_CAP - 1) % SELFPOS_CAP].ts_rel
              - (double)r->pts[start].ts_rel;
     }
-    snprintf(line, sizeof(line),
-             "east/north about the broadcast reference -- %d point(s) over "
-             "%.0f s of stream; up is in the figures. Blue: the run.  "
-             "Orange: the latest epoch.  Red cross: where it centres.",
-             r->count, span);
+
+    /* Two lines, and the legend only once there is something to put a
+     * colour to.  Written as one paragraph it ran off the end of the
+     * plot and was cut mid-word, which is what a single TextOut does
+     * with more text than it has room for. */
+    if (r->count > 0)
+        snprintf(line, sizeof(line),
+                 "east/north about the broadcast reference -- %d point(s) "
+                 "over %.0f s of stream; up is in the figures\n"
+                 "blue: the run    orange: the latest epoch    "
+                 "red cross: where it centres",
+                 r->count, span);
+    else
+        snprintf(line, sizeof(line),
+                 "east/north about the broadcast reference; "
+                 "up is in the figures");
 
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, RGB(80, 80, 80));
     HFONT f = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     HFONT old = (HFONT)SelectObject(hdc, f);
-    TextOut(hdc, rc->left + 6, rc->top + 3, line, (int)strlen(line));
+    /* DrawText, not TextOut: it wraps at the plot's width and ends in
+     * an ellipsis if even that is not enough, so a narrow window loses
+     * the end of a sentence visibly rather than silently. */
+    RECT t = *rc;
+    t.left += 2;
+    DrawText(hdc, line, -1, &t,
+             DT_LEFT | DT_TOP | DT_WORDBREAK | DT_END_ELLIPSIS |
+             DT_NOPREFIX);
     SelectObject(hdc, old);
 }
 
@@ -465,6 +651,26 @@ static void PlotRect(HWND hwnd, RECT *out, int *list_x)
     int avail_h = h - SP_HEADER_H - SP_CAPTION_H - 2 * SP_PAD;
     int side = avail_h;
     if (side > w / 2) side = w / 2;
+
+    /* And no wider than leaves the figures room to be read.  Half the
+     * window sounds fair and is not: with three measured columns beside
+     * it the plot pushed the notes under a horizontal scrollbar, which
+     * is how the first build shipped "What it mea..." as a heading. The
+     * figures are the half that carries the numbers, so they get their
+     * width first and the plot takes what is left.
+     *
+     * The note column is measured here rather than read back from the
+     * control: LayoutChildren stretches it to fill, so reading it would
+     * feed the previous layout's answer into this one. */
+    HWND hLv = GetDlgItem(hwnd, IDC_SELFPOS_LIST);
+    if (hLv) {
+        int need = ListView_GetColumnWidth(hLv, 0)
+                 + ListView_GetColumnWidth(hLv, 1)
+                 + SpColWidth(hLv, "What it means", SP_WIDEST_NOTE)
+                 + GetSystemMetrics(SM_CXVSCROLL) + 8;
+        int left = w - need - 3 * SP_PAD;
+        if (side > left) side = left;
+    }
     if (side < 120) side = 120;
 
     out->left   = SP_PAD;
@@ -517,20 +723,33 @@ static LRESULT CALLBACK SelfPosWndProc(HWND hwnd, UINT msg,
         ListView_SetExtendedListViewStyle(hLv,
             LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
 
+        /* The font first, then the columns: a width measured before
+         * this would be measured in the stock font the control is born
+         * with rather than the one it draws in.  Same order, and the
+         * same reason, as the Stability window's verdict column. */
         HFONT f = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
         SendMessage(hLv, WM_SETFONT, (WPARAM)f, TRUE);
 
         /* Three columns, and deliberately no fourth: a Verdict column
-         * is what this window does not have. */
-        struct { const char *t; int w; } cols[] = {
-            { "Figure", 190 }, { "Value", 90 }, { "What it means", 210 },
+         * is what this window does not have.
+         *
+         * Widths are measured from the longest string each column can
+         * hold, never guessed -- the first guess clipped "What it
+         * means" in its own header and truncated every note beside it.
+         * §14.6 of design/gui-design.md records the same lesson from
+         * the Stability window; it did not transfer by being written
+         * down. */
+        struct { const char *t; const char *widest; } cols[] = {
+            { "Figure",        SP_WIDEST_FIGURE },
+            { "Value",         SP_WIDEST_VALUE  },
+            { "What it means", SP_WIDEST_NOTE   },
         };
         for (int i = 0; i < 3; i++) {
             LVCOLUMN c;
             ZeroMemory(&c, sizeof(c));
             c.mask    = LVCF_TEXT | LVCF_WIDTH;
             c.pszText = (char *)cols[i].t;
-            c.cx      = cols[i].w;
+            c.cx      = SpColWidth(hLv, cols[i].t, cols[i].widest);
             ListView_InsertColumn(hLv, i, &c);
         }
 

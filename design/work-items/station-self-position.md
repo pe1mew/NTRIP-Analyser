@@ -522,10 +522,43 @@ would read as a still antenna" and the solved-epoch case beside it.
 the class registers, the window is created, titled and visible, and a
 second **View → Self-position** raises it rather than making another —
 driven by the same `WM_COMMAND` the menu item sends. 19/19 tests, build
-warning-free. **What that cannot verify is how it looks** against a real
-station: the plot's scale, the spacing of the figures, whether the
-caption reads at the default size. That is the author's eye on a live
-stream, and it is what this step is waiting on.
+warning-free.
+
+**And then the author looked at it, and it was wrong in four ways** —
+none of which a build or a test can see, because each is a sentence or
+a width that is only wrong on screen. A screenshot of an empty window
+32 s into a stream showed **NOT COMPUTABLE** as its banner: a finding
+about the station, from a window far too short to carry one, and
+`gui-design.md` §14.5's second entry repeating itself in a new window a
+month later. With it: ring labels of "0.125 m" on a plot with no points
+(the radius chooser's smallest step, reading as a station holding to a
+tenth of a metre before it had solved once), a heading cut to "What it
+mea…" with the notes under a scrollbar (widths guessed at 190/90/210 px
+against §14.6, *Column widths are measured, not guessed*, in the very
+document this section was being added to), and a caption severed
+mid-word.
+
+Fixed: four states — solved, **gathering**, **not computable**, **not
+solved** — where `SPP_SINGLE_FREQ` is the only status that is a
+property of the stream rather than of how long we have watched; labels
+only once points set the scale; widths measured from the longest string
+each column can hold, with the plot capped at what the figures leave
+and the default window 1000 px wide; `DrawText` with `DT_WORDBREAK |
+DT_END_ELLIPSIS`. Recorded in `gui-design.md` §16.5 and the gotcha log.
+
+**Looking at it is now part of the check**: `PrintWindow` into a bitmap,
+saved as a PNG and read back, which is how the last three were found
+after the first was fixed. Two traps in that harness, both logged — call
+`SetProcessDPIAware()` first, or a 1000×620 window is captured as
+800×496 at 125 % scaling and the clipping looks like the bug; and this
+host enumerates windows on another desktop, so `EnumThreadWindows` is
+what finds the window and `FindWindow` never will.
+
+**What a capture of an idle window still cannot show is the solved
+state**: the density of the cloud, whether the ring labels sit clear of
+the dots, how a mean two metres off the reference looks when the scale
+steps up. That needs a station on the other end, and it is what this
+step is now waiting on.
 
 *Two traps in the harness, not the program, both now in the gotcha log:*
 this host enumerates windows on a different desktop, so `FindWindow`

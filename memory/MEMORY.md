@@ -280,6 +280,19 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **A screen may only say what its evidence supports, and "not yet" is
+  evidence of nothing.** Four times a window has stated a finding about
+  a station that only described how long it had been watched: "fewest
+  held: 9" from a partial first epoch, "no dual-frequency pair" at 25 s
+  (both 2026-08-18), then **NOT COMPUTABLE** at 32 s and ring labels of
+  "0.125 m" on a plot with no points (both 2026-10-09, in a window
+  added to the same document that records the first two). A state that
+  is merely early gets words that say so — *gathering*, naming what is
+  being waited for — and only a property of the **stream itself**, like
+  a single-frequency station, may be stated as a finding.
+  `design/gui-design.md` §14.5 and §16.5. **Writing the lesson down did
+  not transfer it; looking at the window did** — `PrintWindow` to a PNG
+  and read it, with `SetProcessDPIAware()` called first.
 - **A falsification that stays green accuses the test, not the code.**
   Three times now the input was too cooperative to reach the defence:
   synthetic ephemerides sharing one `af1` made a deleted
