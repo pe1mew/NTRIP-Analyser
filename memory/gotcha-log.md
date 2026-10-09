@@ -516,6 +516,11 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the columns feed the GUI's detail view and the CLI's verbose output and nothing else. Every tested path reads C/N0, whose scale is right. A field no measurement consumes has no guard, and the three wrong constants sat beside a correct one for months.
 **Fix**: the scales are now named constants used by both decoders, and `test_msm_cnr.c` renders a built frame through `rtcm_set_output_buffer` -- the GUI's own capture path -- and asserts the printed strings against values it computes from RTCM's scales, including a check that the old scale does *not* appear. Falsified by restoring `0.0001`: two checks red. **If a number is only ever read by a human, write the test that reads it like one.**
 
+### The reference implementation accused the wrong code (2026-10-09)
+**Problem**: the first run of `test/manual/sv_state_vs_rtklib.c` -- P2's cross-check against RTKLIB -- reported our propagator 1 800 km out across the whole fit interval, while the clock agreed to 0.04 ns. A real 1 800 km error would mean the sky plot has pointed at the wrong satellites since it was written.
+**Root cause**: the harness, not the propagator. RTKLIB's `eph_t` stores toe twice -- an absolute `gtime_t` and `toes` in seconds of week -- and the longitude-of-node term reads `toes`. The harness set only the first, so RTKLIB dropped `-omge * toe` and rotated its *own* orbit by 25 radians. With `toes` set: 0.0000 m.
+**Fix**: the shape of the disagreement was the clue, and is the lesson. The clock agreed, and a rotation about Z preserves both `|r|` and `r.v` -- so the pattern said "rotated frame", not "wrong orbit". **Read what the shape of a disagreement rules out before deciding which side is wrong**: a comparison tool is code too, and it is the code that was written five minutes ago.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

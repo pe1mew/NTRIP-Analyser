@@ -238,11 +238,23 @@ orbit that could disagree with it. The relativistic correction is
 return; group delay is deliberately absent, because the broadcast clock
 refers to the iono-free combination P3 will use.
 
-*The verification, honestly.* **RTKLIB is not installed here, so the
-comparison it names has not been run** — it is a manual step, in the
-spirit of `cli-track.md` V5's CSRS-PPP submission, and it should happen
-before P3's output is believed. What runs in the suite instead are
-checks that do not share the propagator's arithmetic: **vis-viva**
+*Verified against RTKLIB, 2026-10-09.* RTKLIB 2.4.3 b34 was built from
+source at `C:\Apps\rtklib` and `test/manual/sv_state_vs_rtklib.c` feeds
+the *same* ephemeris to `eph2pos` and to `sv_state_at` across a ±2 hour
+fit interval: **position agrees to 0.0000 m, clock to 0.04 ns** (1.2 cm
+— the residue of taking the relativistic term as `-2(r·v)/c²` where
+RTKLIB takes `-2√(μa)·e·sin E/c²`, which are the same quantity by
+different routes). The harness is a bench tool, not a suite member:
+RTKLIB is not a dependency and the CI runner has none. `docs/RUNBOOK.md`
+carries the build line.
+
+*The first run of that comparison disagreed by 1 800 km, and the
+harness was wrong, not the propagator* — RTKLIB keeps `toe` twice, as a
+time and as `toes` in seconds of week, and the longitude-of-node term
+uses the second. Zero there drops `-ωₑ·toe` and rotates the orbit.
+
+What runs in the suite, needing no RTKLIB, are checks that do not share
+the propagator's arithmetic: **vis-viva**
 (|v|² = μ(2/r − 1/a)) and **angular momentum** (|r×v| = √(μa(1−e²))),
 which constrain the velocity's size *and* direction; radius and speed
 bands per constellation; the relativistic term's magnitude in

@@ -227,6 +227,41 @@ The orbit cache is process-wide, so an earlier `-R` load or another run
 in the same process would flatter the result; the probe starts clean
 each time for that reason.
 
+### Checking the propagator against RTKLIB
+
+Physics checks catch a wrong frame or a dropped term; they cannot catch
+a mistake two implementations of Kepler would share. For that,
+`test/manual/sv_state_vs_rtklib.c` hands the same ephemeris to RTKLIB's
+`eph2pos` and to our `sv_state_at` and prints the difference across a
+fit interval. **It is not in the suite** — RTKLIB is not a dependency
+and the CI runner has none — so run it by hand whenever `sv_orbit.c` or
+`sv_state.c` changes.
+
+RTKLIB 2.4.3 b34, built from the official source with the project's own
+MinGW (its makefiles expect `cc` and Linux libraries, hence the
+overrides):
+
+```bash
+cd /c/Apps/rtklib/RTKLIB-2.4.3-b34/app/consapp/rnx2rtkp/gcc
+mingw32-make CC=gcc \
+  CFLAGS="-Wall -O2 -I../../../../src -DTRACE -DENAGLO -DENAQZS -DENAGAL -DENACMP -DENAIRN -DNFREQ=5 -DWIN32" \
+  LDLIBS="-lm -lws2_32 -lwinmm"
+```
+
+Then the comparison itself, from the repository root:
+
+```bash
+R=/c/Apps/rtklib/RTKLIB-2.4.3-b34/src
+gcc -std=gnu99 -O2 -Isrc -I$R -DWIN32 -DENAGLO -DENAQZS -DENAGAL -DENACMP -DENAIRN -DNFREQ=5 \
+    test/manual/sv_state_vs_rtklib.c src/core/sv_state.c src/core/sv_orbit.c \
+    $R/ephemeris.c $R/rtkcmn.c $R/preceph.c $R/sbas.c $R/rinex.c \
+    $R/rtcm.c $R/rtcm2.c $R/rtcm3.c $R/rtcm3e.c \
+    -o /tmp/svcmp.exe -lm -lws2_32 -lwinmm && /tmp/svcmp.exe
+```
+
+It exits 0 when position agrees within 1 cm and clock within 0.1 ns.
+Last run 2026-10-09: **0.0000 m, 0.04 ns** across ±2 hours.
+
 ### Android: release builds
 
 ```powershell
