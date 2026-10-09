@@ -511,6 +511,11 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the agent writes its own commands for the Bash tool and handed one over in the same dialect. The environment says PowerShell is the author's primary shell; the caveat was written but placed after the broken version, which is the same as not writing it.
 **Fix**: a command handed to the author is written for **their** shell, not the agent's. For commit messages that means `git commit` with the editor, or `-m` subject and `-m` body — and then the text must survive PowerShell quoting: no apostrophes or double quotes inside a `-m` string, or they bite next. Heredocs only when the author is demonstrably in Git Bash. Same family as the shell-in-the-middle entries below, one layer further out: there the shell edited what reached the device, here it edited what reached git.
 
+### Numbers only a person reads are numbers nothing checks (2026-10-09)
+**Problem**: the message-detail decoder has printed MSM7 pseudoranges **5.6x** too large and phases **1.4x** too large since it was written, by applying the phase rate's `0.0001` scale to all three fields where RTCM gives 2^-29 ms and 2^-31 ms. The MSM4 path was ~12% out on both for the same reason, and QZSS 1124 -- an MSM4 -- was read with MSM6's 20- and 24-bit widths, so those cells came from the wrong bits entirely. Found while reading the layout to build `msm_extract_obs`, not by any check.
+**Root cause**: the columns feed the GUI's detail view and the CLI's verbose output and nothing else. Every tested path reads C/N0, whose scale is right. A field no measurement consumes has no guard, and the three wrong constants sat beside a correct one for months.
+**Fix**: the scales are now named constants used by both decoders, and `test_msm_cnr.c` renders a built frame through `rtcm_set_output_buffer` -- the GUI's own capture path -- and asserts the printed strings against values it computes from RTCM's scales, including a check that the old scale does *not* appear. Falsified by restoring `0.0001`: two checks red. **If a number is only ever read by a human, write the test that reads it like one.**
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

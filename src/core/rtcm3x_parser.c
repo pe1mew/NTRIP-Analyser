@@ -712,6 +712,26 @@ int msm_extract_cnr(const unsigned char *payload, int payload_len,
     return out_count;
 }
 
+/* One millisecond of signal travel, in metres: the unit every MSM range
+ * field is expressed in before scaling. */
+#define MSM_MS_TO_M 299792.458
+
+/* Fine-field scales, in milliseconds, from RTCM 10403.3.  Written down
+ * once because they were previously inlined at four call sites and in
+ * the MSM7 decoder, each with a different wrong value. */
+#define MSM_FINE_PR_STD   (1.0 / 16777216.0)    /* 2^-24 ms, MSM4/5 */
+#define MSM_FINE_PR_EXT   (1.0 / 536870912.0)   /* 2^-29 ms, MSM6/7 */
+#define MSM_FINE_PH_STD   (1.0 / 536870912.0)   /* 2^-29 ms, MSM4/5 */
+#define MSM_FINE_PH_EXT   (1.0 / 2147483648.0)  /* 2^-31 ms, MSM6/7 */
+#define MSM_FINE_RATE_MS  0.0001                /* m/s, MSM5/7      */
+
+/* The same scales as metres per least-significant bit, which is what the
+ * display decoders multiply by. */
+#define MSM_PR_M_STD  (MSM_MS_TO_M * MSM_FINE_PR_STD)   /* 0.017874 m */
+#define MSM_PR_M_EXT  (MSM_MS_TO_M * MSM_FINE_PR_EXT)   /* 0.000558 m */
+#define MSM_PH_M_STD  (MSM_MS_TO_M * MSM_FINE_PH_STD)   /* 0.000558 m */
+#define MSM_PH_M_EXT  (MSM_MS_TO_M * MSM_FINE_PH_EXT)   /* 0.000140 m */
+
 /* ── Reference-station ARP cache ──────────────────────────────────────────
  * Populated by decode_rtcm_1005 / 1006 every time the station broadcasts
  * its antenna reference point.  Read by the GUI worker thread when
@@ -1301,10 +1321,20 @@ static void decode_rtcm_msm7_full(const unsigned char *payload, int payload_len,
     for (int s = 0; s < num_sats; s++) {
         for (int g = 0; g < num_sigs; g++) {
             if (cell_mask[s][g]) {
-                double pr_m      = fine_pr[c]     * 0.0001;
-                double ph_m      = fine_ph[c]     * 0.0001;
+                /* MSM7's extended fields: 2^-29 ms for the pseudorange
+                 * and 2^-31 ms for the phase.  All three used 0.0001 --
+                 * the phase rate's scale -- until 2026-10-09, so the two
+                 * range columns were 5.6x and 1.4x out since this
+                 * decoder was written.  The measurement path never read
+                 * them, which is why nothing caught it.
+                 *
+                 * These are the *fine* parts alone, as the column
+                 * headings say: a usable range adds the satellite's
+                 * rough range from the block above. */
+                double pr_m      = fine_pr[c]     * MSM_PR_M_EXT;
+                double ph_m      = fine_ph[c]     * MSM_PH_M_EXT;
                 double cnr_dbhz  = cnr_raw[c]     * 0.0625;
-                double phrate_ms = fine_phrate[c]  * 0.0001;
+                double phrate_ms = fine_phrate[c] * MSM_FINE_RATE_MS;
 
                 /* sig_idx is 0-based bit position; msm_signal_label maps to
                  * a short name like "E1C" / "L2W" / "B2I" or "S<N>" fallback. */
@@ -2493,16 +2523,25 @@ int analyze_rtcm_message(const unsigned char *data, int length, bool suppress_ou
                 decode_rtcm_1077(&data[3], msg_length);
             } else if (msg_type == 1074) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1074 detected)\n", msg_type, msg_length);
-                decode_rtcm_msm4_generic(&data[3], msg_length, "GPS", 1074, 15, 22, 0.02, 0.0005);
+                decode_rtcm_msm4_generic(&data[3], msg_length, "GPS", 1074, 15, 22,
+                                         MSM_PR_M_STD, MSM_PH_M_STD);
             } else if (msg_type == 1084) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1084 detected)\n", msg_type, msg_length);
-                decode_rtcm_msm4_generic(&data[3], msg_length, "GLONASS", 1084, 15, 22, 0.02, 0.0005);
+                decode_rtcm_msm4_generic(&data[3], msg_length, "GLONASS", 1084, 15, 22,
+                                         MSM_PR_M_STD, MSM_PH_M_STD);
             } else if (msg_type == 1094) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1094 detected)\n", msg_type, msg_length);
-                decode_rtcm_msm4_generic(&data[3], msg_length, "Galileo", 1094, 15, 22, 0.02, 0.0005);
+                decode_rtcm_msm4_generic(&data[3], msg_length, "Galileo", 1094, 15, 22,
+                                         MSM_PR_M_STD, MSM_PH_M_STD);
             } else if (msg_type == 1124) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1124 detected)\n", msg_type, msg_length);
-                decode_rtcm_msm4_generic(&data[3], msg_length, "QZSS", 1124, 20, 24, 0.1, 0.0005);
+                /* 1124 is QZSS **MSM4**, so its fields are the standard
+                 * 15 and 22 bits like every other MSM4 -- it was read
+                 * with MSM6's 20 and 24 until 2026-10-09, which did not
+                 * mis-scale the numbers so much as read them from the
+                 * wrong bits. */
+                decode_rtcm_msm4_generic(&data[3], msg_length, "QZSS", 1124, 15, 22,
+                                         MSM_PR_M_STD, MSM_PH_M_STD);
             } else if (msg_type == 1087) {
                 rtcm_printf("\nRTCM Message: Type = %d, Length = %d (Type 1087 detected)\n", msg_type, msg_length);
                 decode_rtcm_1087(&data[3], msg_length);
