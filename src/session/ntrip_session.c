@@ -511,15 +511,32 @@ static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
      * GLONASS of day -- so comparing them would reset the set in the
      * middle of every bundle and leave each epoch holding one system.
      *
-     * Instead: the previous set is closed, or this system has already
-     * contributed, which means the bundle has come round again. The
-     * second is the guard for a base whose multiple-message bit never
-     * clears. */
-    const bool repeat = (gnss > 0 && gnss < 32) &&
-                        (s->obs.gnss_seen & ((uint32_t)1u << gnss)) != 0;
-    if (!s->obs.open || repeat)
+     * The primary rule is simply that the previous set has closed.
+     * Beside it sits a guard against a base whose multiple-message bit
+     * never clears, and that guard is where this went wrong: written as
+     * "this system has contributed before", it also fires on the thing
+     * the multiple-message bit **exists to express** -- one
+     * constellation continued across two frames.
+     *
+     * Measured on a live station: BeiDou arrived as 48 cells and then
+     * 5, and the second frame reset the set, throwing away GPS,
+     * GLONASS, Galileo and BeiDou's own first frame. The epoch that
+     * reached the solver held 6 cells of the 128 that had arrived, and
+     * not one of them GPS.
+     *
+     * The comparison that is sound is **within a system**: GPS against
+     * GPS. Same system and the same epoch field is a continuation;
+     * same system and a different epoch means a new bundle began
+     * without the previous one closing, which is the stuck-bit case
+     * the guard was for. */
+    bool new_set = !s->obs.open;
+    if (!new_set && gnss > 0 && gnss < NS_OBS_MAX_GNSS &&
+        (s->obs.gnss_seen & ((uint32_t)1u << gnss)) != 0)
+        new_set = (s->obs.sys_epoch[gnss] != epoch);
+    if (new_set)
         ns_obs_reset(&s->obs, epoch);
 
+    if (gnss > 0 && gnss < NS_OBS_MAX_GNSS) s->obs.sys_epoch[gnss] = epoch;
     for (int i = 0; i < n; i++) ns_obs_add(&s->obs, &cells[i]);
     /* Cells the message held but this frame could not hand over are lost
      * to the set just as surely as ones it refused. */

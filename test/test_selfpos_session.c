@@ -60,42 +60,52 @@ static void put_bits(unsigned char *buf, int pos, int nbits,
 }
 
 /**
- * @brief One MSM7 GPS message: two satellites, one signal each.
+ * @brief One MSM7 message: two satellites, one or two signals each.
  *
- * Deliberately thin. Two satellites on one frequency cannot produce a
- * position, and that is fine -- the solver must still be *reached* and
- * must still say which of its reasons applies. A richer constellation
- * would test the arithmetic, which is tested elsewhere.
+ * Deliberately thin -- a richer constellation would test the
+ * arithmetic, which is tested elsewhere. What matters here is which
+ * *reason* the solver gives, because each reason proves how far the
+ * observations got:
  *
- * The multiple-message bit (DF393, bit 54) is left clear, so this frame
- * closes the epoch -- which is the condition the call site under test
- * is supposed to act on.
+ * - `num_sigs == 1` -> the satellites are refused as single-frequency,
+ *   which proves only that cells were examined;
+ * - `num_sigs == 2` -> they pass that gate and are refused for having
+ *   no orbit, which proves they were examined **as usable
+ *   satellites**. With no ephemerides stored, that is as far as any
+ *   satellite can get here, and it is far enough to tell a surviving
+ *   epoch from a discarded one.
+ *
+ * The signal mask bits are 0-based indices into the system's signal
+ * table: bit 1 is GPS 1C and bit 9 is GPS 2W, two carriers far enough
+ * apart for the iono-free combination the solver forms.
+ *
+ * DF393 (bit 54) set says another frame of the same epoch follows.
  */
-static int build_msm7_gps(unsigned char *out, int out_cap,
-                          unsigned long epoch_ms, int more)
+static int build_msm7(unsigned char *out, int out_cap, int msg_type,
+                      unsigned long epoch_ms, int more, int num_sigs)
 {
-    const int num_sats = 2, num_sigs = 1, num_cells = 2;
+    const int num_sats = 2;
+    const int num_cells = num_sats * num_sigs;
     memset(out, 0, (size_t)out_cap);
 
-    put_bits(out, 0, 12, 1077);            /* GPS MSM7              */
+    put_bits(out, 0, 12, (unsigned long)msg_type);
     put_bits(out, 12, 12, 1234);           /* reference station id  */
-    put_bits(out, 24, 30, epoch_ms);       /* GPS epoch, ms of week */
-    /* DF393: clear closes the epoch here, set says another frame of
-     * the same epoch follows.  The control case sets it on every
-     * frame, so the epoch never closes and the solve must never run. */
+    put_bits(out, 24, 30, epoch_ms);       /* epoch, on its own scale */
     put_bits(out, 54, 1, more ? 1UL : 0UL);
 
     put_bits(out, 73 + 2, 1, 1);           /* PRN 3 */
     put_bits(out, 73 + 8, 1, 1);           /* PRN 9 */
-    put_bits(out, 137 + 0, 1, 1);          /* signal id 1 */
+    put_bits(out, 137 + 1, 1, 1);          /* signal 1C */
+    if (num_sigs > 1)
+        put_bits(out, 137 + 9, 1, 1);      /* signal 2W */
 
     const int cell_mask_start = 169;
-    for (int i = 0; i < num_sats * num_sigs; i++)
+    for (int i = 0; i < num_cells; i++)
         put_bits(out, cell_mask_start + i, 1, 1);
 
     /* Satellite block: 75 ms and 80 ms of travel, both inside the band
      * a real GNSS range occupies. MSM7 carries the extended fields. */
-    int p = cell_mask_start + num_sats * num_sigs;
+    int p = cell_mask_start + num_cells;
     put_bits(out, p, 8, 75); p += 8;
     put_bits(out, p, 8, 80); p += 8;
     for (int s = 0; s < num_sats; s++) { put_bits(out, p, 4, 0); p += 4; }
@@ -141,9 +151,9 @@ static int write_capture(const char *path, int n, int more)
     if (!f) return 0;
     for (int i = 0; i < n; i++) {
         unsigned char payload[512], frame[560];
-        int plen = build_msm7_gps(payload, (int)sizeof payload,
-                                  86400000UL + (unsigned long)i * 1000UL,
-                                  more);
+        int plen = build_msm7(payload, (int)sizeof payload, 1077,
+                              86400000UL + (unsigned long)i * 1000UL,
+                              more, 1);
         int flen = build_frame(frame, payload, plen);
         fwrite(frame, 1, (size_t)flen, f);
     }
@@ -181,12 +191,55 @@ static int replay(const char *path, Seen *seen)
     return 1;
 }
 
+/**
+ * @brief A bundle where one constellation arrives in two frames.
+ *
+ * What a real station does, and what the multiple-message bit exists to
+ * express. RFSEE01 sends BeiDou as 48 cells and then 5, and the epoch
+ * rule treated the second frame as proof that a new bundle had begun:
+ * it reset the set, discarding GPS, GLONASS, Galileo and BeiDou's own
+ * first frame. The epoch that reached the solver held 6 cells of the
+ * 128 that had arrived, not one of them GPS -- so a station streaming
+ * ten GPS satellites reported *fewer than four usable satellites*.
+ *
+ * GPS first, then the same system twice, the second closing the set.
+ */
+static int write_split_capture(const char *path, int n)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f) return 0;
+    for (int i = 0; i < n; i++) {
+        const unsigned long epoch = 86400000UL + (unsigned long)i * 1000UL;
+        /* GPS carries two signals, so it reaches the orbit lookup and
+         * is refused there. BeiDou carries one and is refused earlier.
+         * The two reasons are what let this case tell a surviving
+         * epoch from a discarded one. */
+        const struct { int type; int more; int sigs; } frames[] = {
+            { 1077, 1, 2 },   /* GPS, dual frequency                 */
+            { 1127, 1, 1 },   /* BeiDou, first frame                 */
+            { 1127, 0, 1 },   /* BeiDou again, same epoch: closes it */
+        };
+        for (size_t k = 0; k < sizeof frames / sizeof frames[0]; k++) {
+            unsigned char payload[512], frame[560];
+            int plen = build_msm7(payload, (int)sizeof payload,
+                                  frames[k].type, epoch, frames[k].more,
+                                  frames[k].sigs);
+            int flen = build_frame(frame, payload, plen);
+            fwrite(frame, 1, (size_t)flen, f);
+        }
+    }
+    fclose(f);
+    return 1;
+}
+
 int main(void)
 {
     const char *obs_cap = "test_selfpos_obs.rtcm3";
     const char *dry_cap = "test_selfpos_dry.rtcm3";
+    const char *spl_cap = "test_selfpos_split.rtcm3";
     remove(obs_cap);
     remove(dry_cap);
+    remove(spl_cap);
 
     /* ── 1. A closed epoch reaches the solver ─────────────────────── */
     {
@@ -235,8 +288,29 @@ int main(void)
               "an epoch still open is not handed to the solve");
     }
 
+    /* ── 3. A constellation split across two frames ───────────────── */
+    {
+        Seen seen;
+        check(write_split_capture(spl_cap, 20),
+              "built a capture where one system arrives in two frames");
+        check(replay(spl_cap, &seen), "replayed it");
+
+        /* The GPS satellites arrived in the first frame of the bundle.
+         * If the split reset the set they are gone, and the solver --
+         * seeing no GPS at all -- reports TOO_FEW_SATS without ever
+         * examining one. If they survived, the solver examines them,
+         * finds no orbits for them, and says *that* instead. The
+         * difference between the two statuses is the whole defect. */
+        printf("      status after a split bundle: %d (%s)\n",
+               seen.last.selfpos_status,
+               spp_status_text((SppStatus)seen.last.selfpos_status));
+        check(seen.last.selfpos_status == SPP_NO_EPHEMERIS,
+              "a system continued across frames does not discard the epoch");
+    }
+
     remove(obs_cap);
     remove(dry_cap);
+    remove(spl_cap);
 
     printf("\n%s\n", failures ? "FAILURES"
                               : "all self-position session cases pass");

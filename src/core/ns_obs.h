@@ -65,10 +65,24 @@ typedef struct {
     uint16_t lock;           /**< lock time indicator, as the message gives it */
 } NsObsCell;
 
+/** How many constellation ids the per-system tables are indexed by. */
+#define NS_OBS_MAX_GNSS 8
+
 /** Every cell of one epoch, across constellations. */
 typedef struct {
     uint32_t  epoch_ms;      /**< the frame's own epoch field */
     uint32_t  gnss_seen;     /**< bit (1 << gnss_id) per system contributing */
+    /**
+     * The epoch field each system last contributed under.
+     *
+     * Epochs are comparable **within** a system and not across them —
+     * GPS counts milliseconds of week, GLONASS of day — so this is the
+     * only place a comparison is sound. It is what tells a
+     * constellation continuing across frames (same system, same epoch,
+     * which MSM's multiple-message bit exists to express) from a new
+     * bundle whose predecessor never closed.
+     */
+    uint32_t  sys_epoch[NS_OBS_MAX_GNSS];
     int       n;             /**< cells held */
     int       dropped;       /**< cells that did not fit */
     bool      open;          /**< more frames expected for this epoch */

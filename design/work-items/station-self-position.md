@@ -600,6 +600,59 @@ stay `SPP_NO_EPOCH`. Twenty tests now.
 from `no observations in this epoch` to **`observations without
 orbits`** — the solve now runs and says what it lacks.
 
+### P1 — a split constellation destroyed the epoch  *(found 2026-10-10, on a live station)*
+
+With GPS-only in place the window went to **`waiting for four usable
+satellites`**: 0 epochs solved in 106 s from a station streaming ten
+GPS satellites. `TOO_FEW_SATS` with both refusal counters at zero means
+something stronger than it sounds — **not one GPS cell was examined**.
+
+A capture of the stream, walked frame by frame, shows why:
+
+```
+1077 GPS      20 cells  more=1
+1087 GLONASS  15 cells  more=1
+1097 Galileo  39 cells  more=1
+1127 BeiDou   48 cells  more=1
+1127 BeiDou    5 cells  more=1   <- same system again
+1137 NavIC     1 cell   more=0
+CLOSED epoch: 6 cells  [ BeiDou=5 NavIC=1 ]
+```
+
+The base sends BeiDou in two frames. P1's epoch rule read the second
+one as "this system has contributed, so the bundle has come round
+again" and **reset the set** — discarding GPS, GLONASS, Galileo and
+BeiDou's own first frame. Six cells of 128 reached the solver, none of
+them GPS.
+
+That guard was written for a base whose multiple-message bit never
+clears. It fired on the thing that bit **exists to express**: one
+constellation continued across frames. P1's own text says the epoch
+fields are not comparable across constellations, and stops one step
+short of the consequence — they *are* comparable **within** one. So:
+same system and the same epoch field is a continuation; same system and
+a different epoch means a new bundle began without the previous one
+closing, which is the stuck-bit case the guard was for.
+`NsObsEpoch::sys_epoch[]` holds the per-system epoch that makes the
+comparison possible.
+
+*Verified on the capture that found it:* `fewer than four usable
+satellites` became **`observations without orbits`** — the GPS cells
+survive and are examined, and the CLI simply has no ephemerides in
+report mode. `write_split_capture` in `test_selfpos_session.c` builds
+the same shape (GPS dual-frequency, then one system twice, the second
+closing) and demands `SPP_NO_EPHEMERIS`; with the shipped rule restored
+it reports `SPP_TOO_FEW_SATS`, which is exactly what the window showed.
+
+**Why the reasons had to be told apart, and what the first test got
+wrong.** Written with single-frequency GPS, the case passed either way:
+a surviving GPS satellite and a lone BeiDou one are both refused as
+single-frequency, so both produce `SPP_SINGLE_FREQ`. Giving GPS two
+carriers moves it past that gate to the orbit lookup, and the two
+statuses then separate cleanly. **A test must make the two worlds it
+compares produce different answers** — which is the P5/P6 lesson once
+more, in a third shape.
+
 ### P3 — one clock unknown cannot hold six constellations  *(found 2026-10-09, on a live station)*
 
 With the call site fixed and orbits arriving, RFSEE01 solved — and the

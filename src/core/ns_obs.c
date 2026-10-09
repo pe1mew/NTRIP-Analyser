@@ -22,6 +22,7 @@ void ns_obs_reset(NsObsEpoch *e, uint32_t epoch_ms)
     e->n         = 0;
     e->dropped   = 0;
     e->open      = true;
+    memset(e->sys_epoch, 0, sizeof e->sys_epoch);
 }
 
 bool ns_obs_add(NsObsEpoch *e, const NsObsCell *c)
