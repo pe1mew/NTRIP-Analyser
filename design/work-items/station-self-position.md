@@ -149,9 +149,37 @@ unblocked here. A bounded per-epoch observation set owned by the
 session: satellite, signal, pseudorange, carrier phase, phase rate,
 lock, C/N0. Bounded by construction — one epoch, not a history.
 
+**What reading the parser showed, before a line is written
+(2026-10-09):**
+
+- **The numbers already exist, and are printed and dropped.**
+  `decode_rtcm_msm7_full` computes `pr_m`, `ph_m` and `phrate_ms` in
+  metres and sends them to the message-detail text
+  (`rtcm3x_parser.c:1304`). This is the largest instance yet of the
+  parsed-field-nobody-consumed pattern, and it means P1 is wiring, not
+  decoding.
+- **The printed pseudorange is only the *fine* part.** The full range
+  is the satellite-level rough range (`rough_range_int` plus
+  `rough_range_mod/1024`, in milliseconds) combined with the cell-level
+  fine value. Retaining the printed column alone would be wrong by
+  roughly twenty thousand kilometres and would still look like a
+  plausible float. **The test asserts an absolute range in the
+  18 000–27 000 km band**, which no fine-only bug can satisfy.
+- **MSM7 is not the whole population.** MSM7 has a full decoder and
+  MSM4 has `decode_rtcm_msm4_generic`; MSM5 and MSM6 are decoded for
+  C/N0 but not for observables. So P1 must state which message types
+  it retains from, and a station outside that set gets *not
+  computable* for the same reason a single-frequency one does
+  (decision 3). Doppler is the sharper limit: **MSM5 and MSM7 carry
+  phase rate, MSM4, MSM6 and legacy 1004/1012 do not**, so those
+  stations can have a self-position and no velocity — which the
+  report must say rather than show zero.
+
 **Verify.** The existing suite green unchanged; a capture replays to a
 byte-identical report; memory per epoch measured and stated, not
-estimated.
+estimated. A new test builds MSM frames whose ranges are known by
+construction, as `test_msm_cnr.c` already does for C/N0, and asserts
+the retained values including the rough-plus-fine combination.
 
 ### P2 — satellite position, velocity and clock at transmit time
 
