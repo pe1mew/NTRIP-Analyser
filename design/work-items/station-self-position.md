@@ -215,7 +215,7 @@ the exact value by 3.7 km. The second is why the test asserts both.
   therefore closes a set on *difference*, never on arithmetic between
   two epoch values.
 
-### P2 — satellite position, velocity and clock at transmit time
+### P2 — satellite position, velocity and clock at transmit time  *(done 2026-10-09)*
 
 Signal transmit time from the pseudorange, satellite clock from
 `af0/af1/af2` with the relativistic term, group delay applied as the
@@ -227,6 +227,58 @@ analytic form proves cheaper.
 epoch and the same navigation data, with a stated tolerance; a sanity
 assertion on orbital radius and speed per constellation. This step is
 checkable on its own, and it is the one everything downstream inherits.
+
+**Built 2026-10-09** as `src/core/sv_state.{c,h}`: `sv_state_at` returns
+position, velocity and clock, and `sv_state_derotate` turns a transmit-
+time position into the frame the measurement was made in. Velocity is
+the central difference of `sv_to_ecef` at ±0.5 s — the propagator the
+sky plot already trusts, rather than a second implementation of the same
+orbit that could disagree with it. The relativistic correction is
+`-2 (r·v) / c²`, which needs nothing the propagator does not already
+return; group delay is deliberately absent, because the broadcast clock
+refers to the iono-free combination P3 will use.
+
+*Verified against RTKLIB, 2026-10-09.* RTKLIB 2.4.3 b34 was built from
+source at `C:\Apps\rtklib` and `test/manual/sv_state_vs_rtklib.c` feeds
+the *same* ephemeris to `eph2pos` and to `sv_state_at` across a ±2 hour
+fit interval: **position agrees to 0.0000 m, clock to 0.04 ns** (1.2 cm
+— the residue of taking the relativistic term as `-2(r·v)/c²` where
+RTKLIB takes `-2√(μa)·e·sin E/c²`, which are the same quantity by
+different routes). The harness is a bench tool, not a suite member:
+RTKLIB is not a dependency and the CI runner has none. `docs/RUNBOOK.md`
+carries the build line.
+
+*The first run of that comparison disagreed by 1 800 km, and the
+harness was wrong, not the propagator* — RTKLIB keeps `toe` twice, as a
+time and as `toes` in seconds of week, and the longitude-of-node term
+uses the second. Zero there drops `-ωₑ·toe` and rotates the orbit.
+
+What runs in the suite, needing no RTKLIB, are checks that do not share
+the propagator's arithmetic: **vis-viva**
+(|v|² = μ(2/r − 1/a)) and **angular momentum** (|r×v| = √(μa(1−e²))),
+which constrain the velocity's size *and* direction; radius and speed
+bands per constellation; the relativistic term's magnitude in
+nanoseconds; and the Earth rotation against ωrt computed in the test.
+Falsified two ways: removing the relativistic term reddens three checks,
+reversing the rotation direction reddens the one that names it.
+
+**Two things P2 found:**
+
+- **GLONASS had an orbit and no time.** `tau_n` and `gamma_n` are
+  decoded by the 1020 path and were discarded, and the RINEX loader
+  took them as arguments and `(void)`-ed them. Both now store them, with
+  the sign convention written down: RTCM carries *TauN*, RINEX carries
+  *−TauN*. Without this, a GLONASS satellite would have entered P3's
+  solve with a clock of exactly zero — the worst kind of wrong, because
+  it looks like an answer.
+- **The velocity is Earth-fixed, not inertial.** Differencing ECEF
+  positions gives 2.9 km/s for a GPS satellite where the inertial speed
+  is 3.9; the difference is ω×r. That is the right quantity for a
+  velocity solve, and the same thing RTKLIB produces, but the first run
+  of the test failed vis-viva by 25% because the *test* assumed inertial.
+  The header now says which frame it returns, and the test converts
+  before applying inertial laws — so getting the frame wrong later fails
+  loudly rather than quietly.
 
 ### P3 — the position solve
 

@@ -87,6 +87,10 @@ typedef struct {
     double   glo_acc[3];     /**< Luni-solar accel in m/s^2 (constants per eph) */
     double   glo_tb_sod;     /**< Reference time in Moscow seconds-of-day */
     int      glo_freq_chan;  /**< FDMA channel number, -7 .. +13 */
+    double   glo_tau_n;      /**< Clock bias at tb, seconds.  GLONASS has no
+                                  af0/af1/af2: its correction is
+                                  -tau_n + gamma_n (t - tb) */
+    double   glo_gamma_n;    /**< Relative frequency offset, dimensionless */
 } SvEphemeris;
 
 /** @brief Zero the entire cache.  Optional — static storage is already zeroed. */

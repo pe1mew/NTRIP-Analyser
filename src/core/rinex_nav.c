@@ -264,7 +264,7 @@ static int parse_glonass_record(int prn,
                                 const char *L1, const char *L2,
                                 const char *L3)
 {
-    (void)clock_bias; (void)gamma_n; (void)frame_time;
+    (void)frame_time;
 
     double v1[4], v2[4], v3[4];
     rnx_read_4(L1, v1);   /* X, Vx, Ax, health */
@@ -294,6 +294,15 @@ static int parse_glonass_record(int prn,
 
     eph.glo_freq_chan = (int)v2[3];
     eph.health        = (int)v1[3];
+
+    /* RINEX writes the clock bias as **-TauN** and the frequency bias as
+     * +GammaN, so the sign flips coming in here while 1020 carries TauN
+     * directly.  Both were discarded until 2026-10-09; a GLONASS record
+     * without them has an orbit and no time, and a solve that read the
+     * zeros would be wrong by whatever the satellite's clock happens to
+     * be off (`design/work-items/station-self-position.md` P2). */
+    eph.glo_tau_n     = -clock_bias;
+    eph.glo_gamma_n   = gamma_n;
 
     /* Reference epoch tb: convert the UTC datetime in the record header
      * to Moscow seconds-of-day, matching what kepler_to_ecef / glonass
