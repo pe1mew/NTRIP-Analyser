@@ -300,6 +300,45 @@ tolerance, per epoch and in the mean. The route is proven —
 `cli-track.md` V5 already took a capture through `convbin` to a
 CSRS-PPP solution.
 
+**Built 2026-10-09** as `src/core/spp.{c,h}`: iono-free combination of
+the two widest carriers, Saastamoinen troposphere on a standard
+atmosphere, a ten-degree elevation mask, and least squares with the
+receiver clock as the fourth unknown. Refusals are named rather than
+approximated — `SPP_SINGLE_FREQ`, `SPP_NO_EPHEMERIS`,
+`SPP_TOO_FEW_SATS`, `SPP_DIVERGED` — and GLONASS stays out by design
+even though P2 gave it a clock, because FDMA inter-frequency biases
+will not fit under one receiver-clock unknown. The frequency table
+moved from `static` in `iono.c` to a declared `msm_signal_freq_hz`,
+one table for the ionosphere and the solver both.
+
+*Verified by closure, not by bounds.* `test_spp.c` builds the
+pseudoranges a receiver at a known point would measure — geometry,
+satellite clocks, troposphere, a receiver clock bias — inverts them,
+and demands the point back: **0.0000 m, clock exact, residuals
+0.0000**, and the same from a cold start at the Earth's centre. The
+troposphere is implemented a second time in the test, so the solver's
+copy is compared rather than trusted. Falsified twice: flipping the
+satellite-clock sign throws the answer 6 730 m, removing the
+troposphere 4.7 m.
+
+**The closure test caught a real defect before any data did.** The
+first run recovered to 0.14 m with 2 cm residuals on noiseless input,
+which should be exact. A term-by-term diagnostic showed the transmit
+time 101 µs early: **a pseudorange carries the satellite's own clock
+offset** — af0 alone is routinely 100 µs, or 30 km — so `tow − P/c`
+is not the transmit time, and the satellite has moved 0.29 m by the
+time it is. The solver now reads the clock, subtracts it, and reads
+the state again. A second pass then re-reads every satellite with the
+receiver clock the first pass found, which is what makes the answer
+independent of how badly that clock is steered: a **1 ms** receiver
+bias — 300 km of range — now costs **0.0000 m** of position, where one
+pass cost metres.
+
+*Still outstanding, and P3 is not closed without it:* the comparison
+against `rnx2rtkp` on a **real capture**. Closure proves the solver
+inverts its own model; only real data proves the model. RTKLIB is
+installed and `docs/RUNBOOK.md` carries the route.
+
 ### P4 — the velocity solve
 
 Phase range rate against satellite velocity, receiver clock drift as

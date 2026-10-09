@@ -106,6 +106,7 @@ add_library(ntrip_core STATIC
     src/core/rtcm3x_parser.c
     src/core/ns_obs.c
     src/core/sv_state.c
+    src/core/spp.c
     src/core/sv_ephemeris.c
     src/core/sv_orbit.c
     src/core/sv_track.c
@@ -197,6 +198,13 @@ add_test(NAME observables COMMAND test_observables)
 add_executable(test_sv_state test/test_sv_state.c)
 target_link_libraries(test_sv_state PRIVATE ntrip_core)
 add_test(NAME sv_state COMMAND test_sv_state)
+
+# The solver, by closure: build the pseudoranges a receiver at a known
+# point would measure, invert them, and demand the point back. Bounds
+# cannot check a position; an inversion can.
+add_executable(test_spp test/test_spp.c)
+target_link_libraries(test_spp PRIVATE ntrip_core)
+add_test(NAME spp COMMAND test_spp)
 
 # Same reasoning as the MSM layout above: a wrong offset in a
 # fixed-layout message returns plausible satellites, not an error.
@@ -320,7 +328,7 @@ add_test(NAME kpi_stopped COMMAND test_kpi_stopped)
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_observables
-            test_sv_state
+            test_sv_state test_spp
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
             test_stall test_failure test_vrs test_bridge_vrs test_tls)

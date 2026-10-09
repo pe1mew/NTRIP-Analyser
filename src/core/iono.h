@@ -193,6 +193,25 @@ int iono_feed(IonoState *st, const unsigned char *payload, int payload_len,
               int msg_type, double now);
 
 /**
+ * @brief Carrier frequency for an MSM signal-mask index, hertz.
+ *
+ * The tables live in `iono.c` because the ionosphere was the first
+ * thing that needed them; the station self-position solver is the
+ * second, which is why this is declared rather than static. Their
+ * natural home is beside `msm_signal_label()` in the parser, and moving
+ * them there is a tidy-up nobody has needed yet.
+ *
+ * @param gnss_id 1 GPS, 3 Galileo, 4 QZSS, 5 BeiDou, 7 NavIC.
+ * @param sig_idx **0-based** signal-mask bit position, so a caller
+ *                holding the 1-based id that `NsObsCell` carries passes
+ *                `sig_id - 1`.
+ * @return Hertz, or 0 where this project cannot use the signal:
+ *         GLONASS, whose FDMA frequency depends on a channel number in
+ *         the ephemeris, and SBAS.
+ */
+double msm_signal_freq_hz(int gnss_id, int sig_idx);
+
+/**
  * @brief Roll the arcs up into a single assessment.
  *
  * Uses the **median** ROTI rather than the mean: a single satellite at
