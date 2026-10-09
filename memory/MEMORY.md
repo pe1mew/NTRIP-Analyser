@@ -280,6 +280,16 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **The single-point solve is GPS only** (2026-10-09), because each
+  constellation needs a clock unknown of its own — the argument the
+  module had already written down for GLONASS and applied to GLONASS
+  alone. Admitting all six under one unknown put a real station 1.8 km
+  out, with 2.6 km residuals and **829 m/s** of apparent motion on a
+  concrete pillar. Two lessons worth more than the fix: **when a refusal rests
+  on a general principle, ask which other cases that principle covers**,
+  and **a closure test cannot discover that the world has more clocks
+  than the model** — `test_spp` built its measurements from the same
+  single-clock model it inverted, against one synthetic constellation.
 - **A test that starts below the wiring cannot see the wiring.** The
   self-position solve was defined and never called for two whole steps
   of its plan — the call site discarded the `obs_feed()` return value

@@ -110,7 +110,30 @@ static int collect(const NsObsEpoch *obs, int week, double tow_s,
 
     for (int i = 0; i < obs->n; i++) {
         const NsObsCell *a = &obs->cell[i];
-        if (a->gnss_id == 2 || a->gnss_id == 6) continue;  /* FDMA, SBAS */
+
+        /* GPS only -- and the reason is the one this solver already
+         * gave for keeping GLONASS out: an inter-system bias will not
+         * fit under one receiver-clock unknown.
+         *
+         * That reason was written for FDMA and should have been
+         * applied to all of them. Every constellation keeps its own
+         * system time and reaches the receiver down its own hardware
+         * path, so each needs a clock unknown of its own; one unknown
+         * for all of them forces a compromise across the lot. BeiDou
+         * adds a second fault on top: BDT runs 14 s behind GPS and a
+         * 1042 ephemeris dates its `toe` in BDT, so evaluating it at a
+         * GPS second-of-week moves that satellite some 55 km.
+         *
+         * Measured rather than reasoned. Against a station streaming
+         * six systems, 25 satellites under one clock unknown gave an
+         * offset of 1.8 km, a worst code residual of 2.6 km and an
+         * apparent motion of 829 m/s. GPS alone is eight to twelve
+         * dual-frequency satellites, which is plenty for this.
+         *
+         * Multi-GNSS belongs here eventually, with a clock unknown per
+         * system and BDT handled. That is a solve to design, not a
+         * constellation to let in. */
+        if (a->gnss_id != 1) continue;
 
         /* One satellite is handled once, at its first cell. */
         bool seen = false;

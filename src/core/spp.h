@@ -19,9 +19,17 @@
  * - a single-frequency station, because modelling the ionosphere
  *   instead would bias the answer by tens of metres while looking
  *   exactly as confident (decision 3 of the work item);
- * - GLONASS, whose FDMA signals carry inter-frequency biases that a
- *   single receiver-clock unknown cannot absorb — P2 gives it a clock,
- *   and this still leaves it out, deliberately;
+ * - **every constellation but GPS.** The argument was first written for
+ *   GLONASS alone — FDMA inter-frequency biases that one receiver-clock
+ *   unknown cannot absorb — and it holds for all of them: each system
+ *   keeps its own time and reaches the receiver down its own hardware
+ *   path, so each needs a clock unknown of its own. BeiDou brings a
+ *   second fault with it, since BDT runs 14 s behind GPS and a 1042
+ *   ephemeris dates its `toe` in BDT. Letting the lot in under one
+ *   clock unknown was measured against a six-system station: an offset
+ *   of 1.8 km, a worst residual of 2.6 km, an apparent motion of
+ *   829 m/s. Multi-GNSS returns when there is a clock unknown per
+ *   system;
  * - fewer than four usable satellites, which is not a weak solution but
  *   no solution.
  *

@@ -600,6 +600,49 @@ stay `SPP_NO_EPOCH`. Twenty tests now.
 from `no observations in this epoch` to **`observations without
 orbits`** — the solve now runs and says what it lacks.
 
+### P3 — one clock unknown cannot hold six constellations  *(found 2026-10-09, on a live station)*
+
+With the call site fixed and orbits arriving, RFSEE01 solved — and the
+figures were nonsense: **offset 1.8 km** (E +1157, N −591, U +1196),
+scatter 20.4 m, **worst code residual 2.6 km**, **apparent motion
+829 m/s**, clock drift 393 m/s, from **25 satellites** at PDOP 0.9.
+
+The solver admitted every constellation except GLONASS and SBAS, under
+**one** receiver-clock unknown. P3's own text gives the reason that
+should have excluded the rest in the same breath: *"FDMA
+inter-frequency biases will not fit under one receiver-clock
+unknown."* That is not a fact about FDMA. Every system keeps its own
+system time and reaches the receiver down its own hardware path, so
+each needs a clock unknown of its own — the standard multi-GNSS SPP
+arrangement. BeiDou carries a second fault besides: BDT runs 14 s
+behind GPS and a 1042 ephemeris dates its `toe` in BDT, so evaluating
+it at a GPS second-of-week moves that satellite about 55 km.
+
+**The rule was right and was applied to one case.** Written down, read
+twice, and not generalised — in a module whose header lists what it
+refuses and why.
+
+*Fixed:* GPS only, with the reasoning and the measured numbers in
+`spp.h` and at the filter. `case_gps_only` in `test_spp.c` offers the
+same orbits again as Galileo, QZSS, BeiDou and NavIC, with ephemerides
+stored for each so that nothing but the filter can keep them out, and
+demands that `n_used` stays the GPS count and the position does not
+move; restoring the old filter reddens both checks (24 satellites used,
+the position 0.50 m out on *synthetic* data where every system shares
+one clock — a real receiver's biases are far larger). 20 tests.
+
+**Why no test caught it.** `test_spp.c` verified the solve by closure
+against one synthetic constellation, and closure is exactly the wrong
+instrument here: a test that builds its measurements from the same
+single-clock model the solver inverts cannot discover that six real
+systems do not share a clock. **A solver verified on one constellation
+says nothing about six**, and nothing in the suite had ever seen two.
+
+*Next, and not in this branch:* multi-GNSS with a clock unknown per
+system and BDT handled. That is a solve to design — more unknowns, a
+different normal matrix, a minimum satellite count per system — not a
+constellation to let back in.
+
 **Which leaves one gap, stated rather than fixed.** RFSEE01 streams
 MSM7 for six constellations and no ephemerides, so its orbits come from
 the configured side-stream — and the CLI opens that **only in `-S/--sky`

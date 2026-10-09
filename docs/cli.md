@@ -221,6 +221,16 @@ None of it is graded, deliberately: what counts as abnormal scatter for a
 station's own position is not yet known from evidence, and a threshold
 invented to fill the column would be worse than no column at all.
 
+**GPS only, deliberately.** Each constellation keeps its own system
+time and reaches the receiver down its own hardware path, so each needs
+a clock unknown of its own; one unknown for all of them forces a
+compromise across the lot, and BeiDou adds a 14-second time-scale
+offset on top. Measured against a station streaming six systems, 25
+satellites under a single clock unknown put the station 1.8 km from
+where it is. Eight to twelve dual-frequency GPS satellites answer the
+question this asks. Multi-GNSS returns when the solve has a clock
+unknown per system.
+
 Read the offset as an offset. Most of it is the dual-frequency code
 solution's own bias — metres of it — and it says nothing about the
 station. The *scatter* is the half that measures something, and the

@@ -455,10 +455,83 @@ static void case_refusals(void)
           s.n_used);
 }
 
+/**
+ * @brief Only GPS enters the solve, however much else is on offer.
+ *
+ * The decision, held in a test so that letting another constellation in
+ * has to be deliberate. It was not a preference: against a station
+ * streaming six systems, 25 satellites under one receiver-clock unknown
+ * produced an offset of 1.8 km, a worst code residual of 2.6 km and an
+ * apparent motion of 829 m/s. Every system keeps its own time and
+ * reaches the receiver down its own hardware path, so each needs a
+ * clock unknown of its own -- the argument this solver had already
+ * written down for GLONASS, and applied to GLONASS alone.
+ *
+ * Note what this case cannot show: a solver verified against one
+ * synthetic constellation says nothing whatever about six real ones.
+ * Finding that took a live station.
+ */
+static void case_gps_only(void)
+{
+    sv_eph_init();
+    for (int k = 0; k < 10; k++) {
+        SvEphemeris e = eph_at(k + 1, 0.2 * k, 0.6 * k);
+        sv_eph_store(&e);
+    }
+    /* The same orbits offered again as Galileo, QZSS, BeiDou and NavIC,
+     * with ephemerides stored for them too -- so nothing but the
+     * constellation filter can keep them out. */
+    for (int g = 3; g <= 7; g++) {
+        if (g == 6) continue;                   /* SBAS: refused already */
+        for (int k = 0; k < 10; k++) {
+            SvEphemeris e = eph_at(k + 1, 0.2 * k, 0.6 * k);
+            e.gnss_id = (uint8_t)g;
+            sv_eph_store(&e);
+        }
+    }
+
+    double rx[3];
+    geodetic_to_ecef(52.0, 6.0, 50.0, &rx[0], &rx[1], &rx[2]);
+
+    NsObsEpoch ep;
+    int prns[16];
+    const int n_gps = build_epoch(&ep, rx, 0.0, prns, 16);
+    CHECK(n_gps >= 4, "need four GPS satellites, built %d", n_gps);
+    if (n_gps < 4) return;
+
+    /* Every GPS cell copied into each other system at the same range:
+     * a solver that accepted them would multiply n_used. */
+    const int gps_cells = ep.n;
+    for (int g = 3; g <= 7; g++) {
+        if (g == 6) continue;
+        for (int i = 0; i < gps_cells; i++) {
+            NsObsCell c = ep.cell[i];
+            c.gnss_id = (uint8_t)g;
+            ns_obs_add(&ep, &c);
+        }
+    }
+
+    SppSolution s;
+    SppStatus st = spp_solve(&ep, WEEK, TOW, rx, &s);
+    CHECK(st == SPP_OK, "the GPS-only solve still succeeds, got '%s'",
+          spp_status_text(st));
+    CHECK(s.n_used == n_gps,
+          "only the %d GPS satellites enter the solve, %d did",
+          n_gps, s.n_used);
+
+    /* And the position is still the point it was built from: a foreign
+     * satellite that slipped in would move it. */
+    const double d = sqrt((s.pos[0]-rx[0])*(s.pos[0]-rx[0])
+                        + (s.pos[1]-rx[1])*(s.pos[1]-rx[1])
+                        + (s.pos[2]-rx[2])*(s.pos[2]-rx[2]));
+    CHECK(d < 1.0e-3, "position unmoved by the other systems: %.4f m", d);
+}
+
 int main(void)
 {
     printf("== single-point solve ==\n");
     case_recovers_the_truth();
+    case_gps_only();
     case_converges_from_nothing();
     case_survives_a_bad_receiver_clock();
     case_static_reads_zero();

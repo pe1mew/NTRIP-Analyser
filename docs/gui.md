@@ -700,6 +700,14 @@ offsets, the scatter, the worst code residual, the fastest apparent
 motion, and the latest epoch's satellites, PDOP, code residual, rate
 residual and clock drift.
 
+**The solve is GPS only**, however many systems the station streams.
+Each constellation keeps its own time and its own hardware delay, so
+each needs a clock unknown of its own; admitting them all under one
+unknown was measured on a six-system station and put it 1.8 km from
+where it is, with residuals of 2.6 km and an apparent motion of
+829 m/s. So the satellite count in the figures is the GPS count — eight
+to twelve typically — not everything the sky plot shows.
+
 **A single-frequency station cannot be solved at all**, and the window
 says so in the reason's own words — `single-frequency station: not
 computable` — rather than showing an empty frame. The dual-frequency
