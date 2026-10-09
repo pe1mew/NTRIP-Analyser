@@ -716,9 +716,13 @@ int msm_extract_cnr(const unsigned char *payload, int payload_len,
  * field is expressed in before scaling. */
 #define MSM_MS_TO_M 299792.458
 
-/* Fine-field scales, in milliseconds, from RTCM 10403.3.  Written down
- * once because they were previously inlined at four call sites and in
- * the MSM7 decoder, each with a different wrong value. */
+/* Fine-field scales, in milliseconds, from RTCM 10403.3.  They differ
+ * between the standard messages and the extended ones, and are written
+ * down once because they were previously inlined at four call sites and
+ * in the MSM7 decoder, each with a different wrong value: that decoder
+ * reused the phase rate's 0.0001 for all three, 5.6x out on pseudorange
+ * and 1.4x on phase.  It went unnoticed because no measurement read
+ * those columns -- msm_extract_obs below is the first that does. */
 #define MSM_FINE_PR_STD   (1.0 / 16777216.0)    /* 2^-24 ms, MSM4/5 */
 #define MSM_FINE_PR_EXT   (1.0 / 536870912.0)   /* 2^-29 ms, MSM6/7 */
 #define MSM_FINE_PH_STD   (1.0 / 536870912.0)   /* 2^-29 ms, MSM4/5 */
@@ -731,6 +735,169 @@ int msm_extract_cnr(const unsigned char *payload, int payload_len,
 #define MSM_PR_M_EXT  (MSM_MS_TO_M * MSM_FINE_PR_EXT)   /* 0.000558 m */
 #define MSM_PH_M_STD  (MSM_MS_TO_M * MSM_FINE_PH_STD)   /* 0.000558 m */
 #define MSM_PH_M_EXT  (MSM_MS_TO_M * MSM_FINE_PH_EXT)   /* 0.000140 m */
+
+int msm_extract_obs(const unsigned char *payload, int payload_len,
+                    int msg_type, NsObsCell *out, int max_cells,
+                    int *gnss_id_out, int *cells_total_out)
+{
+    if (cells_total_out) *cells_total_out = 0;
+    if (!payload || !out || max_cells <= 0) return 0;
+
+    MsmLayout L;
+    if (!msm_cnr_layout(msg_type, &L)) return 0;   /* MSM1-3: no usable set */
+
+    const bool extended = (msg_type % 10) >= 6;    /* MSM6, MSM7        */
+    const bool has_rate = (msg_type % 10) == 5 ||
+                          (msg_type % 10) == 7;    /* phase rate present */
+
+    int gnss_id;
+    if      (msg_type >= 1070 && msg_type <  1080) gnss_id = 1;
+    else if (msg_type >= 1080 && msg_type <  1090) gnss_id = 2;
+    else if (msg_type >= 1090 && msg_type <  1100) gnss_id = 3;
+    else if (msg_type >= 1100 && msg_type <  1110) gnss_id = 6;
+    else if (msg_type >= 1110 && msg_type <  1120) gnss_id = 4;
+    else if (msg_type >= 1120 && msg_type <  1130) gnss_id = 5;
+    else if (msg_type >= 1130 && msg_type <  1140) gnss_id = 7;
+    else return 0;
+    if (gnss_id_out) *gnss_id_out = gnss_id;
+
+    const int total_bits = payload_len * 8;
+    if (total_bits < 169) return 0;
+
+    uint64_t sat_mask = get_bits(payload, 73, 64);
+    uint32_t sig_mask = (uint32_t)get_bits(payload, 137, 32);
+
+    int sat_prns[64], num_sats = 0;
+    for (int i = 0; i < 64; i++)
+        if (((sat_mask >> (63 - i)) & 1ULL) && num_sats < 64)
+            sat_prns[num_sats++] = i + 1;
+    if (num_sats == 0) return 0;
+
+    int sig_ids[32], num_sigs = 0;
+    for (int i = 0; i < 32; i++)
+        if (((sig_mask >> (31 - i)) & 1U) && num_sigs < 32)
+            sig_ids[num_sigs++] = i + 1;
+    if (num_sigs == 0) return 0;
+
+    const int cell_mask_start = 169;
+    const int cell_bits       = num_sats * num_sigs;
+    const int sat_block_start = cell_mask_start + cell_bits;
+    if (sat_block_start + L.sat_bits * num_sats > total_bits) return 0;
+
+    /* Satellite block, field by field across satellites: rough range in
+     * whole milliseconds, then (extended only) four bits of extended
+     * info, then the range modulo one millisecond in 1/1024, then
+     * (extended only) the rough phase range rate in whole m/s. */
+    int    rough_int[64];
+    double rough_ms[64];
+    double rough_rate[64];
+    int bit = sat_block_start;
+
+    for (int s = 0; s < num_sats; s++) {
+        rough_int[s] = (int)get_bits(payload, bit, 8); bit += 8;
+    }
+    if (L.sat_bits == 36) bit += 4 * num_sats;      /* extended info */
+    for (int s = 0; s < num_sats; s++) {
+        int mod = (int)get_bits(payload, bit, 10); bit += 10;
+        /* 255 in the whole-millisecond field marks an invalid range. */
+        rough_ms[s] = (rough_int[s] == 255)
+                      ? -1.0
+                      : (double)rough_int[s] + (double)mod / 1024.0;
+        rough_rate[s] = 0.0;
+    }
+    if (L.sat_bits == 36) {
+        for (int s = 0; s < num_sats; s++) {
+            int raw = (int)get_bits(payload, bit, 14); bit += 14;
+            if (raw & (1 << 13)) raw -= (1 << 14);
+            rough_rate[s] = (double)raw;
+        }
+    }
+
+    /* The signal block is stored field by field across cells, as
+     * msm_extract_cnr explains: every fine pseudorange, then every fine
+     * phase, then every lock, then every half-cycle flag, then every
+     * C/N0, then every phase rate. */
+    int num_cells = 0;
+    for (int i = 0; i < cell_bits; i++)
+        if (cell_mask_start + i < total_bits &&
+            get_bits(payload, cell_mask_start + i, 1)) num_cells++;
+    if (num_cells == 0) return 0;
+    if (cells_total_out) *cells_total_out = num_cells;
+
+    const int pr_start   = bit;
+    const int ph_start   = pr_start   + num_cells * L.pr_bits;
+    const int lock_start = ph_start   + num_cells * L.ph_bits;
+    const int half_start = lock_start + num_cells * L.lock_bits;
+    const int cnr_start  = half_start + num_cells;
+    const int rate_start = cnr_start  + num_cells * L.cnr_bits;
+    const int block_end  = rate_start + (has_rate ? num_cells * 15 : 0);
+    if (block_end > total_bits) return 0;
+
+    const double  pr_scale   = extended ? MSM_FINE_PR_EXT : MSM_FINE_PR_STD;
+    const double  ph_scale   = extended ? MSM_FINE_PH_EXT : MSM_FINE_PH_STD;
+    const int32_t pr_invalid = -((int32_t)1 << (L.pr_bits - 1));
+    const int32_t ph_invalid = -((int32_t)1 << (L.ph_bits - 1));
+
+    int written = 0, k = 0;
+    for (int s = 0; s < num_sats; s++) {
+        for (int g = 0; g < num_sigs; g++) {
+            if (!get_bits(payload, cell_mask_start + s * num_sigs + g, 1))
+                continue;
+
+            const int cell = k++;
+            if (written >= max_cells) continue;  /* cells_total_out tells
+                                                  * the caller it lost some */
+            if (rough_ms[s] < 0.0) continue;     /* satellite has no range  */
+
+            int32_t fpr = (int32_t)get_bits(payload, pr_start + cell * L.pr_bits,
+                                            L.pr_bits);
+            if (fpr & ((int32_t)1 << (L.pr_bits - 1))) fpr -= ((int32_t)1 << L.pr_bits);
+            if (fpr == pr_invalid) continue;     /* no pseudorange, no cell */
+
+            int32_t fph = (int32_t)get_bits(payload, ph_start + cell * L.ph_bits,
+                                            L.ph_bits);
+            if (fph & ((int32_t)1 << (L.ph_bits - 1))) fph -= ((int32_t)1 << L.ph_bits);
+
+            NsObsCell c;
+            c.gnss_id = (uint8_t)gnss_id;
+            c.prn     = (uint8_t)sat_prns[s];
+            c.sig_id  = (uint8_t)sig_ids[g];
+            c.flags   = 0;
+
+            /* The rough range carries the metres; the fine field only
+             * refines it.  Keeping the fine part alone would be a
+             * plausible-looking number twenty thousand kilometres wrong,
+             * which is what the test's absolute-range band catches. */
+            c.pseudorange_m = (rough_ms[s] + (double)fpr * pr_scale) * MSM_MS_TO_M;
+
+            if (fph != ph_invalid) {
+                c.phase_m = (rough_ms[s] + (double)fph * ph_scale) * MSM_MS_TO_M;
+                c.flags  |= NS_OBS_HAS_PHASE;
+            } else {
+                c.phase_m = 0.0;
+            }
+
+            c.lock = (uint16_t)get_bits(payload, lock_start + cell * L.lock_bits,
+                                        L.lock_bits);
+            if (get_bits(payload, half_start + cell, 1)) c.flags |= NS_OBS_HALF_CYCLE;
+            c.cnr_dbhz = (float)get_bits(payload, cnr_start + cell * L.cnr_bits,
+                                         L.cnr_bits) * L.cnr_scale;
+
+            c.rate_ms = 0.0;
+            if (has_rate) {
+                int32_t fr = (int32_t)get_bits(payload, rate_start + cell * 15, 15);
+                if (fr & ((int32_t)1 << 14)) fr -= ((int32_t)1 << 15);
+                if (fr != -((int32_t)1 << 14)) {
+                    c.rate_ms = rough_rate[s] + (double)fr * MSM_FINE_RATE_MS;
+                    c.flags  |= NS_OBS_HAS_RATE;
+                }
+            }
+
+            out[written++] = c;
+        }
+    }
+    return written;
+}
 
 /* ── Reference-station ARP cache ──────────────────────────────────────────
  * Populated by decode_rtcm_1005 / 1006 every time the station broadcasts

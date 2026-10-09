@@ -104,6 +104,7 @@ add_library(ntrip_core STATIC
     src/core/ns_stats.c
     src/core/ns_failure.c
     src/core/rtcm3x_parser.c
+    src/core/ns_obs.c
     src/core/sv_ephemeris.c
     src/core/sv_orbit.c
     src/core/sv_track.c
@@ -180,6 +181,14 @@ add_test(NAME rtcm_hostile COMMAND test_rtcm_hostile)
 add_executable(test_msm_cnr test/test_msm_cnr.c)
 target_link_libraries(test_msm_cnr PRIVATE ntrip_core)
 add_test(NAME msm_cnr COMMAND test_msm_cnr)
+
+# The observables beside the C/N0: a wrong scale or a dropped rough
+# range still produces a plausible float, so the frames carry values
+# this test recomputes, and every range must land in the band a real
+# GNSS range occupies.
+add_executable(test_observables test/test_observables.c)
+target_link_libraries(test_observables PRIVATE ntrip_core)
+add_test(NAME observables COMMAND test_observables)
 
 # Same reasoning as the MSM layout above: a wrong offset in a
 # fixed-layout message returns plausible satellites, not an error.
@@ -302,8 +311,8 @@ add_test(NAME kpi_stopped COMMAND test_kpi_stopped)
 
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_legacy_obs
-            test_eph_validity test_capture test_station_report
+    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_observables
+            test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
             test_stall test_failure test_vrs test_bridge_vrs test_tls)
 

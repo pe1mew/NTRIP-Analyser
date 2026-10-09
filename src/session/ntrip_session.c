@@ -169,6 +169,12 @@ struct NtripSession {
     /* Ionospheric phase arcs, for the same reason. */
     IonoState  iono;
 
+    /* The current epoch's observables: ranges, phases and rates, which
+     * the stream has always carried and nothing kept.  One epoch, never
+     * a history -- measured at 7 704 bytes, which a handset can hold
+     * (`design/work-items/station-self-position.md` P1). */
+    NsObsEpoch obs;
+
     /* What the sourcetable promised, for the advertised-vs-observed
      * comparison.  Empty until a caller supplies it. */
     SourcetableType advertised[NS_MAX_TYPES];
@@ -466,6 +472,52 @@ static int type_slot(NtripSession *s, int msg_type)
 }
 
 /**
+ * @brief Collect one MSM frame's observables into the current epoch.
+ *
+ * A multi-constellation base sends GPS, GLONASS, Galileo and BeiDou as
+ * separate frames for the same instant, so an epoch spans frames.  Two
+ * things close it: an epoch field that differs from the one in progress,
+ * and the MSM multiple-message bit clearing, which is the base saying
+ * this was the last frame of the set.
+ *
+ * The epoch fields are not comparable across constellations -- GPS counts
+ * milliseconds of week, GLONASS milliseconds of day -- so the comparison
+ * is deliberately "differs from what is in progress" rather than any
+ * arithmetic on the two values.
+ *
+ * Non-MSM frames pass through untouched: @ref msm_extract_obs refuses
+ * them, and an epoch in progress survives a 1005 arriving in the middle
+ * of it.
+ *
+ * @return true when this frame closed the epoch.
+ */
+static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
+                     uint32_t epoch, bool has_epoch)
+{
+    if (!has_epoch) return false;
+
+    NsObsCell cells[NS_OBS_MAX_CELLS];
+    int total = 0;
+    int n = msm_extract_obs(s->frame + 3, payload_len, msg_type,
+                            cells, NS_OBS_MAX_CELLS, NULL, &total);
+    if (n <= 0 && total == 0) return false;       /* not an MSM we read */
+
+    if (!s->obs.open || s->obs.epoch_ms != epoch)
+        ns_obs_reset(&s->obs, epoch);
+
+    for (int i = 0; i < n; i++) ns_obs_add(&s->obs, &cells[i]);
+    /* Cells the message held but this frame could not hand over are lost
+     * to the set just as surely as ones it refused. */
+    if (total > n) s->obs.dropped += total - n;
+
+    if (!msm_get_multiple_message_bit(s->frame + 3, payload_len, msg_type)) {
+        s->obs.open = false;
+        return true;
+    }
+    return false;
+}
+
+/**
  * @brief Fold one accepted frame into the statistics.
  *
  * Interval statistics advance per **epoch**, not per frame.  MSM splits
@@ -689,6 +741,7 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                                   msg_type, t_obs);
                     iono_feed(&s->iono, s->frame + 3, payload_len,
                               msg_type, t_obs);
+                    obs_feed(s, msg_type, payload_len, epoch, has_epoch);
 
                     /* The broadcast reference position.  These snapshot
                      * fields existed since the schema was written but

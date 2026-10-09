@@ -142,7 +142,7 @@ two least-squares solves, the report fields, and the two frontends.
 
 ## Steps
 
-### P1 — the observables survive the epoch
+### P1 — the observables survive the epoch  *(done 2026-10-09)*
 
 Phase 5 of `measurement-tiers.md`, deferred there by decision and
 unblocked here. A bounded per-epoch observation set owned by the
@@ -180,6 +180,40 @@ byte-identical report; memory per epoch measured and stated, not
 estimated. A new test builds MSM frames whose ranges are known by
 construction, as `test_msm_cnr.c` already does for C/N0, and asserts
 the retained values including the rough-plus-fine combination.
+
+**Built 2026-10-09.** `src/core/ns_obs.{c,h}` holds one epoch;
+`msm_extract_obs` in the parser reads a frame's cells as the sibling of
+`msm_extract_cnr`; the session accumulates across frames and closes the
+set on the multiple-message bit. `ns_obs.c` went into both source lists
+in the same commit, as decision 8 requires.
+
+*Measured, not estimated:* a cell is **40 bytes**, the set **7 704**,
+one instance per session. The whole build is warning-free and the suite
+is **17 of 17**, the new `observables` test included.
+
+*Falsified before being believed.* Dropping the rough range makes every
+pseudorange 2.2 m and the band assertion fires; keeping the rough range
+but using the detail decoder's `0.0001` scale passes the band and fails
+the exact value by 3.7 km. The second is why the test asserts both.
+
+**Three things P1 found that the plan had not:**
+
+- **The message-detail decoder's metre conversions are wrong.** It
+  applies the phase rate's `0.0001` to pseudorange and phase as well,
+  where RTCM gives 2^-29 ms and 2^-31 ms for the extended fields:
+  **5.6x out on pseudorange, 1.4x on phase**, in the GUI's detail view
+  and the CLI's verbose output since they were written. Nobody saw it
+  because the measurement path never read those columns. The new
+  extractor has its own correct scales; **fixing the display decoder is
+  a separate change** and is not part of this branch.
+- **`test_all`'s dependency list is hand-maintained**, so a new test
+  executable is not rebuilt before `ctest` runs — which let a stale
+  binary report a pass during this very step. `test_observables` has
+  been added to the list; the next test will hit the same trap.
+- **The epoch is not comparable across constellations**: GPS counts
+  milliseconds of week, GLONASS milliseconds of day. The session
+  therefore closes a set on *difference*, never on arithmetic between
+  two epoch values.
 
 ### P2 — satellite position, velocity and clock at transmit time
 
