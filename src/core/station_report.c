@@ -13,6 +13,7 @@
 
 #include "core/station_report.h"
 #include "core/iono.h"
+#include "core/spp.h"   /* SppStatus, for the "why nothing solved" field */
 
 #include <math.h>
 #include <stdarg.h>
@@ -59,6 +60,9 @@ void sr_reset(SrState *s, bool from_capture, const SrPolicy *pol)
     s->cnr_last   = 0.0f;
     s->sats_min   = 1 << 30;
     s->roti_worst = -1.0f;
+    /* The speed histogram needs no sentinel: the memset above empties
+     * it, and an empty one is how "no velocity yet" is read. */
+    s->sp_last_status = SPP_NO_EPOCH;
 }
 
 void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
@@ -150,6 +154,58 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
         s->roti_worst = snap->iono_roti_median;
 
     if (snap->types_offrate > 0) s->offrate_samples++;
+
+    /* Self-position.  Only epochs that solved contribute; the status of
+     * the last one is kept either way, because "nothing solved, and
+     * here is why" is the useful report for a single-frequency station
+     * rather than an empty section. */
+    s->sp_last_status = snap->selfpos_status;
+    if (snap->selfpos_status == 0 && snap->selfpos_sats > 0) {
+        s->sp_samples++;
+        s->sp_sum_e  += snap->selfpos_e;
+        s->sp_sum_n  += snap->selfpos_n;
+        s->sp_sum_u  += snap->selfpos_u;
+        s->sp_sum_sq += snap->selfpos_e * snap->selfpos_e
+                      + snap->selfpos_n * snap->selfpos_n
+                      + snap->selfpos_u * snap->selfpos_u;
+        if (snap->selfpos_code_rms_m != NS_UNSET &&
+            snap->selfpos_code_rms_m > s->sp_rms_worst)
+            s->sp_rms_worst = snap->selfpos_code_rms_m;
+        /* Gated on the flag, not on the value: a snapshot can carry a
+         * stale speed beside has_vel == false, and the flag is what has
+         * to stop it -- see test_station_report case 15. */
+        if (snap->selfpos_has_vel && snap->selfpos_speed_mms != NS_UNSET &&
+            snap->selfpos_speed_mms >= 0.0) {
+            int bin = (int)(snap->selfpos_speed_mms / SR_SPEED_BIN_MMS);
+            if (bin > SR_SPEED_BINS) bin = SR_SPEED_BINS;   /* the cap */
+            s->sp_speed_hist[bin]++;
+            s->sp_speed_n++;
+        }
+    }
+}
+
+/**
+ * @brief The median of the speed histogram, mm/s, or NS_UNSET if empty.
+ *
+ * The bin the middle sample falls in, read at its centre: resolution
+ * ±SR_SPEED_BIN_MMS / 2. A median in the overflow bin is reported as
+ * the cap, which is a floor rather than a value -- and no solve of a
+ * standing base gets there.
+ */
+static double speed_median(const SrState *s)
+{
+    if (s->sp_speed_n <= 0) return NS_UNSET;
+    /* The lower median for an even count: the (n+1)/2-th sample. */
+    const int target = (s->sp_speed_n + 1) / 2;
+    int seen = 0;
+    for (int b = 0; b <= SR_SPEED_BINS; b++) {
+        seen += (int)s->sp_speed_hist[b];
+        if (seen >= target)
+            return (b < SR_SPEED_BINS)
+                 ? (b + 0.5) * SR_SPEED_BIN_MMS
+                 : SR_SPEED_BINS * SR_SPEED_BIN_MMS;
+    }
+    return NS_UNSET;    /* unreachable while sp_speed_n counts the bins */
 }
 
 /** @brief Grade a rising quantity against a warn and a bad threshold. */
@@ -321,6 +377,48 @@ void sr_build(const SrState *s, StationReport *out)
             out->metric[i].limit     = lim[i].limit;
             out->metric[i].limit_dir = lim[i].dir;
         }
+    }
+
+    /* ── Self-position ────────────────────────────────────────────────
+     * Numbers, no verdict -- see the note on the struct.  Filled before
+     * the roll-up's early returns on purpose: these fields carry their
+     * own evidence count, so a window too short for a verdict can still
+     * say honestly how many epochs solved and why the rest did not.
+     *
+     * The mean offset is mostly the single-frequency solution's own
+     * bias, which is metres and says nothing about the station.  The
+     * scatter about that mean is the half that measures something, so
+     * both are published and neither is presented as an accuracy. */
+    out->sp_samples     = s->sp_samples;
+    out->sp_last_status = s->sp_last_status;
+    if (s->sp_samples > 0) {
+        const double n = (double)s->sp_samples;
+        const double me = s->sp_sum_e / n;
+        const double mn = s->sp_sum_n / n;
+        const double mu = s->sp_sum_u / n;
+        out->sp_mean_enu[0] = me;
+        out->sp_mean_enu[1] = mn;
+        out->sp_mean_enu[2] = mu;
+        /* RMS distance from the mean: E[|x|^2] - |E[x]|^2, clamped
+         * because the difference of two sums can go a hair negative
+         * when the scatter is far smaller than the offset. */
+        double var = s->sp_sum_sq / n - (me * me + mn * mn + mu * mu);
+        out->sp_scatter_m    = (var > 0.0) ? sqrt(var) : 0.0;
+        out->sp_rms_worst        = s->sp_rms_worst;
+        out->sp_speed_median_mms = speed_median(s);
+    } else {
+        /* Nothing solved.  Not zero offset, not zero scatter: absent.
+         * `sp_last_status` is what a reader needs here, and it is set
+         * above whether or not anything solved.
+         *
+         * The three means keep the zero `memset` left, and `sp_samples`
+         * is the only thing that says whether they mean anything -- an
+         * offset is signed, so NS_UNSET is a value it could legitimately
+         * hold and cannot serve as its sentinel.  The non-negative
+         * figures beside them can and do use it. */
+        out->sp_scatter_m        = NS_UNSET;
+        out->sp_rms_worst        = NS_UNSET;
+        out->sp_speed_median_mms = NS_UNSET;
     }
 
     /* ── Roll-up.  Insufficient evidence is a state, not a failure: it
@@ -585,6 +683,47 @@ int sr_to_json(const StationReport *r, const SrJsonCtx *ctx,
         snprintf(key, sizeof(key), "%s_detail", k);
         o_key(&o, key);
         o_jstr(&o, m->detail);
+    }
+
+    /* ── Self-position ────────────────────────────────────────────────
+     * No `_verdict` key, and that absence is the statement: these are
+     * numbers nobody has yet set a threshold for.  Same null rule as
+     * the metrics above -- an epoch that did not solve publishes null,
+     * never a clean zero, because "the station did not move" and "the
+     * station carries one frequency" are different documents.
+     *
+     * `selfpos_status` is emitted even when nothing solved; it is the
+     * only key that then says anything. */
+    {
+        const bool have = r->sp_samples > 0;
+        o_key(&o, "selfpos_samples"); o_fmt(&o, "%d", r->sp_samples);
+        o_key(&o, "selfpos_status");  o_fmt(&o, "%d", r->sp_last_status);
+        o_key(&o, "selfpos_status_name");
+        o_jstr(&o, spp_status_text((SppStatus)r->sp_last_status));
+
+        static const char *const enu[3] = {
+            "selfpos_mean_e_m", "selfpos_mean_n_m", "selfpos_mean_u_m"
+        };
+        for (int i = 0; i < 3; i++) {
+            o_key(&o, enu[i]);
+            if (have) o_num(&o, r->sp_mean_enu[i], 3);
+            else      o_str(&o, "null");
+        }
+
+        o_key(&o, "selfpos_scatter_m");
+        if (have) o_num(&o, r->sp_scatter_m, 3); else o_str(&o, "null");
+
+        o_key(&o, "selfpos_code_rms_worst_m");
+        if (have) o_num(&o, r->sp_rms_worst, 3); else o_str(&o, "null");
+
+        /* Two different absences, and they are not the same null: no
+         * epoch solved at all, or epochs solved from a stream that
+         * carries no phase-range rates to measure motion with. */
+        o_key(&o, "selfpos_speed_median_mms");
+        if (have && r->sp_speed_median_mms != NS_UNSET)
+            o_num(&o, r->sp_speed_median_mms, 1);
+        else
+            o_str(&o, "null");
     }
 
     o_ch(&o, '}');

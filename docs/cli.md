@@ -74,7 +74,9 @@ so when there are more:
 
 An optional `eph_caster` / `eph_port` / `eph_mountpoint` block adds a
 second connection for ephemerides, for stations that do not broadcast
-their own on the observation stream. Files written by
+their own on the observation stream. `--sky` opens it always;
+`-t`, `-s`, `-d` and `--check` open it only under `--report`, for the
+self-position. Files written by
 earlier releases, with `NTRIP_CASTER` and friends at the top level, are
 still read. The full description of the format is in
 **[jsonConfigs.md](jsonConfigs.md)**.
@@ -202,6 +204,81 @@ itself, which has three consequences worth knowing:
 A stream carrying no observations at all — station and antenna messages
 only — has no clock to measure with, and the report says so rather than
 guessing.
+
+**Self-position is printed below the table and carries no verdict.** The
+analyser solves the station's own position from the observations it
+streams, and reports the offset from the reference position the station
+advertises, the scatter about that offset, the worst code residual and
+the median apparent motion.
+
+```
+Self-position (no threshold yet -- figures only), 3410 epoch(s) solved
+    offset from reference   E +1.842  N -0.317  U +2.015 m
+    scatter about that      0.934 m
+    worst code residual     1.903 m RMS
+    median apparent motion  32.5 mm/s
+```
+
+The motion is the **median** over the window, not the maximum. A
+velocity from broadcast orbits is noisy epoch by epoch: on bases bolted
+to pillars the maximum settled at 15–80 mm/s, set by whichever epoch
+happened to be noisiest, while the median sits steadily in the low tens
+of mm/s and a handful of wild epochs cannot move it. It is read from a
+histogram at 1 mm/s resolution, so it costs fixed memory however long
+the run.
+
+None of it is graded, deliberately: what counts as abnormal scatter for a
+station's own position is not yet known from evidence, and a threshold
+invented to fill the column would be worse than no column at all.
+
+**GPS only, deliberately.** Each constellation keeps its own system
+time and reaches the receiver down its own hardware path, so each needs
+a clock unknown of its own; one unknown for all of them forces a
+compromise across the lot, and BeiDou adds a 14-second time-scale
+offset on top. Measured against a station streaming six systems, 25
+satellites under a single clock unknown put the station 1.8 km from
+where it is. Eight to twelve dual-frequency GPS satellites answer the
+question this asks. Multi-GNSS returns when the solve has a clock
+unknown per system.
+
+Read the offset as an offset. Most of it is the dual-frequency code
+solution's own bias — metres of it — and it says nothing about the
+station. The *scatter* is the half that measures something, and the
+apparent motion is the figure that would reveal an antenna that moved.
+
+**Some receivers send the phase-range rate backwards** — every
+satellite the negative of what its orbit predicts. The solver works out
+which convention the station uses from the data itself, so the motion
+is right either way, and a reversed station is reported in the JSON as
+`selfpos_rate_sign: -1`.
+**Orbits come from the same three places as for the sky map.** A
+station that broadcasts its own ephemerides needs nothing more. One that
+does not — RFSEE01 streams MSM7 and nothing else — needs an outside
+source, or the line reads `Self-position: nothing solved -- observations
+without orbits` however long the run:
+
+- **`eph_caster` / `eph_mountpoint` in the config.** Under `--report`,
+  `-t`, `-s`, `-d`, `--check` and `--check-vrs` then open a **second
+  connection**, to the ephemeris stream, for as long as the run lasts,
+  and close it at the end (`[EPH] Opening a second connection for
+  orbits: ...` on stderr). Without `--report` nothing reads orbits, so
+  no second connection is opened. Under `--check` it cannot move the
+  verdict: no KPI and no network-RTK assertion reads an orbit, and the
+  ephemeris stream's own 1005/1006 are ignored, so it can never stand in
+  for the station position KPI 3 waits for.
+- **`-R <RINEX 3 NAV>`**, loaded before the stream starts. Over
+  `--rtcm-stdin` this is the only outside source: the ephemeris stream
+  is not opened for a replay, because a capture read from disk in
+  seconds would be finished before it delivered, and today's orbits are
+  not the capture's. Use a NAV file covering the capture's day:
+
+  ```sh
+  ntrip-analyser -t 600 --report --rtcm-stdin -R BRDC00WRD_R_20262830000_01D_MN.rnx < capture.rtcm3
+  ```
+
+A station streaming one frequency cannot be solved at all; the line then
+reads `Self-position: nothing solved -- single-frequency station: not
+computable`, which is a statement about the stream rather than a fault.
 
 ### 2b. Capturing the stream to a file
 

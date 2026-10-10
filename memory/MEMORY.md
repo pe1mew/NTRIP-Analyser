@@ -42,7 +42,7 @@
 | `design/work-items/pro-to-play.md` | Anything in the Play Console, for either edition | Pro's store rollout, and every console mechanic that cost a step: price and regions, licence testing as the tester sees it, reviewer credentials and where the form lives |
 | `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
-| `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§15 are the check, the stability window and threshold loading, as built |
+| `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§16 are the check, the stability window, threshold loading and self-position, as built |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
@@ -53,6 +53,19 @@
 | `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Twelve published pages; the app links into them, so a claim here is a claim in the product |
 
 ## Current State
+
+<!-- 2026-10-10 -->
+
+- **Self-position is complete on the desktop and in review** as
+  pe1mew/NTRIP-Analyser#8 (`self-position` → `main`, Auto-fix on, not
+  merged — merging is the author's). GUI window with S export, the
+  CLI's `--report`, and the daemon's snapshot and report; orbits from
+  the station's own stream, a configured side-stream, or `-R`. Plan
+  steps P1–P6 and the desktop half of P8 are done; **P7** (pro on
+  Android) waits for pro's production and the listing sentence, and
+  **multi-GNSS** needs its own design. Plan:
+  `design/work-items/station-self-position.md`.
+  <!-- verify: grep -q "Self-position" design/feature-matrix.md && test -f gui/gui_selfpos_window.c -->
 
 <!-- 2026-09-17 -->
 
@@ -130,8 +143,8 @@
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.
-- **Eighteen C tests**, including the desktop-built bridge harness
-  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 18 -->
+- **Twenty C tests**, including the desktop-built bridge harness
+  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 20 -->
   (`test_bridge_vrs.c`) that drives the phone's own plumbing over a
   loopback socket with a synthetic clock.
 
@@ -225,6 +238,26 @@ Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md).
   artefact its version before reading any code (pro's APK 2026-08-14,
   the VPS binary 2026-08-16) — promoted from gotcha-log 2026-08-16,
   generalising the Android-only wording in Active Decisions above.
+- If a **falsification leaves a check green**, the test is the defect:
+  feed it the input the defence exists for, not the input a cooperating
+  caller would send (synthetic ephemerides sharing one `af1`, so a
+  removed clock-drift term was common-mode and invisible, 2026-10-09;
+  a snapshot that politely blanked `selfpos_speed_mms`, so a removed
+  `has_vel` gate was never consulted, 2026-10-09; the same mistake again
+  in the snapshot serialiser's own test hours later, 2026-10-09) —
+  promoted from gotcha-log 2026-10-09 to Active Decisions below.
+- If you are about to **write down what a frontend does** — in the
+  feature matrix, a doc, a brief for another session — **test it on that
+  frontend first** (the daemon "solved stations broadcasting their own
+  orbits" and solved none; `-t --report` was documented the same and did
+  not either; *Read the wiring, missed the gate* before them) —
+  promoted from gotcha-log 2026-10-10 to Active Decisions below.
+- If you **hand the author a command**, put everything it depends on
+  **in the command itself** — the shell it is written for and, for git,
+  `git -C <checkout>` — never in a sentence beside it (a Bash heredoc
+  at a PowerShell prompt, 2026-10-09; a bare `git commit` in the wrong
+  checkout, 2026-10-10) — promoted from gotcha-log 2026-10-10 to Active
+  Decisions below.
 
 ## Key File Paths
 
@@ -272,6 +305,115 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **Self-position works in all three desktop frontends**, verified
+  against live stations and an independent solver (2026-10-10; branch
+  `self-position`, PR #8). APEL00NLD0 in the GUI: 83 epochs, offset
+  E −3.5 / N +3.7 / U +3.0 m, **scatter 0.231 m**, worst residual
+  2.26 m, 9 satellites at PDOP 1.3. RTKLIB's `rnx2rtkp` on RFSEE01 with
+  the same ephemerides: E +0.06 / N +1.13 / U +8.27 m, scatter 0.449 m.
+  The GUI and the daemon side by side for 43 min on one stream:
+  scatter 2.17 m and **2.18 m**, median motion 32.5 mm/s in both — so
+  differing scatter between runs is the station's hour, not a frontend.
+  **Eight defects stood between the closure test passing and this**,
+  every one found on a live station and none visible to the suite at
+  the time: the solve never called; six constellations under one clock
+  unknown; an epoch destroyed by a split constellation; the epoch dated
+  on BeiDou time; a station whose DF393 never clears; RFSEE01's
+  reversed rates; and the daemon and the CLI ignoring orbits a station
+  broadcasts itself.
+  <!-- verify: grep -q "selfpos_solve(s)" src/session/ntrip_session.c && grep -q "test_selfpos_session" CMakeLists.txt -->
+- **A claim about what a frontend does is tested on that frontend
+  before it is written** — in the feature matrix, a doc, or a brief for
+  another session. The matrix said the daemon "solved stations
+  broadcasting their own orbits" and it solved none; `docs/cli.md` said
+  the same of `-t --report` and it did not either. Both assumed a shared
+  layer decoded ephemerides, and **the session layer decodes nothing** —
+  each frontend decodes what it needs. Promoted 2026-10-10 (three
+  occurrences, with *Read the wiring, missed the gate*).
+- **A command handed to the author carries all its context in the
+  command itself**: the shell it is written for, and for git
+  `git -C <checkout>`. Never in a sentence beside it. A Bash heredoc
+  met a PowerShell prompt (2026-10-09); a bare `git commit` met the
+  wrong checkout and committed another session's staged work under this
+  one's message, already pushed before anyone noticed (2026-10-10).
+- **RFSEE01's receiver sends the phase-range rate with the sign
+  reversed** (2026-10-10) — every satellite the exact negative of what
+  its orbit predicts. The solver now fits both conventions and keeps
+  the one that fits; the snapshot reports `selfpos_rate_sign` −1 and
+  the window shows `REVERSED`. Five or more rates decide it; four
+  cannot, and claim nothing. **A field defined by a standard is still a
+  claim made by somebody's firmware** — where the data can say which way
+  round it is, ask the data.
+  <!-- verify: grep -q "rate_sign" src/core/spp.h && grep -q "case_reversed_rates" test/test_spp.c -->
+- **An observation epoch is complete when DF393 clears *or* when the
+  next one demonstrably begins** — whichever comes first, compared
+  **within one system** because the epoch fields are not comparable
+  across them (2026-10-10, `src/session/ntrip_session.c`). Three live
+  stations in two days broke three different assumptions: a
+  constellation split across two frames, a bundle closed by BeiDou (on
+  BDT, 14 s behind GPS), and a station whose DF393 stopped clearing
+  entirely when NavIC dropped out of view. **A stream's shape is a
+  property of the sky that hour, not of the station** — anything
+  waiting for a particular frame needs a way to proceed without it.
+  <!-- verify: grep -q "sys_epoch" src/session/ntrip_session.c && grep -q "DF393 never clears" test/test_selfpos_session.c -->
+- **The single-point solve is GPS only** (2026-10-09), because each
+  constellation needs a clock unknown of its own — the argument the
+  module had already written down for GLONASS and applied to GLONASS
+  alone. Admitting all six under one unknown put a real station 1.8 km
+  out, with 2.6 km residuals and **829 m/s** of apparent motion on a
+  concrete pillar. Two lessons worth more than the fix: **when a refusal rests
+  on a general principle, ask which other cases that principle covers**,
+  and **a closure test cannot discover that the world has more clocks
+  than the model** — `test_spp` built its measurements from the same
+  single-clock model it inverted, against one synthetic constellation.
+  <!-- verify: grep -q "gnss_id != 1" src/core/spp.c && grep -q "case_gps_only" test/test_spp.c -->
+- **A test that starts below the wiring cannot see the wiring.** The
+  self-position solve was defined and never called for two whole steps
+  of its plan — the call site discarded the `obs_feed()` return value
+  that says an epoch closed — under a suite of nineteen green tests
+  that each began *below* `ntrip_session`: the solver with its own
+  epoch, the report with its own snapshots, the serialisers with
+  theirs. Every surface handled "nothing solved" correctly, so the
+  absence looked like a property of the station. Found by connecting a
+  real one. `test/test_selfpos_session.c` now replays RTCM through
+  `ns_open_file()` and asks only whether a closed epoch reaches the
+  solve. **When a feature spans layers, one test must cross all of
+  them.**
+- **`-Wall` is on our targets as of 2026-10-09** — the build until then
+  passed `-O3 -DNDEBUG -std=gnu99` and nothing else, so a static
+  function nobody called drew no warning and "the build is
+  warning-free" was measured with an instrument that asks nothing.
+  Check what the build asks before quoting it:
+  `grep C_FLAGS build/CMakeFiles/<target>.dir/flags.make`.
+  <!-- verify: grep -q -- "-Wall" CMakeLists.txt -->
+- **A screen may only say what its evidence supports, and "not yet" is
+  evidence of nothing.** Four times a window has stated a finding about
+  a station that only described how long it had been watched: "fewest
+  held: 9" from a partial first epoch, "no dual-frequency pair" at 25 s
+  (both 2026-08-18), then **NOT COMPUTABLE** at 32 s and ring labels of
+  "0.125 m" on a plot with no points (both 2026-10-09, in a window
+  added to the same document that records the first two). A state that
+  is merely early gets words that say so — *gathering*, naming what is
+  being waited for — and only a property of the **stream itself**, like
+  a single-frequency station, may be stated as a finding.
+  `design/gui-design.md` §14.5 and §16.5. **Writing the lesson down did
+  not transfer it; looking at the window did** — `PrintWindow` to a PNG
+  and read it, with `SetProcessDPIAware()` called first.
+- **A falsification that stays green accuses the test, not the code.**
+  Three times now the input was too cooperative to reach the defence:
+  synthetic ephemerides sharing one `af1` made a deleted
+  satellite-clock-drift term common-mode, absorbed exactly by the
+  receiver's clock unknown; a snapshot that blanked `selfpos_speed_mms`
+  beside `has_vel = false` meant a deleted `has_vel` gate was never
+  consulted, because the sentinel rejected the sample first; and then,
+  hours after writing this entry, a snapshot left at its `NS_UNSET`
+  initialisers hid a deleted status gate in the snapshot serialiser —
+  **knowing the pattern did not stop it; running the falsification
+  did** (all 2026-10-09, `design/work-items/station-self-position.md`
+  P4-P6). **Feed a test the input its defence exists for** — wrong where
+  it should be wrong, stale where a caller would have blanked it,
+  different where uniformity would hide the fault. And **falsify every
+  new check by name**, because that is what catches this.
 - **A flag's lifetime must match the thing it describes** — and a
   record of a run outlives the screen that draws it. Three faces of one
   rule, all paid for: run-scoped accumulators in composables lost a

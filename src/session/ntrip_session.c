@@ -26,6 +26,7 @@
 #include "core/nmea_parser.h"     /* GGA construction */
 #include "core/sv_track.h"        /* satellites and C/N0 per constellation */
 #include "core/iono.h"            /* ionospheric ROTI from dual-freq MSM7 */
+#include "core/spp.h"             /* where the station places itself */
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -475,35 +476,124 @@ static int type_slot(NtripSession *s, int msg_type)
  * @brief Collect one MSM frame's observables into the current epoch.
  *
  * A multi-constellation base sends GPS, GLONASS, Galileo and BeiDou as
- * separate frames for the same instant, so an epoch spans frames.  Two
- * things close it: an epoch field that differs from the one in progress,
- * and the MSM multiple-message bit clearing, which is the base saying
- * this was the last frame of the set.
+ * separate frames for the same instant, so an epoch spans frames, and
+ * the whole difficulty is deciding when it has stopped.
  *
- * The epoch fields are not comparable across constellations -- GPS counts
- * milliseconds of week, GLONASS milliseconds of day -- so the comparison
- * is deliberately "differs from what is in progress" rather than any
- * arithmetic on the two values.
+ * **One rule, and it assumes nothing about the station:**
+ *
+ * > A set is complete when the protocol says so — DF393 clears — **or**
+ * > when the next set demonstrably begins. Whichever comes first.
+ *
+ * The second half is what makes it hold against real bases, because
+ * each of these was a live station inside two days:
+ *
+ * - **A constellation arriving in two frames.** BeiDou as 48 cells and
+ *   then 5, which is precisely what the multiple-message bit is for. A
+ *   guard reading "this system has contributed before" threw the set
+ *   away mid-bundle and handed the solver 6 cells of 128.
+ * - **A bit that never clears.** The same station an hour later, after
+ *   NavIC dropped out of view and took with it the only frame that had
+ *   been clearing DF393. Waiting for the bit meant waiting forever.
+ * - **A bundle closed by BeiDou**, whose epoch field is on BDT — hence
+ *   @ref NsObsEpoch::tow_gps_ms, taken from the first frame that can
+ *   state the instant on GPS's scale rather than from the last frame
+ *   to arrive.
+ *
+ * "Demonstrably begins" is a comparison made **within one system**:
+ * GPS against GPS. Across systems the fields are not comparable at all
+ * — GPS counts milliseconds of week, GLONASS of day — so the same
+ * system reporting a different epoch is the only sound evidence that
+ * time has moved on, and it needs no station-specific knowledge.
+ *
+ * What the rule gives up, deliberately: the last set of a stream is
+ * never completed, and is not solved. Nothing arrives to prove it was
+ * finished, and inventing that proof would mean solving every
+ * half-received bundle at every disconnection.
  *
  * Non-MSM frames pass through untouched: @ref msm_extract_obs refuses
- * them, and an epoch in progress survives a 1005 arriving in the middle
- * of it.
+ * them, and an epoch in progress survives a 1005 arriving in the
+ * middle of it.
  *
- * @return true when this frame closed the epoch.
+ * @return true when this frame closed the epoch by clearing DF393. A
+ *         set completed by the *next* one beginning is solved inside
+ *         this function, since its contents are about to be replaced.
  */
+static void selfpos_solve(NtripSession *s);   /* defined below */
+
 static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
                      uint32_t epoch, bool has_epoch)
 {
     if (!has_epoch) return false;
 
     NsObsCell cells[NS_OBS_MAX_CELLS];
-    int total = 0;
+    int total = 0, gnss = 0;
     int n = msm_extract_obs(s->frame + 3, payload_len, msg_type,
-                            cells, NS_OBS_MAX_CELLS, NULL, &total);
+                            cells, NS_OBS_MAX_CELLS, &gnss, &total);
     if (n <= 0 && total == 0) return false;       /* not an MSM we read */
 
-    if (!s->obs.open || s->obs.epoch_ms != epoch)
+    /* When a new set begins.
+     *
+     * Not "the epoch field changed": a multi-constellation base sends
+     * GPS, GLONASS and Galileo for the same instant, and their epoch
+     * fields are not comparable -- GPS counts milliseconds of week,
+     * GLONASS of day -- so comparing them would reset the set in the
+     * middle of every bundle and leave each epoch holding one system.
+     *
+     * The primary rule is simply that the previous set has closed.
+     * Beside it sits a guard against a base whose multiple-message bit
+     * never clears, and that guard is where this went wrong: written as
+     * "this system has contributed before", it also fires on the thing
+     * the multiple-message bit **exists to express** -- one
+     * constellation continued across two frames.
+     *
+     * Measured on a live station: BeiDou arrived as 48 cells and then
+     * 5, and the second frame reset the set, throwing away GPS,
+     * GLONASS, Galileo and BeiDou's own first frame. The epoch that
+     * reached the solver held 6 cells of the 128 that had arrived, and
+     * not one of them GPS.
+     *
+     * The comparison that is sound is **within a system**: GPS against
+     * GPS. Same system and the same epoch field is a continuation;
+     * same system and a different epoch means a new bundle began
+     * without the previous one closing, which is the stuck-bit case
+     * the guard was for. */
+    bool new_set = !s->obs.open;
+    if (!new_set && gnss > 0 && gnss < NS_OBS_MAX_GNSS &&
+        (s->obs.gnss_seen & ((uint32_t)1u << gnss)) != 0)
+        new_set = (s->obs.sys_epoch[gnss] != epoch);
+
+    if (new_set) {
+        /* A bundle beginning is proof the previous one ended, and for
+         * some stations it is the **only** proof there will be.
+         *
+         * RFSEE01 was sending 1077, 1087, 1097 and 1127 twice, every
+         * frame with DF393 set and nothing ever clearing it -- the
+         * stuck bit this guard was written for. Waiting for the bit
+         * meant the set never closed, the solve was never called, and
+         * the window read "waiting for the first observation epoch"
+         * through forty-one snapshots of a perfectly good stream. It
+         * had worked an hour earlier only because NavIC was in view
+         * then and happened to clear the bit.
+         *
+         * So the completed set is solved here, before this frame's
+         * cells replace it. */
+        if (s->obs.open && s->obs.n > 0) {
+            s->obs.open = false;
+            selfpos_solve(s);
+        }
         ns_obs_reset(&s->obs, epoch);
+    }
+
+    if (gnss > 0 && gnss < NS_OBS_MAX_GNSS) s->obs.sys_epoch[gnss] = epoch;
+
+    /* The instant the set was observed, on one scale.  Taken from the
+     * first frame that can say, which is not necessarily the frame that
+     * closes the set: a base whose bundle ends with BeiDou would
+     * otherwise date the epoch 14 s early. */
+    if (s->obs.tow_gps_ms < 0.0) {
+        const double tow = msm_epoch_to_gps_tow_ms(msg_type, epoch);
+        if (tow >= 0.0) s->obs.tow_gps_ms = tow;
+    }
 
     for (int i = 0; i < n; i++) ns_obs_add(&s->obs, &cells[i]);
     /* Cells the message held but this frame could not hand over are lost
@@ -515,6 +605,90 @@ static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
         return true;
     }
     return false;
+}
+
+/**
+ * @brief Solve the closed epoch for where the station places itself.
+ *
+ * Runs once per epoch, against the broadcast ARP when the station has
+ * sent one -- which is the reference the offsets are quoted against and
+ * which the report must name. Without an ARP the solve still runs, from
+ * the Earth's centre, and only the ENU offsets are missing.
+ *
+ * The GPS week is passed as 0 on purpose: every consumer of it in the
+ * orbit code ignores it and works modulo a week, because RTCM 1019
+ * carries ten bits of week and mixing that with a host clock's full
+ * week is how you get a 1024-week offset. `sv_eph_is_valid_at` says so
+ * in its own comment.
+ *
+ * The *time* comes from @ref NsObsEpoch::tow_gps_ms, not from the frame
+ * that closed the set. Those are not the same thing: a bundle is closed
+ * by whichever frame clears DF393, and a base that ends its bundle with
+ * BeiDou dates it on BDT, 14 s behind GPS. Taking the closing frame's
+ * value put a station 7.8 km from itself with kilometre residuals, and
+ * a neighbouring base that happened to close on NavIC was right only by
+ * luck.
+ */
+static void selfpos_solve(NtripSession *s)
+{
+    /* Without a convertible time there is nothing to solve against.
+     * It also means the set holds no GPS, Galileo, QZSS or NavIC frame
+     * -- so it holds no satellite this solver would have used. */
+    if (s->obs.tow_gps_ms < 0.0) {
+        s->stats.selfpos_status = (int)SPP_TOO_FEW_SATS;
+        return;
+    }
+
+    double ref[3];
+    const double *refp = NULL;
+    if (s->stats.arp_valid) {
+        geodetic_to_ecef(s->stats.arp_lat, s->stats.arp_lon, s->stats.arp_alt,
+                         &ref[0], &ref[1], &ref[2]);
+        refp = ref;
+    }
+
+    SppSolution sol;
+    const SppStatus st = spp_solve(&s->obs, 0, s->obs.tow_gps_ms / 1000.0,
+                                   refp, &sol);
+
+    s->stats.selfpos_status = (int)st;
+    s->stats.selfpos_sats   = sol.n_used;
+
+    if (st != SPP_OK) {
+        /* Leave the numbers unset: an epoch that did not solve must not
+         * publish an offset of zero, which reads as a station sitting
+         * exactly where it says it does. */
+        s->stats.selfpos_e = s->stats.selfpos_n = s->stats.selfpos_u = NS_UNSET;
+        s->stats.selfpos_code_rms_m = NS_UNSET;
+        s->stats.selfpos_pdop       = NS_UNSET;
+        s->stats.selfpos_has_vel     = false;
+        s->stats.selfpos_speed_mms   = NS_UNSET;
+        s->stats.selfpos_drift_ms    = NS_UNSET;
+        s->stats.selfpos_rate_rms_ms = NS_UNSET;
+        s->stats.selfpos_rate_sign   = 0;
+        return;
+    }
+
+    s->stats.selfpos_e = refp ? sol.enu[0] : NS_UNSET;
+    s->stats.selfpos_n = refp ? sol.enu[1] : NS_UNSET;
+    s->stats.selfpos_u = refp ? sol.enu[2] : NS_UNSET;
+    s->stats.selfpos_code_rms_m = sol.code_rms_m;
+    s->stats.selfpos_pdop       = sol.pdop;
+    s->stats.selfpos_has_vel    = sol.has_velocity;
+    if (sol.has_velocity) {
+        const double sp = sqrt(sol.vel_ecef[0] * sol.vel_ecef[0]
+                             + sol.vel_ecef[1] * sol.vel_ecef[1]
+                             + sol.vel_ecef[2] * sol.vel_ecef[2]);
+        s->stats.selfpos_speed_mms   = sp * 1000.0;
+        s->stats.selfpos_drift_ms    = sol.clock_drift_ms;
+        s->stats.selfpos_rate_rms_ms = sol.rate_rms_ms;
+        s->stats.selfpos_rate_sign   = sol.rate_sign;
+    } else {
+        s->stats.selfpos_speed_mms   = NS_UNSET;
+        s->stats.selfpos_drift_ms    = NS_UNSET;
+        s->stats.selfpos_rate_rms_ms = NS_UNSET;
+        s->stats.selfpos_rate_sign   = 0;
+    }
 }
 
 /**
@@ -741,7 +915,15 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                                   msg_type, t_obs);
                     iono_feed(&s->iono, s->frame + 3, payload_len,
                               msg_type, t_obs);
-                    obs_feed(s, msg_type, payload_len, epoch, has_epoch);
+                    /* The observables are retained for one epoch, and
+                     * the epoch is solved the moment it closes -- while
+                     * the cells are still in hand.  Dropping this
+                     * return value is how the self-position feature
+                     * shipped unable to run at all: every surface
+                     * handled "nothing solved" correctly, so nothing
+                     * looked broken. */
+                    if (obs_feed(s, msg_type, payload_len, epoch, has_epoch))
+                        selfpos_solve(s);
 
                     /* The broadcast reference position.  These snapshot
                      * fields existed since the schema was written but
@@ -971,6 +1153,14 @@ static void do_connect(NtripSession *s)
     s->backoff_s   = 0;
     s->last_rx_t   = ns_now();   /* silence is counted from here */
     s->stats.connected = true;
+
+    /* Whatever observations were in hand when the stream dropped are
+     * half a bundle, and the stream resumes mid-bundle too. Joining
+     * the two would solve an epoch assembled from both sides of an
+     * outage -- one plausible-looking position per reconnect, built
+     * from satellites observed at two different times. */
+    ns_obs_reset(&s->obs, 0);
+    s->obs.open = false;
 }
 
 /**

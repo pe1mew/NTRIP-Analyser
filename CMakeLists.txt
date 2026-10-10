@@ -106,6 +106,7 @@ add_library(ntrip_core STATIC
     src/core/rtcm3x_parser.c
     src/core/ns_obs.c
     src/core/sv_state.c
+    src/core/spp.c
     src/core/sv_ephemeris.c
     src/core/sv_orbit.c
     src/core/sv_track.c
@@ -123,6 +124,19 @@ add_library(ntrip_core STATIC
 )
 target_include_directories(ntrip_core PUBLIC src)
 target_link_libraries(ntrip_core PUBLIC cjson)
+# -Wall on our own code, and PUBLIC so it reaches everything that links
+# this: the CLI, the GUI, the service and every test.  Not on the
+# vendored libraries, which are not ours to clean.
+#
+# It was added after a build that reported zero warnings shipped a
+# static function nothing called -- the whole self-position solve, dead
+# at the call site, through P5 and P6. `-Wunused-function` names it in
+# one line. The flags until then were `-O3 -DNDEBUG -std=gnu99` and
+# nothing else, so "the build is warning-free" had been measured with
+# an instrument that asks almost nothing; the codebase turned out to be
+# clean under `-Wall` the moment it was switched on.
+target_compile_options(ntrip_core PUBLIC
+    $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-Wall>)
 if(UNIX)
     target_link_libraries(ntrip_core PUBLIC m)
 endif()
@@ -197,6 +211,22 @@ add_test(NAME observables COMMAND test_observables)
 add_executable(test_sv_state test/test_sv_state.c)
 target_link_libraries(test_sv_state PRIVATE ntrip_core)
 add_test(NAME sv_state COMMAND test_sv_state)
+
+# The solver, by closure: build the pseudoranges a receiver at a known
+# point would measure, invert them, and demand the point back. Bounds
+# cannot check a position; an inversion can.
+add_executable(test_spp test/test_spp.c)
+target_link_libraries(test_spp PRIVATE ntrip_core)
+add_test(NAME spp COMMAND test_spp)
+
+# And the question every test above it assumed: does a closed epoch
+# reach the solver at all? It did not -- `selfpos_solve()` was defined
+# and never called for two whole steps of the plan, under a suite that
+# tested the solver, the report and the serialisers separately and
+# passed. This one replays RTCM through a real session.
+add_executable(test_selfpos_session test/test_selfpos_session.c)
+target_link_libraries(test_selfpos_session PRIVATE ntrip_session)
+add_test(NAME selfpos_session COMMAND test_selfpos_session)
 
 # Same reasoning as the MSM layout above: a wrong offset in a
 # fixed-layout message returns plausible satellites, not an error.
@@ -320,7 +350,7 @@ add_test(NAME kpi_stopped COMMAND test_kpi_stopped)
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_observables
-            test_sv_state
+            test_sv_state test_spp test_selfpos_session
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
             test_stall test_failure test_vrs test_bridge_vrs test_tls)
@@ -341,6 +371,7 @@ if(WIN32)
         gui/gui_vrs_window.c
         gui/gui_check_window.c
         gui/gui_report_window.c
+        gui/gui_selfpos_window.c
         gui/gui_signal_window.c
         gui/gui_hist_window.c
         gui/gui_iono_window.c

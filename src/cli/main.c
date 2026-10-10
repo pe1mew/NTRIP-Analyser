@@ -353,6 +353,128 @@ static void *eph_thread_entry(void *p)
 }
 #endif
 
+/* ── Orbit sources: RINEX preload and the EPH worker ───────────────────
+ * Shared by --sky and the stream modes.  Both fill the process-global
+ * ephemeris cache, which is where the session's self-position solve and
+ * the sky map both read from, so neither needs further plumbing. */
+
+/** @brief True when the config names an ephemeris side-stream. */
+static bool eph_stream_configured(const NTRIP_Config *config)
+{
+    return config->EPH_CASTER[0] && config->EPH_PORT > 0
+        && config->EPH_MOUNTPOINT[0];
+}
+
+/** @brief Load a RINEX 3 NAV file into the cache.  0, or -1 on failure. */
+static int rinex_preload(const char *rinex_path)
+{
+    int counts[RINEX_NAV_MAX_GNSS] = { 0 };
+    INFO("[RINEX] Loading %s ...\n", rinex_path);
+    int total = rinex_nav_load(rinex_path, counts);
+    if (total < 0) {
+        ERR("[ERROR] Could not read RINEX file: %s\n", rinex_path);
+        return -1;
+    }
+    INFO("[RINEX] Loaded %d ephemerides "
+         "(G:%d R:%d E:%d J:%d C:%d I:%d)\n",
+         total, counts[1], counts[2], counts[3], counts[4],
+         counts[5], counts[7]);
+    return 0;
+}
+
+typedef struct {
+    EphThreadArgs args;     /* must outlive the thread */
+#ifdef _WIN32
+    HANDLE    h;
+#else
+    pthread_t t;
+    int       started;
+#endif
+} EphWorker;
+
+/** @brief Start run_eph_stream() on a worker thread; it runs until
+ *         eph_worker_stop().  A failure to start is reported, not fatal:
+ *         the run goes ahead with whatever orbits the other sources give. */
+static void eph_worker_start(EphWorker *w, NTRIP_Config *config, bool verbose)
+{
+    memset(w, 0, sizeof(*w));
+    w->args.config  = config;
+    w->args.verbose = verbose;
+
+    char auth[512];
+    snprintf(auth, sizeof(auth), "%s:%s",
+             config->EPH_USERNAME, config->EPH_PASSWORD);
+    base64_encode_n(auth, config->EPH_AUTH_BASIC,
+                    sizeof(config->EPH_AUTH_BASIC));
+
+#ifdef _WIN32
+    w->h = (HANDLE)_beginthreadex(NULL, 0, eph_thread_entry,
+                                  &w->args, 0, NULL);
+    if (!w->h)
+        ERR("[ERROR] Could not start EPH worker thread\n");
+#else
+    if (pthread_create(&w->t, NULL, eph_thread_entry, &w->args) == 0)
+        w->started = 1;
+    else
+        ERR("[ERROR] pthread_create for EPH worker failed\n");
+#endif
+}
+
+/** @brief Stop the EPH worker (it polls g_stop_requested) and wait for it.
+ *         Safe on a worker that never started. */
+static void eph_worker_stop(EphWorker *w)
+{
+    g_stop_requested = 1;
+#ifdef _WIN32
+    if (w->h) {
+        WaitForSingleObject(w->h, 3000);
+        CloseHandle(w->h);
+        w->h = NULL;
+    }
+#else
+    if (w->started) {
+        pthread_join(w->t, NULL);
+        w->started = 0;
+    }
+#endif
+}
+
+/**
+ * @brief Give a stream mode (-d, -t, -s, --check, --check-vrs) the orbits
+ *        its self-position needs, the two ways --sky gets them.
+ *
+ * A station that does not broadcast its own ephemerides -- RFSEE01 sends
+ * MSM7 and nothing else -- otherwise reports "observations without
+ * orbits" however long the run.
+ *
+ * - `-R` is loaded whenever given: it is a file, and costs nothing.
+ * - The side-stream runs only under `--report`, the one output that reads
+ *   orbits, so a plain `-t` does not open a connection it has no use
+ *   for; and never over a replay.  A capture read from disk in seconds
+ *   would finish before the side-stream delivered, so the answer would
+ *   depend on the race -- and today's orbits are not the capture's.
+ *   Offline, `-R` is the source, and a deterministic one.
+ *
+ * @return EXIT_OK, or EXIT_GENERIC when the RINEX file cannot be read:
+ *         the user asked for it, so a run without it would answer a
+ *         different question.
+ */
+static int stream_orbits_begin(NTRIP_Config *config, const char *rinex_path,
+                               bool verbose, EphWorker *eph)
+{
+    memset(eph, 0, sizeof(*eph));
+
+    if (rinex_path && rinex_path[0] && rinex_preload(rinex_path) != 0)
+        return EXIT_GENERIC;
+
+    if (cli_report && !cli_replay_stdin && eph_stream_configured(config)) {
+        INFO("[EPH] Opening a second connection for orbits: %s:%d /%s\n",
+             config->EPH_CASTER, config->EPH_PORT, config->EPH_MOUNTPOINT);
+        eph_worker_start(eph, config, verbose);
+    }
+    return EXIT_OK;
+}
+
 /* ── Sky-mode: read obs RTCM from stdin (--rtcm-stdin) ───────────────
  * Mirrors run_sky_obs_stream() but reads from stdin instead of a
  * socket.  Auto-stops at EOF (reason=eof); Ctrl-C and Ctrl-A behave
@@ -845,8 +967,7 @@ static int run_sky_mode(NTRIP_Config *config,
      * one does cannot be known before connecting, so the run goes ahead
      * and the cache is checked afterwards -- a station that turns out to
      * send none still exits EXIT_NO_EPH, just having had to look. */
-    bool have_eph_stream =
-        config->EPH_CASTER[0] && config->EPH_PORT > 0 && config->EPH_MOUNTPOINT[0];
+    bool have_eph_stream = eph_stream_configured(config);
     bool have_rinex = (rinex_path && rinex_path[0]);
 
     if (!have_eph_stream && !have_rinex) {
@@ -854,15 +975,6 @@ static int run_sky_mode(NTRIP_Config *config,
              "       broadcasting its own (1019/1020/1041/1042/1044/1045/1046).\n"
              "       If it does not, configure an EPH_CASTER / EPH_PORT /\n"
              "       EPH_MOUNTPOINT or pass a RINEX 3 NAV file with -R/--RINEX.\n");
-    }
-
-    /* Prepare EPH HTTP Basic auth if we have an eph stream. */
-    if (have_eph_stream) {
-        char auth[512];
-        snprintf(auth, sizeof(auth), "%s:%s",
-                 config->EPH_USERNAME, config->EPH_PASSWORD);
-        base64_encode_n(auth, config->EPH_AUTH_BASIC,
-                        sizeof(config->EPH_AUTH_BASIC));
     }
 
     /* SIGINT handler. */
@@ -884,45 +996,16 @@ static int run_sky_mode(NTRIP_Config *config,
      * has something useful before the first obs frame arrives.  The eph
      * stream will then add to / refresh the cache as broadcast updates
      * come in. */
-    if (have_rinex) {
-        int counts[RINEX_NAV_MAX_GNSS] = { 0 };
-        INFO("[RINEX] Loading %s ...\n", rinex_path);
-        int total = rinex_nav_load(rinex_path, counts);
-        if (total < 0) {
-            ERR("[ERROR] Could not read RINEX file: %s\n", rinex_path);
-            free(sectors);
-            return EXIT_GENERIC;
-        }
-        INFO("[RINEX] Loaded %d ephemerides "
-             "(G:%d R:%d E:%d J:%d C:%d I:%d)\n",
-             total, counts[1], counts[2], counts[3], counts[4],
-             counts[5], counts[7]);
+    if (have_rinex && rinex_preload(rinex_path) != 0) {
+        free(sectors);
+        return EXIT_GENERIC;
     }
 
     /* Stage 2: spawn the EPH worker thread (if configured). */
-    EphThreadArgs eph_args;
-    eph_args.config  = config;
-    eph_args.verbose = verbose;
-#ifdef _WIN32
-    HANDLE hEphThread = NULL;
-#else
-    pthread_t eph_thread;
-    int eph_thread_started = 0;
-#endif
-    if (have_eph_stream) {
-#ifdef _WIN32
-        hEphThread = (HANDLE)_beginthreadex(NULL, 0, eph_thread_entry,
-                                            &eph_args, 0, NULL);
-        if (!hEphThread) {
-            ERR("[ERROR] Could not start EPH worker thread\n");
-        }
-#else
-        if (pthread_create(&eph_thread, NULL, eph_thread_entry, &eph_args) == 0)
-            eph_thread_started = 1;
-        else
-            ERR("[ERROR] pthread_create for EPH worker failed\n");
-#endif
-    }
+    EphWorker eph;
+    memset(&eph, 0, sizeof(eph));
+    if (have_eph_stream)
+        eph_worker_start(&eph, config, verbose);
 
     /* Stage 3: drive the obs source until SIGINT / Ctrl-A / timeout / EOF.
      * Source is either the obs NTRIP stream (default) or stdin if the
@@ -937,17 +1020,7 @@ static int run_sky_mode(NTRIP_Config *config,
      * Set BOTH flags so an abort also stops the eph stream cleanly -- the
      * eph worker only checks g_stop_requested.  Ctrl-A pressed in the obs
      * loop must propagate here too. */
-    g_stop_requested = 1;
-#ifdef _WIN32
-    if (hEphThread) {
-        WaitForSingleObject(hEphThread, 3000);
-        CloseHandle(hEphThread);
-    }
-#else
-    if (eph_thread_started) {
-        pthread_join(eph_thread, NULL);
-    }
-#endif
+    eph_worker_stop(&eph);
 
     /* Stage 5: render the snapshot PNG -- unless the user aborted. */
     if (g_abort_requested) {
@@ -1434,13 +1507,34 @@ int main(int argc, char *argv[]) {
         );
     }
 
-    // === 0. Analyze message types if requested ===
+    /* Orbits for the self-position in the report: -t, -s, -d and --check
+     * alike.  No KPI or network-RTK assertion reads an orbit, and the
+     * side-stream ignores the EPH caster's own 1005/1006, so nothing it
+     * delivers can move an acceptance verdict. */
+    EphWorker eph;
+    memset(&eph, 0, sizeof(eph));
+    if (operation == OP_ANALYZE_TYPES || operation == OP_ANALYZE_SATS
+        || operation == OP_DECODE_STREAM
+        || operation == OP_CHECK || operation == OP_CHECK_VRS) {
+        int rc = stream_orbits_begin(&config, rinex_path, verbose, &eph);
+        if (rc != EXIT_OK) {
+#ifdef _WIN32
+            WSACleanup();
+#endif
+            return rc;
+        }
+    }
+
+    // === 0. Acceptance test ===
     if (operation == OP_CHECK || operation == OP_CHECK_VRS) {
-        return cli_check(&config, operation == OP_CHECK_VRS);
+        int rc = cli_check(&config, operation == OP_CHECK_VRS);
+        eph_worker_stop(&eph);
+        return rc;
     }
 
     if (operation == OP_ANALYZE_TYPES) {
         int rc = cli_analyze_types(&config, analysis_time);
+        eph_worker_stop(&eph);
 #ifdef _WIN32
         WSACleanup();
 #endif
@@ -1492,6 +1586,7 @@ int main(int argc, char *argv[]) {
             INFO("[DEBUG] No filter: all message types will be shown.\n");
         }
         int rc = cli_stream_decode(&config, filter_list, filter_count, verbose);
+        eph_worker_stop(&eph);
 #ifdef _WIN32
         WSACleanup();
 #endif
@@ -1500,6 +1595,7 @@ int main(int argc, char *argv[]) {
 
     if (operation == OP_ANALYZE_SATS) {
         int rc = cli_analyze_sats(&config, analysis_time);
+        eph_worker_stop(&eph);
 #ifdef _WIN32
         WSACleanup();
 #endif

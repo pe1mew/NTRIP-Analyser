@@ -45,6 +45,27 @@ BOOL SaveWindowPngWithPrompt(HWND hwnd, HWND hLog,
                              const char *suffix,
                              const char *logLabel);
 
+/**
+ * @brief The same flow, for a window that needs more than its pixels.
+ *
+ * @param with_children Render the window with PrintWindow so its child
+ *        controls are in the image -- a list of figures, say -- and a
+ *        part covered by another window is drawn rather than missing.
+ *        @ref SaveWindowPngWithPrompt is this with FALSE, which suits
+ *        the painted chart windows that have no children.
+ * @param path_out      Receives the path the user chose, so the caller
+ *        can write a companion file beside the image; empty on cancel
+ *        or failure. May be NULL.
+ * @param path_cap      Size of @p path_out.
+ * @return TRUE if an image was written.
+ */
+BOOL SaveWindowPngWithPromptEx(HWND hwnd, HWND hLog,
+                               const char *dialogTitle,
+                               const char *suffix,
+                               const char *logLabel,
+                               BOOL with_children,
+                               char *path_out, size_t path_cap);
+
 /** @brief Shutdown GDI+ if it was initialised.  Optional; call on app exit. */
 void gui_snapshot_shutdown(void);
 

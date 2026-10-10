@@ -42,6 +42,7 @@
 #define IDM_VIEW_RESET_LAYOUT   9026  /* windows back to default size/pos */
 #define IDM_VIEW_STATION_CHECK  9027  /* bounded acceptance test, ~90 s */
 #define IDM_VIEW_STABILITY      9028  /* tier 2: stability over hours */
+#define IDM_VIEW_SELFPOS        9029  /* where the station's own data puts it */
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
@@ -137,6 +138,8 @@
 #define WM_APP_TRAY             (WM_APP + 14)   /* notification-area callback: lParam=mouse message */
 #define WM_APP_CHECK_UPDATE     (WM_APP + 15)   /* station check advanced: repaint its window */
 #define WM_APP_REPORT_UPDATE    (WM_APP + 16)   /* stability report advanced: repaint its window */
+#define WM_APP_SELFPOS_UPDATE   (WM_APP + 17)   /* self-position epoch solved: repaint its window */
+#define WM_APP_SELFPOS_EXPORT   (WM_APP + 18)   /* S pressed: save the window and its data */
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700
@@ -157,6 +160,9 @@
 /* ── Stability window ────────────────────────────────────── */
 #define IDC_REPORT_LIST         1910
 #define IDC_REPORT_BTN_RESET    1911
+
+/* ── Self-position window ────────────────────────────────── */
+#define IDC_SELFPOS_LIST        1920
 
 /* ── Context menu IDs ────────────────────────────────────── */
 #define IDM_CTX_SELECT_ALL      3001

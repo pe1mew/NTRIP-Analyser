@@ -36,7 +36,7 @@ because people will point it at real stations and believe what it says.
 | Building, testing, deploying, adding a file | `docs/RUNBOOK.md` |
 | Asking "does X already exist?" | `design/todo.md` — shipped vs planned, stable item numbers |
 | Making architectural decisions | `design/architecture.md`; Android decisions D1–D7 in `android/design/design-review.md` §8, cited from code as `design-review Dn` |
-| Any Windows GUI work | `design/gui-design.md` — §13 station check, §14 stability, §15 thresholds, all as built |
+| Any Windows GUI work | `design/gui-design.md` — §13 station check, §14 stability, §15 thresholds, §16 self-position, all as built |
 | Any Android work | `android/design/editions.md` (free/pro split, payment, profiles, GGA sources) and `android/design/views.md` (what each view is for) |
 | Reading or writing configuration files | `docs/jsonConfigs.md` — one format everywhere, passwords in the clear |
 | Stuck, or something behaves impossibly | `memory/gotcha-log.md` — problem→root cause→fix archive |
@@ -128,12 +128,15 @@ NDK, so nothing testable on a desktop belongs there.
 | `src/core/rtcm3x_parser.{c,h}` | RTCM decode, CRC-24Q, MSM, ARP extraction |
 | `src/core/sv_ephemeris.{c,h}` | Orbit cache; `sv_orbit.c` propagates |
 | `src/core/rinex_nav.c` | RINEX 3 NAV loader — pinned by `test/test_rinex_nav.c` |
+| `src/core/station_report.{c,h}` | Tier 2: six graded metrics over stream time, plus the self-position figures (no verdict) |
+| `src/core/spp.{c,h}`, `sv_state.{c,h}`, `ns_obs.{c,h}` | Self-position: GPS-only single-point position and velocity from a station's own observations; satellite state at transmit time; one epoch's observables. The epoch is closed in `ntrip_session.c` `obs_feed()` |
 | `src/core/config.c` | The one JSON config format, plus the legacy reader |
 | `src/session/ntrip_session.c` | Stream loop, statistics snapshot, NTRIP 2 chunk decoding |
 | `src/session/ns_transport.{c,h}` | Every socket: plain TCP and TLS behind one set of calls. Certificate verification is mandatory — there is no connect-anyway path |
 | `src/core/ns_failure.{c,h}` | The twelve ways a stream fails to open, and the words for each. The `errno`/`WSAE*` half lives in `src/net/ntrip_handler.c`, which has the platform headers |
 | `gui/gui_state.h` | `AppState` — everything the GUI knows |
 | `gui/gui_events.c` | Command dispatch, Stream Health, station classification |
+| `gui/gui_selfpos_window.c` | View → Self-position: E/N plot about the ARP, figures, **S** saves PNG + JSON |
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
 | `android/app/src/main/java/.../MainActivity.kt` | The Android shell: state, service binding, permissions |
 | `android/app/src/main/java/.../Shell.kt` | The frame every screen is drawn in: four bar slots, the overflow menu, the analysis bar. **No title parameter**, so no screen can disagree about the app's name |
@@ -142,8 +145,8 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/java/.../Navigation.kt` | `Dest` and the hand-rolled `NavStack`. No `navigation-compose` |
 | `android/app/src/{free,pro}/.../Registry.kt` | **The list is the layout** — what an edition shows, in order, hub and report alike |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
-| `test/` | Eighteen tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, MSM observables (ranges recomputed from RTCM's own scales, and asserted to fall in the band a real GNSS range occupies), satellite state (vis-viva, angular momentum and the relativistic term, none of which share the propagator's arithmetic), legacy observations, ephemeris validity, stream capture, station report, stream clock, snapshot serialisation, threshold policy, KPI 1's stopped-stream wording, stall detection, failure classification, the network-RTK assertions, the bridge's VRS workflow over a loopback socket, TLS against a loopback caster with deliberately bad certificates |
-<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 18 -->
+| `test/` | Twenty tests: RINEX loader, hostile RTCM frames, MSM C/N0 layout, MSM observables (ranges recomputed from RTCM's own scales, and asserted to fall in the band a real GNSS range occupies), satellite state (vis-viva, angular momentum and the relativistic term, none of which share the propagator's arithmetic), the single-point solve by closure (build the pseudoranges a receiver at a known point would measure, invert them, demand the point back), **the session reaching that solve at all** (RTCM replayed through `ns_open_file`, because every other test starts below the session and the call site was dead for two steps of the plan), legacy observations, ephemeris validity, stream capture, station report, stream clock, snapshot serialisation, threshold policy, KPI 1's stopped-stream wording, stall detection, failure classification, the network-RTK assertions, the bridge's VRS workflow over a loopback socket, TLS against a loopback caster with deliberately bad certificates |
+<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 20 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
 | `.github/workflows/ci.yml` | Core, tests, release checks, the daemon's own Makefile and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
 | `.github/workflows/release-linux.yml` | On a `v*` tag: build, test, package, attach the Linux assets. `ubuntu-22.04` deliberately — its glibc 2.35 is the floor the binaries then require |

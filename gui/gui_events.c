@@ -16,6 +16,7 @@
 #include "gui_vrs_window.h"
 #include "gui_check_window.h"
 #include "gui_report_window.h"
+#include "gui_selfpos_window.h"
 #include "gui_signal_window.h"
 #include "gui_hist_window.h"
 #include "gui_iono_window.h"
@@ -82,8 +83,16 @@ static void TrayFillBase(NOTIFYICONDATA *nid, HWND hwnd)
  */
 static void TrayFormatTip(AppState *state, char *out, size_t cap)
 {
-    const char *mp = state->config.MOUNTPOINT[0] ? state->config.MOUNTPOINT
-                                                 : "no mountpoint";
+    /* The mountpoint is bounded explicitly rather than left to
+     * snprintf's own truncation: a 255-character mountpoint would
+     * otherwise push the satellite count and the rate -- the part that
+     * changes, and the reason the tooltip exists -- off the end of a
+     * 128-byte tip. Forty characters is longer than any mountpoint in
+     * any sourcetable this program has read. */
+    char mp[48];
+    snprintf(mp, sizeof(mp), "%.40s", state->config.MOUNTPOINT[0]
+                                      ? state->config.MOUNTPOINT
+                                      : "no mountpoint");
     if (!state->bWorkerRunning) {
         /* Name the mountpoint even when idle.  Running two analysers at
          * once is normal -- comparing a base against a reference, say --
@@ -3082,6 +3091,21 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             return 0;
 
+        case IDM_VIEW_SELFPOS:
+            if (state->hSelfPosWnd) {
+                if (IsIconic(state->hSelfPosWnd))
+                    ShowWindow(state->hSelfPosWnd, SW_RESTORE);
+                SetForegroundWindow(state->hSelfPosWnd);
+            } else {
+                HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+                state->hSelfPosWnd = CreateSelfPosWindow(hInst, hwnd, state);
+                if (!state->hSelfPosWnd) {
+                    MessageBox(hwnd, "Failed to create Self-position window.",
+                               APP_TITLE, MB_ICONERROR | MB_OK);
+                }
+            }
+            return 0;
+
         case IDM_VIEW_SIGNAL_QUALITY:
             if (state->hSignalWnd) {
                 if (IsIconic(state->hSignalWnd))
@@ -3112,6 +3136,12 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             state->skyWndRectValid     = FALSE;
             state->ionoSkyWndRectValid = FALSE;
             state->vrsWndRectValid     = FALSE;
+            /* The three that also remember a placement, and had been
+             * left out of "every remembered placement" since each was
+             * added: the check, the stability report, and self-position. */
+            state->checkWndRectValid   = FALSE;
+            state->reportWndRectValid  = FALSE;
+            state->selfposWndRectValid = FALSE;
 
             RECT rm;
             GetWindowRect(hwnd, &rm);
@@ -3125,6 +3155,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             if (state->hVrsWnd)
                 SetWindowPos(state->hVrsWnd, NULL, bx + 96, by + 96,
                              VRS_WIN_DEF_W, VRS_WIN_DEF_H, SWP_NOZORDER);
+            if (state->hReportWnd)
+                SetWindowPos(state->hReportWnd, NULL, bx + 144, by + 144,
+                             REPORT_WIN_DEF_W, REPORT_WIN_DEF_H, SWP_NOZORDER);
+            if (state->hSelfPosWnd)
+                SetWindowPos(state->hSelfPosWnd, NULL, bx + 192, by + 192,
+                             SELFPOS_WIN_DEF_W, SELFPOS_WIN_DEF_H,
+                             SWP_NOZORDER);
             return 0;
         }
 

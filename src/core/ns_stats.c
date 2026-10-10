@@ -12,6 +12,7 @@
  */
 
 #include "core/ns_stats.h"
+#include "core/spp.h"   /* SppStatus, for the unsolved-epoch default */
 
 #include <stdio.h>      /* vsnprintf into caller buffers only -- no I/O */
 #include <stdarg.h>
@@ -171,6 +172,20 @@ void ns_stats_init(NsStatsSnapshot *s)
     s->sourcetable_offset_m  = NS_UNSET;
     s->latency_s             = NS_UNSET;
     s->stream_time_s         = NS_UNSET;
+
+    /* An unsolved epoch must not read as an antenna sitting exactly on
+     * its declared coordinates, so the offsets start unset and the
+     * status starts at "no observations" rather than at zero, which is
+     * the code for *solved*. */
+    s->selfpos_status        = SPP_NO_EPOCH;
+    s->selfpos_e             = NS_UNSET;
+    s->selfpos_n             = NS_UNSET;
+    s->selfpos_u             = NS_UNSET;
+    s->selfpos_code_rms_m    = NS_UNSET;
+    s->selfpos_pdop          = NS_UNSET;
+    s->selfpos_speed_mms     = NS_UNSET;
+    s->selfpos_drift_ms      = NS_UNSET;
+    s->selfpos_rate_rms_ms   = NS_UNSET;
 }
 
 NsTypeStats *ns_stats_type(NsStatsSnapshot *s, int msg_type)
@@ -389,6 +404,58 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_str(&o, ",");
     out_key(&o, "iono_slips"); out_fmt(&o, "%d", s->iono_slips);
 
+    /* Self-position, this epoch.  The status is always emitted, because
+     * it is the only key that says anything when nothing solved -- and
+     * every figure beside it is then null rather than zero: an antenna
+     * sitting exactly on its declared coordinates and an antenna nobody
+     * could place are different statements, and a graph that cannot
+     * tell them apart draws the first when it means the second.
+     *
+     * One epoch's offset is not a measurement of anything: it is
+     * metre-level by construction.  The scatter over a window is, and
+     * that lives in the report (`selfpos_*` there as well, under
+     * `report_schema_version` 2). */
+    out_str(&o, ",");
+    out_key(&o, "selfpos_status"); out_fmt(&o, "%d", s->selfpos_status);
+    const bool sp = (s->selfpos_status == 0 && s->selfpos_sats > 0);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_e_m");
+    out_json_num(&o, sp ? s->selfpos_e : NS_UNSET, 3);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_n_m");
+    out_json_num(&o, sp ? s->selfpos_n : NS_UNSET, 3);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_u_m");
+    out_json_num(&o, sp ? s->selfpos_u : NS_UNSET, 3);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_code_rms_m");
+    out_json_num(&o, sp ? s->selfpos_code_rms_m : NS_UNSET, 3);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_pdop");
+    out_json_num(&o, sp ? s->selfpos_pdop : NS_UNSET, 2);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_sats"); out_fmt(&o, "%d", sp ? s->selfpos_sats : 0);
+
+    /* The velocity is a second, independent absence: a stream can place
+     * the antenna and still carry no phase-range rates to move it with
+     * (MSM4, MSM6, legacy), and that is not a velocity of zero. */
+    const bool spv = sp && s->selfpos_has_vel;
+    out_str(&o, ",");
+    out_key(&o, "selfpos_speed_mms");
+    out_json_num(&o, spv ? s->selfpos_speed_mms : NS_UNSET, 2);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_drift_ms");
+    out_json_num(&o, spv ? s->selfpos_drift_ms : NS_UNSET, 4);
+    out_str(&o, ",");
+    out_key(&o, "selfpos_rate_rms_ms");
+    out_json_num(&o, spv ? s->selfpos_rate_rms_ms : NS_UNSET, 4);
+    /* +1 conformant, -1 reversed -- a finding about the station's
+     * receiver, worth a monitoring alert of its own -- and 0 when it
+     * could not be decided or there is no velocity at all. */
+    out_str(&o, ",");
+    out_key(&o, "selfpos_rate_sign");
+    out_fmt(&o, "%d", spv ? s->selfpos_rate_sign : 0);
+
     out_ch(&o, '}');
     return (int)o.len;
 }
@@ -407,7 +474,11 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     "arp_lat,arp_lon,arp_alt,arp_drift_m,arp_moves," \
     "sourcetable_offset_m,latency_s," \
     "iono_verdict,iono_roti_median,iono_roti_max,iono_sats_dualfreq," \
-    "iono_slips,stream_time_s,failure,failure_detail"
+    "iono_slips,stream_time_s,failure,failure_detail," \
+    "selfpos_status,selfpos_e_m,selfpos_n_m,selfpos_u_m," \
+    "selfpos_code_rms_m,selfpos_pdop,selfpos_sats," \
+    "selfpos_speed_mms,selfpos_drift_ms,selfpos_rate_rms_ms," \
+    "selfpos_rate_sign"
 
 int ns_stats_csv_header(char *out, size_t cap)
 {
@@ -497,6 +568,35 @@ int ns_stats_to_csv_row(const NsStatsSnapshot *s, char *out, size_t cap)
      * repository. */
     out_fmt(&o, "%d", s->failure);                out_ch(&o, ',');
     out_csv_str(&o, s->failure_detail);
+
+    /* Self-position, appended for the same reason and under the same
+     * rule as the JSON above: an epoch that did not solve writes empty
+     * cells, never zeros.  A spreadsheet plots a blank as a gap and a
+     * zero as a reading, which is the whole difference here. */
+    out_ch(&o, ',');
+    out_fmt(&o, "%d", s->selfpos_status);
+    const bool sp  = (s->selfpos_status == 0 && s->selfpos_sats > 0);
+    const bool spv = sp && s->selfpos_has_vel;
+    out_ch(&o, ',');
+    out_csv_num(&o, sp ? s->selfpos_e : NS_UNSET, 3);
+    out_ch(&o, ',');
+    out_csv_num(&o, sp ? s->selfpos_n : NS_UNSET, 3);
+    out_ch(&o, ',');
+    out_csv_num(&o, sp ? s->selfpos_u : NS_UNSET, 3);
+    out_ch(&o, ',');
+    out_csv_num(&o, sp ? s->selfpos_code_rms_m : NS_UNSET, 3);
+    out_ch(&o, ',');
+    out_csv_num(&o, sp ? s->selfpos_pdop : NS_UNSET, 2);
+    out_ch(&o, ',');
+    out_fmt(&o, "%d", sp ? s->selfpos_sats : 0);
+    out_ch(&o, ',');
+    out_csv_num(&o, spv ? s->selfpos_speed_mms : NS_UNSET, 2);
+    out_ch(&o, ',');
+    out_csv_num(&o, spv ? s->selfpos_drift_ms : NS_UNSET, 4);
+    out_ch(&o, ',');
+    out_csv_num(&o, spv ? s->selfpos_rate_rms_ms : NS_UNSET, 4);
+    out_ch(&o, ',');
+    out_fmt(&o, "%d", spv ? s->selfpos_rate_sign : 0);
 
     return (int)o.len;
 }

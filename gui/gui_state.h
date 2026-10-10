@@ -236,6 +236,39 @@ typedef struct {
     double refLat, refLon;
 } HistState;
 
+/**
+ * @brief Points of a self-position plot, and nothing else.
+ *
+ * Two hours at one epoch a second — longer than any window the report
+ * judges on — at 16 bytes a point: 115 KB.
+ *
+ * This is a **drawing** buffer. Every figure the Self-position window
+ * states comes from @ref StationReport, which core accumulates; what is
+ * computed from these points is the plot's own scale, never something a
+ * reader is shown as a measurement. It lives in @ref AppState for the
+ * same reason the history ring does: a plot cannot be rebuilt from a
+ * repaint.
+ */
+#define SELFPOS_CAP  7200
+
+/** @brief One solved epoch, as the plot needs it. */
+typedef struct {
+    float ts_rel;   /**< stream seconds since the plot was reset */
+    float e, n, u;  /**< metres from the station's stated reference */
+} SelfPosPoint;
+
+/** @brief Ring of solved epochs, plus what paces it. */
+typedef struct {
+    SelfPosPoint pts[SELFPOS_CAP];
+    int    head;          /**< next write index */
+    int    count;         /**< 0..SELFPOS_CAP */
+    double t0;            /**< stream time of the first point */
+    double lastStreamT;   /**< stream time of the last point taken, so a
+                           *   snapshot republished unchanged is not
+                           *   plotted twice */
+    BOOL   haveT0;
+} SelfPosRing;
+
 /** @brief Severity of a Stream Health row, driving its row colour.
  *
  * Stored in the ListView item's lParam, same technique as the Msg Stats
@@ -841,6 +874,15 @@ typedef struct {
     HWND hReportWnd;
     RECT reportWndRect;
     BOOL reportWndRectValid;
+
+    /* Self-position window (floating, optional).  Its figures come from
+     * reportOut above -- so the plot and the Stability window describe
+     * the same window of stream -- and the ring below holds only what
+     * is needed to draw it. */
+    HWND        hSelfPosWnd;
+    RECT        selfposWndRect;
+    BOOL        selfposWndRectValid;
+    SelfPosRing selfpos;
 
 } AppState;
 

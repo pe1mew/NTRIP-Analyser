@@ -31,6 +31,13 @@
  * Threading: a single thread round-robins ns_pump() over all sessions.
  * Adequate to roughly a dozen mountpoints; revisit per §10 if that grows.
  *
+ * Orbits: the session layer frames RTCM but decodes none of it, so this
+ * daemon decodes the ephemeris types itself, from every station stream
+ * and from any ephemeris side-stream a station names with its eph_*
+ * block.  All of them feed the one process-wide cache that the
+ * self-position solve reads, so side-streams are shared: ten stations
+ * naming the same source open one connection, not ten.
+ *
  * Project: NTRIP-Analyser
  * Author: Remko Welling, PE1MEW
  * License: Apache License 2.0 with Commons Clause
@@ -39,6 +46,7 @@
 #include "session/ntrip_session.h"
 #include "core/ns_failure.h"
 #include "core/ns_stats.h"
+#include "core/rtcm3x_parser.h"   /* rtcm_decode_eph, the decoders' sink */
 #include "core/station_report.h"
 #include "core/thresholds.h"
 #include "core/version.h"
@@ -73,12 +81,29 @@
 
 /* ── Configuration ───────────────────────────────────────────────── */
 
+/**
+ * @struct MdEphSource
+ * @brief One ephemeris side-stream, shared by every station that names it.
+ *
+ * Infrastructure rather than a station: it feeds the orbit cache and
+ * publishes nothing of its own.
+ */
+typedef struct {
+    NsOptions opt;
+    int       users;            /* stations that named this source     */
+    int       decoded;          /* ephemerides since the last connect  */
+    char      label[544];       /* "caster:port/mountpoint", for logs  */
+} MdEphSource;
+
 typedef struct {
     char   output_dir[512];
     double interval_s;          /* snapshot write interval             */
     double report_window_s;     /* tier-2 rolling window               */
     int    n;
     NsOptions opt[MD_MAX_SESSIONS];
+    int    eph_of[MD_MAX_SESSIONS];  /* index into eph[], -1 for none  */
+    int    n_eph;
+    MdEphSource eph[MD_MAX_SESSIONS];
 } MdConfig;
 
 /**
@@ -154,6 +179,94 @@ static char *read_text_file(const char *path)
     return text;
 }
 
+/** @brief ASCII case-insensitive equality: hostnames are not case-sensitive. */
+static bool md_host_eq(const char *a, const char *b)
+{
+    for (; *a && *b; a++, b++) {
+        char ca = (*a >= 'A' && *a <= 'Z') ? (char)(*a + 32) : *a;
+        char cb = (*b >= 'A' && *b <= 'Z') ? (char)(*b + 32) : *b;
+        if (ca != cb) return false;
+    }
+    return *a == *b;
+}
+
+/**
+ * @brief Find or add the ephemeris source a mountpoint entry names.
+ *
+ * Returns its index in cfg->eph[], or -1 when the entry names none.
+ *
+ * Deduplicated by caster, port, mountpoint, username and TLS, because
+ * the orbit cache is process-wide: a second connection to the same
+ * source would deliver the same orbits into the same slots, at the cost
+ * of a second login a caster operator then sees in their log.  The
+ * mountpoint is compared exactly (NTRIP mountpoints are case-sensitive),
+ * the caster without regard to case.
+ */
+static int md_eph_source(MdConfig *cfg, const cJSON *mp, const char *station)
+{
+    NsOptions o;
+    ns_options_default(&o);
+    o.auto_reconnect   = true;     /* the same leash as a station's */
+    o.stats_interval_s = 0.0;
+    o.send_gga         = false;    /* an orbit stream needs no rover */
+    o.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_SERVICE);
+
+    const cJSON *s;
+    if ((s = cJSON_GetObjectItem(mp, "eph_caster")) && cJSON_IsString(s))
+        snprintf(o.config.NTRIP_CASTER, sizeof(o.config.NTRIP_CASTER),
+                 "%s", s->valuestring);
+    if ((s = cJSON_GetObjectItem(mp, "eph_port")) && cJSON_IsNumber(s))
+        o.config.NTRIP_PORT = s->valueint;
+    if ((s = cJSON_GetObjectItem(mp, "eph_mountpoint")) && cJSON_IsString(s))
+        snprintf(o.config.MOUNTPOINT, sizeof(o.config.MOUNTPOINT),
+                 "%s", s->valuestring);
+    if ((s = cJSON_GetObjectItem(mp, "eph_username")) && cJSON_IsString(s))
+        snprintf(o.config.USERNAME, sizeof(o.config.USERNAME),
+                 "%s", s->valuestring);
+    if ((s = cJSON_GetObjectItem(mp, "eph_password")) && cJSON_IsString(s))
+        snprintf(o.config.PASSWORD, sizeof(o.config.PASSWORD),
+                 "%s", s->valuestring);
+    if ((s = cJSON_GetObjectItem(mp, "eph_tls")) && cJSON_IsBool(s))
+        o.config.TLS = cJSON_IsTrue(s);
+
+    if (!o.config.NTRIP_CASTER[0] && !o.config.MOUNTPOINT[0])
+        return -1;                          /* no block: nothing asked for */
+    if (!o.config.NTRIP_CASTER[0] || !o.config.MOUNTPOINT[0]) {
+        fprintf(stderr, "ntrip-monitord: %s: eph_* block lacks eph_caster "
+                "or eph_mountpoint; no ephemeris side-stream\n", station);
+        return -1;
+    }
+    if (o.config.NTRIP_PORT <= 0) o.config.NTRIP_PORT = 2101;
+
+    for (int i = 0; i < cfg->n_eph; i++) {
+        const NTRIP_Config *e = &cfg->eph[i].opt.config;
+        if (md_host_eq(e->NTRIP_CASTER, o.config.NTRIP_CASTER) &&
+            e->NTRIP_PORT == o.config.NTRIP_PORT &&
+            strcmp(e->MOUNTPOINT, o.config.MOUNTPOINT) == 0 &&
+            strcmp(e->USERNAME, o.config.USERNAME) == 0 &&
+            e->TLS == o.config.TLS) {
+            /* Same login, different password: one of the two is wrong,
+             * and only one can be used.  Say which rather than let a
+             * rejection blame whichever entry happened to come first. */
+            if (strcmp(e->PASSWORD, o.config.PASSWORD) != 0)
+                fprintf(stderr, "ntrip-monitord: %s: eph_password differs "
+                        "from an earlier entry for %s; the earlier one is "
+                        "used\n", station, cfg->eph[i].label);
+            cfg->eph[i].users++;
+            return i;
+        }
+    }
+
+    if (cfg->n_eph >= MD_MAX_SESSIONS) return -1;  /* cannot happen: n <= max */
+    MdEphSource *src = &cfg->eph[cfg->n_eph];
+    memset(src, 0, sizeof(*src));
+    src->opt   = o;
+    src->users = 1;
+    snprintf(src->label, sizeof(src->label), "%s:%d/%s",
+             o.config.NTRIP_CASTER, o.config.NTRIP_PORT, o.config.MOUNTPOINT);
+    return cfg->n_eph++;
+}
+
 /**
  * @brief Load the daemon configuration.
  *
@@ -168,10 +281,17 @@ static char *read_text_file(const char *path)
  *     { "caster": "rfsee.net", "port": 2101, "tls": false,
  *       "mountpoint": "RFSEE01",
  *       "username": "u", "password": "p",
- *       "send_gga": false, "latitude": 52.0, "longitude": 6.0 }
+ *       "send_gga": false, "latitude": 52.0, "longitude": 6.0,
+ *       "eph_caster": "ntrip.kadaster.nl", "eph_port": 2101,
+ *       "eph_mountpoint": "BCEP00KAD0", "eph_username": "u",
+ *       "eph_password": "p", "eph_tls": false }
  *   ]
  * }
  * @endcode
+ *
+ * The eph_* block is optional and opens an ephemeris side-stream for a
+ * station that does not broadcast its own orbits; see md_eph_source()
+ * for how entries naming the same source share one connection.
  *
  * This is deliberately not config.json: that schema describes one
  * connection for an interactive tool, and a monitor needs a list
@@ -326,6 +446,7 @@ static bool load_md_config(const char *path, MdConfig *cfg)
             continue;
         }
         if (o->config.NTRIP_PORT <= 0) o->config.NTRIP_PORT = 2101;
+        cfg->eph_of[cfg->n] = md_eph_source(cfg, mp, o->config.MOUNTPOINT);
         cfg->n++;
     }
 
@@ -508,10 +629,29 @@ static bool publish_report(const MdConfig *cfg, const MdReport *r,
  * line per connection state change per stream, which journald then
  * rate-limits right when something interesting happens.
  */
+/* Where the decoders' narration goes: nowhere.  They print every orbit
+ * they cache, and under systemd stdout is the journal. */
+static RtcmStrBuf g_decode_sink;
+
+/** @brief Hand one frame to the ephemeris decoders; 1 when it was one. */
+static int decode_eph_frame(const NsEvent *ev)
+{
+    rtcm_strbuf_clear(&g_decode_sink);   /* bounded over a months-long run */
+    /* rtcm_decode_eph ignores 1005/1006, so a side-stream's own station
+     * position never reaches anything. */
+    return rtcm_decode_eph(ev->u.frame.data + 3, ev->u.frame.len - 6,
+                           ev->u.frame.msg_type);
+}
+
 static void on_event(const NsEvent *ev, void *user)
 {
     const char *mount = (const char *)user;
     switch (ev->type) {
+    case NS_EV_FRAME:
+        /* A station that broadcasts its own orbits needs no side-stream:
+         * they feed the same cache the self-position solve reads. */
+        decode_eph_frame(ev);
+        break;
     case NS_EV_LOG:
         if (ev->u.log.level != NS_LOG_INFO)
             fprintf(stderr, "[%s] %s\n", mount, ev->u.log.text);
@@ -520,6 +660,41 @@ static void on_event(const NsEvent *ev, void *user)
         fprintf(stderr, "[%s] session ended (reason %d, %s)\n",
                 mount, ev->u.end.reason,
                 ns_failure_name((NsFailure)ev->u.end.failure));
+        break;
+    default:
+        break;
+    }
+}
+
+/**
+ * @brief Ephemeris side-stream events: decode, and log as a station does.
+ *
+ * Warnings, errors and ends, as for a station, under an `[EPH ...]` tag
+ * so the journal says which kind of connection failed.  One line more:
+ * the first orbit after each connect, because a side-stream that is
+ * accepted but carries nothing leaves every station it serves unsolved
+ * with no other trace.
+ */
+static void on_eph_event(const NsEvent *ev, void *user)
+{
+    MdEphSource *src = (MdEphSource *)user;
+    switch (ev->type) {
+    case NS_EV_HANDSHAKE:
+        src->decoded = 0;
+        break;
+    case NS_EV_FRAME:
+        if (decode_eph_frame(ev) && src->decoded++ == 0)
+            fprintf(stderr, "[EPH %s] orbits arriving (first: type %d)\n",
+                    src->label, ev->u.frame.msg_type);
+        break;
+    case NS_EV_LOG:
+        if (ev->u.log.level != NS_LOG_INFO)
+            fprintf(stderr, "[EPH %s] %s\n", src->label, ev->u.log.text);
+        break;
+    case NS_EV_DISCONNECTED:
+        fprintf(stderr, "[EPH %s] session ended (reason %d, %s) after "
+                "%d ephemerides\n", src->label, ev->u.end.reason,
+                ns_failure_name((NsFailure)ev->u.end.failure), src->decoded);
         break;
     default:
         break;
@@ -588,13 +763,35 @@ int main(int argc, char **argv)
             NTRIP_ARTEFACT_SERVICE,
             g_thresholds.loaded ? g_thresholds.name : "built-in",
             g_policy_fp);
+    /* One line per side-stream, naming how many stations it serves: the
+     * sharing is otherwise invisible, and "why is there only one
+     * connection to the orbit caster" deserves an answer in the log. */
+    for (int k = 0; k < cfg.n_eph; k++)
+        fprintf(stderr, "%s: ephemeris side-stream %s%s for %d station(s)\n",
+                NTRIP_ARTEFACT_SERVICE, cfg.eph[k].label,
+                cfg.eph[k].opt.config.TLS ? " (TLS)" : "", cfg.eph[k].users);
+
+    rtcm_strbuf_init(&g_decode_sink, 4096);
+    if (!g_decode_sink.buf) {
+        fprintf(stderr, "ntrip-monitord: out of memory\n");
+        return 1;
+    }
+    rtcm_set_output_buffer(&g_decode_sink);
 
     NtripSession *sess[MD_MAX_SESSIONS] = { 0 };
+    NtripSession *eph[MD_MAX_SESSIONS]  = { 0 };
     static MdReport reports[MD_MAX_SESSIONS];
     for (int i = 0; i < cfg.n; i++) {
         sess[i] = ns_open(&cfg.opt[i], on_event,
                           (void *)cfg.opt[i].config.MOUNTPOINT);
         if (!sess[i]) {
+            fprintf(stderr, "ntrip-monitord: out of memory\n");
+            return 1;
+        }
+    }
+    for (int k = 0; k < cfg.n_eph; k++) {
+        eph[k] = ns_open(&cfg.eph[k].opt, on_eph_event, &cfg.eph[k]);
+        if (!eph[k]) {
             fprintf(stderr, "ntrip-monitord: out of memory\n");
             return 1;
         }
@@ -609,9 +806,23 @@ int main(int argc, char **argv)
     while (!g_stop) {
         /* Round-robin.  The timeout divides across sessions so one idle
          * stream cannot starve the others of pump time. */
-        int timeout = cfg.n > 0 ? 200 / cfg.n : 200;
+        int n_all = cfg.n + cfg.n_eph;
+        int timeout = n_all > 0 ? 200 / n_all : 200;
         if (timeout < 10) timeout = 10;
 
+        /* Side-streams first, so an orbit that arrives this round is in
+         * the cache before the stations' epochs are solved against it. */
+        for (int k = 0; k < cfg.n_eph; k++) {
+            if (eph[k] && ns_pump(eph[k], timeout) < 0) {
+                /* Ended for good (auto_reconnect gives up only on a
+                 * terminal condition); the reason is already logged. */
+                ns_close(eph[k]);
+                eph[k] = NULL;
+            }
+        }
+
+        /* Stations only: a side-stream has nothing to publish, so it
+         * must not keep a daemon whose stations have all ended alive. */
         bool all_ended = true;
         for (int i = 0; i < cfg.n; i++) {
             if (!sess[i]) continue;
@@ -654,6 +865,9 @@ int main(int argc, char **argv)
     }
 
     for (int i = 0; i < cfg.n; i++) ns_close(sess[i]);
+    for (int k = 0; k < cfg.n_eph; k++) ns_close(eph[k]);
+    rtcm_set_output_buffer(NULL);
+    rtcm_strbuf_free(&g_decode_sink);
     fprintf(stderr, "%s: stopped\n", NTRIP_ARTEFACT_SERVICE);
     return 0;
 }

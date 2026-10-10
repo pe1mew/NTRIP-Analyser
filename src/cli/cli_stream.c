@@ -28,6 +28,7 @@ bool        cli_replay_stdin      = false; /* set by --rtcm-stdin  */
 #include "session/ntrip_session.h"
 #include "core/version.h"
 #include "core/rtcm3x_parser.h"
+#include "core/spp.h"         /* names why a self-position did not solve */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -194,6 +195,35 @@ typedef struct {
     SrState    sr;
 } CliCtx;
 
+/**
+ * @brief Put an ephemeris from the station's own stream into the cache.
+ *
+ * The session layer frames RTCM and decodes none of it, so orbits a
+ * station broadcasts on its observation stream reach the self-position
+ * solve only if a frontend decodes them. `-d` always did, as a side
+ * effect of printing them; `-t` and `-s` did not, so `-t --report`
+ * against a station broadcasting its own 1019 still said "observations
+ * without orbits" -- while the docs said such a station needed nothing
+ * more. The daemon had exactly this defect and was fixed the same day.
+ *
+ * The decoders narrate as they go, and in these modes nothing should be
+ * narrated, so the text goes to a sink that is cleared at once. The
+ * sink is per thread, so the ephemeris side-stream's worker keeps its
+ * own and neither mutes the other.
+ */
+static void decode_own_eph(const unsigned char *payload, int payload_len,
+                           int msg_type)
+{
+    static RtcmStrBuf sink;
+    static bool ready = false;
+    if (!ready) { rtcm_strbuf_init(&sink, 4096); ready = true; }
+
+    rtcm_set_output_buffer(&sink);
+    (void)rtcm_decode_eph(payload, payload_len, msg_type);
+    rtcm_strbuf_clear(&sink);            /* bounded over a long run */
+    rtcm_set_output_buffer(NULL);
+}
+
 /** @brief Common event handling; per-mode work happens on NS_EV_FRAME. */
 static void cli_on_event(const NsEvent *ev, void *user)
 {
@@ -221,6 +251,12 @@ static void cli_on_event(const NsEvent *ev, void *user)
         int frame_len   = ev->u.frame.len;
         int payload_len = frame_len - 6;
         int msg_type    = ev->u.frame.msg_type;
+
+        /* Orbits the station broadcasts itself. Not in -d, which decodes
+         * them already while printing them; 1019-1046 brackets every
+         * ephemeris type, and rtcm_decode_eph ignores the rest. */
+        if (c->mode != CLI_MODE_DECODE && msg_type >= 1019 && msg_type <= 1046)
+            decode_own_eph(frame + 3, payload_len, msg_type);
 
         switch (c->mode) {
         case CLI_MODE_DECODE:
@@ -306,6 +342,32 @@ void cli_report_print(const SrState *sr)
 
     printf("\n== %s ==  window %.0f s, %d samples\n",
            r.headline, r.window_s, r.samples);
+
+    /* ── Self-position ──────────────────────────────────────────────
+     * Below the table and outside its numbering, because it is not one
+     * of the graded rows: no threshold for a station's own scatter has
+     * been established from evidence, so there is nothing here to call
+     * STABLE.  Printed anyway -- an operator can read a scatter and a
+     * residual perfectly well without a verdict attached to it. */
+    if (r.sp_samples > 0) {
+        printf("\nSelf-position (no threshold yet -- figures only), "
+               "%d epoch(s) solved\n", r.sp_samples);
+        /* The offset is mostly the single-frequency solution's own
+         * bias, so it is labelled as an offset and never as an error. */
+        printf("    offset from reference   E %+.3f  N %+.3f  U %+.3f m\n",
+               r.sp_mean_enu[0], r.sp_mean_enu[1], r.sp_mean_enu[2]);
+        printf("    scatter about that      %.3f m\n", r.sp_scatter_m);
+        printf("    worst code residual     %.3f m RMS\n", r.sp_rms_worst);
+        if (r.sp_speed_median_mms != NS_UNSET)
+            printf("    median apparent motion  %.1f mm/s\n",
+                   r.sp_speed_median_mms);
+        else
+            printf("    median apparent motion  --  (no phase-range rates "
+                   "in this stream)\n");
+    } else {
+        printf("\nSelf-position: nothing solved -- %s\n",
+               spp_status_text((SppStatus)r.sp_last_status));
+    }
 
     /* Nothing was measured at all, which has two causes and no way here
      * to tell them apart -- so say both rather than let a blank report

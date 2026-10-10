@@ -35,6 +35,28 @@ temporary file and `rename()`d into place, so a reader never sees a
 half-written document. The same file is directly usable by anything
 else: `cat`, `jq`, a cron job.
 
+The snapshot gained `selfpos_*` keys — the station's own position for
+**this epoch** — without a `schema_version` bump, as the `iono_*` keys
+did before them: consumers read by key, and nothing already published
+changed meaning. One epoch's offset is metre-level by construction and
+measures nothing on its own; the figure worth watching is its scatter
+over a window, which is in the report rather than here. `selfpos_status`
+is `0` for solved and an `SppStatus` otherwise, and when it is not zero
+every figure beside it is `null` — a single-frequency station cannot be
+solved at all, and that is not an antenna standing still at its declared
+coordinates. The same keys are appended to the CSV row, where an
+unsolved epoch writes empty cells: a spreadsheet plots a blank as a gap
+and a zero as a reading.
+
+**`selfpos_rate_sign` is worth an alert of its own.** It is `1` when
+the station's phase-range rates follow RTCM 10403.3, `0` when it could
+not be decided (four satellites or fewer with rates, or no velocity),
+and **`-1` when the station's receiver encodes them reversed** — every
+satellite the negative of what its orbit predicts. The velocity shown
+is corrected for it, but the station is still sending a reversed field
+to every rover that trusts it. At least one receiver in service does
+this.
+
 ### The two documents answer different questions
 
 The snapshot says what is true **now** — bytes a second, satellites this
@@ -55,9 +77,11 @@ standing behind a window that ended. Watch for that as well as for
 stopped.
 
 ```json
-{"report_schema_version":1,"mountpoint":"HANESE","window_s":3600.000,
+{"report_schema_version":3,"mountpoint":"HANESE","window_s":3600.000,
  "samples":3598,"overall":1,"overall_name":"STABLE",
- "headline":"STABLE over 1.0 h","integrity_verdict":1,...}
+ "headline":"STABLE over 1.0 h","integrity_verdict":1,...,
+ "selfpos_samples":3410,"selfpos_status":0,"selfpos_status_name":"solved",
+ "selfpos_mean_e_m":1.842,"selfpos_scatter_m":0.934,...}
 ```
 
 The version key is `report_schema_version`, not `schema_version`, and the
@@ -73,6 +97,31 @@ already reads, so nothing needs a JSON parser. Every metric contributes
 `<name>_value` and `<name>_detail`. A metric that **cannot** be measured
 emits `null` rather than a zero, so a graph cannot draw "not applicable"
 as "fine".
+
+**Version 2 added the `selfpos_*` keys**, and they are the one group with
+no `_verdict`: the station's own position is reported as figures because
+no threshold for its scatter has been established from evidence yet, and
+inventing one would be worse than reporting none. `selfpos_samples` is
+how many epochs solved; when it is zero every figure beside it is `null`
+and `selfpos_status_name` says why — most often a single-frequency
+station, where the measurement is not computable at all. The addition is
+purely additive, so a reader written against version 1 keeps working; the
+bump exists so that a document *without* these keys can be told from one
+whose station solved nothing. `selfpos_mean_*_m` is an *offset* from the
+reference position, mostly the solution's own bias, and must not be read
+as an accuracy; `selfpos_scatter_m` is the part that measures something.
+
+**Version 3 replaced `selfpos_speed_max_mms` with
+`selfpos_speed_median_mms`**, and this one is **not** additive: a reader
+written against version 2 that looks for the old key will find nothing,
+and should treat a version-3 document accordingly rather than as a
+station with no velocity. The median replaced the maximum because a
+single-epoch velocity from broadcast orbits is noisy — the maximum over
+a window settled at 15–80 mm/s on bases bolted to pillars, decided by the
+single noisiest epoch — while the median sits steadily in the low tens of
+mm/s and is what a standing base can be judged against. It is read from a
+1 mm/s histogram capped at 2 m/s, so it costs the daemon fixed memory per
+accumulator however long the window.
 
 **The window rolls, and it is measured in stream time.** The report
 covers between one and two `report_window_s` — the daemon keeps two
@@ -151,7 +200,13 @@ should be readable by the service group and nobody else.
       "send_gga": false,
       "latitude": 52.0,
       "longitude": 6.0,
-      "stall_timeout_s": 60
+      "stall_timeout_s": 60,
+      "eph_caster": "ntrip.kadaster.nl",
+      "eph_port": 2101,
+      "eph_mountpoint": "BCEP00KAD0",
+      "eph_username": "user",
+      "eph_password": "password",
+      "eph_tls": false
     }
   ]
 }
@@ -186,7 +241,31 @@ should be readable by the service group and nobody else.
   stream is fine. Raise it for a mountpoint that broadcasts only
   occasionally; a 1 Hz observation stream that sends nothing for a
   minute has stopped.
-- Up to 16 mountpoints; the daemon round-robins them on one thread.
+- `eph_caster`, `eph_port`, `eph_mountpoint`, `eph_username`,
+  `eph_password`, `eph_tls` name an **ephemeris side-stream** for that
+  station — a mountpoint carrying broadcast orbits (RTCM 1019/1020/
+  1041/1042/1044/1045/1046), such as Kadaster's `BCEP00KAD0`. The
+  self-position figures need orbits, and a station that sends only
+  observations — MSM7 and nothing else is common — reports
+  `observations without orbits` until it has some. A station that
+  broadcasts its own needs no block: they are decoded from its stream.
+  `eph_port` defaults to 2101 and `eph_tls` to false, as for the
+  station.
+- **Side-streams are shared.** Orbits go into one cache for the whole
+  process, so entries naming the same source — same caster (compared
+  without regard to case), port, mountpoint, username and `eph_tls` —
+  open **one** connection between them, not one each. The startup log
+  says how many stations each side-stream serves. Two entries that
+  share a source but disagree on `eph_password` use the first, and the
+  log says so.
+- A side-stream is infrastructure, not a station: it publishes no
+  snapshot and no report, reconnects with the same backoff, and logs
+  under an `[EPH caster:port/mountpoint]` tag — including one line when
+  the first orbit arrives after each connect, because a side-stream
+  that is accepted but carries nothing would otherwise leave every
+  station it serves unsolved without a trace.
+- Up to 16 mountpoints; the daemon round-robins them, and their
+  side-streams, on one thread.
 
 This is deliberately **not** the interactive tools' `config.json`: that
 schema describes one connection, a monitor needs a list.

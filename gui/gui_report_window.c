@@ -17,6 +17,7 @@
  */
 
 #include "gui_report_window.h"
+#include "gui_selfpos_window.h"   /* the plot follows this window of evidence */
 #include "resource.h"
 
 #include <stdio.h>
@@ -43,6 +44,14 @@ void ReportReset(AppState *state, BOOL from_capture)
     state->reportHave       = FALSE;
     state->reportFromCapture = from_capture;
     state->reportLastSample = -1e9;
+
+    /* The self-position plot is emptied with this window, in one place
+     * rather than at each caller: its figures come from the accumulator
+     * above, and a plot of one hour beside a mean of another is a
+     * disagreement nobody can read.  Every reason to restart the window
+     * of evidence -- a stream opening, a replay starting, the Restart
+     * button -- is a reason to empty the plot. */
+    SelfPosReset(state);
 
     if (state->hReportWnd)
         PostMessage(state->hReportWnd, WM_APP_REPORT_UPDATE, 0, 0);

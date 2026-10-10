@@ -152,6 +152,20 @@ extern "C" {
 #define SR_STALE_S                 120.0
 
 /**
+ * Resolution and reach of the median apparent motion.
+ *
+ * Not thresholds -- nothing is judged against them -- but the shape of
+ * the histogram the median is read from: 1 mm/s bins up to 2 m/s. A
+ * standing base reads tens of mm/s from broadcast orbits, so the
+ * resolution is far finer than the noise, and the reach far beyond
+ * anything a working solve of a static antenna produces. Speeds above
+ * it land in one last bin, so a broken solve still counts -- it moves
+ * the median to the cap rather than vanishing from it.
+ */
+#define SR_SPEED_BIN_MMS           1.0
+#define SR_SPEED_BINS              2000
+
+/**
  * @struct SrPolicy
  * @brief The thresholds a report is built under.
  *
@@ -250,6 +264,43 @@ typedef struct {
     int      overall;      /**< @ref SrVerdict                           */
     char     headline[160];/**< the worst finding, with its evidence     */
     SrMetric metric[SR_METRIC_COUNT];
+
+    /* ── Self-position ────────────────────────────────────────────────
+     * Reported as numbers, **not yet as a seventh metric with a
+     * verdict**. A verdict needs a threshold, and what counts as
+     * abnormal scatter for a station's own position is not yet known
+     * from evidence; choosing a number now would be the invented
+     * threshold this project keeps catching. It becomes a metric when
+     * real stations have said what normal looks like.
+     */
+    int      sp_samples;       /**< epochs that solved in the window;
+                                *   zero means the figures below are
+                                *   absent, not measured as zero         */
+    double   sp_mean_enu[3];   /**< mean offset from the reference: for
+                                *   the most part the solution's own bias.
+                                *   Signed, so it has no sentinel --
+                                *   @ref sp_samples is what says whether
+                                *   it means anything at all             */
+    double   sp_scatter_m;     /**< RMS distance from that mean, which is
+                                *   the half that measures something;
+                                *   NS_UNSET when nothing solved         */
+    double   sp_rms_worst;     /**< worst code residual RMS in the window;
+                                *   NS_UNSET when nothing solved         */
+    /**
+     * Median apparent motion over the window, mm/s; NS_UNSET when the
+     * stream carried no phase-range rates.
+     *
+     * The median and not the maximum: a single-epoch velocity from
+     * broadcast orbits is noisy, and on two live stations the maximum
+     * over a window settled at 15–80 mm/s on antennas bolted to
+     * pillars, set by whichever epoch was noisiest. The median is what
+     * a still base can actually be judged against, and one wild epoch
+     * cannot move it. Resolution @ref SR_SPEED_BIN_MMS; saturates at
+     * @ref SR_SPEED_BINS bins, which a static base never approaches.
+     */
+    double   sp_speed_median_mms;
+    int      sp_last_status;   /**< SppStatus of the last epoch, which
+                                *   names why a station produced nothing */
 } StationReport;
 
 /** @brief Accumulator.  Opaque in spirit; exposed so callers can stack it. */
@@ -278,6 +329,23 @@ typedef struct {
     int      sats_min;
     float    roti_worst;
     int      offrate_samples;
+
+    /* Self-position over the window.  Sums, not a history: the scatter
+     * needs only the first two moments, which keeps this bounded on a
+     * handset as everything else here is. */
+    int      sp_samples;        /**< epochs that solved                  */
+    double   sp_sum_e, sp_sum_n, sp_sum_u;
+    double   sp_sum_sq;         /**< e^2 + n^2 + u^2, summed             */
+    double   sp_rms_worst;      /**< worst post-fit code residual RMS    */
+    int      sp_last_status;    /**< why the last epoch did not solve    */
+
+    /* The speeds, as a histogram rather than a history, for the same
+     * reason as the sums above: a median needs the distribution, and a
+     * histogram keeps it in fixed memory however long the window runs.
+     * 1 mm/s bins to 2 m/s, 8 KB, and the last bin catches everything
+     * faster -- which no solve of a standing base produces. */
+    uint32_t sp_speed_hist[SR_SPEED_BINS + 1];
+    int      sp_speed_n;        /**< epochs that carried a velocity      */
 
     /** The thresholds this window is judged by; a copy, so the
      *  caller's policy need not outlive @ref sr_reset. */
@@ -369,8 +437,19 @@ const char *sr_metric_limit_text(const SrMetric *m, int metric_id,
  *
  * Emitted under the key `report_schema_version`, which is deliberately
  * *not* the snapshot's key name — see the note in the implementation.
+ *
+ * Version 2 added the `selfpos_*` keys. Purely additive, so a reader
+ * written against 1 keeps working; the bump is so a reader can tell
+ * whether a document *without* them came from an older build or from a
+ * station that solved nothing.
+ *
+ * Version 3 replaced `selfpos_speed_max_mms` with
+ * `selfpos_speed_median_mms`. **Not** additive: a reader written against
+ * 2 that looks for the old key finds nothing, and must be able to tell
+ * that from a station whose stream carries no rates -- which is what
+ * the number is for.
  */
-#define SR_JSON_SCHEMA_VERSION 1
+#define SR_JSON_SCHEMA_VERSION 3
 
 /**
  * @struct SrJsonCtx

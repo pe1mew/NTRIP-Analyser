@@ -4,6 +4,163 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [Unreleased]
+
+### Added — self-position: where the station's own data puts it
+
+The station broadcasts where it is, in 1005/1006. This works out where
+its **own observations** put it, and reports the difference: a GPS-only,
+dual-frequency single-point position and velocity, solved every epoch
+and summarised over the stability report's window as the offset from
+the broadcast position, the scatter about that offset, the worst code
+residual and the **median** apparent motion. `View > Self-position` in
+the GUI, a block below the table in the CLI's `--report`, and
+`selfpos_*` keys in the service's snapshot and report.
+
+**Figures, no verdict.** Every other measurement in this program is
+graded; this one is not, because what counts as abnormal scatter for a
+station's own position has not been established from any measurement
+of a real station, and a threshold invented to fill the column would be
+worse than none. **Read the offset as an offset**: metres of it are the
+broadcast-ephemeris solution's own bias and say nothing about the
+antenna. The scatter is the half that measures something, and the
+apparent motion is what would reveal an antenna that moved — a base
+standing still reads tens of mm/s from broadcast orbits, which is why
+the median is reported and not the maximum, which one noisy epoch
+decides.
+
+**What it measured.** On two live Dutch stations: APEL00NLD0, 83 epochs,
+offset E −3.5 / N +3.7 / U +3.0 m, scatter **0.23 m**, worst residual
+2.3 m, 9 satellites at PDOP 1.3; RFSEE01, scatter 0.3–0.9 m, median
+apparent motion **32 mm/s**. Checked against an independent solver:
+RTKLIB's `rnx2rtkp` on 150 s of RFSEE01 with the same ephemerides gave
+E +0.06 / N +1.13 / U +8.27 m and a scatter of 0.45 m — the same order
+from both, as a single-point solve should be.
+
+**What it refuses.** A single-frequency station cannot be solved and
+says so — the ionosphere must be removed from the measurement before a
+metre means anything. Only GPS enters the solve: each constellation has
+its own system time and hardware delay and needs a clock unknown of its
+own, and letting six in under one put a live station 1.8 km from itself.
+
+**What it found.** One of the two stations sends the phase-range rate
+with the sign reversed — every satellite the exact negative of what its
+orbit predicts. The solver now works out the station's convention from
+the data, so the velocity is right either way, and names a reversed
+station in the window (`REVERSED`) and in the JSON (`selfpos_rate_sign:
+-1`), because every rover trusting those rates inherits the fault.
+
+**S** in the window saves the plot and its figures as
+`YYYYMMDDHHmmss_SelfPosition.png`, with a JSON of the same name beside
+it carrying the report, the latest snapshot and every plotted point.
+
+Desktop only, deliberately: both Play listings say the app "does not
+compute a position", and that sentence stays true until the paid
+edition gains this on purpose.
+
+### Added — the service fetches orbits for the stations that send none
+
+The monitoring daemon now honours a station's `eph_*` block, as the GUI
+does: it opens an ephemeris side-stream and decodes the orbits into the
+cache the self-position solve reads. Before this, a station sending
+only observations — RFSEE01 is MSM7 and 1005, nothing else — reported
+`observations without orbits` in every report the daemon ever wrote.
+
+**One connection per source, not per station.** The orbit cache is
+process-wide, so entries naming the same source (caster without regard
+to case, port, mountpoint, username, TLS) share one side-stream; the
+startup log says how many stations each serves. A side-stream
+publishes nothing of its own, reconnects with the stations' backoff,
+and logs under `[EPH caster:port/mountpoint]`, with one line when its
+first orbit arrives.
+
+**What it measured.** RFSEE01 and APEL00NLD0 in one daemon, both naming
+Kadaster's BCEP00KAD0, the second spelling the caster in capitals:
+`netstat` showed one connection to rfsee.net and two to
+ntrip.kadaster.nl — APEL00NLD0 and a single side-stream — where three
+would have meant no sharing. Over 25 minutes, the report published from
+the second window (939 s, the first ten minutes excluded): RFSEE01
+`solved` in all 940 samples, offset E −2.3 / N −0.7 / U −3.2 m, scatter
+**1.69 m**, worst residual 3.2 m, median apparent motion **32.5 mm/s**,
+`selfpos_rate_sign` −1 — its reversed rates found again, through the
+daemon this time; APEL00NLD0 scatter 1.18 m, median 40.5 mm/s. The
+scatter is a 3-D RMS and mostly vertical (RFSEE01 per-axis SD 0.6 /
+0.75 / 1.3 m, 9–10 satellites throughout), above the 0.3–0.9 m the GUI
+measured on RFSEE01 earlier. Run side by side with the GUI on the same
+stream and orbit source for 43 minutes, the two agree to a centimetre —
+3-D scatter 2.17 m in the GUI and 2.18 m in the daemon, per-axis SD
+1.09 / 1.04 / 1.57 m in both, median motion 32.5 mm/s in both — so the
+figure is the station's at that hour, not the daemon's doing. The same daemon with the eph block
+removed: `observations without orbits`, as before.
+
+### Added — the CLI's report fetches orbits too
+
+Under `--report`, `-t`, `-s`, `-d` and `--check` now open the configured
+ephemeris side-stream for the length of the run — a second connection,
+said so on stderr, in `--help` and in `docs/cli.md` — and `-R` loads a
+RINEX navigation file in every mode, not only `--sky`. A replay never
+opens the side-stream: a capture read in seconds would race it, and
+today's orbits are not the capture's, so offline `-R` is the source.
+Under `--check` it cannot move the verdict, since no KPI reads an orbit.
+
+**What it measured.** RFSEE01 with Kadaster's BCEP00KAD0, live:
+`-t 120 --report` solved 90 of 90 epochs, offset E −4.4 / N −3.4 /
+U −6.1 m, scatter 2.63 m, median apparent motion 43.5 mm/s. An
+eleven-minute capture of the same station, replayed with `-R` and a
+navigation file made from the same mountpoint, reproduced the live run.
+
+### Fixed — the CLI never used a station's own orbits in `-t` or `-s`
+
+The session layer decodes nothing, so a station broadcasting its own
+1019 still read `observations without orbits` under `-t --report` —
+while `docs/cli.md` said such a station needed nothing more. `-d` was
+unaffected: it decoded them as a side effect of printing them. The same
+defect as the service's below, found the same day; `-t` and `-s` now
+decode the ephemeris types from the station's stream, with the
+decoders' text sent to a sink. Measured on a replay carrying a
+station's observations and its ephemerides on one stream, with no `-R`:
+nothing solved before, **59 epochs** after (scatter 0.46 m, median
+33.5 mm/s); the same observations without the ephemerides still say
+the orbits are missing, as they should.
+
+### Fixed — the service decoded no orbits at all
+
+The session layer frames RTCM and decodes none of it, so the daemon —
+the one frontend with no frame handler — never filled the orbit cache,
+not even from a station broadcasting its own 1019. The feature matrix
+said it solved those stations; it solved none. It now decodes the
+ephemeris types from every station stream, with the decoders' text sent
+to a discard sink rather than to the journal. Measured on DELF00NLD0,
+which broadcasts its own 1019, with no eph block: the previous daemon
+and this one side by side for five minutes, 262 report samples each —
+**0** solved before, **82** after (the rest waiting for enough GPS
+orbits to arrive on the station's own slow cycle).
+
+### Changed — the stability report's JSON is schema 3
+
+`report_schema_version` 3 adds the `selfpos_*` keys (2 added them
+earlier on this branch; no version 2 was released) and carries
+`selfpos_speed_median_mms`. The snapshot gains `selfpos_*` keys without
+a `schema_version` bump, as the ionosphere keys did, and the same keys
+are **appended** to the CSV row, so a reader counting columns from the
+left keeps working. An epoch that did not solve writes `null` and empty
+cells, never a zero: a zero is an antenna standing exactly on its
+declared coordinates.
+
+### Fixed
+
+- **View > Reset window layout** now resets the Station Check and
+  Stability windows too. Its comment promised "every remembered
+  placement" and had been leaving both out since each was added.
+- The ephemeris side-stream copied its caster, mountpoint, user and
+  password with `strncpy` over the observation stream's values, which
+  leaves no terminator when a field fills its buffer — a 255-character
+  name would have kept the tail of the one it replaced. Found by
+  switching on `-Wall`, which the build had never passed; the codebase
+  was otherwise clean under it, and is built with it from now on.
+- The tray tooltip bounds the mountpoint name so a long one cannot push
+  the satellite count and rate — the part that changes — off the end.
+
 ## [3.8.0] - 2026-08-25
 
 The release where the paid edition ships whole, and the reason it

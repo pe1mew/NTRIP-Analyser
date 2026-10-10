@@ -65,10 +65,37 @@ typedef struct {
     uint16_t lock;           /**< lock time indicator, as the message gives it */
 } NsObsCell;
 
+/** How many constellation ids the per-system tables are indexed by. */
+#define NS_OBS_MAX_GNSS 8
+
 /** Every cell of one epoch, across constellations. */
 typedef struct {
     uint32_t  epoch_ms;      /**< the frame's own epoch field */
     uint32_t  gnss_seen;     /**< bit (1 << gnss_id) per system contributing */
+    /**
+     * The epoch field each system last contributed under.
+     *
+     * Epochs are comparable **within** a system and not across them —
+     * GPS counts milliseconds of week, GLONASS of day — so this is the
+     * only place a comparison is sound. It is what tells a
+     * constellation continuing across frames (same system, same epoch,
+     * which MSM's multiple-message bit exists to express) from a new
+     * bundle whose predecessor never closed.
+     */
+    uint32_t  sys_epoch[NS_OBS_MAX_GNSS];
+    /**
+     * When this set was observed, in **GPS milliseconds of week**, or
+     * −1 when no frame in it could say.
+     *
+     * Not @ref epoch_ms, which is whichever frame happened to open the
+     * set and is on that system's own scale. A bundle is closed by
+     * whichever frame clears DF393, and on a Dutch base observed in
+     * October 2026 that is always BeiDou — whose scale is 14 s behind
+     * GPS, which put the station 7.8 km from itself.
+     * @ref msm_epoch_to_gps_tow_ms does the conversion; GLONASS cannot
+     * be converted and does not set this.
+     */
+    double    tow_gps_ms;
     int       n;             /**< cells held */
     int       dropped;       /**< cells that did not fit */
     bool      open;          /**< more frames expected for this epoch */

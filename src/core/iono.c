@@ -65,8 +65,10 @@ static const double FREQ_NAVIC[32] = {
     0, 0, 0, 0, 0, 0, 0, 0
 };
 
-/** @brief Carrier frequency for a signal-mask index, or 0 if unusable. */
-static double sig_freq(int gnss_id, int sig_idx)
+/** Declared in iono.h: the tables live here because the ionosphere was
+ *  the first thing that needed them, and the station self-position
+ *  solver is the second. */
+double msm_signal_freq_hz(int gnss_id, int sig_idx)
 {
     if (sig_idx < 0 || sig_idx >= 32) return 0.0;
     switch (gnss_id) {
@@ -263,11 +265,11 @@ int iono_feed(IonoState *st, const unsigned char *payload, int payload_len,
         double best_fa = 0, best_fb = 0, best_gap = 0;
         for (int i = 0; i < num_sigs; i++) {
             if (!have[s][i]) continue;
-            double fi = sig_freq(gnss_id, sig_idx_list[i]);
+            double fi = msm_signal_freq_hz(gnss_id, sig_idx_list[i]);
             if (fi <= 0) continue;
             for (int j = i + 1; j < num_sigs; j++) {
                 if (!have[s][j]) continue;
-                double fj = sig_freq(gnss_id, sig_idx_list[j]);
+                double fj = msm_signal_freq_hz(gnss_id, sig_idx_list[j]);
                 if (fj <= 0) continue;
                 double gap = fabs(fi - fj);
                 if (gap < 1.0e6) continue;      /* same band, no iono leverage */

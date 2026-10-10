@@ -6,6 +6,7 @@
   "report_window_s": 3600,
   "_comment_thresholds": "thresholds: judge by your own policy instead of the built-in values. Either a path to a JSON policy file, or the policy inline as an object. The daemon refuses to start if it cannot be applied. Omit it to use the built-in thresholds.",
   "_thresholds": "/etc/ntrip-monitord/survey.json",
+  "_comment_eph": "eph_*: an optional ephemeris side-stream for a station that does not broadcast its own orbits, which the self-position figures need. Entries naming the same source (caster, port, mountpoint, username, eph_tls) share one connection. Leave the block out for a station that broadcasts 1019 itself.",
   "mountpoints": [
     {
       "caster": "rfsee.net",
@@ -16,7 +17,13 @@
       "password": "password",
       "send_gga": false,
       "latitude": 52.0,
-      "longitude": 6.0
+      "longitude": 6.0,
+      "eph_caster": "ntrip.kadaster.nl",
+      "eph_port": 2101,
+      "eph_mountpoint": "BCEP00KAD0",
+      "eph_username": "user",
+      "eph_password": "password",
+      "eph_tls": false
     }
   ]
 }

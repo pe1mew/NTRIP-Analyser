@@ -265,6 +265,47 @@ static void case_refused(void)
     CHECK(n == 0, "a null payload must yield nothing, got %d", n);
 }
 
+/**
+ * @brief One instant, six scales: the epoch field converted to GPS.
+ *
+ * The field means a different thing in each decade of MSM, and a bundle
+ * is closed by whichever frame clears DF393 -- which need not be GPS. A
+ * Dutch base closes every epoch with BeiDou, so the solver was handed
+ * BDT, 14 s behind GPS, and placed the station 7.8 km from itself with
+ * kilometre residuals. A base down the road closed on NavIC and was
+ * right by accident.
+ */
+static void case_epoch_scales(void)
+{
+    const uint32_t gps = 547186000;        /* as observed, to the second */
+
+    CHECK(msm_epoch_to_gps_tow_ms(1077, gps) == (double)gps,
+          "GPS is the scale everything else is converted to");
+    CHECK(msm_epoch_to_gps_tow_ms(1097, gps) == (double)gps,
+          "Galileo's GST is GPS-aligned to nanoseconds");
+    CHECK(msm_epoch_to_gps_tow_ms(1117, gps) == (double)gps,
+          "QZSS runs on GPS time");
+    CHECK(msm_epoch_to_gps_tow_ms(1137, gps) == (double)gps,
+          "NavIC is GPS-aligned too");
+
+    /* The one that cost 7.8 km: the same instant, 14 000 ms lower. */
+    CHECK(msm_epoch_to_gps_tow_ms(1127, gps - 14000) == (double)gps,
+          "BeiDou's BDT is 14 s behind GPS and is corrected, got %.0f",
+          msm_epoch_to_gps_tow_ms(1127, gps - 14000));
+
+    /* GLONASS counts day-of-week and milliseconds of day. No arithmetic
+     * places that in a GPS week without the date and the leap seconds,
+     * so it says so rather than guessing. */
+    CHECK(msm_epoch_to_gps_tow_ms(1087, 844874368u) < 0.0,
+          "GLONASS cannot be converted, and does not pretend to be");
+    CHECK(msm_epoch_to_gps_tow_ms(1012, 1000u) < 0.0,
+          "nor can legacy GLONASS");
+    CHECK(msm_epoch_to_gps_tow_ms(1004, gps) == (double)gps,
+          "legacy GPS observations carry milliseconds of week already");
+    CHECK(msm_epoch_to_gps_tow_ms(1005, gps) < 0.0,
+          "a station message has no epoch to convert");
+}
+
 /** @brief The epoch store: appending, overflowing, counting satellites. */
 static void case_epoch_store(void)
 {
@@ -319,6 +360,9 @@ int main(void)
 
     printf("\n== refused ==\n");
     case_refused();
+
+    printf("\n== epoch scales ==\n");
+    case_epoch_scales();
 
     printf("\n== the epoch store ==\n");
     case_epoch_store();

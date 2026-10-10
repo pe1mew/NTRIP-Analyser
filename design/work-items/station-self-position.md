@@ -300,7 +300,53 @@ tolerance, per epoch and in the mean. The route is proven —
 `cli-track.md` V5 already took a capture through `convbin` to a
 CSRS-PPP solution.
 
-### P4 — the velocity solve
+**Built 2026-10-09** as `src/core/spp.{c,h}`: iono-free combination of
+the two widest carriers, Saastamoinen troposphere on a standard
+atmosphere, a ten-degree elevation mask, and least squares with the
+receiver clock as the fourth unknown. Refusals are named rather than
+approximated — `SPP_SINGLE_FREQ`, `SPP_NO_EPHEMERIS`,
+`SPP_TOO_FEW_SATS`, `SPP_DIVERGED` — and GLONASS stays out by design
+even though P2 gave it a clock, because FDMA inter-frequency biases
+will not fit under one receiver-clock unknown. The frequency table
+moved from `static` in `iono.c` to a declared `msm_signal_freq_hz`,
+one table for the ionosphere and the solver both.
+
+*Verified by closure, not by bounds.* `test_spp.c` builds the
+pseudoranges a receiver at a known point would measure — geometry,
+satellite clocks, troposphere, a receiver clock bias — inverts them,
+and demands the point back: **0.0000 m, clock exact, residuals
+0.0000**, and the same from a cold start at the Earth's centre. The
+troposphere is implemented a second time in the test, so the solver's
+copy is compared rather than trusted. Falsified twice: flipping the
+satellite-clock sign throws the answer 6 730 m, removing the
+troposphere 4.7 m.
+
+**The closure test caught a real defect before any data did.** The
+first run recovered to 0.14 m with 2 cm residuals on noiseless input,
+which should be exact. A term-by-term diagnostic showed the transmit
+time 101 µs early: **a pseudorange carries the satellite's own clock
+offset** — af0 alone is routinely 100 µs, or 30 km — so `tow − P/c`
+is not the transmit time, and the satellite has moved 0.29 m by the
+time it is. The solver now reads the clock, subtracts it, and reads
+the state again. A second pass then re-reads every satellite with the
+receiver clock the first pass found, which is what makes the answer
+independent of how badly that clock is steered: a **1 ms** receiver
+bias — 300 km of range — now costs **0.0000 m** of position, where one
+pass cost metres.
+
+*Still outstanding, and P3 is not closed without it:* the comparison
+against `rnx2rtkp` on a **real capture**. Closure proves the solver
+inverts its own model; only real data proves the model. RTKLIB is
+installed and `docs/RUNBOOK.md` carries the route.
+
+*Closed 2026-10-10.* `rnx2rtkp` on 150 s of RFSEE01, with ephemerides
+captured from Kadaster's BCEP00KAD0 at the same moment and converted
+with `convbin`: E +0.06 / N +1.13 / U +8.27 m from the broadcast ARP,
+scatter 0.45 m — the order this solver gives on the same station, as a
+single-point solve should. Reaching that comparison took four live
+defects first, all recorded below.
+
+### P4 — the velocity solve  *(done 2026-10-09)*
 
 Phase range rate against satellite velocity, receiver clock drift as
 the fourth unknown, the same weighting.
@@ -310,7 +356,32 @@ threshold for "zero" is derived from measured scatter rather than
 chosen. Cross-checked against `rnx2rtkp`'s Doppler velocity on the same
 capture.
 
-### P5 — into the report
+**Built 2026-10-09**, inside `spp_solve` rather than beside it: the
+position solve already holds the geometry and the satellite states, and
+a second entry point would have recomputed both. The measurement is the
+iono-free combination of the phase rates, the model is
+`(v_sat − v_rx)·u − c·dts/dt + c·dtr/dt`, and the unknowns are the three
+velocity components and the receiver's clock drift — the same 4×4 the
+position uses.
+
+*Checked by closure, both ways.* A still antenna reads **0.0000 mm/s**
+with zero drift; an antenna moving 12 mm/s east is recovered as
+**12.0000 mm/s east, 0.0000 north and up**, with its 2.5 m/s clock
+drift. And a stream whose messages carry no rates — MSM4, MSM6, legacy
+— yields `has_velocity = false` rather than a velocity of zero, which
+is the failure mode that would read as *the antenna is perfectly
+still*.
+
+**A falsification found the test weak before it found the code wrong.**
+Removing the satellite clock-drift term from the model changed nothing:
+every synthetic ephemeris shared one `af1`, so the error was common to
+all satellites and the receiver's own drift unknown absorbed it
+exactly. Giving each satellite its own `af1` makes the same
+falsification fail loudly — 1.0 mm/s of phantom motion. **A test whose
+inputs are too uniform cannot see a common-mode mistake**, and
+common-mode is precisely what a clock unknown hides.
+
+### P5 — into the report  *(done 2026-10-09)*
 
 New tier-2 fields beside the six that exist, each carrying its window
 and its evidence count, as every tier-2 number already does. The
@@ -320,7 +391,78 @@ INSUFFICIENT EVIDENCE.
 **Verify.** `--report` on a replayed capture equals the live report from
 the same stream; `check_release.py` sees no claim it cannot verify.
 
-### P6 — the GUI: a Self-position window
+**Built 2026-10-09, and one sentence of the step above was not kept.**
+Self-position is reported as figures with **no verdict**: no
+`SR_SELFPOS` row, `SR_METRIC_COUNT` still 6. Grading it would have
+meant choosing a number for "abnormal scatter at a station" today, from
+no measurements of any real station — the invented threshold this
+project keeps catching itself at, and `docs/thresholds.md` exists
+precisely so that every limit can name its evidence. The fields are
+published, the decision is recorded on the struct, and a test asserts
+`SR_METRIC_COUNT == 6` so that adding the row later has to be
+deliberate rather than accidental. It becomes a metric when real
+stations have said what normal looks like.
+
+Where it lives: nine snapshot fields (`NsStats.selfpos_*`), six
+accumulated in `SrState`, six published in `StationReport`, printed by
+`cli_report_print` below the table and outside its numbering, and
+serialised under `selfpos_*`. `SR_JSON_SCHEMA_VERSION` goes to **2** —
+purely additive, so a reader written against 1 keeps working; the bump
+is what lets a reader tell a document from an older build from one
+whose station solved nothing.
+
+*The mean is published beside the scatter because they measure
+different things.* The offset is mostly the solution's own bias, metres
+of it, and says nothing about the station; the scatter about that mean
+is the half that measures something. Computed as
+`sqrt(E[|x|²] − |E[x]|²)` and clamped at zero, since the difference of
+two sums can go a hair negative when the scatter is far smaller than
+the offset.
+
+*An unsolved epoch publishes `null`, never zero* — the rule the six
+metrics already follow, one level further on. A graph fed `0.000`
+scatter would draw a station standing perfectly still when what
+happened is that nothing was measured. The three means are the
+exception that proves the rule: an offset is **signed**, so `NS_UNSET`
+(−1.0) is a value it could legitimately hold and cannot serve as its
+sentinel. `sp_samples` is the only thing that says whether they mean
+anything, and the serialiser keys the nulls off it.
+
+**A falsification caught a passing test that was protecting nothing.**
+Removing the `has_vel` gate from the accumulation left "a stream
+without rates reports no speed" green: the test's snapshot had left
+`selfpos_speed_mms` at its `NS_UNSET` initialiser, so the comparison
+rejected it for the wrong reason and the flag was never consulted. The
+case now puts a speed of 7 mm/s in the snapshot *beside*
+`has_vel = false` — a snapshot carrying a number it has no right to —
+and the gate is what has to stop it. **A test written politely tests
+the caller's manners, not the code's defences.**
+
+*Falsified by name, each restored:* dropping the bias subtraction from
+the scatter reddens "the scatter about it is free of that bias" and
+"sixty identical epochs scatter by nothing at all"; removing the
+`has_vel` gate reddens "but a stream without rates reports no speed"
+(once that case was made hostile); emitting the scatter unconditionally
+reddens "and its scatter is null, not a flattering zero".
+
+**19/19 tests pass; `check_release.py` stays at 106 checks**, the four
+stale-artefact failures being the known ones. The *`--report` equals
+live* check is **outstanding**, for the same reason P3's `rnx2rtkp`
+comparison is: it needs a real `.rtcm3` capture from the author's
+caster, and nothing in the repository replays an observation stream.
+*(Closed 2026-10-10 by the CLI orbit-sources work: an eleven-minute
+RFSEE01 capture replayed with `-R` and a navigation file made from the
+same mountpoint reproduced the live `--report` run.)*
+Smoke-checked meanwhile against an empty replay, which prints
+`Self-position: nothing solved -- no observations in this epoch` rather
+than a clean zero.
+
+### P6 — the GUI: a Self-position window  *(done 2026-10-10)*
+
+**Accepted by the author on a live stream, 2026-10-10**: RFSEE01 solving
+with median apparent motion in the low tens of mm/s, the reversed rate
+sign reported, and **S** saving the image and its JSON companion. The
+findings below are the record of what it took to get there.
 
 **Its own window** (author, 2026-10-09), beside the Stability window
 rather than inside it — `design/gui-design.md` §14 is the neighbour to
@@ -336,6 +478,441 @@ this project keeps writing down.
 
 **Verify.** Started from Explorer, not a shell — the GUI's own rule,
 and the one that found a whole class of stdio faults.
+
+**Built 2026-10-09.** `gui/gui_selfpos_window.{c,h}`, class
+`NtripSelfPosClass`, **View → Self-position**, designed in
+`design/gui-design.md` §16. The left half is an east/north scatter about
+the broadcast reference — one dot per solved epoch, latest in orange, a
+red cross where the run centres, rings at round distances — and the
+right half is the figures: mean offset E/N/U, scatter about it, worst
+code residual, fastest apparent motion, then the latest epoch's
+satellites, PDOP, code residual, rate residual and clock drift. No
+verdict and no fourth column, per P5's decision, with the header's third
+line saying why rather than leaving a reader to wonder.
+
+*The figures are core's, the plot is the window's.* Everything stated in
+words comes from `AppState::reportOut` — the same accumulation, over the
+same window of stream time, that the Stability window shows, so the two
+cannot disagree about one stream. The window owns only a 7 200-point
+ring (two hours at an epoch a second, 115 KB) for drawing, and nothing
+computed from it is presented as a measurement. It is emptied inside
+`ReportReset()` rather than at each caller, so one reset verb covers
+both: a plot of one hour beside a mean of another is a disagreement
+nobody can read.
+
+*Two refusals worth naming.* The plot never self-centres — the origin
+stays the position the station claims, because a cloud scrolled under
+its own middle would hide the offset. And an epoch that did not solve
+adds no dot, since a dot at the origin is exactly what a station sitting
+on its declared coordinates looks like.
+
+**P5 had left the snapshot's own serialisers behind**, found while
+wiring this window: `NsStats` carried the nine `selfpos_*` fields and
+`ns_stats_to_json()` published none of them, though the field block's
+own comment said consumers would read them by key. So the daemon's
+snapshot, `File > Export Statistics` and the CSV row all described a
+stream without ever mentioning where it put itself. Fixed here —
+`selfpos_*` in both serialisers under the same null-not-zero rule, and
+`selfpos_rate_rms_ms` added so the window can state what the *velocity*
+was measured to, which the code residual does not say. New cases in
+`test_ns_stats` cover both directions: nulls when nothing solved, and
+values when something did, because a null is only honest if the key can
+carry a figure at all.
+
+**And the polite test was written a third time.** The first version of
+the "nothing solved" case used a freshly initialised snapshot, so when
+the falsification removed the status gate from the serialiser the check
+stayed green: the null came from the `NS_UNSET` initialiser and the gate
+was never consulted. This is the same mistake P5 had just recorded and
+promoted to `memory/MEMORY.md` — **knowing the pattern did not prevent
+it; running the falsification did.** The case now carries real figures
+beside a status that says nothing solved, which is also the honest
+model: a caller is free to leave stale numbers behind, and the gate is
+what has to stop them. *Falsified by name, each restored:* removing the
+solved gate reddens "and no offset at all, rather than an offset of
+zero"; removing the velocity gate reddens "nor a speed, which a zero
+would read as a still antenna" and the solved-epoch case beside it.
+
+**Verified the way the rule requires**, from a launcher with no console:
+the class registers, the window is created, titled and visible, and a
+second **View → Self-position** raises it rather than making another —
+driven by the same `WM_COMMAND` the menu item sends. 19/19 tests, build
+warning-free.
+
+**And then the author looked at it, and it was wrong in four ways** —
+none of which a build or a test can see, because each is a sentence or
+a width that is only wrong on screen. A screenshot of an empty window
+32 s into a stream showed **NOT COMPUTABLE** as its banner: a finding
+about the station, from a window far too short to carry one, and
+`gui-design.md` §14.5's second entry repeating itself in a new window a
+month later. With it: ring labels of "0.125 m" on a plot with no points
+(the radius chooser's smallest step, reading as a station holding to a
+tenth of a metre before it had solved once), a heading cut to "What it
+mea…" with the notes under a scrollbar (widths guessed at 190/90/210 px
+against §14.6, *Column widths are measured, not guessed*, in the very
+document this section was being added to), and a caption severed
+mid-word.
+
+Fixed: four states — solved, **gathering**, **not computable**, **not
+solved** — where `SPP_SINGLE_FREQ` is the only status that is a
+property of the stream rather than of how long we have watched; labels
+only once points set the scale; widths measured from the longest string
+each column can hold, with the plot capped at what the figures leave
+and the default window 1000 px wide; `DrawText` with `DT_WORDBREAK |
+DT_END_ELLIPSIS`. Recorded in `gui-design.md` §16.5 and the gotcha log.
+
+**Looking at it is now part of the check**: `PrintWindow` into a bitmap,
+saved as a PNG and read back, which is how the last three were found
+after the first was fixed. Two traps in that harness, both logged — call
+`SetProcessDPIAware()` first, or a 1000×620 window is captured as
+800×496 at 125 % scaling and the clipping looks like the bug; and this
+host enumerates windows on another desktop, so `EnumThreadWindows` is
+what finds the window and `FindWindow` never will.
+
+**What a capture of an idle window still cannot show is the solved
+state**: the density of the cloud, whether the ring labels sit clear of
+the dots, how a mean two metres off the reference looks when the scale
+steps up. That needs a station on the other end, and it is what this
+step is now waiting on.
+
+### P5/P6 — the feature was never called  *(found 2026-10-09, on a live station)*
+
+Connected to RFSEE01, the window read `GATHERING` after 170 s and 157
+snapshots: **0 epochs solved**, reason *"no observations in this
+epoch"*. That status is the field's **initial value**. `selfpos_solve()`
+was defined in `ntrip_session.c` and called from nowhere — the call site
+discarded the return value of `obs_feed()`, the one thing that says an
+epoch has closed. The entire feature was dead through P5 and P6.
+
+Three things had to line up for it to get this far:
+
+- **Every test of it starts below the session.** `test_spp` builds its
+  own epoch, `test_observables` its own payload, `test_station_report`
+  and `test_ns_stats` their own snapshots. Nineteen green tests, none
+  of which asked whether a closed epoch reaches the solver.
+- **Every surface handled "nothing solved" correctly** — null in the
+  JSON, a reason in the CLI, a reason in the window. The care each
+  surface took over absence is what made the absence look like a
+  property of the station.
+- **The build asked the compiler almost nothing**: `-O3 -DNDEBUG
+  -std=gnu99`, no `-Wall`, so an unused static function drew no
+  warning. The committed file compiled with `-Wall` names it in one
+  line.
+
+**Fixed, with the two defences that were missing.** `-Wall` on our own
+targets, not the vendored libraries; the codebase was clean under it
+except four `strncpy` truncations in `gui_thread.c` (the ephemeris
+side-stream could leave a caster name wearing the tail of the one it
+replaced) and a tray tooltip, all fixed. And
+`test/test_selfpos_session.c`, which replays RTCM through
+`ns_open_file()` — the same framing a caster feeds — and asserts that a
+closed epoch reaches the solve. It is **red on the shipped defect**
+(status stays `SPP_NO_EPOCH`), and its control is one bit away: the same
+frames with DF393 set, so the epoch never closes and the status must
+stay `SPP_NO_EPOCH`. Twenty tests now.
+
+*Verified live after the fix:* the CLI's `--report` against RFSEE01 moved
+from `no observations in this epoch` to **`observations without
+orbits`** — the solve now runs and says what it lacks.
+
+### P5/P6 — median motion, and an export  *(author, 2026-10-10)*
+
+**The median replaces the maximum.** Two stations on pillars showed a
+maximum apparent motion of 15–80 mm/s, set each time by whichever epoch
+was noisiest, so a station could not be judged against it. The median
+sits steadily in the low tens of mm/s and a few wild epochs cannot move
+it. It is read from a histogram — 1 mm/s bins to 2 m/s, 8 KB per
+accumulator, the last bin catching anything faster — because a median
+needs the distribution and the daemon carries two accumulators per
+station for hours. `selfpos_speed_max_mms` became
+`selfpos_speed_median_mms` and `SR_JSON_SCHEMA_VERSION` went to **3**,
+since a renamed key is not additive. `docs/thresholds.md` lists both
+histogram constants under *What is not a threshold*, as
+`check_release.py` requires of every `SR_*` number.
+
+The test uses noise of 20–40 mm/s plus three epochs at 900 — median
+30, mean 73.4, maximum 900 — so it can tell which one the report used.
+Reading the top of the histogram instead reports 900.5 and reddens it.
+
+**S saves the window and its numbers** (author: S, as in the other
+chart windows): `YYYYMMDDHHmmss_SelfPosition.png` through the shared
+save flow, and a JSON of the same name carrying the report, the latest
+snapshot and every plotted point. Designed in `gui-design.md` §16.7.
+Driven end to end against RFSEE01 live: the image held the plot,
+legend and figures — including `Median apparent motion 32.5 mm/s` and
+`Phase-range rate sign REVERSED` — and the companion parsed, matching
+the image to the last digit.
+
+### P4 — a station that encodes its rates backwards  *(found 2026-10-10, on a live station)*
+
+With the epoch rule settled, RFSEE01 solved its position cleanly —
+scatter 0.87 m, code residual 1.2 m — and reported its **velocity** as
+**1 666 m/s**, rate residual 830 m/s, clock drift 932 m/s. APEL00NLD0,
+same code, same orbits, read 0.03–0.18 m/s.
+
+The decoder was cleared first: within each satellite every signal's
+rate agreed to centimetres per second on both stations. Then the
+measured rate against what the orbit predicts for a still receiver:
+
+| PRN | RFSEE01 measured | predicted | APEL00NLD0 measured |
+|---|---|---|---|
+| 4 | −559.924 | +560.328 | +560.440 |
+| 5 | +695.750 | −695.326 | −695.329 |
+| 21 | +483.516 | −483.111 | −483.001 |
+
+**RFSEE01's receiver encodes the phase-range rate with the sign
+reversed** — every satellite the exact negative of its orbit's
+prediction. RTCM 10403.3 defines it as the rate of change of the phase
+range, positive while the range grows; this receiver behaves as if it
+were writing Doppler, which is positive while the range shrinks. A
+solver taking the field at its word has nothing to fit but a 1.4 km/s
+antenna.
+
+*Resilient rather than configured.* The solver fits both conventions
+and keeps the one that fits. It is never a close call — the right sign
+leaves centimetres per second, the wrong one hundreds of metres,
+because a reversed rate is not something any receiver velocity can
+explain. With exactly four rates both fit perfectly, so nothing is
+claimed (`rate_sign` 0) and the standard sign is used. The finding is
+**reported, not hidden**: `SppSolution::rate_sign`, the snapshot's
+`selfpos_rate_sign` in JSON and CSV, and a `REVERSED` row in the window.
+A rover trusting this station's rates is being misled by them, and
+that is the operator's to know.
+
+*And the residual had been lying too.* The rate RMS summed the
+**pre**-fit residuals under a comment saying it recomputed them
+post-fit, so it reported the clock drift: 0.03 m/s on one station,
+829.6 m/s on the other, tracking the drift to the last decimal on both.
+Now genuinely post-fit, which is also what makes the sign choice sound.
+
+*Verified:* RFSEE01 end to end through a real session with real orbits
+— speed **1 412 908 → 26–38 mm/s**, rate residual **829.6 → 0.009–0.016
+m/s**, drift **−0.4 m/s**, a normal free-running oscillator. In
+`test_spp.c`: `case_reversed_rates` builds rates with a 0.4 m/s drift
+and demands +1 for the conformant set, −1 for the reversed one, a still
+antenna and the *true* drift either way, and a post-fit residual under
+a millimetre per second; `case_four_rates_undecided` demands 0. Never
+trying the reversed sign reproduces the live symptom exactly —
+2 396 220 mm/s, drift 1465 m/s — and summing pre-fit residuals reddens
+the post-fit check with 0.4000 m/s.
+
+One correction to the test, not the code: the first version expected
+the drift to come back **negated**. The solver was right — undoing the
+receiver's negation restores the clock term with it, so the fit
+recovers the true drift.
+
+### P1 — one rule for when an epoch is complete  *(2026-10-10)*
+
+Three live stations in two days broke three different assumptions about
+when a set of observations has stopped arriving. The rule that survives
+all of them assumes nothing about the station:
+
+> **A set is complete when the protocol says so — DF393 clears — or
+> when the next set demonstrably begins. Whichever comes first.**
+
+What it had to withstand:
+
+| What the station did | What it broke |
+|---|---|
+| BeiDou in two frames, 48 cells then 5 | a guard reading "this system contributed before" threw away the set mid-bundle: 6 cells of 128 reached the solver |
+| DF393 never cleared — NavIC dropped out of view and took the only frame that had been clearing it | waiting for the bit meant waiting for ever; 41 snapshots of a good stream read *"waiting for the first observation epoch"* |
+| the bundle closed by BeiDou | the closing frame's epoch is on BDT, 14 s behind GPS: 7.8 km |
+
+"Demonstrably begins" is a comparison made **within one system** — GPS
+against GPS. Across systems the fields are not comparable at all, so
+the same system reporting a different epoch is the only sound evidence
+that time has moved on. No station-specific knowledge, and nothing that
+needs updating when the next base behaves differently.
+
+Two things it gives up, both on purpose:
+
+- **The last set of a stream is never completed**, so it is not solved.
+  Nothing arrives to prove it finished, and inventing that proof would
+  mean solving every half-received bundle at every disconnection.
+- **A reconnect discards whatever was in hand.** The stream resumes
+  mid-bundle, and joining the two halves would solve an epoch assembled
+  from satellites observed on either side of an outage — one
+  plausible-looking position per reconnect.
+
+*Verified against the stream that broke it*: 60 s of RFSEE01 with
+**zero** DF393 clears in the whole capture now reaches `observations
+without orbits` — the GPS satellites examined and refused only for the
+ephemerides a replay has no way to supply. `test_selfpos_session.c`
+holds all four shapes: a closed bundle, a trailing incomplete one that
+must not overwrite the answer, a split constellation, and a stuck bit.
+
+### P1 — a split constellation destroyed the epoch  *(found 2026-10-10, on a live station)*
+
+With GPS-only in place the window went to **`waiting for four usable
+satellites`**: 0 epochs solved in 106 s from a station streaming ten
+GPS satellites. `TOO_FEW_SATS` with both refusal counters at zero means
+something stronger than it sounds — **not one GPS cell was examined**.
+
+A capture of the stream, walked frame by frame, shows why:
+
+```
+1077 GPS      20 cells  more=1
+1087 GLONASS  15 cells  more=1
+1097 Galileo  39 cells  more=1
+1127 BeiDou   48 cells  more=1
+1127 BeiDou    5 cells  more=1   <- same system again
+1137 NavIC     1 cell   more=0
+CLOSED epoch: 6 cells  [ BeiDou=5 NavIC=1 ]
+```
+
+The base sends BeiDou in two frames. P1's epoch rule read the second
+one as "this system has contributed, so the bundle has come round
+again" and **reset the set** — discarding GPS, GLONASS, Galileo and
+BeiDou's own first frame. Six cells of 128 reached the solver, none of
+them GPS.
+
+That guard was written for a base whose multiple-message bit never
+clears. It fired on the thing that bit **exists to express**: one
+constellation continued across frames. P1's own text says the epoch
+fields are not comparable across constellations, and stops one step
+short of the consequence — they *are* comparable **within** one. So:
+same system and the same epoch field is a continuation; same system and
+a different epoch means a new bundle began without the previous one
+closing, which is the stuck-bit case the guard was for.
+`NsObsEpoch::sys_epoch[]` holds the per-system epoch that makes the
+comparison possible.
+
+*Verified on the capture that found it:* `fewer than four usable
+satellites` became **`observations without orbits`** — the GPS cells
+survive and are examined, and the CLI simply has no ephemerides in
+report mode. `write_split_capture` in `test_selfpos_session.c` builds
+the same shape (GPS dual-frequency, then one system twice, the second
+closing) and demands `SPP_NO_EPHEMERIS`; with the shipped rule restored
+it reports `SPP_TOO_FEW_SATS`, which is exactly what the window showed.
+
+**Why the reasons had to be told apart, and what the first test got
+wrong.** Written with single-frequency GPS, the case passed either way:
+a surviving GPS satellite and a lone BeiDou one are both refused as
+single-frequency, so both produce `SPP_SINGLE_FREQ`. Giving GPS two
+carriers moves it past that gate to the orbit lookup, and the two
+statuses then separate cleanly. **A test must make the two worlds it
+compares produce different answers** — which is the P5/P6 lesson once
+more, in a third shape.
+
+### P3 — the epoch was dated by whichever frame closed it  *(found 2026-10-10, on a live station)*
+
+GPS-only and the epoch intact, a second station — `ntrip.kadaster.nl /
+APEL00NLD0` — solved every epoch and placed itself **7.8 km** away:
+offset E −7830 m, N −1431 m, U −5587 m, worst code residual 3888 m,
+apparent motion 779 mm/s, from 8 satellites at PDOP 1.1. Good geometry,
+impossible answer.
+
+A capture of its bundle:
+
+```
+1077 GPS      epoch=547186000
+1087 GLONASS  epoch=844874368
+1097 Galileo  epoch=547186000
+1127 BeiDou   epoch=547172000
+1127 BeiDou   epoch=547172000  DF393=0   <- closes the bundle
+```
+
+The solve took its time from the frame that closed the set, and on this
+base that is always BeiDou — **BDT, 14 s behind GPS**. Fourteen seconds
+moves a GPS satellite 55 km along its orbit; what survives the receiver
+clock unknown is kilometres of position and kilometres of residual.
+RFSEE01 closes on NavIC, which is GPS-aligned, so the same code was
+correct there **by luck** — which is why one station looked plausible
+and the other did not.
+
+*Fixed* with the conversion in core, where it can be tested rather than
+reasoned about: `msm_epoch_to_gps_tow_ms()` takes GPS, Galileo, QZSS,
+NavIC and SBAS as they are, adds 14 s for BeiDou, and **refuses
+GLONASS** — day-of-week plus milliseconds of *day* cannot be placed in
+a GPS week without the date and the current leap seconds. `NsObsEpoch`
+carries `tow_gps_ms`, set from the first frame of the set that can say,
+and the solve uses that instead of the closing frame's raw field. An
+epoch with no convertible frame does not solve, which is honest: it
+holds no satellite this solver would have used either.
+
+`case_epoch_scales` in `test_observables.c` checks every decade;
+dropping the 14 s reddens it with the exact value from the stream
+(547172000 where 547186000 was meant).
+
+**Live, after the fix** — the same station, 91 s, **83 epochs solved**:
+
+| | APEL00NLD0 | RTKLIB on RFSEE01 |
+|---|---|---|
+| offset E | −3.486 m | +0.063 m |
+| offset N | +3.724 m | +1.127 m |
+| offset U | +3.017 m | +8.272 m |
+| scatter | **0.231 m** | 0.449 m |
+| worst code residual | 2.257 m | — |
+| satellites / PDOP | 9 / 1.3 | 15 / — |
+| clock drift | −0.060 m/s | — |
+
+Two stations, two solvers, the same order of magnitude: metres of
+offset dominated by the broadcast-ephemeris bias, sub-metre scatter,
+metre-level residuals. That is what a single-point solve is worth, and
+it is what P3 claimed by closure against synthetic geometry a day
+earlier — a claim three live defects stood between.
+
+### P3 — one clock unknown cannot hold six constellations  *(found 2026-10-09, on a live station)*
+
+With the call site fixed and orbits arriving, RFSEE01 solved — and the
+figures were nonsense: **offset 1.8 km** (E +1157, N −591, U +1196),
+scatter 20.4 m, **worst code residual 2.6 km**, **apparent motion
+829 m/s**, clock drift 393 m/s, from **25 satellites** at PDOP 0.9.
+
+The solver admitted every constellation except GLONASS and SBAS, under
+**one** receiver-clock unknown. P3's own text gives the reason that
+should have excluded the rest in the same breath: *"FDMA
+inter-frequency biases will not fit under one receiver-clock
+unknown."* That is not a fact about FDMA. Every system keeps its own
+system time and reaches the receiver down its own hardware path, so
+each needs a clock unknown of its own — the standard multi-GNSS SPP
+arrangement. BeiDou carries a second fault besides: BDT runs 14 s
+behind GPS and a 1042 ephemeris dates its `toe` in BDT, so evaluating
+it at a GPS second-of-week moves that satellite about 55 km.
+
+**The rule was right and was applied to one case.** Written down, read
+twice, and not generalised — in a module whose header lists what it
+refuses and why.
+
+*Fixed:* GPS only, with the reasoning and the measured numbers in
+`spp.h` and at the filter. `case_gps_only` in `test_spp.c` offers the
+same orbits again as Galileo, QZSS, BeiDou and NavIC, with ephemerides
+stored for each so that nothing but the filter can keep them out, and
+demands that `n_used` stays the GPS count and the position does not
+move; restoring the old filter reddens both checks (24 satellites used,
+the position 0.50 m out on *synthetic* data where every system shares
+one clock — a real receiver's biases are far larger). 20 tests.
+
+**Why no test caught it.** `test_spp.c` verified the solve by closure
+against one synthetic constellation, and closure is exactly the wrong
+instrument here: a test that builds its measurements from the same
+single-clock model the solver inverts cannot discover that six real
+systems do not share a clock. **A solver verified on one constellation
+says nothing about six**, and nothing in the suite had ever seen two.
+
+*Next, and not in this branch:* multi-GNSS with a clock unknown per
+system and BDT handled. That is a solve to design — more unknowns, a
+different normal matrix, a minimum satellite count per system — not a
+constellation to let back in.
+
+**Which leaves one gap, stated rather than fixed.** RFSEE01 streams
+MSM7 for six constellations and no ephemerides, so its orbits come from
+the configured side-stream — and the CLI opens that **only in `-S/--sky`
+mode**. In `-t --report` the self-position block can therefore never
+solve for a station that does not broadcast its own orbits. The GUI does
+not have this problem: it starts the ephemeris worker whenever
+`EPH_CASTER`/`EPH_MOUNTPOINT` are set, and the ephemeris cache is a
+process-wide store that `spp_solve()` reads. Wiring the side-stream (and
+`-R`) into the timed modes is a separate change, because it makes a mode
+that opened one connection open two.
+
+*Two traps in the harness, not the program, both now in the gotcha log:*
+this host enumerates windows on a different desktop, so `FindWindow`
+returns zero for a class `GetClassName` reads straight off the live
+handle; and inside a callback used as a delegate, PowerShell's
+`Write-Output` becomes the delegate's **return value**, so the lines
+never appear and the enumeration stops on the first window. Both looked
+exactly like "the window was never created".
 
 ### P7 — the paid Android edition  *(not in this branch: after pro is in production, and after the listing decision)*
 
@@ -360,6 +937,20 @@ about the Android editions becomes false.
 
 **With P7, later:** the listing sentence on both editions, the wiki's
 pro pages, the feature matrix's phone columns.
+
+**Desktop half done 2026-10-10.** `docs/gui.md` and `docs/cli.md` were
+written with P5 and P6. `design/feature-matrix.md` gains two rows:
+*Self-position* under the shared core (CLI ◐, GUI ●, free ○, pro ⋯,
+daemon ◐ — the CLI's report and the daemon open no ephemeris
+side-stream, so they solve only stations that broadcast their own
+orbits; the CLI half of that is the separate session *CLI --report:
+ephemeris side-stream and -R in timed modes*) and *Self-position
+export*, GUI only. `changelog.md` gains an `[Unreleased]` section with
+the measurement behind the claim — both live stations and the RTKLIB
+comparison — what the solve refuses, the reversed-rate finding, the
+schema change, and three fixes found on the way. No listing text
+changed: both Play listings still say the app "does not compute a
+position", and on Android that is still true.
 
 ## What this will not claim
 

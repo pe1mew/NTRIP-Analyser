@@ -504,7 +504,8 @@ matter.
 |---|---|
 | Gradle: "JAVA_HOME is set to an invalid directory" | Use the Windows path to Adoptium JDK 17 |
 | A C change under `src/` or `lib/` does not reach the phone | Gradle's up-to-date check **and** build cache are blind to out-of-tree sources: `gradlew clean` then build with `--no-build-cache` |
-| `gcc: command not found` | Put CodeBlocks' MinGW on `PATH` |
+| `gcc: command not found` | Put CodeBlocks' MinGW on `PATH`; the compiler the build itself uses is named in `build/CMakeCache.txt` |
+| A GUI change does not reach the running program | **Close the GUI before building it.** Windows refuses to overwrite a running `.exe`: the link fails with `Permission denied` and the previous binary stays in `bin/`. Judge a build by its **exit status**, not by a warning count — a pipe through `grep` reports grep's status, and `test_all` does not build the GUI, so 20/20 can stay green over a GUI that never linked. `find src gui -newer bin/ntrip-analyser-gui.exe` settles it |
 | Android: `UnsatisfiedLinkError` | `@JvmStatic` moves the symbol to the enclosing class — see `memory/gotcha-log.md` |
 | Android: screen stuck on a stale value | A snapshot field is `null` and the Kotlin model is non-nullable, so nothing decodes |
 | Sky view places few satellites | It needs the station's own position (1005/1006), not only orbits |

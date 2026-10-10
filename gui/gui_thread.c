@@ -21,6 +21,7 @@
 #include "core/version.h"
 #include "gui_check_window.h"
 #include "gui_report_window.h"
+#include "gui_selfpos_window.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -531,6 +532,10 @@ static void ObsOnEvent(const NsEvent *ev, void *user)
              * the window the capture holds rather than the seconds the
              * disk took. */
             ReportOnStats(state, ev->u.stats);
+            /* The self-position plot, from the same event: the epoch
+             * just solved is in this snapshot, and the plot is paced by
+             * the stream clock inside it rather than by a timer. */
+            SelfPosOnStats(state, ev->u.stats);
         }
         break;
 
@@ -987,16 +992,23 @@ DWORD WINAPI WorkerOpenEphStream(LPVOID param)
     NsOptions opt;
     ns_options_default(&opt);
     opt.config = state->config;
-    strncpy(opt.config.NTRIP_CASTER, state->config.EPH_CASTER,
-            sizeof(opt.config.NTRIP_CASTER) - 1);
+    /* snprintf, not strncpy: `opt.config = state->config` above has
+     * already put the *observation* caster in these fields, and
+     * strncpy writes no terminator when the source fills the buffer --
+     * so a 255-character ephemeris caster would have been left wearing
+     * the tail of the one it replaced. snprintf always terminates.
+     * (-Wstringop-truncation named all four of these the moment -Wall
+     * was switched on.) */
+    snprintf(opt.config.NTRIP_CASTER, sizeof(opt.config.NTRIP_CASTER),
+             "%s", state->config.EPH_CASTER);
     opt.config.NTRIP_PORT = state->config.EPH_PORT;
     opt.config.TLS        = state->config.EPH_TLS;  /* its own caster */
-    strncpy(opt.config.MOUNTPOINT, state->config.EPH_MOUNTPOINT,
-            sizeof(opt.config.MOUNTPOINT) - 1);
-    strncpy(opt.config.USERNAME, state->config.EPH_USERNAME,
-            sizeof(opt.config.USERNAME) - 1);
-    strncpy(opt.config.PASSWORD, state->config.EPH_PASSWORD,
-            sizeof(opt.config.PASSWORD) - 1);
+    snprintf(opt.config.MOUNTPOINT, sizeof(opt.config.MOUNTPOINT),
+             "%s", state->config.EPH_MOUNTPOINT);
+    snprintf(opt.config.USERNAME, sizeof(opt.config.USERNAME),
+             "%s", state->config.EPH_USERNAME);
+    snprintf(opt.config.PASSWORD, sizeof(opt.config.PASSWORD),
+             "%s", state->config.EPH_PASSWORD);
     opt.stats_interval_s = 0.0;
     opt.send_gga         = false;
     opt.auto_reconnect   = false;

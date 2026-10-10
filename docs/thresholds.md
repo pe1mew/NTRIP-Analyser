@@ -364,7 +364,7 @@ rather than the seconds it took to read.
 
 ## What is not a threshold
 
-Two numbers that look like thresholds and are not:
+Numbers that look like thresholds and are not:
 
 - **`report_window_s`** in the service configuration (default 3600 s) is
   the *length of the rolling window*, not a pass mark. The daemon
@@ -374,6 +374,18 @@ Two numbers that look like thresholds and are not:
 - **`SV_TRACK_STALE_S`** (5 s) is how long a satellite stays counted
   after its last observation. It describes the measurement, not the
   station.
+- **`SR_SPEED_BIN_MMS`** (1 mm/s) and **`SR_SPEED_BINS`** (2000) are the
+  shape of the histogram the self-position *median apparent motion* is
+  read from: its resolution, and its reach of 2 m/s. Nothing is judged
+  against either — self-position carries no verdict. They are chosen so
+  the resolution is far finer than the noise it measures (a standing
+  base reads tens of mm/s from broadcast orbits) and the reach far
+  beyond anything a working solve of a static antenna produces; a
+  speed above it lands in the last bin, so a broken solve moves the
+  median to the cap instead of vanishing from it. Their cost is fixed
+  memory — 8 KB per accumulator, and the daemon keeps two per
+  station — which is why the median comes from a histogram and not a
+  history.
 
 ---
 
