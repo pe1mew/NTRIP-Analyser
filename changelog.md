@@ -86,9 +86,11 @@ the second window (939 s, the first ten minutes excluded): RFSEE01
 daemon this time; APEL00NLD0 scatter 1.18 m, median 40.5 mm/s. The
 scatter is a 3-D RMS and mostly vertical (RFSEE01 per-axis SD 0.6 /
 0.75 / 1.3 m, 9–10 satellites throughout), above the 0.3–0.9 m the GUI
-measured on RFSEE01 earlier. The solve and the orbit source are the
-GUI's own; the two have not yet been run side by side at the same hour,
-so what accounts for the difference is not established. The same daemon with the eph block
+measured on RFSEE01 earlier. Run side by side with the GUI on the same
+stream and orbit source for 43 minutes, the two agree to a centimetre —
+3-D scatter 2.17 m in the GUI and 2.18 m in the daemon, per-axis SD
+1.09 / 1.04 / 1.57 m in both, median motion 32.5 mm/s in both — so the
+figure is the station's at that hour, not the daemon's doing. The same daemon with the eph block
 removed: `observations without orbits`, as before.
 
 ### Fixed — the service decoded no orbits at all
