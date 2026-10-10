@@ -91,6 +91,36 @@ GUI's own; the two have not yet been run side by side at the same hour,
 so what accounts for the difference is not established. The same daemon with the eph block
 removed: `observations without orbits`, as before.
 
+### Added — the CLI's report fetches orbits too
+
+Under `--report`, `-t`, `-s`, `-d` and `--check` now open the configured
+ephemeris side-stream for the length of the run — a second connection,
+said so on stderr, in `--help` and in `docs/cli.md` — and `-R` loads a
+RINEX navigation file in every mode, not only `--sky`. A replay never
+opens the side-stream: a capture read in seconds would race it, and
+today's orbits are not the capture's, so offline `-R` is the source.
+Under `--check` it cannot move the verdict, since no KPI reads an orbit.
+
+**What it measured.** RFSEE01 with Kadaster's BCEP00KAD0, live:
+`-t 120 --report` solved 90 of 90 epochs, offset E −4.4 / N −3.4 /
+U −6.1 m, scatter 2.63 m, median apparent motion 43.5 mm/s. An
+eleven-minute capture of the same station, replayed with `-R` and a
+navigation file made from the same mountpoint, reproduced the live run.
+
+### Fixed — the CLI never used a station's own orbits in `-t` or `-s`
+
+The session layer decodes nothing, so a station broadcasting its own
+1019 still read `observations without orbits` under `-t --report` —
+while `docs/cli.md` said such a station needed nothing more. `-d` was
+unaffected: it decoded them as a side effect of printing them. The same
+defect as the service's below, found the same day; `-t` and `-s` now
+decode the ephemeris types from the station's stream, with the
+decoders' text sent to a sink. Measured on a replay carrying a
+station's observations and its ephemerides on one stream, with no `-R`:
+nothing solved before, **59 epochs** after (scatter 0.46 m, median
+33.5 mm/s); the same observations without the ephemerides still say
+the orbits are missing, as they should.
+
 ### Fixed — the service decoded no orbits at all
 
 The session layer frames RTCM and decodes none of it, so the daemon —
