@@ -74,7 +74,9 @@ so when there are more:
 
 An optional `eph_caster` / `eph_port` / `eph_mountpoint` block adds a
 second connection for ephemerides, for stations that do not broadcast
-their own on the observation stream. Files written by
+their own on the observation stream. `--sky` opens it always;
+`-t`, `-s`, `-d` and `--check` open it only under `--report`, for the
+self-position. Files written by
 earlier releases, with `NTRIP_CASTER` and friends at the top level, are
 still read. The full description of the format is in
 **[jsonConfigs.md](jsonConfigs.md)**.
@@ -249,6 +251,31 @@ satellite the negative of what its orbit predicts. The solver works out
 which convention the station uses from the data itself, so the motion
 is right either way, and a reversed station is reported in the JSON as
 `selfpos_rate_sign: -1`.
+**Orbits come from the same three places as for the sky map.** A
+station that broadcasts its own ephemerides needs nothing more. One that
+does not — RFSEE01 streams MSM7 and nothing else — needs an outside
+source, or the line reads `Self-position: nothing solved -- observations
+without orbits` however long the run:
+
+- **`eph_caster` / `eph_mountpoint` in the config.** Under `--report`,
+  `-t`, `-s`, `-d`, `--check` and `--check-vrs` then open a **second
+  connection**, to the ephemeris stream, for as long as the run lasts,
+  and close it at the end (`[EPH] Opening a second connection for
+  orbits: ...` on stderr). Without `--report` nothing reads orbits, so
+  no second connection is opened. Under `--check` it cannot move the
+  verdict: no KPI and no network-RTK assertion reads an orbit, and the
+  ephemeris stream's own 1005/1006 are ignored, so it can never stand in
+  for the station position KPI 3 waits for.
+- **`-R <RINEX 3 NAV>`**, loaded before the stream starts. Over
+  `--rtcm-stdin` this is the only outside source: the ephemeris stream
+  is not opened for a replay, because a capture read from disk in
+  seconds would be finished before it delivered, and today's orbits are
+  not the capture's. Use a NAV file covering the capture's day:
+
+  ```sh
+  ntrip-analyser -t 600 --report --rtcm-stdin -R BRDC00WRD_R_20262830000_01D_MN.rnx < capture.rtcm3
+  ```
+
 A station streaming one frequency cannot be solved at all; the line then
 reads `Self-position: nothing solved -- single-frequency station: not
 computable`, which is a statement about the stream rather than a fault.
