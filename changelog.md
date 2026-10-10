@@ -58,6 +58,52 @@ Desktop only, deliberately: both Play listings say the app "does not
 compute a position", and that sentence stays true until the paid
 edition gains this on purpose.
 
+### Added — the service fetches orbits for the stations that send none
+
+The monitoring daemon now honours a station's `eph_*` block, as the GUI
+does: it opens an ephemeris side-stream and decodes the orbits into the
+cache the self-position solve reads. Before this, a station sending
+only observations — RFSEE01 is MSM7 and 1005, nothing else — reported
+`observations without orbits` in every report the daemon ever wrote.
+
+**One connection per source, not per station.** The orbit cache is
+process-wide, so entries naming the same source (caster without regard
+to case, port, mountpoint, username, TLS) share one side-stream; the
+startup log says how many stations each serves. A side-stream
+publishes nothing of its own, reconnects with the stations' backoff,
+and logs under `[EPH caster:port/mountpoint]`, with one line when its
+first orbit arrives.
+
+**What it measured.** RFSEE01 and APEL00NLD0 in one daemon, both naming
+Kadaster's BCEP00KAD0, the second spelling the caster in capitals:
+`netstat` showed one connection to rfsee.net and two to
+ntrip.kadaster.nl — APEL00NLD0 and a single side-stream — where three
+would have meant no sharing. Over 25 minutes, the report published from
+the second window (939 s, the first ten minutes excluded): RFSEE01
+`solved` in all 940 samples, offset E −2.3 / N −0.7 / U −3.2 m, scatter
+**1.69 m**, worst residual 3.2 m, median apparent motion **32.5 mm/s**,
+`selfpos_rate_sign` −1 — its reversed rates found again, through the
+daemon this time; APEL00NLD0 scatter 1.18 m, median 40.5 mm/s. The
+scatter is a 3-D RMS and mostly vertical (RFSEE01 per-axis SD 0.6 /
+0.75 / 1.3 m, 9–10 satellites throughout), above the 0.3–0.9 m the GUI
+measured on RFSEE01 earlier. The solve and the orbit source are the
+GUI's own; the two have not yet been run side by side at the same hour,
+so what accounts for the difference is not established. The same daemon with the eph block
+removed: `observations without orbits`, as before.
+
+### Fixed — the service decoded no orbits at all
+
+The session layer frames RTCM and decodes none of it, so the daemon —
+the one frontend with no frame handler — never filled the orbit cache,
+not even from a station broadcasting its own 1019. The feature matrix
+said it solved those stations; it solved none. It now decodes the
+ephemeris types from every station stream, with the decoders' text sent
+to a discard sink rather than to the journal. Measured on DELF00NLD0,
+which broadcasts its own 1019, with no eph block: the previous daemon
+and this one side by side for five minutes, 262 report samples each —
+**0** solved before, **82** after (the rest waiting for enough GPS
+orbits to arrive on the station's own slow cycle).
+
 ### Changed — the stability report's JSON is schema 3
 
 `report_schema_version` 3 adds the `selfpos_*` keys (2 added them

@@ -200,7 +200,13 @@ should be readable by the service group and nobody else.
       "send_gga": false,
       "latitude": 52.0,
       "longitude": 6.0,
-      "stall_timeout_s": 60
+      "stall_timeout_s": 60,
+      "eph_caster": "ntrip.kadaster.nl",
+      "eph_port": 2101,
+      "eph_mountpoint": "BCEP00KAD0",
+      "eph_username": "user",
+      "eph_password": "password",
+      "eph_tls": false
     }
   ]
 }
@@ -235,7 +241,31 @@ should be readable by the service group and nobody else.
   stream is fine. Raise it for a mountpoint that broadcasts only
   occasionally; a 1 Hz observation stream that sends nothing for a
   minute has stopped.
-- Up to 16 mountpoints; the daemon round-robins them on one thread.
+- `eph_caster`, `eph_port`, `eph_mountpoint`, `eph_username`,
+  `eph_password`, `eph_tls` name an **ephemeris side-stream** for that
+  station — a mountpoint carrying broadcast orbits (RTCM 1019/1020/
+  1041/1042/1044/1045/1046), such as Kadaster's `BCEP00KAD0`. The
+  self-position figures need orbits, and a station that sends only
+  observations — MSM7 and nothing else is common — reports
+  `observations without orbits` until it has some. A station that
+  broadcasts its own needs no block: they are decoded from its stream.
+  `eph_port` defaults to 2101 and `eph_tls` to false, as for the
+  station.
+- **Side-streams are shared.** Orbits go into one cache for the whole
+  process, so entries naming the same source — same caster (compared
+  without regard to case), port, mountpoint, username and `eph_tls` —
+  open **one** connection between them, not one each. The startup log
+  says how many stations each side-stream serves. Two entries that
+  share a source but disagree on `eph_password` use the first, and the
+  log says so.
+- A side-stream is infrastructure, not a station: it publishes no
+  snapshot and no report, reconnects with the same backoff, and logs
+  under an `[EPH caster:port/mountpoint]` tag — including one line when
+  the first orbit arrives after each connect, because a side-stream
+  that is accepted but carries nothing would otherwise leave every
+  station it serves unsolved without a trace.
+- Up to 16 mountpoints; the daemon round-robins them, and their
+  side-streams, on one thread.
 
 This is deliberately **not** the interactive tools' `config.json`: that
 schema describes one connection, a monitor needs a list.

@@ -101,7 +101,7 @@ someone signed up for, sometimes a paid one.
 | `send_gga` | boolean | Send the periodic GGA uplink. Network (VRS) mountpoints require it; a single base ignores it |
 | `latitude`, `longitude` | number | Position for that uplink, degrees |
 | `name` | string | A label for people. Optional, and ignored by every parser that does not need it |
-| `eph_caster`, `eph_port`, `eph_mountpoint`, `eph_username`, `eph_password`, `eph_tls` | string / number / boolean | **Optional.** A second connection carrying broadcast ephemerides (RTCM 1019/1020/1041/1042/1044/1045/1046), which the sky plot needs to place satellites. Only for stations that do not broadcast them on the observation stream — those are decoded from it directly. Leave the block out to disable it |
+| `eph_caster`, `eph_port`, `eph_mountpoint`, `eph_username`, `eph_password`, `eph_tls` | string / number / boolean | **Optional.** A second connection carrying broadcast ephemerides (RTCM 1019/1020/1041/1042/1044/1045/1046), which the sky plot needs to place satellites and the self-position solve needs to place the station — in the GUI and in the monitoring daemon, which shares one connection among every entry naming the same source. Only for stations that do not broadcast them on the observation stream — those are decoded from it directly. Leave the block out to disable it |
 
 A missing key leaves its field empty rather than terminating the
 program — one typo used to take a whole run down. The cost is that a
