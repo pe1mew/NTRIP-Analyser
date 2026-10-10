@@ -339,6 +339,13 @@ against `rnx2rtkp` on a **real capture**. Closure proves the solver
 inverts its own model; only real data proves the model. RTKLIB is
 installed and `docs/RUNBOOK.md` carries the route.
 
+*Closed 2026-10-10.* `rnx2rtkp` on 150 s of RFSEE01, with ephemerides
+captured from Kadaster's BCEP00KAD0 at the same moment and converted
+with `convbin`: E +0.06 / N +1.13 / U +8.27 m from the broadcast ARP,
+scatter 0.45 m — the order this solver gives on the same station, as a
+single-point solve should. Reaching that comparison took four live
+defects first, all recorded below.
+
 ### P4 — the velocity solve  *(done 2026-10-09)*
 
 Phase range rate against satellite velocity, receiver clock drift as
@@ -443,6 +450,9 @@ stale-artefact failures being the known ones. The *`--report` equals
 live* check is **outstanding**, for the same reason P3's `rnx2rtkp`
 comparison is: it needs a real `.rtcm3` capture from the author's
 caster, and nothing in the repository replays an observation stream.
+*(Closed 2026-10-10 by the CLI orbit-sources work: an eleven-minute
+RFSEE01 capture replayed with `-R` and a navigation file made from the
+same mountpoint reproduced the live `--report` run.)*
 Smoke-checked meanwhile against an empty replay, which prints
 `Self-position: nothing solved -- no observations in this epoch` rather
 than a clean zero.

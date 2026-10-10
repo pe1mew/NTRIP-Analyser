@@ -128,12 +128,15 @@ NDK, so nothing testable on a desktop belongs there.
 | `src/core/rtcm3x_parser.{c,h}` | RTCM decode, CRC-24Q, MSM, ARP extraction |
 | `src/core/sv_ephemeris.{c,h}` | Orbit cache; `sv_orbit.c` propagates |
 | `src/core/rinex_nav.c` | RINEX 3 NAV loader — pinned by `test/test_rinex_nav.c` |
+| `src/core/station_report.{c,h}` | Tier 2: six graded metrics over stream time, plus the self-position figures (no verdict) |
+| `src/core/spp.{c,h}`, `sv_state.{c,h}`, `ns_obs.{c,h}` | Self-position: GPS-only single-point position and velocity from a station's own observations; satellite state at transmit time; one epoch's observables. The epoch is closed in `ntrip_session.c` `obs_feed()` |
 | `src/core/config.c` | The one JSON config format, plus the legacy reader |
 | `src/session/ntrip_session.c` | Stream loop, statistics snapshot, NTRIP 2 chunk decoding |
 | `src/session/ns_transport.{c,h}` | Every socket: plain TCP and TLS behind one set of calls. Certificate verification is mandatory — there is no connect-anyway path |
 | `src/core/ns_failure.{c,h}` | The twelve ways a stream fails to open, and the words for each. The `errno`/`WSAE*` half lives in `src/net/ntrip_handler.c`, which has the platform headers |
 | `gui/gui_state.h` | `AppState` — everything the GUI knows |
 | `gui/gui_events.c` | Command dispatch, Stream Health, station classification |
+| `gui/gui_selfpos_window.c` | View → Self-position: E/N plot about the ARP, figures, **S** saves PNG + JSON |
 | `android/app/src/main/cpp/ntrip_bridge.c` | All Android logic, plain C |
 | `android/app/src/main/java/.../MainActivity.kt` | The Android shell: state, service binding, permissions |
 | `android/app/src/main/java/.../Shell.kt` | The frame every screen is drawn in: four bar slots, the overflow menu, the analysis bar. **No title parameter**, so no screen can disagree about the app's name |

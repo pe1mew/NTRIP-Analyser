@@ -54,6 +54,19 @@
 
 ## Current State
 
+<!-- 2026-10-10 -->
+
+- **Self-position is complete on the desktop and in review** as
+  pe1mew/NTRIP-Analyser#8 (`self-position` → `main`, Auto-fix on, not
+  merged — merging is the author's). GUI window with S export, the
+  CLI's `--report`, and the daemon's snapshot and report; orbits from
+  the station's own stream, a configured side-stream, or `-R`. Plan
+  steps P1–P6 and the desktop half of P8 are done; **P7** (pro on
+  Android) waits for pro's production and the listing sentence, and
+  **multi-GNSS** needs its own design. Plan:
+  `design/work-items/station-self-position.md`.
+  <!-- verify: grep -q "Self-position" design/feature-matrix.md && test -f gui/gui_selfpos_window.c -->
+
 <!-- 2026-09-17 -->
 
 - **Free is public on Google Play** (confirmed 2026-09-19). Production
@@ -233,6 +246,18 @@ Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md).
   `has_vel` gate was never consulted, 2026-10-09; the same mistake again
   in the snapshot serialiser's own test hours later, 2026-10-09) —
   promoted from gotcha-log 2026-10-09 to Active Decisions below.
+- If you are about to **write down what a frontend does** — in the
+  feature matrix, a doc, a brief for another session — **test it on that
+  frontend first** (the daemon "solved stations broadcasting their own
+  orbits" and solved none; `-t --report` was documented the same and did
+  not either; *Read the wiring, missed the gate* before them) —
+  promoted from gotcha-log 2026-10-10 to Active Decisions below.
+- If you **hand the author a command**, put everything it depends on
+  **in the command itself** — the shell it is written for and, for git,
+  `git -C <checkout>` — never in a sentence beside it (a Bash heredoc
+  at a PowerShell prompt, 2026-10-09; a bare `git commit` in the wrong
+  checkout, 2026-10-10) — promoted from gotcha-log 2026-10-10 to Active
+  Decisions below.
 
 ## Key File Paths
 
@@ -280,17 +305,37 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
-- **Self-position works, verified against a live station and an
-  independent solver** (2026-10-10). APEL00NLD0: 83 epochs, offset
+- **Self-position works in all three desktop frontends**, verified
+  against live stations and an independent solver (2026-10-10; branch
+  `self-position`, PR #8). APEL00NLD0 in the GUI: 83 epochs, offset
   E −3.5 / N +3.7 / U +3.0 m, **scatter 0.231 m**, worst residual
-  2.26 m, 9 satellites at PDOP 1.3. RTKLIB's `rnx2rtkp` on a capture of
-  RFSEE01 with the same ephemerides: E +0.06 / N +1.13 / U +8.27 m,
-  scatter 0.449 m. Metres of offset dominated by the broadcast-ephemeris
-  bias, sub-metre scatter. **Four defects stood between the closure test
-  passing and this**: the solve never called, six constellations under
-  one clock unknown, an epoch destroyed by a split constellation, and
-  the epoch dated on BeiDou time. Every one was found by connecting a
-  real station; none was visible to 19 green tests.
+  2.26 m, 9 satellites at PDOP 1.3. RTKLIB's `rnx2rtkp` on RFSEE01 with
+  the same ephemerides: E +0.06 / N +1.13 / U +8.27 m, scatter 0.449 m.
+  The GUI and the daemon side by side for 43 min on one stream:
+  scatter 2.17 m and **2.18 m**, median motion 32.5 mm/s in both — so
+  differing scatter between runs is the station's hour, not a frontend.
+  **Eight defects stood between the closure test passing and this**,
+  every one found on a live station and none visible to the suite at
+  the time: the solve never called; six constellations under one clock
+  unknown; an epoch destroyed by a split constellation; the epoch dated
+  on BeiDou time; a station whose DF393 never clears; RFSEE01's
+  reversed rates; and the daemon and the CLI ignoring orbits a station
+  broadcasts itself.
+  <!-- verify: grep -q "selfpos_solve(s)" src/session/ntrip_session.c && grep -q "test_selfpos_session" CMakeLists.txt -->
+- **A claim about what a frontend does is tested on that frontend
+  before it is written** — in the feature matrix, a doc, or a brief for
+  another session. The matrix said the daemon "solved stations
+  broadcasting their own orbits" and it solved none; `docs/cli.md` said
+  the same of `-t --report` and it did not either. Both assumed a shared
+  layer decoded ephemerides, and **the session layer decodes nothing** —
+  each frontend decodes what it needs. Promoted 2026-10-10 (three
+  occurrences, with *Read the wiring, missed the gate*).
+- **A command handed to the author carries all its context in the
+  command itself**: the shell it is written for, and for git
+  `git -C <checkout>`. Never in a sentence beside it. A Bash heredoc
+  met a PowerShell prompt (2026-10-09); a bare `git commit` met the
+  wrong checkout and committed another session's staged work under this
+  one's message, already pushed before anyone noticed (2026-10-10).
 - **RFSEE01's receiver sends the phase-range rate with the sign
   reversed** (2026-10-10) — every satellite the exact negative of what
   its orbit predicts. The solver now fits both conventions and keeps
@@ -299,6 +344,7 @@ Supplementing CLAUDE.md's list with paths found during work:
   cannot, and claim nothing. **A field defined by a standard is still a
   claim made by somebody's firmware** — where the data can say which way
   round it is, ask the data.
+  <!-- verify: grep -q "rate_sign" src/core/spp.h && grep -q "case_reversed_rates" test/test_spp.c -->
 - **An observation epoch is complete when DF393 clears *or* when the
   next one demonstrably begins** — whichever comes first, compared
   **within one system** because the epoch fields are not comparable
@@ -309,6 +355,7 @@ Supplementing CLAUDE.md's list with paths found during work:
   entirely when NavIC dropped out of view. **A stream's shape is a
   property of the sky that hour, not of the station** — anything
   waiting for a particular frame needs a way to proceed without it.
+  <!-- verify: grep -q "sys_epoch" src/session/ntrip_session.c && grep -q "DF393 never clears" test/test_selfpos_session.c -->
 - **The single-point solve is GPS only** (2026-10-09), because each
   constellation needs a clock unknown of its own — the argument the
   module had already written down for GLONASS and applied to GLONASS
@@ -319,6 +366,7 @@ Supplementing CLAUDE.md's list with paths found during work:
   and **a closure test cannot discover that the world has more clocks
   than the model** — `test_spp` built its measurements from the same
   single-clock model it inverted, against one synthetic constellation.
+  <!-- verify: grep -q "gnss_id != 1" src/core/spp.c && grep -q "case_gps_only" test/test_spp.c -->
 - **A test that starts below the wiring cannot see the wiring.** The
   self-position solve was defined and never called for two whole steps
   of its plan — the call site discarded the `obs_feed()` return value
@@ -337,6 +385,7 @@ Supplementing CLAUDE.md's list with paths found during work:
   warning-free" was measured with an instrument that asks nothing.
   Check what the build asks before quoting it:
   `grep C_FLAGS build/CMakeFiles/<target>.dir/flags.make`.
+  <!-- verify: grep -q -- "-Wall" CMakeLists.txt -->
 - **A screen may only say what its evidence supports, and "not yet" is
   evidence of nothing.** Four times a window has stated a finding about
   a station that only described how long it had been watched: "fewest
