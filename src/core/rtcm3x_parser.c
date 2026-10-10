@@ -175,6 +175,27 @@ int msm_get_epoch(const unsigned char *payload, int payload_len,
     return 1;
 }
 
+double msm_epoch_to_gps_tow_ms(int msg_type, uint32_t epoch)
+{
+    /* Legacy GPS observations carry milliseconds of week already.
+     * Legacy GLONASS (1009-1012) carries milliseconds of day, like its
+     * MSM, and is refused for the same reason. */
+    if (msg_type >= 1001 && msg_type <= 1004) return (double)epoch;
+    if (msg_type >= 1009 && msg_type <= 1012) return -1.0;
+
+    if (msg_type < 1071 || msg_type > 1137) return -1.0;
+    if ((msg_type - 1071) % 10 > 6) return -1.0;    /* not an MSM */
+
+    switch ((msg_type - 1071) / 10) {
+    case 1:          /* GLONASS: day-of-week + ms of day, not of a week */
+        return -1.0;
+    case 5:          /* BeiDou: BDT runs 14 s behind GPS */
+        return (double)epoch + 14000.0;
+    default:         /* GPS, Galileo, SBAS, QZSS, NavIC: GPS-aligned */
+        return (double)epoch;
+    }
+}
+
 int msm_get_multiple_message_bit(const unsigned char *payload, int payload_len,
                                  int msg_type)
 {

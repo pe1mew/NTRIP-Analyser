@@ -653,6 +653,64 @@ statuses then separate cleanly. **A test must make the two worlds it
 compares produce different answers** — which is the P5/P6 lesson once
 more, in a third shape.
 
+### P3 — the epoch was dated by whichever frame closed it  *(found 2026-10-10, on a live station)*
+
+GPS-only and the epoch intact, a second station — `ntrip.kadaster.nl /
+APEL00NLD0` — solved every epoch and placed itself **7.8 km** away:
+offset E −7830 m, N −1431 m, U −5587 m, worst code residual 3888 m,
+apparent motion 779 mm/s, from 8 satellites at PDOP 1.1. Good geometry,
+impossible answer.
+
+A capture of its bundle:
+
+```
+1077 GPS      epoch=547186000
+1087 GLONASS  epoch=844874368
+1097 Galileo  epoch=547186000
+1127 BeiDou   epoch=547172000
+1127 BeiDou   epoch=547172000  DF393=0   <- closes the bundle
+```
+
+The solve took its time from the frame that closed the set, and on this
+base that is always BeiDou — **BDT, 14 s behind GPS**. Fourteen seconds
+moves a GPS satellite 55 km along its orbit; what survives the receiver
+clock unknown is kilometres of position and kilometres of residual.
+RFSEE01 closes on NavIC, which is GPS-aligned, so the same code was
+correct there **by luck** — which is why one station looked plausible
+and the other did not.
+
+*Fixed* with the conversion in core, where it can be tested rather than
+reasoned about: `msm_epoch_to_gps_tow_ms()` takes GPS, Galileo, QZSS,
+NavIC and SBAS as they are, adds 14 s for BeiDou, and **refuses
+GLONASS** — day-of-week plus milliseconds of *day* cannot be placed in
+a GPS week without the date and the current leap seconds. `NsObsEpoch`
+carries `tow_gps_ms`, set from the first frame of the set that can say,
+and the solve uses that instead of the closing frame's raw field. An
+epoch with no convertible frame does not solve, which is honest: it
+holds no satellite this solver would have used either.
+
+`case_epoch_scales` in `test_observables.c` checks every decade;
+dropping the 14 s reddens it with the exact value from the stream
+(547172000 where 547186000 was meant).
+
+**Live, after the fix** — the same station, 91 s, **83 epochs solved**:
+
+| | APEL00NLD0 | RTKLIB on RFSEE01 |
+|---|---|---|
+| offset E | −3.486 m | +0.063 m |
+| offset N | +3.724 m | +1.127 m |
+| offset U | +3.017 m | +8.272 m |
+| scatter | **0.231 m** | 0.449 m |
+| worst code residual | 2.257 m | — |
+| satellites / PDOP | 9 / 1.3 | 15 / — |
+| clock drift | −0.060 m/s | — |
+
+Two stations, two solvers, the same order of magnitude: metres of
+offset dominated by the broadcast-ephemeris bias, sub-metre scatter,
+metre-level residuals. That is what a single-point solve is worth, and
+it is what P3 claimed by closure against synthetic geometry a day
+earlier — a claim three live defects stood between.
+
 ### P3 — one clock unknown cannot hold six constellations  *(found 2026-10-09, on a live station)*
 
 With the call site fixed and orbits arriving, RFSEE01 solved — and the

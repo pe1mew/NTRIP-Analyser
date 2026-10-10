@@ -157,6 +157,33 @@ int msm_get_epoch(const unsigned char *payload, int payload_len,
                   int msg_type, uint32_t *epoch_out);
 
 /**
+ * @brief That epoch field as GPS milliseconds of week, or −1.
+ *
+ * The field means different things per constellation, and anything
+ * computing satellite positions needs one scale:
+ *
+ * - **GPS, Galileo, QZSS, NavIC, SBAS** count milliseconds of week on
+ *   time scales aligned with GPS to within nanoseconds. Taken as they
+ *   are.
+ * - **BeiDou** counts milliseconds of week on BDT, which runs **14 s
+ *   behind** GPS. Converted.
+ * - **GLONASS** counts day-of-week and milliseconds of *day*, which
+ *   cannot be placed in a GPS week without the date and the current
+ *   leap seconds. Refused: −1.
+ *
+ * This exists because a station's bundle is closed by whichever frame
+ * clears DF393, and that frame need not be GPS. A Dutch NTRIP base
+ * observed in October 2026 closes every epoch with BeiDou, so the
+ * solver was handed a time 14 s early and placed the station 7.8 km
+ * from itself, with kilometre residuals. A neighbouring base closed on
+ * NavIC and was correct by luck.
+ *
+ * @return GPS milliseconds of week, or −1.0 when this system's epoch
+ *         cannot be converted.
+ */
+double msm_epoch_to_gps_tow_ms(int msg_type, uint32_t epoch);
+
+/**
  * @brief Read DF393, the MSM multiple-message bit.
  *
  * 1 means more MSM frames follow for this station and epoch, across all

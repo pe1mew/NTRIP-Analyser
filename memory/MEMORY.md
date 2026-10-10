@@ -280,6 +280,17 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
+- **Self-position works, verified against a live station and an
+  independent solver** (2026-10-10). APEL00NLD0: 83 epochs, offset
+  E −3.5 / N +3.7 / U +3.0 m, **scatter 0.231 m**, worst residual
+  2.26 m, 9 satellites at PDOP 1.3. RTKLIB's `rnx2rtkp` on a capture of
+  RFSEE01 with the same ephemerides: E +0.06 / N +1.13 / U +8.27 m,
+  scatter 0.449 m. Metres of offset dominated by the broadcast-ephemeris
+  bias, sub-metre scatter. **Four defects stood between the closure test
+  passing and this**: the solve never called, six constellations under
+  one clock unknown, an epoch destroyed by a split constellation, and
+  the epoch dated on BeiDou time. Every one was found by connecting a
+  real station; none was visible to 19 green tests.
 - **The single-point solve is GPS only** (2026-10-09), because each
   constellation needs a clock unknown of its own — the argument the
   module had already written down for GLONASS and applied to GLONASS

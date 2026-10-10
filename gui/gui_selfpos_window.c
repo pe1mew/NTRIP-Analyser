@@ -31,9 +31,12 @@
 /* Height of the painted header above the plot and the figures. */
 #define SP_HEADER_H   86
 /* Height of the painted caption strip under the plot. */
-/* Two lines of caption: the legend needs a line of its own rather than
- * being run on to the end of the first and cut. */
-#define SP_CAPTION_H  36
+/* Two lines of caption: one of prose, one of legend. The legend gets a
+ * row of its own rather than being run on to the end of the first and
+ * cut off the bottom of the strip, which is where it spent its first
+ * two days. */
+#define SP_CAPTION_LINE 17
+#define SP_CAPTION_H    (2 * SP_CAPTION_LINE + 4)
 #define SP_PAD        10
 
 #define SP_BG         RGB(255, 255, 255)
@@ -44,6 +47,7 @@
 #define SP_DOT        RGB( 70, 110, 200)   /* the run                   */
 #define SP_DOT_LAST   RGB(220, 130,  20)   /* the epoch just solved     */
 #define SP_MEAN       RGB(200,  40,  40)   /* where the run centres     */
+#define SP_ARP        RGB( 90,  90, 110)   /* the broadcast reference   */
 
 /* ── Accumulation ────────────────────────────────────────────────────── */
 
@@ -433,15 +437,40 @@ static void PaintHeader(HDC hdc, RECT *rc, AppState *state)
  * missing can scatter tens.  Round steps only, so the rings a reader
  * measures against are numbers rather than artefacts of the data.
  */
+/**
+ * @brief A ring label a reader can take in: "250 m", "2.5 km".
+ *
+ * `%.4g m` printed a 10 km ring as "1e+04 m", which is a number nobody
+ * reads off a plot.
+ */
+static void FormatDistance(char *out, size_t cap, double metres)
+{
+    if (metres >= 1000.0)
+        snprintf(out, cap, "%.3g km", metres / 1000.0);
+    else
+        snprintf(out, cap, "%.3g m", metres);
+}
+
 static double PlotRadius(double widest)
 {
-    static const double steps[] = {
-        0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0
-    };
     const double want = widest * 1.15;          /* room outside the dots */
-    for (size_t i = 0; i < sizeof(steps) / sizeof(steps[0]); i++)
-        if (want <= steps[i]) return steps[i];
-    return steps[sizeof(steps) / sizeof(steps[0]) - 1];
+    if (!(want > 0.0)) return 0.25;
+
+    /* 1, 2 or 5 times a power of ten, computed rather than tabulated.
+     *
+     * A table has a largest entry, and a plot whose scale cannot exceed
+     * it does not scale at all: the first one stopped at 500 m and drew
+     * a station 7.8 km out as an empty frame with rings marked 250 m
+     * and 500 m -- every dot clipped away, the plot contradicting the
+     * figures beside it. A solve that has gone wrong is exactly when
+     * the scatter is kilometres, which is exactly when a reader needs
+     * to see it. */
+    const double decade = pow(10.0, floor(log10(want)));
+    const double norm   = want / decade;
+    const double mant   = (norm <= 1.0) ? 1.0 : (norm <= 2.0) ? 2.0
+                        : (norm <= 5.0) ? 5.0 : 10.0;
+    const double r = mant * decade;
+    return (r < 0.25) ? 0.25 : r;      /* no finer than a quarter metre */
 }
 
 static void PaintPlot(HDC hdc, const RECT *area, AppState *state)
@@ -508,6 +537,22 @@ static void PaintPlot(HDC hdc, const RECT *area, AppState *state)
     TextOut(hdc, cx + 4, area->top + 4, "N", 1);
     TextOut(hdc, area->right - 20, cy - 18, "E", 1);
 
+    /* The origin, named.  It is the position the station broadcasts in
+     * 1005/1006, every offset here is measured from it, and a reader
+     * should not have to infer that from a caption: an unlabelled
+     * centre reads as "wherever the cloud happens to sit". */
+    {
+        HPEN arp = CreatePen(PS_SOLID, 1, SP_ARP);
+        oldPen = (HPEN)SelectObject(hdc, arp);
+        MoveToEx(hdc, cx - 5, cy, NULL); LineTo(hdc, cx + 6, cy);
+        MoveToEx(hdc, cx, cy - 5, NULL); LineTo(hdc, cx, cy + 6);
+        SelectObject(hdc, oldPen);
+        DeleteObject(arp);
+        SetTextColor(hdc, SP_ARP);
+        TextOut(hdc, cx + 7, cy + 3, "ARP", 3);
+        SetTextColor(hdc, SP_LABEL);
+    }
+
     /* The rings are labelled only when points set the scale.  An empty
      * plot was labelling its rings "0.125 m" and "0.25 m" -- the
      * smallest step the chooser can return, which measured nothing and
@@ -526,10 +571,10 @@ static void PaintPlot(HDC hdc, const RECT *area, AppState *state)
     {
         char lbl[48];
         SIZE sz;
-        snprintf(lbl, sizeof(lbl), "%.4g m", radius);
+        FormatDistance(lbl, sizeof(lbl), radius);
         GetTextExtentPoint32(hdc, lbl, (int)strlen(lbl), &sz);
         TextOut(hdc, cx + half - sz.cx - 4, cy + 3, lbl, (int)strlen(lbl));
-        snprintf(lbl, sizeof(lbl), "%.4g m", radius / 2.0);
+        FormatDistance(lbl, sizeof(lbl), radius / 2.0);
         GetTextExtentPoint32(hdc, lbl, (int)strlen(lbl), &sz);
         TextOut(hdc, cx + half / 2 - sz.cx - 4, cy + 3, lbl,
                 (int)strlen(lbl));
@@ -584,6 +629,20 @@ static void PaintPlot(HDC hdc, const RECT *area, AppState *state)
     SelectObject(hdc, oldFont);
 }
 
+/**
+ * @brief One legend label, and how far it moved the cursor.
+ *
+ * @return Width used, including the gap before the next entry.
+ */
+static int LegendLabel(HDC hdc, int x, int y, const char *text)
+{
+    SIZE sz = { 0, 0 };
+    const int len = (int)strlen(text);
+    GetTextExtentPoint32(hdc, text, len, &sz);
+    TextOut(hdc, x, y, text, len);
+    return sz.cx + 16;
+}
+
 static void PaintCaption(HDC hdc, const RECT *rc, AppState *state)
 {
     const SelfPosRing *r = &state->selfpos;
@@ -602,34 +661,96 @@ static void PaintCaption(HDC hdc, const RECT *rc, AppState *state)
              - (double)r->pts[start].ts_rel;
     }
 
-    /* Two lines, and the legend only once there is something to put a
-     * colour to.  Written as one paragraph it ran off the end of the
-     * plot and was cut mid-word, which is what a single TextOut does
-     * with more text than it has room for. */
-    if (r->count > 0)
-        snprintf(line, sizeof(line),
-                 "east/north about the broadcast reference -- %d point(s) "
-                 "over %.0f s of stream; up is in the figures\n"
-                 "blue: the run    orange: the latest epoch    "
-                 "red cross: where it centres",
-                 r->count, span);
-    else
-        snprintf(line, sizeof(line),
-                 "east/north about the broadcast reference; "
-                 "up is in the figures");
-
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, RGB(80, 80, 80));
     HFONT f = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
     HFONT old = (HFONT)SelectObject(hdc, f);
-    /* DrawText, not TextOut: it wraps at the plot's width and ends in
-     * an ellipsis if even that is not enough, so a narrow window loses
-     * the end of a sentence visibly rather than silently. */
+
+    /* The caption is as wide as the plot and no wider, so the sentence
+     * is chosen to fit rather than written and then cut: the first
+     * version ended "47 point(s) o..." under a plot with plenty of
+     * room above it. Longest first, and the shortest always fits
+     * because it is four words.
+     *
+     * The centre needs less explaining than it did -- the cross on the
+     * plot is labelled ARP -- so the long form is the one that adds
+     * the window's span, not the one that repeats the label. */
+    const int avail = (rc->right - rc->left) - 6;
+    const char *chosen = NULL;
+    if (r->count > 0) {
+        const char *forms[3];
+        char a[200], b[160], c[96];
+        snprintf(a, sizeof(a),
+                 "east/north from the ARP the station broadcasts, "
+                 "%d point(s) over %.0f s; up is in the figures",
+                 r->count, span);
+        snprintf(b, sizeof(b),
+                 "east/north from the broadcast ARP, %d point(s) over "
+                 "%.0f s", r->count, span);
+        snprintf(c, sizeof(c), "%d point(s) over %.0f s", r->count, span);
+        forms[0] = a; forms[1] = b; forms[2] = c;
+        for (int i = 0; i < 3 && !chosen; i++) {
+            SIZE sz;
+            if (GetTextExtentPoint32(hdc, forms[i], (int)strlen(forms[i]),
+                                     &sz) && sz.cx <= avail)
+                chosen = forms[i];
+        }
+        snprintf(line, sizeof(line), "%s", chosen ? chosen : c);
+    } else {
+        const char *full = "east/north from the ARP the station broadcasts";
+        SIZE sz;
+        const bool fits = GetTextExtentPoint32(hdc, full, (int)strlen(full),
+                                               &sz) && sz.cx <= avail;
+        snprintf(line, sizeof(line), "%s",
+                 fits ? full : "east/north from the broadcast ARP");
+    }
+
+    /* One line, never wrapped: the row below it is the legend and must
+     * keep its place. Written as a wrapping paragraph, the legend was
+     * pushed off the bottom of the strip -- in the code, invisible on
+     * screen. */
     RECT t = *rc;
     t.left += 2;
+    t.bottom = t.top + SP_CAPTION_LINE;
     DrawText(hdc, line, -1, &t,
-             DT_LEFT | DT_TOP | DT_WORDBREAK | DT_END_ELLIPSIS |
+             DT_LEFT | DT_TOP | DT_SINGLELINE | DT_END_ELLIPSIS |
              DT_NOPREFIX);
+
+    /* The legend, drawn with the marks it describes rather than named
+     * in words: a reader matching "orange" to a dot has to be told
+     * which orange, and the marks differ in shape as well as colour. */
+    if (r->count > 0) {
+        int x = rc->left + 2;
+        const int y = rc->top + SP_CAPTION_LINE;
+        const int my = y + 8;                       /* mark centre line */
+
+        /* the run: a dot the size the plot draws */
+        HBRUSH b = CreateSolidBrush(SP_DOT);
+        RECT d = { x, my - 2, x + 4, my + 2 };
+        FillRect(hdc, &d, b);
+        DeleteObject(b);
+        x += 9;
+        x += LegendLabel(hdc, x, y, "the run");
+
+        /* the latest epoch: the larger square */
+        b = CreateSolidBrush(SP_DOT_LAST);
+        RECT d2 = { x, my - 3, x + 6, my + 3 };
+        FillRect(hdc, &d2, b);
+        DeleteObject(b);
+        x += 11;
+        x += LegendLabel(hdc, x, y, "latest epoch");
+
+        /* where the run centres: the cross */
+        HPEN p = CreatePen(PS_SOLID, 2, SP_MEAN);
+        HPEN oldp = (HPEN)SelectObject(hdc, p);
+        MoveToEx(hdc, x, my, NULL);      LineTo(hdc, x + 9, my);
+        MoveToEx(hdc, x + 4, my - 4, NULL); LineTo(hdc, x + 4, my + 5);
+        SelectObject(hdc, oldp);
+        DeleteObject(p);
+        x += 13;
+        (void)LegendLabel(hdc, x, y, "where the run centres");
+    }
+
     SelectObject(hdc, old);
 }
 

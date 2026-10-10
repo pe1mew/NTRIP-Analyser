@@ -1080,6 +1080,17 @@ window, by the same author, a month later.
 - **A caption written as one line and cut mid-word.** Now two lines
   through `DrawText` with `DT_WORDBREAK | DT_END_ELLIPSIS`, so a narrow
   window loses the end of a sentence visibly instead of silently.
+- **A legend nobody could see, then a sentence nobody could finish.**
+  The legend began as the third line of a wrapping paragraph in a
+  two-line strip: present in the code, off the bottom of the window.
+  It is now a row of its own, drawn with the marks it describes — a
+  blue dot, the larger orange square, the red cross — because a reader
+  matching the word "orange" to a dot has to be told which orange.
+  With the legend given its row, the prose line above it was then cut
+  to `"47 point(s) o..."`: the strip is only as wide as the plot. The
+  sentence is now **chosen to fit** — longest form, shorter form,
+  four-word form, measured against the width — which is §14.6's rule
+  applied to prose rather than to columns.
 
 ### 16.6 Verified, and what was not
 

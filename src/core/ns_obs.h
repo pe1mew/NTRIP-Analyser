@@ -83,6 +83,19 @@ typedef struct {
      * bundle whose predecessor never closed.
      */
     uint32_t  sys_epoch[NS_OBS_MAX_GNSS];
+    /**
+     * When this set was observed, in **GPS milliseconds of week**, or
+     * −1 when no frame in it could say.
+     *
+     * Not @ref epoch_ms, which is whichever frame happened to open the
+     * set and is on that system's own scale. A bundle is closed by
+     * whichever frame clears DF393, and on a Dutch base observed in
+     * October 2026 that is always BeiDou — whose scale is 14 s behind
+     * GPS, which put the station 7.8 km from itself.
+     * @ref msm_epoch_to_gps_tow_ms does the conversion; GLONASS cannot
+     * be converted and does not set this.
+     */
+    double    tow_gps_ms;
     int       n;             /**< cells held */
     int       dropped;       /**< cells that did not fit */
     bool      open;          /**< more frames expected for this epoch */

@@ -537,6 +537,16 @@ static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
         ns_obs_reset(&s->obs, epoch);
 
     if (gnss > 0 && gnss < NS_OBS_MAX_GNSS) s->obs.sys_epoch[gnss] = epoch;
+
+    /* The instant the set was observed, on one scale.  Taken from the
+     * first frame that can say, which is not necessarily the frame that
+     * closes the set: a base whose bundle ends with BeiDou would
+     * otherwise date the epoch 14 s early. */
+    if (s->obs.tow_gps_ms < 0.0) {
+        const double tow = msm_epoch_to_gps_tow_ms(msg_type, epoch);
+        if (tow >= 0.0) s->obs.tow_gps_ms = tow;
+    }
+
     for (int i = 0; i < n; i++) ns_obs_add(&s->obs, &cells[i]);
     /* Cells the message held but this frame could not hand over are lost
      * to the set just as surely as ones it refused. */
@@ -562,9 +572,25 @@ static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
  * carries ten bits of week and mixing that with a host clock's full
  * week is how you get a 1024-week offset. `sv_eph_is_valid_at` says so
  * in its own comment.
+ *
+ * The *time* comes from @ref NsObsEpoch::tow_gps_ms, not from the frame
+ * that closed the set. Those are not the same thing: a bundle is closed
+ * by whichever frame clears DF393, and a base that ends its bundle with
+ * BeiDou dates it on BDT, 14 s behind GPS. Taking the closing frame's
+ * value put a station 7.8 km from itself with kilometre residuals, and
+ * a neighbouring base that happened to close on NavIC was right only by
+ * luck.
  */
-static void selfpos_solve(NtripSession *s, uint32_t epoch_ms)
+static void selfpos_solve(NtripSession *s)
 {
+    /* Without a convertible time there is nothing to solve against.
+     * It also means the set holds no GPS, Galileo, QZSS or NavIC frame
+     * -- so it holds no satellite this solver would have used. */
+    if (s->obs.tow_gps_ms < 0.0) {
+        s->stats.selfpos_status = (int)SPP_TOO_FEW_SATS;
+        return;
+    }
+
     double ref[3];
     const double *refp = NULL;
     if (s->stats.arp_valid) {
@@ -574,7 +600,8 @@ static void selfpos_solve(NtripSession *s, uint32_t epoch_ms)
     }
 
     SppSolution sol;
-    const SppStatus st = spp_solve(&s->obs, 0, epoch_ms / 1000.0, refp, &sol);
+    const SppStatus st = spp_solve(&s->obs, 0, s->obs.tow_gps_ms / 1000.0,
+                                   refp, &sol);
 
     s->stats.selfpos_status = (int)st;
     s->stats.selfpos_sats   = sol.n_used;
@@ -845,7 +872,7 @@ static void feed(NtripSession *s, const unsigned char *data, int len)
                      * handled "nothing solved" correctly, so nothing
                      * looked broken. */
                     if (obs_feed(s, msg_type, payload_len, epoch, has_epoch))
-                        selfpos_solve(s, epoch);
+                        selfpos_solve(s);
 
                     /* The broadcast reference position.  These snapshot
                      * fields existed since the schema was written but
