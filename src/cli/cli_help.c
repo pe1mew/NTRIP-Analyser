@@ -34,7 +34,10 @@ void print_help(const char *progname) {
     printf("                           them; otherwise supply an EPH_CASTER block in the\n");
     printf("                           config file, or -R / --RINEX.\n");
     printf("  -R, --RINEX <file>       RINEX 3 NAV file to preload ephemerides from before\n");
-    printf("                           the live EPH stream takes over (use with -S/--sky).\n");
+    printf("                           the live EPH stream takes over.  Used by -S/--sky,\n");
+    printf("                           and by -t, -s, -d, --check for the --report\n");
+    printf("                           self-position;\n");
+    printf("                           over --rtcm-stdin it is the only outside source.\n");
     printf("      --duration <sec>     Auto-stop --sky mode after N seconds and save normally.\n");
     printf("                           Useful for unattended / cron usage.\n");
     printf("  -o, --output <path>      Write the --sky PNG to this path instead of the default\n");
@@ -91,6 +94,12 @@ void print_help(const char *progname) {
     printf("                           INSUFFICIENT EVIDENCE rather than guess.\n");
     printf("                           Works with -t, -s, -d, --check.  Never changes\n");
     printf("                           the exit code; that belongs to --check.\n");
+    printf("                           Self-position needs orbits: with an EPH_CASTER\n");
+    printf("                           block in the config, --report opens a SECOND\n");
+    printf("                           connection, to the EPH stream, for the run\n");
+    printf("                           (not over --rtcm-stdin; use -R there).  It\n");
+    printf("                           cannot move a --check verdict: no KPI reads\n");
+    printf("                           an orbit.\n");
     printf("\nCapture:\n");
     printf("      --capture <path>     Write every CRC-valid RTCM frame to <path>, for\n");
     printf("                           later conversion (RTKLIB convbin) or replay.  Give\n");
