@@ -291,6 +291,16 @@ Supplementing CLAUDE.md's list with paths found during work:
   one clock unknown, an epoch destroyed by a split constellation, and
   the epoch dated on BeiDou time. Every one was found by connecting a
   real station; none was visible to 19 green tests.
+- **An observation epoch is complete when DF393 clears *or* when the
+  next one demonstrably begins** — whichever comes first, compared
+  **within one system** because the epoch fields are not comparable
+  across them (2026-10-10, `src/session/ntrip_session.c`). Three live
+  stations in two days broke three different assumptions: a
+  constellation split across two frames, a bundle closed by BeiDou (on
+  BDT, 14 s behind GPS), and a station whose DF393 stopped clearing
+  entirely when NavIC dropped out of view. **A stream's shape is a
+  property of the sky that hour, not of the station** — anything
+  waiting for a particular frame needs a way to proceed without it.
 - **The single-point solve is GPS only** (2026-10-09), because each
   constellation needs a clock unknown of its own — the argument the
   module had already written down for GLONASS and applied to GLONASS

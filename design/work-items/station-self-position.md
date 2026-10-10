@@ -600,6 +600,46 @@ stay `SPP_NO_EPOCH`. Twenty tests now.
 from `no observations in this epoch` to **`observations without
 orbits`** — the solve now runs and says what it lacks.
 
+### P1 — one rule for when an epoch is complete  *(2026-10-10)*
+
+Three live stations in two days broke three different assumptions about
+when a set of observations has stopped arriving. The rule that survives
+all of them assumes nothing about the station:
+
+> **A set is complete when the protocol says so — DF393 clears — or
+> when the next set demonstrably begins. Whichever comes first.**
+
+What it had to withstand:
+
+| What the station did | What it broke |
+|---|---|
+| BeiDou in two frames, 48 cells then 5 | a guard reading "this system contributed before" threw away the set mid-bundle: 6 cells of 128 reached the solver |
+| DF393 never cleared — NavIC dropped out of view and took the only frame that had been clearing it | waiting for the bit meant waiting for ever; 41 snapshots of a good stream read *"waiting for the first observation epoch"* |
+| the bundle closed by BeiDou | the closing frame's epoch is on BDT, 14 s behind GPS: 7.8 km |
+
+"Demonstrably begins" is a comparison made **within one system** — GPS
+against GPS. Across systems the fields are not comparable at all, so
+the same system reporting a different epoch is the only sound evidence
+that time has moved on. No station-specific knowledge, and nothing that
+needs updating when the next base behaves differently.
+
+Two things it gives up, both on purpose:
+
+- **The last set of a stream is never completed**, so it is not solved.
+  Nothing arrives to prove it finished, and inventing that proof would
+  mean solving every half-received bundle at every disconnection.
+- **A reconnect discards whatever was in hand.** The stream resumes
+  mid-bundle, and joining the two halves would solve an epoch assembled
+  from satellites observed on either side of an outage — one
+  plausible-looking position per reconnect.
+
+*Verified against the stream that broke it*: 60 s of RFSEE01 with
+**zero** DF393 clears in the whole capture now reaches `observations
+without orbits` — the GPS satellites examined and refused only for the
+ephemerides a replay has no way to supply. `test_selfpos_session.c`
+holds all four shapes: a closed bundle, a trailing incomplete one that
+must not overwrite the answer, a split constellation, and a stuck bit.
+
 ### P1 — a split constellation destroyed the epoch  *(found 2026-10-10, on a live station)*
 
 With GPS-only in place the window went to **`waiting for four usable

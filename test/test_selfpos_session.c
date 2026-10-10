@@ -151,9 +151,14 @@ static int write_capture(const char *path, int n, int more)
     if (!f) return 0;
     for (int i = 0; i < n; i++) {
         unsigned char payload[512], frame[560];
+        /* With `more` set every frame carries the **same** epoch: one
+         * set, never completed. Advancing the epoch instead would be a
+         * base whose DF393 is stuck, and those must be solved -- each
+         * new bundle completing the one before it. */
+        const unsigned long epoch = more ? 86400000UL
+                                         : 86400000UL + (unsigned long)i * 1000UL;
         int plen = build_msm7(payload, (int)sizeof payload, 1077,
-                              86400000UL + (unsigned long)i * 1000UL,
-                              more, 1);
+                              epoch, more, 1);
         int flen = build_frame(frame, payload, plen);
         fwrite(frame, 1, (size_t)flen, f);
     }
@@ -265,27 +270,72 @@ int main(void)
               "two satellites on one frequency do not produce a solution");
     }
 
-    /* ── 2. An epoch that never closes does not ───────────────────── */
+    /* ── 2. A set still being filled is not solved ────────────────── */
     {
         /* The control, and one bit away from the case above: the same
          * message type, the same path, the same observations, with
-         * DF393 set on every frame so the epoch is never complete.
-         * Without it the first case would pass just as well against a
-         * solve run on every frame regardless of the call-site
-         * condition it is there to test.
+         * DF393 set on every frame **and one epoch only**, so the set
+         * is still being filled when the stream ends. Without a
+         * control the first case would pass just as well against a
+         * solve run on every frame regardless.
          *
-         * A first attempt used a stream with no observations at all.
-         * It proved nothing: with no epochs there is no stream clock,
-         * so the session published **no snapshots**, and the test was
-         * reading a zeroed struct -- which happens to be SPP_OK. */
+         * Two shapes were tried first and proved nothing, both because
+         * **a snapshot is paced by the stream clock**:
+         *
+         * - a stream with no observations at all: no epochs, no clock,
+         *   so the session published no snapshots and the test read a
+         *   zeroed struct -- which happens to be `SPP_OK`;
+         * - twenty frames of one epoch, never completed: the clock
+         *   never advanced, so again no snapshots. (Twenty *different*
+         *   epochs is not the control either -- that is a base whose
+         *   DF393 is stuck, which case 4 says must be solved.)
+         *
+         * What works is a complete bundle followed by an incomplete
+         * one. The first sets a status, the clock advances so there
+         * are snapshots, and the trailing partial bundle -- a single
+         * Galileo frame, single-frequency, never closed -- must leave
+         * the answer alone. A solve that ran per frame would overwrite
+         * it with `SPP_SINGLE_FREQ`. */
         Seen seen;
-        check(write_capture(dry_cap, 20, 1),
-              "built a capture whose epochs never close");
+        FILE *f = fopen(dry_cap, "wb");
+        check(f != NULL, "built a complete bundle, then an incomplete one");
+        if (f) {
+            unsigned char payload[512], frame[560];
+            int plen, flen;
+            /* Twenty complete bundles: GPS dual-frequency, then
+             * Galileo clearing DF393. Twenty because a snapshot is
+             * published on the stream's own clock, and two epochs do
+             * not advance it far enough for one to be published at
+             * all -- which is how the previous two attempts at this
+             * control came to read a zeroed struct. */
+            for (int i = 0; i < 20; i++) {
+                const unsigned long epoch =
+                    86400000UL + (unsigned long)i * 1000UL;
+                plen = build_msm7(payload, (int)sizeof payload, 1077,
+                                  epoch, 1, 2);
+                flen = build_frame(frame, payload, plen);
+                fwrite(frame, 1, (size_t)flen, f);
+                plen = build_msm7(payload, (int)sizeof payload, 1097,
+                                  epoch, 0, 1);
+                flen = build_frame(frame, payload, plen);
+                fwrite(frame, 1, (size_t)flen, f);
+            }
+            /* Incomplete, and the last thing in the stream. */
+            plen = build_msm7(payload, (int)sizeof payload, 1097,
+                              86420000UL, 1, 1);
+            flen = build_frame(frame, payload, plen);
+            fwrite(frame, 1, (size_t)flen, f);
+            fclose(f);
+        }
         check(replay(dry_cap, &seen), "replayed that too");
         check(seen.stats_seen > 0,
               "the session published snapshots, so there is an answer to read");
-        check(seen.last.selfpos_status == SPP_NO_EPOCH,
-              "an epoch still open is not handed to the solve");
+        printf("      status after a trailing partial bundle: %d (%s)\n",
+               seen.last.selfpos_status,
+               spp_status_text((SppStatus)seen.last.selfpos_status));
+        check(seen.last.selfpos_status == SPP_NO_EPHEMERIS,
+              "a set still being filled is not solved, and does not "
+              "overwrite the answer from the one before it");
     }
 
     /* ── 3. A constellation split across two frames ───────────────── */
@@ -306,6 +356,54 @@ int main(void)
                spp_status_text((SppStatus)seen.last.selfpos_status));
         check(seen.last.selfpos_status == SPP_NO_EPHEMERIS,
               "a system continued across frames does not discard the epoch");
+    }
+
+    /* ── 4. A base whose DF393 never clears ───────────────────────── */
+    {
+        /* RFSEE01, an hour after case 3 was written: NavIC dropped out
+         * of view, and with it the only frame that had been clearing
+         * the multiple-message bit. Every frame then said "more
+         * follows", no set ever closed, and the window read "waiting
+         * for the first observation epoch" through forty-one snapshots
+         * of a stream carrying ten GPS satellites.
+         *
+         * Bundles of two systems, DF393 set on every frame, a new
+         * epoch each second. The arrival of the next bundle is the only
+         * evidence the last one is complete, and it has to be enough. */
+        const char *stuck_cap = "test_selfpos_stuck.rtcm3";
+        remove(stuck_cap);
+
+        FILE *f = fopen(stuck_cap, "wb");
+        check(f != NULL, "built a capture whose DF393 never clears");
+        if (f) {
+            for (int i = 0; i < 20; i++) {
+                const unsigned long epoch =
+                    86400000UL + (unsigned long)i * 1000UL;
+                const struct { int type; int sigs; } frames[] = {
+                    { 1077, 2 },     /* GPS, dual frequency */
+                    { 1097, 1 },     /* Galileo             */
+                };
+                for (size_t k = 0; k < sizeof frames / sizeof frames[0]; k++) {
+                    unsigned char payload[512], frame[560];
+                    int plen = build_msm7(payload, (int)sizeof payload,
+                                          frames[k].type, epoch,
+                                          1 /* more: always set */,
+                                          frames[k].sigs);
+                    int flen = build_frame(frame, payload, plen);
+                    fwrite(frame, 1, (size_t)flen, f);
+                }
+            }
+            fclose(f);
+        }
+
+        Seen seen;
+        check(replay(stuck_cap, &seen), "replayed it");
+        printf("      status with DF393 stuck: %d (%s)\n",
+               seen.last.selfpos_status,
+               spp_status_text((SppStatus)seen.last.selfpos_status));
+        check(seen.last.selfpos_status == SPP_NO_EPHEMERIS,
+              "a bundle completed by the next one is still solved");
+        remove(stuck_cap);
     }
 
     remove(obs_cap);

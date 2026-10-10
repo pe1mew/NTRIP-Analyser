@@ -476,22 +476,50 @@ static int type_slot(NtripSession *s, int msg_type)
  * @brief Collect one MSM frame's observables into the current epoch.
  *
  * A multi-constellation base sends GPS, GLONASS, Galileo and BeiDou as
- * separate frames for the same instant, so an epoch spans frames.  Two
- * things close it: an epoch field that differs from the one in progress,
- * and the MSM multiple-message bit clearing, which is the base saying
- * this was the last frame of the set.
+ * separate frames for the same instant, so an epoch spans frames, and
+ * the whole difficulty is deciding when it has stopped.
  *
- * The epoch fields are not comparable across constellations -- GPS counts
- * milliseconds of week, GLONASS milliseconds of day -- so the comparison
- * is deliberately "differs from what is in progress" rather than any
- * arithmetic on the two values.
+ * **One rule, and it assumes nothing about the station:**
+ *
+ * > A set is complete when the protocol says so — DF393 clears — **or**
+ * > when the next set demonstrably begins. Whichever comes first.
+ *
+ * The second half is what makes it hold against real bases, because
+ * each of these was a live station inside two days:
+ *
+ * - **A constellation arriving in two frames.** BeiDou as 48 cells and
+ *   then 5, which is precisely what the multiple-message bit is for. A
+ *   guard reading "this system has contributed before" threw the set
+ *   away mid-bundle and handed the solver 6 cells of 128.
+ * - **A bit that never clears.** The same station an hour later, after
+ *   NavIC dropped out of view and took with it the only frame that had
+ *   been clearing DF393. Waiting for the bit meant waiting forever.
+ * - **A bundle closed by BeiDou**, whose epoch field is on BDT — hence
+ *   @ref NsObsEpoch::tow_gps_ms, taken from the first frame that can
+ *   state the instant on GPS's scale rather than from the last frame
+ *   to arrive.
+ *
+ * "Demonstrably begins" is a comparison made **within one system**:
+ * GPS against GPS. Across systems the fields are not comparable at all
+ * — GPS counts milliseconds of week, GLONASS of day — so the same
+ * system reporting a different epoch is the only sound evidence that
+ * time has moved on, and it needs no station-specific knowledge.
+ *
+ * What the rule gives up, deliberately: the last set of a stream is
+ * never completed, and is not solved. Nothing arrives to prove it was
+ * finished, and inventing that proof would mean solving every
+ * half-received bundle at every disconnection.
  *
  * Non-MSM frames pass through untouched: @ref msm_extract_obs refuses
- * them, and an epoch in progress survives a 1005 arriving in the middle
- * of it.
+ * them, and an epoch in progress survives a 1005 arriving in the
+ * middle of it.
  *
- * @return true when this frame closed the epoch.
+ * @return true when this frame closed the epoch by clearing DF393. A
+ *         set completed by the *next* one beginning is solved inside
+ *         this function, since its contents are about to be replaced.
  */
+static void selfpos_solve(NtripSession *s);   /* defined below */
+
 static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
                      uint32_t epoch, bool has_epoch)
 {
@@ -533,8 +561,28 @@ static bool obs_feed(NtripSession *s, int msg_type, int payload_len,
     if (!new_set && gnss > 0 && gnss < NS_OBS_MAX_GNSS &&
         (s->obs.gnss_seen & ((uint32_t)1u << gnss)) != 0)
         new_set = (s->obs.sys_epoch[gnss] != epoch);
-    if (new_set)
+
+    if (new_set) {
+        /* A bundle beginning is proof the previous one ended, and for
+         * some stations it is the **only** proof there will be.
+         *
+         * RFSEE01 was sending 1077, 1087, 1097 and 1127 twice, every
+         * frame with DF393 set and nothing ever clearing it -- the
+         * stuck bit this guard was written for. Waiting for the bit
+         * meant the set never closed, the solve was never called, and
+         * the window read "waiting for the first observation epoch"
+         * through forty-one snapshots of a perfectly good stream. It
+         * had worked an hour earlier only because NavIC was in view
+         * then and happened to clear the bit.
+         *
+         * So the completed set is solved here, before this frame's
+         * cells replace it. */
+        if (s->obs.open && s->obs.n > 0) {
+            s->obs.open = false;
+            selfpos_solve(s);
+        }
         ns_obs_reset(&s->obs, epoch);
+    }
 
     if (gnss > 0 && gnss < NS_OBS_MAX_GNSS) s->obs.sys_epoch[gnss] = epoch;
 
@@ -1102,6 +1150,14 @@ static void do_connect(NtripSession *s)
     s->backoff_s   = 0;
     s->last_rx_t   = ns_now();   /* silence is counted from here */
     s->stats.connected = true;
+
+    /* Whatever observations were in hand when the stream dropped are
+     * half a bundle, and the stream resumes mid-bundle too. Joining
+     * the two would solve an epoch assembled from both sides of an
+     * outage -- one plausible-looking position per reconnect, built
+     * from satellites observed at two different times. */
+    ns_obs_reset(&s->obs, 0);
+    s->obs.open = false;
 }
 
 /**
