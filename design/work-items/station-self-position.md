@@ -447,7 +447,12 @@ Smoke-checked meanwhile against an empty replay, which prints
 `Self-position: nothing solved -- no observations in this epoch` rather
 than a clean zero.
 
-### P6 — the GUI: a Self-position window
+### P6 — the GUI: a Self-position window  *(done 2026-10-10)*
+
+**Accepted by the author on a live stream, 2026-10-10**: RFSEE01 solving
+with median apparent motion in the low tens of mm/s, the reversed rate
+sign reported, and **S** saving the image and its JSON companion. The
+findings below are the record of what it took to get there.
 
 **Its own window** (author, 2026-10-09), beside the Stability window
 rather than inside it — `design/gui-design.md` §14 is the neighbour to
@@ -922,6 +927,20 @@ about the Android editions becomes false.
 
 **With P7, later:** the listing sentence on both editions, the wiki's
 pro pages, the feature matrix's phone columns.
+
+**Desktop half done 2026-10-10.** `docs/gui.md` and `docs/cli.md` were
+written with P5 and P6. `design/feature-matrix.md` gains two rows:
+*Self-position* under the shared core (CLI ◐, GUI ●, free ○, pro ⋯,
+daemon ◐ — the CLI's report and the daemon open no ephemeris
+side-stream, so they solve only stations that broadcast their own
+orbits; the CLI half of that is the separate session *CLI --report:
+ephemeris side-stream and -R in timed modes*) and *Self-position
+export*, GUI only. `changelog.md` gains an `[Unreleased]` section with
+the measurement behind the claim — both live stations and the RTKLIB
+comparison — what the solve refuses, the reversed-rate finding, the
+schema change, and three fixes found on the way. No listing text
+changed: both Play listings still say the app "does not compute a
+position", and on Android that is still true.
 
 ## What this will not claim
 

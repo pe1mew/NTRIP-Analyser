@@ -4,6 +4,85 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [Unreleased]
+
+### Added — self-position: where the station's own data puts it
+
+The station broadcasts where it is, in 1005/1006. This works out where
+its **own observations** put it, and reports the difference: a GPS-only,
+dual-frequency single-point position and velocity, solved every epoch
+and summarised over the stability report's window as the offset from
+the broadcast position, the scatter about that offset, the worst code
+residual and the **median** apparent motion. `View > Self-position` in
+the GUI, a block below the table in the CLI's `--report`, and
+`selfpos_*` keys in the service's snapshot and report.
+
+**Figures, no verdict.** Every other measurement in this program is
+graded; this one is not, because what counts as abnormal scatter for a
+station's own position has not been established from any measurement
+of a real station, and a threshold invented to fill the column would be
+worse than none. **Read the offset as an offset**: metres of it are the
+broadcast-ephemeris solution's own bias and say nothing about the
+antenna. The scatter is the half that measures something, and the
+apparent motion is what would reveal an antenna that moved — a base
+standing still reads tens of mm/s from broadcast orbits, which is why
+the median is reported and not the maximum, which one noisy epoch
+decides.
+
+**What it measured.** On two live Dutch stations: APEL00NLD0, 83 epochs,
+offset E −3.5 / N +3.7 / U +3.0 m, scatter **0.23 m**, worst residual
+2.3 m, 9 satellites at PDOP 1.3; RFSEE01, scatter 0.3–0.9 m, median
+apparent motion **32 mm/s**. Checked against an independent solver:
+RTKLIB's `rnx2rtkp` on 150 s of RFSEE01 with the same ephemerides gave
+E +0.06 / N +1.13 / U +8.27 m and a scatter of 0.45 m — the same order
+from both, as a single-point solve should be.
+
+**What it refuses.** A single-frequency station cannot be solved and
+says so — the ionosphere must be removed from the measurement before a
+metre means anything. Only GPS enters the solve: each constellation has
+its own system time and hardware delay and needs a clock unknown of its
+own, and letting six in under one put a live station 1.8 km from itself.
+
+**What it found.** One of the two stations sends the phase-range rate
+with the sign reversed — every satellite the exact negative of what its
+orbit predicts. The solver now works out the station's convention from
+the data, so the velocity is right either way, and names a reversed
+station in the window (`REVERSED`) and in the JSON (`selfpos_rate_sign:
+-1`), because every rover trusting those rates inherits the fault.
+
+**S** in the window saves the plot and its figures as
+`YYYYMMDDHHmmss_SelfPosition.png`, with a JSON of the same name beside
+it carrying the report, the latest snapshot and every plotted point.
+
+Desktop only, deliberately: both Play listings say the app "does not
+compute a position", and that sentence stays true until the paid
+edition gains this on purpose.
+
+### Changed — the stability report's JSON is schema 3
+
+`report_schema_version` 3 adds the `selfpos_*` keys (2 added them
+earlier on this branch; no version 2 was released) and carries
+`selfpos_speed_median_mms`. The snapshot gains `selfpos_*` keys without
+a `schema_version` bump, as the ionosphere keys did, and the same keys
+are **appended** to the CSV row, so a reader counting columns from the
+left keeps working. An epoch that did not solve writes `null` and empty
+cells, never a zero: a zero is an antenna standing exactly on its
+declared coordinates.
+
+### Fixed
+
+- **View > Reset window layout** now resets the Station Check and
+  Stability windows too. Its comment promised "every remembered
+  placement" and had been leaving both out since each was added.
+- The ephemeris side-stream copied its caster, mountpoint, user and
+  password with `strncpy` over the observation stream's values, which
+  leaves no terminator when a field fills its buffer — a 255-character
+  name would have kept the tail of the one it replaced. Found by
+  switching on `-Wall`, which the build had never passed; the codebase
+  was otherwise clean under it, and is built with it from now on.
+- The tray tooltip bounds the mountpoint name so a long one cannot push
+  the satellite count and rate — the part that changes — off the end.
+
 ## [3.8.0] - 2026-08-25
 
 The release where the paid edition ships whole, and the reason it
