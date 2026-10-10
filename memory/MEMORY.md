@@ -56,9 +56,8 @@
 
 <!-- 2026-10-10 -->
 
-- **Self-position is complete on the desktop and in review** as
-  pe1mew/NTRIP-Analyser#8 (`self-position` → `main`, Auto-fix on, not
-  merged — merging is the author's). GUI window with S export, the
+- **Self-position is complete on the desktop and merged to `main`**
+  (pe1mew/NTRIP-Analyser#8, 2026-10-10, merge `38a1e0e`). GUI window with S export, the
   CLI's `--report`, and the daemon's snapshot and report; orbits from
   the station's own stream, a configured side-stream, or `-R`. Plan
   steps P1–P6 and the desktop half of P8 are done; **P7** (pro on

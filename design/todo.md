@@ -740,7 +740,7 @@ chart, sky-plot overlay (including painting the existing 24 h trail buffer by RO
 timelapse in one image; note `SkyTrackPoint` widens 16→20 B, ~11.8→14.7 MB), and the dedicated
 Ionosphere window. Plus `sats_dualfreq`/`roti_median` in the snapshot for the daemon and Munin.
 
-### 3.3 The station's own position and velocity — **Desktop in review (pe1mew/NTRIP-Analyser#8); Android open** `[onocoy]`
+### 3.3 The station's own position and velocity — **Desktop shipped to `main` (pe1mew/NTRIP-Analyser#8); Android open** `[onocoy]`
 
 Plan: [`design/work-items/station-self-position.md`](work-items/station-self-position.md) (2026-10-09).
 
@@ -767,7 +767,7 @@ published "eight checks" count does not move. And both Play listings say the app
 a position" — true until the Android step, which is why the desktop half goes first and the
 listing decision waits for pro to be in production.
 
-**Progress, 2026-10-10: the desktop is done and in review** as pe1mew/NTRIP-Analyser#8 — plan
+**Progress, 2026-10-10: the desktop is done and merged to `main`** through pe1mew/NTRIP-Analyser#8 — plan
 steps P1–P6 and the desktop half of P8. The GUI's `View > Self-position` (with **S** saving the plot
 and a JSON of its numbers), the CLI's `--report`, and the daemon's snapshot and report all solve,
 finding orbits in the station's own stream, a configured side-stream, or `-R`. **GPS only**, until
