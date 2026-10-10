@@ -77,7 +77,7 @@ standing behind a window that ended. Watch for that as well as for
 stopped.
 
 ```json
-{"report_schema_version":2,"mountpoint":"HANESE","window_s":3600.000,
+{"report_schema_version":3,"mountpoint":"HANESE","window_s":3600.000,
  "samples":3598,"overall":1,"overall_name":"STABLE",
  "headline":"STABLE over 1.0 h","integrity_verdict":1,...,
  "selfpos_samples":3410,"selfpos_status":0,"selfpos_status_name":"solved",
@@ -110,6 +110,18 @@ bump exists so that a document *without* these keys can be told from one
 whose station solved nothing. `selfpos_mean_*_m` is an *offset* from the
 reference position, mostly the solution's own bias, and must not be read
 as an accuracy; `selfpos_scatter_m` is the part that measures something.
+
+**Version 3 replaced `selfpos_speed_max_mms` with
+`selfpos_speed_median_mms`**, and this one is **not** additive: a reader
+written against version 2 that looks for the old key will find nothing,
+and should treat a version-3 document accordingly rather than as a
+station with no velocity. The median replaced the maximum because a
+single-epoch velocity from broadcast orbits is noisy — the maximum over
+a window settled at 15–80 mm/s on bases bolted to pillars, decided by the
+single noisiest epoch — while the median sits steadily in the low tens of
+mm/s and is what a standing base can be judged against. It is read from a
+1 mm/s histogram capped at 2 m/s, so it costs the daemon fixed memory per
+accumulator however long the window.
 
 **The window rolls, and it is measured in stream time.** The report
 covers between one and two `report_window_s` — the daemon keeps two

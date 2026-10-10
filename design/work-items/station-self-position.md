@@ -600,6 +600,34 @@ stay `SPP_NO_EPOCH`. Twenty tests now.
 from `no observations in this epoch` to **`observations without
 orbits`** — the solve now runs and says what it lacks.
 
+### P5/P6 — median motion, and an export  *(author, 2026-10-10)*
+
+**The median replaces the maximum.** Two stations on pillars showed a
+maximum apparent motion of 15–80 mm/s, set each time by whichever epoch
+was noisiest, so a station could not be judged against it. The median
+sits steadily in the low tens of mm/s and a few wild epochs cannot move
+it. It is read from a histogram — 1 mm/s bins to 2 m/s, 8 KB per
+accumulator, the last bin catching anything faster — because a median
+needs the distribution and the daemon carries two accumulators per
+station for hours. `selfpos_speed_max_mms` became
+`selfpos_speed_median_mms` and `SR_JSON_SCHEMA_VERSION` went to **3**,
+since a renamed key is not additive. `docs/thresholds.md` lists both
+histogram constants under *What is not a threshold*, as
+`check_release.py` requires of every `SR_*` number.
+
+The test uses noise of 20–40 mm/s plus three epochs at 900 — median
+30, mean 73.4, maximum 900 — so it can tell which one the report used.
+Reading the top of the histogram instead reports 900.5 and reddens it.
+
+**S saves the window and its numbers** (author: S, as in the other
+chart windows): `YYYYMMDDHHmmss_SelfPosition.png` through the shared
+save flow, and a JSON of the same name carrying the report, the latest
+snapshot and every plotted point. Designed in `gui-design.md` §16.7.
+Driven end to end against RFSEE01 live: the image held the plot,
+legend and figures — including `Median apparent motion 32.5 mm/s` and
+`Phase-range rate sign REVERSED` — and the companion parsed, matching
+the image to the last digit.
+
 ### P4 — a station that encodes its rates backwards  *(found 2026-10-10, on a live station)*
 
 With the epoch rule settled, RFSEE01 solved its position cleanly —

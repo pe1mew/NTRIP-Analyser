@@ -60,7 +60,8 @@ void sr_reset(SrState *s, bool from_capture, const SrPolicy *pol)
     s->cnr_last   = 0.0f;
     s->sats_min   = 1 << 30;
     s->roti_worst = -1.0f;
-    s->sp_speed_max   = -1.0;   /* no epoch has carried a velocity yet */
+    /* The speed histogram needs no sentinel: the memset above empties
+     * it, and an empty one is how "no velocity yet" is read. */
     s->sp_last_status = SPP_NO_EPOCH;
 }
 
@@ -170,10 +171,41 @@ void sr_feed(SrState *s, const NsStatsSnapshot *snap, double t_stream)
         if (snap->selfpos_code_rms_m != NS_UNSET &&
             snap->selfpos_code_rms_m > s->sp_rms_worst)
             s->sp_rms_worst = snap->selfpos_code_rms_m;
+        /* Gated on the flag, not on the value: a snapshot can carry a
+         * stale speed beside has_vel == false, and the flag is what has
+         * to stop it -- see test_station_report case 15. */
         if (snap->selfpos_has_vel && snap->selfpos_speed_mms != NS_UNSET &&
-            snap->selfpos_speed_mms > s->sp_speed_max)
-            s->sp_speed_max = snap->selfpos_speed_mms;
+            snap->selfpos_speed_mms >= 0.0) {
+            int bin = (int)(snap->selfpos_speed_mms / SR_SPEED_BIN_MMS);
+            if (bin > SR_SPEED_BINS) bin = SR_SPEED_BINS;   /* the cap */
+            s->sp_speed_hist[bin]++;
+            s->sp_speed_n++;
+        }
     }
+}
+
+/**
+ * @brief The median of the speed histogram, mm/s, or NS_UNSET if empty.
+ *
+ * The bin the middle sample falls in, read at its centre: resolution
+ * ±SR_SPEED_BIN_MMS / 2. A median in the overflow bin is reported as
+ * the cap, which is a floor rather than a value -- and no solve of a
+ * standing base gets there.
+ */
+static double speed_median(const SrState *s)
+{
+    if (s->sp_speed_n <= 0) return NS_UNSET;
+    /* The lower median for an even count: the (n+1)/2-th sample. */
+    const int target = (s->sp_speed_n + 1) / 2;
+    int seen = 0;
+    for (int b = 0; b <= SR_SPEED_BINS; b++) {
+        seen += (int)s->sp_speed_hist[b];
+        if (seen >= target)
+            return (b < SR_SPEED_BINS)
+                 ? (b + 0.5) * SR_SPEED_BIN_MMS
+                 : SR_SPEED_BINS * SR_SPEED_BIN_MMS;
+    }
+    return NS_UNSET;    /* unreachable while sp_speed_n counts the bins */
 }
 
 /** @brief Grade a rising quantity against a warn and a bad threshold. */
@@ -372,9 +404,8 @@ void sr_build(const SrState *s, StationReport *out)
          * when the scatter is far smaller than the offset. */
         double var = s->sp_sum_sq / n - (me * me + mn * mn + mu * mu);
         out->sp_scatter_m    = (var > 0.0) ? sqrt(var) : 0.0;
-        out->sp_rms_worst    = s->sp_rms_worst;
-        out->sp_speed_max_mms = (s->sp_speed_max >= 0.0) ? s->sp_speed_max
-                                                         : NS_UNSET;
+        out->sp_rms_worst        = s->sp_rms_worst;
+        out->sp_speed_median_mms = speed_median(s);
     } else {
         /* Nothing solved.  Not zero offset, not zero scatter: absent.
          * `sp_last_status` is what a reader needs here, and it is set
@@ -385,9 +416,9 @@ void sr_build(const SrState *s, StationReport *out)
          * offset is signed, so NS_UNSET is a value it could legitimately
          * hold and cannot serve as its sentinel.  The non-negative
          * figures beside them can and do use it. */
-        out->sp_scatter_m     = NS_UNSET;
-        out->sp_rms_worst     = NS_UNSET;
-        out->sp_speed_max_mms = NS_UNSET;
+        out->sp_scatter_m        = NS_UNSET;
+        out->sp_rms_worst        = NS_UNSET;
+        out->sp_speed_median_mms = NS_UNSET;
     }
 
     /* ── Roll-up.  Insufficient evidence is a state, not a failure: it
@@ -688,9 +719,9 @@ int sr_to_json(const StationReport *r, const SrJsonCtx *ctx,
         /* Two different absences, and they are not the same null: no
          * epoch solved at all, or epochs solved from a stream that
          * carries no phase-range rates to measure motion with. */
-        o_key(&o, "selfpos_speed_max_mms");
-        if (have && r->sp_speed_max_mms != NS_UNSET)
-            o_num(&o, r->sp_speed_max_mms, 2);
+        o_key(&o, "selfpos_speed_median_mms");
+        if (have && r->sp_speed_median_mms != NS_UNSET)
+            o_num(&o, r->sp_speed_median_mms, 1);
         else
             o_str(&o, "null");
     }

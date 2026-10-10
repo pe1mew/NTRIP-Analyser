@@ -21,12 +21,15 @@
  */
 
 #include "gui_selfpos_window.h"
+#include "gui_snapshot.h"   /* the shared Save-as-PNG flow */
 #include "core/spp.h"       /* SppStatus, and its sentence for a failure */
 #include "resource.h"
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* Height of the painted header above the plot and the figures. */
 #define SP_HEADER_H   86
@@ -308,13 +311,13 @@ static void RefreshRows(HWND hwnd, AppState *state)
         SetRow(hLv, row++, "Worst code residual", v,
                "RMS, over the whole window");
 
-        if (r->sp_speed_max_mms != NS_UNSET) {
-            snprintf(v, sizeof(v), "%.2f mm/s", r->sp_speed_max_mms);
-            SetRow(hLv, row++, "Fastest apparent motion", v,
-                   "a base that is standing still reads zero");
+        if (r->sp_speed_median_mms != NS_UNSET) {
+            snprintf(v, sizeof(v), "%.1f mm/s", r->sp_speed_median_mms);
+            SetRow(hLv, row++, "Median apparent motion", v,
+                   "a still base reads near zero");
         } else {
-            SetRow(hLv, row++, "Fastest apparent motion", "--",
-                   "no phase-range rates in this stream (MSM4, MSM6, legacy)");
+            SetRow(hLv, row++, "Median apparent motion", "--",
+                   "no phase-range rates (MSM4, MSM6, legacy)");
         }
     } else {
         /* Nothing solved.  Which of the three that is, and why, rather
@@ -766,6 +769,159 @@ static void PaintCaption(HDC hdc, const RECT *rc, AppState *state)
     SelectObject(hdc, old);
 }
 
+/* ── Export ──────────────────────────────────────────────────────────── */
+
+/** @brief Write @p s as a JSON string literal, escaped. */
+static void json_str(FILE *f, const char *s)
+{
+    fputc('"', f);
+    for (; s && *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        if (c == '"' || c == '\\') { fputc('\\', f); fputc(c, f); }
+        else if (c < 0x20)         fprintf(f, "\\u%04x", c);
+        else                       fputc(c, f);
+    }
+    fputc('"', f);
+}
+
+/** @brief One of core's serialisers, sized first so nothing is cut. */
+static void json_embed(FILE *f, int need, char *buf)
+{
+    if (need > 0 && buf) fwrite(buf, 1, (size_t)need, f);
+    else                 fputs("null", f);
+}
+
+/**
+ * @brief Write the companion to an exported image: the numbers behind it.
+ *
+ * The picture is for a person; this is for whoever has to check it. It
+ * holds three things:
+ *
+ * - the **report** -- core's own serialiser, the same document the
+ *   daemon publishes as `<mountpoint>.report.json`, so the window's
+ *   figures and their evidence are carried in the project's one format
+ *   rather than in a second dialect invented for an export;
+ * - the **snapshot** -- the latest epoch, the same record File > Export
+ *   Statistics writes;
+ * - the **points** behind the plot, in time order, as `[t, e, n, u]`,
+ *   so the cloud can be re-plotted or analysed without the image.
+ *
+ * @return true when the whole file was written.
+ */
+static bool WriteSelfPosCompanion(AppState *state, const char *png,
+                                  const char *path)
+{
+    /* The image's own name, without its folder: the two files travel
+     * together and the reference must survive being moved. */
+    const char *base = png;
+    for (const char *p = png; *p; p++)
+        if (*p == '\\' || *p == '/') base = p + 1;
+
+    /* Sized, then written: a truncated document must never be saved as
+     * though it were complete. */
+    char *rep = NULL, *snap = NULL;
+    int rep_n = -1, snap_n = -1;
+    if (state->reportHave) {
+        SrJsonCtx ctx;
+        ctx.mountpoint  = state->config.MOUNTPOINT;
+        ctx.policy      = state->thresholdsPath;
+        ctx.fingerprint = state->thresholdsFp;
+        rep_n = sr_to_json(&state->reportOut, &ctx, NULL, 0);
+        if (rep_n > 0 && (rep = (char *)malloc((size_t)rep_n + 1)) != NULL)
+            rep_n = sr_to_json(&state->reportOut, &ctx, rep, (size_t)rep_n + 1);
+    }
+    if (state->haveStats) {
+        snap_n = ns_stats_to_json(&state->lastStats, NULL, 0);
+        if (snap_n > 0 && (snap = (char *)malloc((size_t)snap_n + 1)) != NULL)
+            snap_n = ns_stats_to_json(&state->lastStats, snap,
+                                      (size_t)snap_n + 1);
+    }
+
+    FILE *f = fopen(path, "wb");
+    if (!f) { free(rep); free(snap); return false; }
+
+    char when[32] = "";
+    {
+        time_t now_t = time(NULL);
+        struct tm *lt = localtime(&now_t);
+        if (lt) strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S", lt);
+    }
+
+    fputs("{\"selfpos_export_version\":1", f);
+    fputs(",\"image\":", f);      json_str(f, base);
+    fputs(",\"caster\":", f);     json_str(f, state->config.NTRIP_CASTER);
+    fputs(",\"mountpoint\":", f); json_str(f, state->config.MOUNTPOINT);
+    fputs(",\"exported_local\":", f); json_str(f, when);
+    fputs(",\"points_frame\":", f);
+    json_str(f, "metres east, north and up from the ARP the station "
+                "broadcasts; t is stream seconds since the plot began");
+    fputs(",\"report\":", f);   json_embed(f, rep  ? rep_n  : -1, rep);
+    fputs(",\"snapshot\":", f); json_embed(f, snap ? snap_n : -1, snap);
+
+    /* The points, oldest first.  Read once into locals: the ring is
+     * filled on the worker thread, and an export taken while it wraps
+     * should describe one consistent span. */
+    const SelfPosRing *r = &state->selfpos;
+    const int count = r->count, head = r->head;
+    const int start = (count < SELFPOS_CAP) ? 0 : head;
+    fputs(",\"points\":[", f);
+    for (int i = 0; i < count; i++) {
+        const SelfPosPoint *p = &r->pts[(start + i) % SELFPOS_CAP];
+        fprintf(f, "%s[%.1f,%.3f,%.3f,%.3f]", i ? "," : "",
+                (double)p->ts_rel, (double)p->e, (double)p->n, (double)p->u);
+    }
+    fputs("]}\n", f);
+
+    free(rep);
+    free(snap);
+    const bool ok = !ferror(f);
+    return (fclose(f) == 0) && ok;
+}
+
+/**
+ * @brief S: the window as a PNG, and its numbers beside it.
+ *
+ * The same key and the same prompt as every other chart window -- the
+ * timestamped default name, the overwrite question, the line in the
+ * log -- with one difference forced by this window's shape: its figures
+ * are a list control, a child window, and an ordinary copy of the
+ * window's pixels does not reliably contain children. So it is rendered
+ * instead, which also draws any part another window happens to cover.
+ */
+static void ExportSelfPos(HWND hwnd, AppState *state)
+{
+    /* A row left highlighted -- by a click, or by the list's own
+     * type-ahead, which an S keystroke reaching it selects "Scatter
+     * about the mean" with -- would be in the picture. */
+    HWND hLv = GetDlgItem(hwnd, IDC_SELFPOS_LIST);
+    if (hLv) ListView_SetItemState(hLv, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+
+    char png[MAX_PATH];
+    if (!SaveWindowPngWithPromptEx(hwnd, state->hEditLog,
+                                   "Save Self-position as PNG",
+                                   "SelfPosition", "Self-position",
+                                   TRUE, png, sizeof(png)))
+        return;
+
+    /* Same name, .json: the pair sort together and are obviously a pair. */
+    char json[MAX_PATH];
+    snprintf(json, sizeof(json), "%s", png);
+    char *dot = strrchr(json, '.');
+    char *sep = strrchr(json, '\\');
+    if (dot && (!sep || dot > sep)) *dot = '\0';
+    if (strlen(json) + 5 < sizeof(json)) strcat(json, ".json");
+
+    const bool ok = WriteSelfPosCompanion(state, png, json);
+    char msg[MAX_PATH + 96];
+    snprintf(msg, sizeof(msg), ok ? "[INFO] Self-position data saved to %s\r\n"
+                                  : "[ERROR] Failed to write %s\r\n", json);
+    if (state->hEditLog) {
+        int len = GetWindowTextLength(state->hEditLog);
+        SendMessage(state->hEditLog, EM_SETSEL, (WPARAM)len, (LPARAM)len);
+        SendMessage(state->hEditLog, EM_REPLACESEL, FALSE, (LPARAM)msg);
+    }
+}
+
 /* ── Window ──────────────────────────────────────────────────────────── */
 
 /**
@@ -899,6 +1055,35 @@ static LRESULT CALLBACK SelfPosWndProc(HWND hwnd, UINT msg,
     case WM_APP_SELFPOS_UPDATE:
         RefreshRows(hwnd, state);
         InvalidateRect(hwnd, NULL, FALSE);
+        return 0;
+
+    /* S exports, as it does in every other chart window -- but those
+     * have no child that takes the keyboard, and this one does: once
+     * the figures list is clicked, keystrokes go to it and never reach
+     * this procedure. So the list's own key notification is honoured
+     * too, or S would stop working the moment someone touched a row.
+     *
+     * Posted rather than run on the spot, so the keystroke has finished
+     * -- the list's type-ahead included -- before a dialog opens. */
+    case WM_KEYDOWN:
+        if (wParam == 'S') {
+            PostMessage(hwnd, WM_APP_SELFPOS_EXPORT, 0, 0);
+            return 0;
+        }
+        break;
+
+    case WM_NOTIFY: {
+        const NMHDR *nh = (const NMHDR *)lParam;
+        if (nh && nh->idFrom == IDC_SELFPOS_LIST && nh->code == LVN_KEYDOWN &&
+            ((const NMLVKEYDOWN *)lParam)->wVKey == 'S') {
+            PostMessage(hwnd, WM_APP_SELFPOS_EXPORT, 0, 0);
+            return 0;
+        }
+        break;
+    }
+
+    case WM_APP_SELFPOS_EXPORT:
+        if (state) ExportSelfPos(hwnd, state);
         return 0;
 
     case WM_ERASEBKGND:

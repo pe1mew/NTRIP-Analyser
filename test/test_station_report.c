@@ -443,7 +443,13 @@ int main(void)
             s.selfpos_u           = sign * 0.4;
             s.selfpos_code_rms_m  = 1.0 + (i == 7 ? 2.5 : 0.0);  /* one bad */
             s.selfpos_has_vel     = true;
-            s.selfpos_speed_mms   = (i == 42) ? 9.0 : 1.0;       /* one fast */
+            /* Ordinary noise of 20-40 mm/s, as a standing base shows
+             * from broadcast orbits, and three wild epochs at 900. Its
+             * median is 30, its mean 73.4 and its maximum 900 -- far
+             * enough apart that the check below can tell which one the
+             * report used. */
+            s.selfpos_speed_mms   = (i == 7 || i == 23 || i == 42)
+                                  ? 900.0 : 20.0 + (i % 21);
             sr_feed(&st, &s, 60.0 + i * 60.0);
         }
         sr_build(&st, &r);
@@ -455,8 +461,14 @@ int main(void)
               "and the scatter about it is free of that bias");
         check(fabs(r.sp_rms_worst - 3.5) < 1e-9,
               "the worst code residual is the worst, not the mean");
-        check(fabs(r.sp_speed_max_mms - 9.0) < 1e-9,
-              "and the fastest apparent motion is the fastest");
+        /* 30 mm/s, read at the centre of its 1 mm/s bin. Not 900, which
+         * the maximum reported and which three noisy epochs decided;
+         * not 73.4, which a mean would, dragged by the same three. */
+        printf("      median apparent motion: %.1f mm/s\n",
+               r.sp_speed_median_mms);
+        check(fabs(r.sp_speed_median_mms - 30.5) < 1e-9,
+              "the apparent motion is the median, which wild epochs cannot "
+              "move");
         /* No seventh row appeared: that is the decision, held in a test
          * so that adding one has to be deliberate. */
         check(SR_METRIC_COUNT == 6,
@@ -497,7 +509,7 @@ int main(void)
         sr_build(&st, &r);
 
         check(r.sp_samples == 60, "a position without a velocity still counts");
-        check(r.sp_speed_max_mms == NS_UNSET,
+        check(r.sp_speed_median_mms == NS_UNSET,
               "but a stream without rates reports no speed");
         check(fabs(r.sp_scatter_m) < 1e-9,
               "sixty identical epochs scatter by nothing at all");

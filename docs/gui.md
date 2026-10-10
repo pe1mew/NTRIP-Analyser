@@ -696,9 +696,21 @@ cloud can be measured rather than guessed at. The plot is **not
 self-centring** — the origin stays the position the station claims,
 because an offset that scrolled under its own middle would hide the one
 thing worth seeing. Up is in the figures beside it, with the mean
-offsets, the scatter, the worst code residual, the fastest apparent
+offsets, the scatter, the worst code residual, the **median** apparent
 motion, and the latest epoch's satellites, PDOP, code residual, rate
-residual and clock drift.
+residual and clock drift. The motion is a median rather than a maximum
+because a single epoch's velocity from broadcast orbits is noisy: a
+base on a pillar shows tens of mm/s epoch by epoch, and a maximum is
+decided by whichever epoch was noisiest.
+
+**Press S to save it.** As in the other chart windows, S saves a PNG with
+a timestamped name (`YYYYMMDDHHmmss_SelfPosition.png`). The image holds
+the plot *and* the figures beside it, and a JSON file of the same name
+is written next to it, carrying the numbers behind the picture: the
+window's report in the same format the monitoring service publishes,
+the latest epoch's snapshot, and every point on the plot as
+`[t, east, north, up]` in metres from the broadcast ARP. S works
+whether the plot or the figures list has the keyboard.
 
 **The solve is GPS only**, however many systems the station streams.
 Each constellation keeps its own time and its own hardware delay, so
@@ -776,6 +788,7 @@ means, and how well founded it is.
 | Sky Plot | `S` | Save as PNG |
 | Signal Quality | `Ctrl+S` or `S` | Save as PNG |
 | Session History | `Ctrl+S` or `S` | Save as PNG |
+| Self-position | `Ctrl+S` or `S` | Save as PNG, with a JSON of the numbers beside it |
 
 Snapshots are named `YYYYMMDDHHmmss_<view>.png`, so a folder of them sorts
 by capture time.

@@ -139,6 +139,7 @@
 #define WM_APP_CHECK_UPDATE     (WM_APP + 15)   /* station check advanced: repaint its window */
 #define WM_APP_REPORT_UPDATE    (WM_APP + 16)   /* stability report advanced: repaint its window */
 #define WM_APP_SELFPOS_UPDATE   (WM_APP + 17)   /* self-position epoch solved: repaint its window */
+#define WM_APP_SELFPOS_EXPORT   (WM_APP + 18)   /* S pressed: save the window and its data */
 
 /* ── Detail window ───────────────────────────────────────── */
 #define IDC_DETAIL_EDIT         1700

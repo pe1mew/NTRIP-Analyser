@@ -207,15 +207,23 @@ guessing.
 analyser solves the station's own position from the observations it
 streams, and reports the offset from the reference position the station
 advertises, the scatter about that offset, the worst code residual and
-the fastest apparent motion.
+the median apparent motion.
 
 ```
 Self-position (no threshold yet -- figures only), 3410 epoch(s) solved
     offset from reference   E +1.842  N -0.317  U +2.015 m
     scatter about that      0.934 m
     worst code residual     1.903 m RMS
-    fastest apparent motion 3.21 mm/s
+    median apparent motion  32.5 mm/s
 ```
+
+The motion is the **median** over the window, not the maximum. A
+velocity from broadcast orbits is noisy epoch by epoch: on bases bolted
+to pillars the maximum settled at 15–80 mm/s, set by whichever epoch
+happened to be noisiest, while the median sits steadily in the low tens
+of mm/s and a handful of wild epochs cannot move it. It is read from a
+histogram at 1 mm/s resolution, so it costs fixed memory however long
+the run.
 
 None of it is graded, deliberately: what counts as abnormal scatter for a
 station's own position is not yet known from evidence, and a threshold
@@ -235,6 +243,12 @@ Read the offset as an offset. Most of it is the dual-frequency code
 solution's own bias — metres of it — and it says nothing about the
 station. The *scatter* is the half that measures something, and the
 apparent motion is the figure that would reveal an antenna that moved.
+
+**Some receivers send the phase-range rate backwards** — every
+satellite the negative of what its orbit predicts. The solver works out
+which convention the station uses from the data itself, so the motion
+is right either way, and a reversed station is reported in the JSON as
+`selfpos_rate_sign: -1`.
 A station streaming one frequency cannot be solved at all; the line then
 reads `Self-position: nothing solved -- single-frequency station: not
 computable`, which is a statement about the stream rather than a fault.

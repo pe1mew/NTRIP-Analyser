@@ -323,11 +323,11 @@ void cli_report_print(const SrState *sr)
                r.sp_mean_enu[0], r.sp_mean_enu[1], r.sp_mean_enu[2]);
         printf("    scatter about that      %.3f m\n", r.sp_scatter_m);
         printf("    worst code residual     %.3f m RMS\n", r.sp_rms_worst);
-        if (r.sp_speed_max_mms != NS_UNSET)
-            printf("    fastest apparent motion %.2f mm/s\n",
-                   r.sp_speed_max_mms);
+        if (r.sp_speed_median_mms != NS_UNSET)
+            printf("    median apparent motion  %.1f mm/s\n",
+                   r.sp_speed_median_mms);
         else
-            printf("    fastest apparent motion --  (no phase-range rates "
+            printf("    median apparent motion  --  (no phase-range rates "
                    "in this stream)\n");
     } else {
         printf("\nSelf-position: nothing solved -- %s\n",

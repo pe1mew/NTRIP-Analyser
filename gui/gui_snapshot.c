@@ -74,20 +74,51 @@ void gui_snapshot_shutdown(void)
     }
 }
 
-BOOL save_window_as_png(HWND hwnd, const char *filename)
+/** @brief Encode @p hbm to @p filename as PNG.  Does not take @p hbm. */
+static BOOL save_hbitmap_as_png(HBITMAP hbm, const char *filename)
 {
-    if (!hwnd || !filename) return FALSE;
     if (!ensure_gdiplus()) return FALSE;
 
-    /* ── Capture the window's client area via BitBlt ────────────── */
+    /* ── Convert filename to UTF-16 for GDI+ ─────────────────────── */
+    WCHAR wfilename[1024];
+    int   wlen = MultiByteToWideChar(CP_ACP, 0, filename, -1,
+                                     wfilename,
+                                     (int)(sizeof(wfilename) / sizeof(WCHAR)));
+    if (wlen <= 0) return FALSE;
+
+    /* ── Wrap HBITMAP, save as PNG ──────────────────────────────── */
+    GpBitmap *bmp = NULL;
+    GpStatus  status = GdipCreateBitmapFromHBITMAP(hbm, NULL, &bmp);
+    if (status != GDIP_OK || !bmp) return FALSE;
+
+    status = GdipSaveImageToFile((GpImage *)bmp, wfilename,
+                                 &PNG_ENCODER_CLSID, NULL);
+    GdipDisposeImage((GpImage *)bmp);
+    return (status == GDIP_OK);
+}
+
+/**
+ * @brief Capture the client area of @p hwnd into a new bitmap.
+ *
+ * @param with_children Render the window -- child controls included --
+ *        with PrintWindow, rather than copying its pixels with BitBlt.
+ *        BitBlt reads what the window's own device context can see,
+ *        which on a window with WS_CLIPCHILDREN does not reliably
+ *        include its child controls, and nothing at all of a part that
+ *        is covered by another window. The painted chart windows have
+ *        no children and are content with it; one whose figures live in
+ *        a list control needs the rendering instead.
+ */
+static HBITMAP capture_client(HWND hwnd, BOOL with_children)
+{
     RECT rc;
-    if (!GetClientRect(hwnd, &rc)) return FALSE;
+    if (!GetClientRect(hwnd, &rc)) return NULL;
     int w = rc.right  - rc.left;
     int h = rc.bottom - rc.top;
-    if (w <= 0 || h <= 0) return FALSE;
+    if (w <= 0 || h <= 0) return NULL;
 
     HDC hdcSrc = GetDC(hwnd);
-    if (!hdcSrc) return FALSE;
+    if (!hdcSrc) return NULL;
 
     HDC     hdcMem = CreateCompatibleDC(hdcSrc);
     HBITMAP hbm    = CreateCompatibleBitmap(hdcSrc, w, h);
@@ -95,45 +126,43 @@ BOOL save_window_as_png(HWND hwnd, const char *filename)
         if (hbm)    DeleteObject(hbm);
         if (hdcMem) DeleteDC(hdcMem);
         ReleaseDC(hwnd, hdcSrc);
-        return FALSE;
+        return NULL;
     }
 
     HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbm);
-    BOOL    blt_ok = BitBlt(hdcMem, 0, 0, w, h, hdcSrc, 0, 0, SRCCOPY);
+    BOOL ok;
+    if (with_children) {
+        /* PW_CLIENTONLY | PW_RENDERFULLCONTENT, spelled out because
+         * older MinGW headers lack the second name. */
+        ok = PrintWindow(hwnd, hdcMem, 0x1 | 0x2);
+    } else {
+        ok = BitBlt(hdcMem, 0, 0, w, h, hdcSrc, 0, 0, SRCCOPY);
+    }
     SelectObject(hdcMem, hbmOld);
     DeleteDC(hdcMem);
     ReleaseDC(hwnd, hdcSrc);
 
-    if (!blt_ok) {
+    if (!ok) {
         DeleteObject(hbm);
-        return FALSE;
+        return NULL;
     }
+    return hbm;
+}
 
-    /* ── Convert filename to UTF-16 for GDI+ ─────────────────────── */
-    WCHAR wfilename[1024];
-    int   wlen = MultiByteToWideChar(CP_ACP, 0, filename, -1,
-                                     wfilename,
-                                     (int)(sizeof(wfilename) / sizeof(WCHAR)));
-    if (wlen <= 0) {
-        DeleteObject(hbm);
-        return FALSE;
-    }
-
-    /* ── Wrap HBITMAP, save as PNG ──────────────────────────────── */
-    GpBitmap *bmp = NULL;
-    GpStatus  status = GdipCreateBitmapFromHBITMAP(hbm, NULL, &bmp);
-    if (status != GDIP_OK || !bmp) {
-        DeleteObject(hbm);
-        return FALSE;
-    }
-
-    status = GdipSaveImageToFile((GpImage *)bmp, wfilename,
-                                 &PNG_ENCODER_CLSID, NULL);
-
-    GdipDisposeImage((GpImage *)bmp);
+static BOOL save_client_as_png(HWND hwnd, const char *filename,
+                               BOOL with_children)
+{
+    if (!hwnd || !filename) return FALSE;
+    HBITMAP hbm = capture_client(hwnd, with_children);
+    if (!hbm) return FALSE;
+    BOOL ok = save_hbitmap_as_png(hbm, filename);
     DeleteObject(hbm);
+    return ok;
+}
 
-    return (status == GDIP_OK);
+BOOL save_window_as_png(HWND hwnd, const char *filename)
+{
+    return save_client_as_png(hwnd, filename, FALSE);
 }
 
 /* ── Shared "save this window as PNG" flow ───────────────────────────────
@@ -146,6 +175,18 @@ BOOL SaveWindowPngWithPrompt(HWND hwnd, HWND hLog,
                              const char *suffix,
                              const char *logLabel)
 {
+    return SaveWindowPngWithPromptEx(hwnd, hLog, dialogTitle, suffix,
+                                     logLabel, FALSE, NULL, 0);
+}
+
+BOOL SaveWindowPngWithPromptEx(HWND hwnd, HWND hLog,
+                               const char *dialogTitle,
+                               const char *suffix,
+                               const char *logLabel,
+                               BOOL with_children,
+                               char *path_out, size_t path_cap)
+{
+    if (path_out && path_cap) path_out[0] = '\0';
     if (!hwnd) return FALSE;
 
     /* Default name "YYYYMMDDHHmmss_<suffix>.png" -- sorting by name then
@@ -174,7 +215,9 @@ BOOL SaveWindowPngWithPrompt(HWND hwnd, HWND hLog,
     if (!GetSaveFileNameA(&ofn))
         return FALSE;   /* user cancelled */
 
-    BOOL ok = save_window_as_png(hwnd, filename);
+    BOOL ok = save_client_as_png(hwnd, filename, with_children);
+    if (ok && path_out && path_cap)
+        snprintf(path_out, path_cap, "%s", filename);
 
     if (hLog) {
         char msg[MAX_PATH + 96];

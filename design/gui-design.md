@@ -998,7 +998,7 @@ be a deliberate act.
 | | |
 |---|---|
 | Plot | east/north about the broadcast reference, one dot per solved epoch, latest in orange, red cross at the run's centre, rings at round distances |
-| Figures | mean offset E/N/U, scatter about that mean, worst code residual, fastest apparent motion — over the report's window |
+| Figures | mean offset E/N/U, scatter about that mean, worst code residual, **median** apparent motion — over the report's window |
 | Latest epoch | satellites, PDOP, code residual, rate residual, receiver clock drift |
 | Nothing solved | the reason in `SppStatus`'s own words, never an empty frame |
 
@@ -1115,6 +1115,59 @@ state: the cloud's density, whether the ring labels sit clear of the
 dots, how a mean two metres off the reference looks when the scale
 jumps to the next step. That needs a station on the other end, and it
 is the step this section is waiting on.
+
+*Since done*, against RFSEE01 and APEL00NLD0: the window was driven
+with its own `WM_COMMAND` against both live streams and photographed
+with `PrintWindow` — solved state, scaled plot, legend, figures.
+
+### 16.7 Export: S
+
+**S** (and Ctrl+S, which the same key handler sees) saves the window as
+`YYYYMMDDHHmmss_SelfPosition.png` through the shared
+`SaveWindowPngWithPrompt` flow — the same default name, overwrite
+question and log line as every other chart window — and writes
+`YYYYMMDDHHmmss_SelfPosition.json` beside it.
+
+Two things differ from the other chart windows, both forced by this
+window's shape:
+
+- **The image is rendered, not copied.** The figures are a list
+  control, a child window, and the shared flow's `BitBlt` from the
+  window's own DC does not reliably contain children, nor anything a
+  covering window hides. `SaveWindowPngWithPromptEx(..., with_children
+  = TRUE, ...)` renders it with `PrintWindow(PW_CLIENTONLY |
+  PW_RENDERFULLCONTENT)` instead. The other windows still call the
+  plain function and are unchanged.
+- **S is honoured from the list as well**, through `LVN_KEYDOWN`. The
+  other chart windows have no child that takes the keyboard; this one
+  does, and once a row is clicked a keystroke never reaches the window
+  procedure. The export is *posted* rather than run in the key handler,
+  so the list's own type-ahead — which an S keystroke would use to
+  select "Scatter about the mean" — has finished, and the selection is
+  then cleared so no highlighted row lands in the picture.
+
+The companion carries the numbers behind the picture, through core's
+own serialisers rather than a format invented for an export:
+
+```json
+{"selfpos_export_version":1,
+ "image":"20261010120530_SelfPosition.png",
+ "caster":"rfsee.net","mountpoint":"RFSEE01",
+ "exported_local":"2026-10-10 12:05:33",
+ "points_frame":"metres east, north and up from the ARP ...",
+ "report":   { ...sr_to_json, as the daemon publishes it... },
+ "snapshot": { ...ns_stats_to_json, as Export Statistics writes it... },
+ "points":   [[0.0,-3.052,-3.334,-4.963], ...]}
+```
+
+Both serialisers are asked for their size first, so the file cannot be
+cut short by a buffer. The image is named by base name only, so the
+pair survives being moved together.
+
+*Verified* by driving it: a live RFSEE01 session, **S** posted to the
+window, the dialog accepted with its default name. The image held plot,
+legend and figures with no row highlighted, and the companion parsed,
+with every figure in it matching the image to the last digit.
 
 ---
 
