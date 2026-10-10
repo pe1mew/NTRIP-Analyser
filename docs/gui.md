@@ -708,6 +708,13 @@ where it is, with residuals of 2.6 km and an apparent motion of
 829 m/s. So the satellite count in the figures is the GPS count — eight
 to twelve typically — not everything the sky plot shows.
 
+**A row reading `Phase-range rate sign: REVERSED`** appears only when
+the station's receiver sends that field backwards — every satellite the
+negative of what its orbit predicts. The window works out which way
+round the rates are from the data itself, so the velocity is right
+either way; the row is there because the station is wrong, and every
+rover trusting those rates inherits it.
+
 **A single-frequency station cannot be solved at all**, and the window
 says so in the reason's own words — `single-frequency station: not
 computable` — rather than showing an empty frame. The dual-frequency

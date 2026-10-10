@@ -291,6 +291,14 @@ Supplementing CLAUDE.md's list with paths found during work:
   one clock unknown, an epoch destroyed by a split constellation, and
   the epoch dated on BeiDou time. Every one was found by connecting a
   real station; none was visible to 19 green tests.
+- **RFSEE01's receiver sends the phase-range rate with the sign
+  reversed** (2026-10-10) — every satellite the exact negative of what
+  its orbit predicts. The solver now fits both conventions and keeps
+  the one that fits; the snapshot reports `selfpos_rate_sign` −1 and
+  the window shows `REVERSED`. Five or more rates decide it; four
+  cannot, and claim nothing. **A field defined by a standard is still a
+  claim made by somebody's firmware** — where the data can say which way
+  round it is, ask the data.
 - **An observation epoch is complete when DF393 clears *or* when the
   next one demonstrably begins** — whichever comes first, compared
   **within one system** because the epoch fields are not comparable

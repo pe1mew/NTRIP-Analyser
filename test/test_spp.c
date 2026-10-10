@@ -342,6 +342,93 @@ static void case_static_reads_zero(void)
           "a steady clock reads %.6f m/s of drift", s.clock_drift_ms);
 }
 
+/**
+ * @brief A station that encodes its rates backwards is caught, not trusted.
+ *
+ * RFSEE01 does: every satellite's phase-range rate the exact negative of
+ * what its orbit predicts, to the millimetre per second, so a solver
+ * taking the field at its word reported a station on a pillar doing
+ * 1.4 km/s. The solver now fits both conventions and keeps the one that
+ * fits, and says which it was.
+ *
+ * Built with a real receiver clock drift -- 0.4 m/s, what that station
+ * shows -- because with a steady clock the reversed case would be a
+ * pure mirror and too easy.
+ */
+static void case_reversed_rates(void)
+{
+    double rx[3];
+    geodetic_to_ecef(52.0, 6.0, 50.0, &rx[0], &rx[1], &rx[2]);
+    const double still[3] = { 0.0, 0.0, 0.0 };
+
+    NsObsEpoch ep;
+    const int n = build_epoch_rates(&ep, rx, still, 0.4);
+    CHECK(n >= 5, "need five rates to tell the conventions apart, built %d", n);
+    if (n < 5) return;
+
+    /* Conformant first: the sign must be found to be +1. */
+    SppSolution s;
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &s) == SPP_OK, "conformant solve failed");
+    CHECK(s.rate_sign == 1, "rates as RTCM defines them are found +1, got %d",
+          s.rate_sign);
+
+    /* Now every rate reversed, as the station sends them. */
+    for (int i = 0; i < ep.n; i++)
+        if (ep.cell[i].flags & NS_OBS_HAS_RATE) ep.cell[i].rate_ms = -ep.cell[i].rate_ms;
+
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &s) == SPP_OK, "reversed solve failed");
+    if (s.status != SPP_OK || !s.has_velocity) return;
+    const double speed = sqrt(s.vel_ecef[0]*s.vel_ecef[0]
+                            + s.vel_ecef[1]*s.vel_ecef[1]
+                            + s.vel_ecef[2]*s.vel_ecef[2]);
+    printf("reversed: sign %d, %.4f mm/s, drift %.4f m/s, rms %.6f\n",
+           s.rate_sign, speed * 1000.0, s.clock_drift_ms, s.rate_rms_ms);
+
+    CHECK(s.rate_sign == -1, "reversed rates are found reversed, got %d",
+          s.rate_sign);
+    CHECK(speed < 0.001,
+          "and the still antenna still reads still: %.4f mm/s", speed * 1000.0);
+    /* The receiver negated its whole rate, clock term included, so
+     * undoing the negation restores the clock term too: the fit
+     * recovers the receiver's *true* drift. (The first version of this
+     * check expected it negated, and the solver was right.) */
+    CHECK(fabs(s.clock_drift_ms - 0.4) < 0.001,
+          "the true drift is recovered: %.4f m/s", s.clock_drift_ms);
+    CHECK(s.rate_rms_ms < 0.001,
+          "and the post-fit residual is what the fit leaves: %.6f m/s",
+          s.rate_rms_ms);
+}
+
+/** @brief Four rates fit either convention exactly, so nothing is claimed. */
+static void case_four_rates_undecided(void)
+{
+    double rx[3];
+    geodetic_to_ecef(52.0, 6.0, 50.0, &rx[0], &rx[1], &rx[2]);
+    const double still[3] = { 0.0, 0.0, 0.0 };
+
+    NsObsEpoch full;
+    if (build_epoch_rates(&full, rx, still, 0.0) < 5) return;
+
+    /* Keep the cells of the first four satellites only. */
+    NsObsEpoch ep;
+    ns_obs_reset(&ep, 0);
+    int kept[8] = {0}, nk = 0;
+    for (int i = 0; i < full.n; i++) {
+        const int prn = full.cell[i].prn;
+        int have = 0;
+        for (int k = 0; k < nk; k++) if (kept[k] == prn) have = 1;
+        if (!have && nk < 4) kept[nk++] = prn, have = 1;
+        if (have) ns_obs_add(&ep, &full.cell[i]);
+    }
+
+    SppSolution s;
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &s) == SPP_OK, "four-satellite solve failed");
+    /* Four equations, four unknowns: either sign fits exactly, and a
+     * claim either way would be invented. */
+    CHECK(s.rate_sign == 0, "with four rates the sign is undecided, got %d",
+          s.rate_sign);
+}
+
 /** @brief An antenna that *is* moving must be recovered, not flattened. */
 static void case_moving_is_seen(void)
 {
@@ -535,6 +622,8 @@ int main(void)
     case_converges_from_nothing();
     case_survives_a_bad_receiver_clock();
     case_static_reads_zero();
+    case_reversed_rates();
+    case_four_rates_undecided();
     case_moving_is_seen();
     case_no_rates_is_not_zero();
     case_refusals();

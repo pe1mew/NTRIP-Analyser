@@ -413,8 +413,11 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
      * sharper number of the two: its true value is known, and anything
      * else is either a moving antenna or a broken solve. */
     {
-        double Nv[4][4] = {{0}}, rhsv[4] = {0};
-        double vres[SPP_MAX_SATS];
+        /* Each usable rate as the fit needs it: the design row, the
+         * measured rate, and what a still receiver with a steady clock
+         * would have measured. Kept so the fit can be run twice. */
+        double rows[SPP_MAX_SATS][4];
+        double meas[SPP_MAX_SATS], model[SPP_MAX_SATS];
         int nv = 0;
 
         for (int i = 0; i < n; i++) {
@@ -437,47 +440,92 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
                                   + sats[i].vel[1] * u[1]
                                   + sats[i].vel[2] * u[2];
 
-            /* What the rate would be with the receiver still and its
-             * clock steady; the residual is what the unknowns explain. */
-            const double model = sat_rate - SPP_C * sats[i].clock_rate;
-            const double v     = sats[i].rate_ms - model;
-
-            const double g[4] = { -u[0], -u[1], -u[2], 1.0 };
-            for (int r = 0; r < 4; r++) {
-                for (int c = 0; c < 4; c++) Nv[r][c] += g[r] * g[c];
-                rhsv[r] += g[r] * v;
-            }
-            vres[nv] = v;
+            rows[nv][0] = -u[0];
+            rows[nv][1] = -u[1];
+            rows[nv][2] = -u[2];
+            rows[nv][3] = 1.0;
+            meas[nv]  = sats[i].rate_ms;
+            model[nv] = sat_rate - SPP_C * sats[i].clock_rate;
             nv++;
         }
 
+        /* Which way round the station encodes its rates.
+         *
+         * RTCM 10403.3 defines the phase-range rate as the rate of
+         * change of the phase range: positive while the satellite
+         * recedes. A receiver in service in the Netherlands in October
+         * 2026 encodes the opposite -- every satellite the exact
+         * negative of its orbit's prediction, to the millimetre per
+         * second -- and a solver taking the field at its word turned a
+         * station on a pillar into one doing 1.4 km/s.
+         *
+         * So the data decides. Both conventions are fitted and the one
+         * with the smaller post-fit residual is kept. It is not a close
+         * call: the right sign leaves centimetres per second, and the
+         * wrong one leaves hundreds of metres, because a reversed rate
+         * is not something any receiver velocity can explain. With
+         * exactly four rates both fit perfectly and nothing can be
+         * decided, so the standard sign is used and `rate_sign` says 0.
+         * Fewer than four is not a slow velocity but none, and
+         * `has_velocity` stays false so a report can say so. */
         if (nv >= 4) {
-            double vx[4];
-            if (solve4(Nv, rhsv, vx)) {
-                out->vel_ecef[0] = vx[0];
-                out->vel_ecef[1] = vx[1];
-                out->vel_ecef[2] = vx[2];
-                out->clock_drift_ms = vx[3];
-                out->n_rate_used = nv;
-                out->has_velocity = true;
+            double best_x[4] = { 0, 0, 0, 0 };
+            double best_rms = -1.0;
+            int    best_sign = 0;
 
-                double ss_v = 0.0;
-                for (int i = 0; i < nv; i++) {
-                    /* Post-fit: the solution explains part of each
-                     * residual, so recompute rather than reuse. */
-                    ss_v += vres[i] * vres[i];
+            for (int sign = 1; sign >= -1; sign -= 2) {
+                if (sign < 0 && nv < 5) break;     /* undecidable */
+
+                double Nv[4][4] = {{0}}, rhsv[4] = {0};
+                for (int k = 0; k < nv; k++) {
+                    const double v = sign * meas[k] - model[k];
+                    for (int r = 0; r < 4; r++) {
+                        for (int c = 0; c < 4; c++)
+                            Nv[r][c] += rows[k][r] * rows[k][c];
+                        rhsv[r] += rows[k][r] * v;
+                    }
                 }
-                out->rate_rms_ms = sqrt(ss_v / (double)nv);
+                double vx[4];
+                if (!solve4(Nv, rhsv, vx)) continue;
+
+                /* Post-fit, properly: what the solution leaves. The
+                 * first version summed the *pre*-fit residuals under a
+                 * comment saying it recomputed them, so the reported
+                 * RMS was the clock drift -- 0.03 m/s on one station
+                 * and 829.6 m/s on the other, tracking the drift to
+                 * the last decimal on both. */
+                double ss = 0.0;
+                for (int k = 0; k < nv; k++) {
+                    double fit = 0.0;
+                    for (int r = 0; r < 4; r++) fit += rows[k][r] * vx[r];
+                    const double res = (sign * meas[k] - model[k]) - fit;
+                    ss += res * res;
+                }
+                const double rms = sqrt(ss / (double)nv);
+                if (best_rms < 0.0 || rms < best_rms) {
+                    best_rms  = rms;
+                    best_sign = sign;
+                    for (int r = 0; r < 4; r++) best_x[r] = vx[r];
+                }
+            }
+
+            if (best_rms >= 0.0) {
+                out->vel_ecef[0]    = best_x[0];
+                out->vel_ecef[1]    = best_x[1];
+                out->vel_ecef[2]    = best_x[2];
+                out->clock_drift_ms = best_x[3];
+                out->rate_rms_ms    = best_rms;
+                out->n_rate_used    = nv;
+                out->has_velocity   = true;
+                out->rate_sign      = (nv >= 5) ? best_sign : 0;
 
                 double lat, lon, alt;
                 ecef_to_geodetic(x[0], x[1], x[2], 0.0, &lat, &lon, &alt);
-                ecef_to_enu(lat, lon, vx[0], vx[1], vx[2],
+                ecef_to_enu(lat, lon, best_x[0], best_x[1], best_x[2],
                             &out->vel_enu[0], &out->vel_enu[1],
                             &out->vel_enu[2]);
             }
         }
-        /* Fewer than four rates is not a slow velocity, it is none, and
-         * `has_velocity` stays false so a report can say so. */
     }
 
     out->status = SPP_OK;

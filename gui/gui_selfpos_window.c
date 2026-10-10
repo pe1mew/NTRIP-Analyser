@@ -342,6 +342,18 @@ static void RefreshRows(HWND hwnd, AppState *state)
             snprintf(v, sizeof(v), "%+.4f m/s", s->selfpos_drift_ms);
             SetRow(hLv, row++, "Latest epoch: clock drift", v,
                    "the receiver's own clock, solved beside the velocity");
+
+            /* Shown only when it is news. A station encoding its rates
+             * the way RTCM defines them is the expected case and earns
+             * no row; one encoding them reversed is a fault in the
+             * station's receiver that any rover trusting those rates
+             * inherits, and it is corrected here only for this
+             * window's own velocity. */
+            if (s->selfpos_rate_sign < 0)
+                /* Within SP_WIDEST_NOTE, which the column is measured
+                 * from -- a longer note would be cut to an ellipsis. */
+                SetRow(hLv, row++, "Phase-range rate sign", "REVERSED",
+                       "its receiver encodes it backwards");
         }
     }
 

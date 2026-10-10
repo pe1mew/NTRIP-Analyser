@@ -600,6 +600,64 @@ stay `SPP_NO_EPOCH`. Twenty tests now.
 from `no observations in this epoch` to **`observations without
 orbits`** — the solve now runs and says what it lacks.
 
+### P4 — a station that encodes its rates backwards  *(found 2026-10-10, on a live station)*
+
+With the epoch rule settled, RFSEE01 solved its position cleanly —
+scatter 0.87 m, code residual 1.2 m — and reported its **velocity** as
+**1 666 m/s**, rate residual 830 m/s, clock drift 932 m/s. APEL00NLD0,
+same code, same orbits, read 0.03–0.18 m/s.
+
+The decoder was cleared first: within each satellite every signal's
+rate agreed to centimetres per second on both stations. Then the
+measured rate against what the orbit predicts for a still receiver:
+
+| PRN | RFSEE01 measured | predicted | APEL00NLD0 measured |
+|---|---|---|---|
+| 4 | −559.924 | +560.328 | +560.440 |
+| 5 | +695.750 | −695.326 | −695.329 |
+| 21 | +483.516 | −483.111 | −483.001 |
+
+**RFSEE01's receiver encodes the phase-range rate with the sign
+reversed** — every satellite the exact negative of its orbit's
+prediction. RTCM 10403.3 defines it as the rate of change of the phase
+range, positive while the range grows; this receiver behaves as if it
+were writing Doppler, which is positive while the range shrinks. A
+solver taking the field at its word has nothing to fit but a 1.4 km/s
+antenna.
+
+*Resilient rather than configured.* The solver fits both conventions
+and keeps the one that fits. It is never a close call — the right sign
+leaves centimetres per second, the wrong one hundreds of metres,
+because a reversed rate is not something any receiver velocity can
+explain. With exactly four rates both fit perfectly, so nothing is
+claimed (`rate_sign` 0) and the standard sign is used. The finding is
+**reported, not hidden**: `SppSolution::rate_sign`, the snapshot's
+`selfpos_rate_sign` in JSON and CSV, and a `REVERSED` row in the window.
+A rover trusting this station's rates is being misled by them, and
+that is the operator's to know.
+
+*And the residual had been lying too.* The rate RMS summed the
+**pre**-fit residuals under a comment saying it recomputed them
+post-fit, so it reported the clock drift: 0.03 m/s on one station,
+829.6 m/s on the other, tracking the drift to the last decimal on both.
+Now genuinely post-fit, which is also what makes the sign choice sound.
+
+*Verified:* RFSEE01 end to end through a real session with real orbits
+— speed **1 412 908 → 26–38 mm/s**, rate residual **829.6 → 0.009–0.016
+m/s**, drift **−0.4 m/s**, a normal free-running oscillator. In
+`test_spp.c`: `case_reversed_rates` builds rates with a 0.4 m/s drift
+and demands +1 for the conformant set, −1 for the reversed one, a still
+antenna and the *true* drift either way, and a post-fit residual under
+a millimetre per second; `case_four_rates_undecided` demands 0. Never
+trying the reversed sign reproduces the live symptom exactly —
+2 396 220 mm/s, drift 1465 m/s — and summing pre-fit residuals reddens
+the post-fit check with 0.4000 m/s.
+
+One correction to the test, not the code: the first version expected
+the drift to come back **negated**. The solver was right — undoing the
+receiver's negation restores the clock term with it, so the fit
+recovers the true drift.
+
 ### P1 — one rule for when an epoch is complete  *(2026-10-10)*
 
 Three live stations in two days broke three different assumptions about

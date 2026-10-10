@@ -88,6 +88,25 @@ typedef struct {
     double    clock_drift_ms;/**< receiver clock drift, metres per second */
     double    rate_rms_ms;   /**< RMS of the post-fit rate residuals */
     int       n_rate_used;   /**< satellites carrying a usable rate */
+    /**
+     * The sign convention the station's phase-range rates were found to
+     * use: +1 as RTCM 10403.3 defines them (positive while the range
+     * grows), −1 reversed, 0 when it could not be decided.
+     *
+     * Decided from the data, not assumed, because a receiver in service
+     * in the Netherlands in October 2026 encodes them reversed: every
+     * satellite the exact negative of what its orbit predicts, which a
+     * solver taking the field at its word turned into an antenna doing
+     * 1.4 km/s. Both conventions are fitted and the one that fits is
+     * kept; with five or more satellites the right one leaves
+     * centimetres per second and the wrong one hundreds of metres.
+     * With exactly four both fit perfectly, so it is 0 and the standard
+     * sign is used.
+     *
+     * −1 is a finding about the station, not a correction to hide: a
+     * rover that trusts these rates is being misled by them.
+     */
+    int       rate_sign;
 } SppSolution;
 
 /** Satellites below this are more troposphere than signal. */

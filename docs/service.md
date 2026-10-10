@@ -48,6 +48,15 @@ coordinates. The same keys are appended to the CSV row, where an
 unsolved epoch writes empty cells: a spreadsheet plots a blank as a gap
 and a zero as a reading.
 
+**`selfpos_rate_sign` is worth an alert of its own.** It is `1` when
+the station's phase-range rates follow RTCM 10403.3, `0` when it could
+not be decided (four satellites or fewer with rates, or no velocity),
+and **`-1` when the station's receiver encodes them reversed** — every
+satellite the negative of what its orbit predicts. The velocity shown
+is corrected for it, but the station is still sending a reversed field
+to every rover that trusts it. At least one receiver in service does
+this.
+
 ### The two documents answer different questions
 
 The snapshot says what is true **now** — bytes a second, satellites this

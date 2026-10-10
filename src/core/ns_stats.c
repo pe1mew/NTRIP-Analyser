@@ -449,6 +449,12 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_str(&o, ",");
     out_key(&o, "selfpos_rate_rms_ms");
     out_json_num(&o, spv ? s->selfpos_rate_rms_ms : NS_UNSET, 4);
+    /* +1 conformant, -1 reversed -- a finding about the station's
+     * receiver, worth a monitoring alert of its own -- and 0 when it
+     * could not be decided or there is no velocity at all. */
+    out_str(&o, ",");
+    out_key(&o, "selfpos_rate_sign");
+    out_fmt(&o, "%d", spv ? s->selfpos_rate_sign : 0);
 
     out_ch(&o, '}');
     return (int)o.len;
@@ -471,7 +477,8 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     "iono_slips,stream_time_s,failure,failure_detail," \
     "selfpos_status,selfpos_e_m,selfpos_n_m,selfpos_u_m," \
     "selfpos_code_rms_m,selfpos_pdop,selfpos_sats," \
-    "selfpos_speed_mms,selfpos_drift_ms,selfpos_rate_rms_ms"
+    "selfpos_speed_mms,selfpos_drift_ms,selfpos_rate_rms_ms," \
+    "selfpos_rate_sign"
 
 int ns_stats_csv_header(char *out, size_t cap)
 {
@@ -588,6 +595,8 @@ int ns_stats_to_csv_row(const NsStatsSnapshot *s, char *out, size_t cap)
     out_csv_num(&o, spv ? s->selfpos_drift_ms : NS_UNSET, 4);
     out_ch(&o, ',');
     out_csv_num(&o, spv ? s->selfpos_rate_rms_ms : NS_UNSET, 4);
+    out_ch(&o, ',');
+    out_fmt(&o, "%d", spv ? s->selfpos_rate_sign : 0);
 
     return (int)o.len;
 }

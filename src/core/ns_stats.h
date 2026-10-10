@@ -264,6 +264,12 @@ typedef struct {
                                    *   m/s -- what the *velocity* was
                                    *   measured to, which the code
                                    *   residual above does not say       */
+    int      selfpos_rate_sign;   /**< +1 the station's phase-range rates
+                                   *   follow RTCM 10403.3, −1 they are
+                                   *   **reversed** -- a non-conformant
+                                   *   receiver, found from the data and
+                                   *   corrected for the velocity -- and
+                                   *   0 when it could not be decided    */
 
     /* ── Stream clock ─────────────────────────────────────────────────
      * How much stream has been observed, as the *data* measures it:

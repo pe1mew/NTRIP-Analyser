@@ -665,6 +665,7 @@ static void selfpos_solve(NtripSession *s)
         s->stats.selfpos_speed_mms   = NS_UNSET;
         s->stats.selfpos_drift_ms    = NS_UNSET;
         s->stats.selfpos_rate_rms_ms = NS_UNSET;
+        s->stats.selfpos_rate_sign   = 0;
         return;
     }
 
@@ -681,10 +682,12 @@ static void selfpos_solve(NtripSession *s)
         s->stats.selfpos_speed_mms   = sp * 1000.0;
         s->stats.selfpos_drift_ms    = sol.clock_drift_ms;
         s->stats.selfpos_rate_rms_ms = sol.rate_rms_ms;
+        s->stats.selfpos_rate_sign   = sol.rate_sign;
     } else {
         s->stats.selfpos_speed_mms   = NS_UNSET;
         s->stats.selfpos_drift_ms    = NS_UNSET;
         s->stats.selfpos_rate_rms_ms = NS_UNSET;
+        s->stats.selfpos_rate_sign   = 0;
     }
 }
 
