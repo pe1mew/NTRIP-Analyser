@@ -982,10 +982,52 @@ with a loaded thresholds policy, the GUI said *not solved* on a
 different clock than the report judged by. `test_station_report`
 case 16 pins all four states, including the policy case.
 
+**Verified on hardware, 2026-10-12.** Pro's dev build (`….pro.dev`,
+installed beside the Play app) ran on a Huawei SNE-LX1 (Android 10)
+watching RFSEE01, beside the GUI on the same station. Both were
+captured in the same second, at 19:48:48:
+
+| | Phone | GUI |
+|---|---|---|
+| Window | 2440 epochs, run since ≈19:07 | 1845 epochs, 2009 s, since ≈19:15 |
+| Mean offset E / N / U | +0.97 / +1.69 / −3.46 m | +1.072 / +1.978 / −3.680 m |
+| Scatter | 2.939 m | 2.990 m |
+| Worst code residual | 3.702 m | 3.408 m |
+| Median apparent motion | 30.5 mm/s | 32.5 mm/s |
+| Latest epoch | 9 sats, PDOP 1.6, 2.08 m | 9 sats, PDOP 1.5, 2.084 m |
+| Rates | REVERSED | REVERSED |
+
+- **The latest epoch is the same solve on the same data.**
+- **Every window difference is the phone's eight extra minutes.**
+  The worst residual proves it: the phone showed 3.702 m at 19:14,
+  in an earlier screenshot, before the GUI's window existed.
+- **PDOP 1.6 against 1.5** is rounding at 1.55: Java rounds the
+  decimal half up, C the binary value.
+
+The Watch also ran 38 minutes with the screen off and the phone locked,
+with *0 drops*.
+
+**Changed after the first look (author, 2026-10-12):**
+- **The layout.** Fourteen lines of text first left the plot a dot.
+  The figures became a compact table, and the "ARP" label moved above
+  the axis, off the ring label.
+- **The view moved:** from a hub card and detail screen to **the last
+  analysis tab, after C/N0 vs elevation**, with no hub card. The plot
+  is square at the full screen width, the page scrolls when short, and
+  the legend draws each mark with the very function the plot uses.
+  `SelfPosPanel` stays in pro's registry, drawing nothing, to keep its
+  section in the shared report.
+- **The second look**, on the Huawei: four tabs broke their titles
+  mid-word, so pro's row scrolls (free keeps its fixed three); a trail
+  point sat inside "2.50 m", so the ring labels and "ARP" are drawn on
+  a patch of the page over the trail, with the mean and the latest
+  epoch still on top; the state line is in the body font, not
+  monospace; and the dev builds' names were shortened to
+  "NTRIP Pro (dev)" / "NTRIP (dev)" because the full name wrapped the
+  app bar. Checked on screen at 20:18: one-line tab titles, one-line
+  app bar, labels clear.
+
 **Still to do:**
-- **On hardware:** pro on the S23 against RFSEE01, side by side with
-  the GUI over the same window; the figures must agree as the GUI and
-  daemon did (scatter 2.17 vs 2.18 m).
 - **CPU and battery:** over a Watch run of hours with the screen off,
   since the solve runs every epoch and that has not been measured on a
   phone.

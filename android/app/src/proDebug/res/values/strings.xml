@@ -6,5 +6,7 @@
   and a store screenshot is never taken from one (tools/make_store_shots.py).
 -->
 <resources>
-    <string name="app_name">NTRIP Analyser Pro (dev)</string>
+    <!-- Short: the full name and "(dev)" wrapped to two lines in the
+         app bar on the Huawei (2026-10-12). -->
+    <string name="app_name">NTRIP Pro (dev)</string>
 </resources>

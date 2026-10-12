@@ -1,17 +1,19 @@
 /**
  * @file AnalysisScreen.kt
- * @brief The three live views.
+ * @brief The live views: three in both editions, a fourth in pro.
  *
  * A destination of its own (GUI v2, P1.4), taking what it draws as
- * parameters rather than reaching into the shell's state: same three
- * tabs in the same order, same pager.
+ * parameters rather than reaching into the shell's state: the same
+ * tabs in the same order, the same pager.
  *
  * Reached by the Analysis button and left by Back -- the swipe that used
  * to do both was removed in P1.7, so every move in this app is a control
  * and every way back is Back.
  *
- * No tab is added here in phase 1, and none in phase 2 either --
- * satellite tracks are drawn inside the sky canvas, not beside it.
+ * No tab was added in phase 1 or phase 2 -- satellite tracks are drawn
+ * inside the sky canvas, not beside it. Self-position (P7) is the first:
+ * a fourth tab, last, pro's only, on the author's direction (2026-10-12),
+ * where a view of a station's behaviour over the run belongs.
  *
  * Project: NTRIP-Analyser
  * Author: Remko Welling, PE1MEW
@@ -33,6 +35,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -101,27 +104,24 @@ fun AnalysisScreen(
     }.orEmpty()
 
     // One page per view, so a swipe moves between them with the
-    // content following the finger rather than cutting.
-    val pagerState = rememberPagerState(initialPage = tab.ordinal) {
-        AnalysisTab.entries.size
-    }
+    // content following the finger rather than cutting. The edition's
+    // own list: pro has a fourth, Self-position (P7).
+    val tabs = analysisTabs
+    val current = tabs.indexOf(tab).coerceAtLeast(0)
+    val pagerState = rememberPagerState(initialPage = current) { tabs.size }
     // Kept in step both ways: the tab row still selects a page, and
     // a swipe still moves the selected tab.
     LaunchedEffect(tab) {
-        if (pagerState.currentPage != tab.ordinal)
-            pagerState.animateScrollToPage(tab.ordinal)
+        if (pagerState.currentPage != current)
+            pagerState.animateScrollToPage(current)
     }
     LaunchedEffect(pagerState.currentPage) {
-        onTab(AnalysisTab.entries[pagerState.currentPage])
+        onTab(tabs[pagerState.currentPage])
     }
 
-    // Which of the three is on screen, named once: the share caption
-    // says it, and P3.1 will put it in the tab row's explainer band.
-    val viewName = stringResource(when (tab) {
-        AnalysisTab.SKY -> R.string.view_sky
-        AnalysisTab.SIGNAL -> R.string.view_bars
-        AnalysisTab.ELEVATION -> R.string.view_elev
-    })
+    // Which view is on screen, named once: the share caption says it,
+    // and P3.1 will put it in the tab row's explainer band.
+    val viewName = stringResource(tabTitle(tab))
 
     AppScaffold(
         onBack = onLeave,
@@ -148,21 +148,24 @@ fun AnalysisScreen(
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
 
-            TabRow(selectedTabIndex = tab.ordinal) {
-                AnalysisTab.entries.forEach { t ->
+            // Three tabs share the width; pro's four do not fit it --
+            // "C/N0 vs elevatio-n" and "Self-posi-tion" broke mid-word
+            // on the Huawei (2026-10-12) -- so four scroll, each as wide
+            // as its own title. Free keeps the row it always had.
+            val tabItems = @Composable {
+                tabs.forEach { t ->
                     Tab(
                         selected = tab == t,
                         onClick = { onTab(t) },
-                        text = {
-                            Text(stringResource(when (t) {
-                                AnalysisTab.SKY -> R.string.view_sky
-                                AnalysisTab.SIGNAL -> R.string.view_bars
-                                AnalysisTab.ELEVATION -> R.string.view_elev
-                            }))
-                        },
+                        text = { Text(stringResource(tabTitle(t)), maxLines = 1) },
                     )
                 }
             }
+            if (tabs.size > 3)
+                ScrollableTabRow(selectedTabIndex = current, edgePadding = 0.dp,
+                                 tabs = tabItems)
+            else
+                TabRow(selectedTabIndex = current, tabs = tabItems)
 
             // Under the tabs, not above them: the template's second band
             // is the selector, and everything after it belongs to the
@@ -220,7 +223,7 @@ fun AnalysisScreen(
                     }
             ) {
                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                  when (AnalysisTab.entries[page]) {
+                  when (tabs[page]) {
                     AnalysisTab.SKY -> SkyView(
                         sats = plotted,
                         missing = ((doc?.sats?.size ?: 0) - plotted.size)
@@ -236,9 +239,19 @@ fun AnalysisScreen(
                         SignalBars(signal, liveValues = running)
                     AnalysisTab.ELEVATION ->
                         ElevationView(elevSamples, elevRevision)
+                    AnalysisTab.SELFPOS ->
+                        SelfPosView(doc)
                   }
                 }
             }
         }
     }
+}
+
+/** A tab's name, for the tab row and the share caption alike. */
+private fun tabTitle(t: AnalysisTab): Int = when (t) {
+    AnalysisTab.SKY -> R.string.view_sky
+    AnalysisTab.SIGNAL -> R.string.view_bars
+    AnalysisTab.ELEVATION -> R.string.view_elev
+    AnalysisTab.SELFPOS -> R.string.view_selfpos
 }

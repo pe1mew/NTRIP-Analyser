@@ -10,6 +10,11 @@
  * what can be said yet (`selfpos_state`, report schema 4). This file
  * draws them, and keeps the run's points for the plot.
  *
+ * **Where it lives** (author, 2026-10-12): the last tab of the analysis
+ * view, after C/N0 vs elevation, and not on the hub. [SelfPosPanel]
+ * stays in pro's registry only to put its section in the shared report,
+ * which is assembled from the registry.
+ *
  * The rules are the desktop's (`gui/gui_selfpos_window.c`,
  * `design/gui-design.md` §16), kept so a screenshot of one means what a
  * screenshot of the other means: the broadcast position at the centre
@@ -19,8 +24,12 @@
  * **no verdict** -- no threshold for a station's own scatter has been
  * established from evidence.
  *
- * Pro's registry only ([Features.HAS_SELFPOS]); free shows less, never
- * different.
+ * Verified against the GUI on RFSEE01, 2026-10-12, both captured in the
+ * same second: the same latest epoch (9 satellites, residual 2.08 m),
+ * and every window figure within what eight extra minutes in the
+ * phone's run explain.
+ *
+ * Pro only ([Features.HAS_SELFPOS]); free shows less, never different.
  *
  * Project: NTRIP-Analyser
  * Author: Remko Welling, PE1MEW
@@ -33,25 +42,31 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 import kotlin.math.floor
@@ -157,31 +172,19 @@ internal const val SPP_DIVERGED = 5
 private fun signedM(v: Double) = String.format(Locale.US, "%+.3f m", v)
 
 /**
- * The hub's self-position panel: a card, and a screen with the plot.
+ * Self-position's part of the shared report, and nothing else.
+ *
+ * The view itself is an analysis tab ([SelfPosView]); the hub card it
+ * first had was removed on the author's direction (2026-10-12). The
+ * panel stays in pro's registry because the report is assembled from
+ * the registry -- a panel that draws nothing and contributes a section,
+ * which the contract allows.
  */
 object SelfPosPanel : Panel {
     override val key = "selfpos"
 
-    override fun destination(): Dest = Dest.Detail(key)
-
-    /** The mark only over a card that is actually drawn. */
-    override fun affordance(state: HubState): Affordance =
-        if (state.doc?.sr != null) Affordance.FORWARD else Affordance.NONE
-
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        val sr = state.doc?.sr ?: return
-        SelfPosCard(sr)
-    }
-
-    @Composable
-    override fun detailTitle(): String = stringResource(R.string.sp_title)
-
-    @Composable
-    override fun Detail(state: HubState, actions: HubActions) {
-        val doc = state.doc ?: return
-        val sr = doc.sr ?: return
-        SelfPosDetail(sr, doc.stats, state.settings.mountpoint)
     }
 
     override fun shareSection(state: HubState): ShareSection? {
@@ -207,167 +210,175 @@ object SelfPosPanel : Panel {
     }
 }
 
-/** The card: what can be said, and the window's figures when solved. */
-@Composable
-private fun SelfPosCard(sr: SrDoc) {
-    val faint = MaterialTheme.colorScheme.onSurfaceVariant
-    val st = spState(sr)
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Text(stringResource(R.string.sp_title), fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                stringResource(
-                    when (st) {
-                        SpState.SOLVED -> R.string.sp_state_solved
-                        SpState.NOT_COMPUTABLE -> R.string.sp_state_not_computable
-                        SpState.NOT_SOLVED -> R.string.sp_state_not_solved
-                        SpState.GATHERING -> R.string.sp_state_gathering
-                    }),
-                fontWeight = FontWeight.Medium,
-                fontFamily = FontFamily.Monospace,
-            )
-            if (st == SpState.SOLVED) {
-                val e = sr.selfposMeanE
-                val n = sr.selfposMeanN
-                val u = sr.selfposMeanU
-                if (e != null && n != null && u != null)
-                    Text(stringResource(R.string.sp_offset_line,
-                                        signedM(e), signedM(n), signedM(u)),
-                         style = MaterialTheme.typography.bodySmall)
-                sr.selfposScatter?.let {
-                    Text(stringResource(R.string.sp_scatter_line,
-                                        String.format(Locale.US, "%.3f m", it)),
-                         style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Text(
-                spWhy(st, sr.selfposStatus),
-                style = MaterialTheme.typography.bodySmall,
-                color = faint,
-            )
-        }
-    }
-}
-
 /* The desktop's colours (gui_selfpos_window.c), kept so screenshots agree. */
 private val SP_DOT      = Color(0xFF466EC8)   // the run
 private val SP_DOT_LAST = Color(0xFFDC8214)   // the epoch just solved
 private val SP_MEAN     = Color(0xFFC82828)   // where the run centres
 private val SP_ARP      = Color(0xFF5A5A6E)   // the broadcast reference
 
+/** What the plot draws, so the legend can draw the very same mark. */
+private enum class SpMark { EPOCH, LATEST, MEAN, ARP }
+
+/** One mark at [c], scaled to [unit] px: shared by plot and legend. */
+private fun DrawScope.spMark(mark: SpMark, c: Offset, unit: Float) {
+    when (mark) {
+        SpMark.EPOCH  -> drawCircle(SP_DOT, 2.5f * unit, c)
+        SpMark.LATEST -> drawCircle(SP_DOT_LAST, 6f * unit, c)
+        SpMark.MEAN -> {
+            drawLine(SP_MEAN, Offset(c.x - 12f * unit, c.y), Offset(c.x + 12f * unit, c.y), 4f * unit)
+            drawLine(SP_MEAN, Offset(c.x, c.y - 12f * unit), Offset(c.x, c.y + 12f * unit), 4f * unit)
+        }
+        SpMark.ARP -> {
+            drawLine(SP_ARP, Offset(c.x - 9f * unit, c.y), Offset(c.x + 9f * unit, c.y), 3f * unit)
+            drawLine(SP_ARP, Offset(c.x, c.y - 9f * unit), Offset(c.x, c.y + 9f * unit), 3f * unit)
+        }
+    }
+}
+
 /**
- * The detail: the analysis screens' template, with the figures above the
- * plot and the latest epoch below it.
+ * The analysis tab: state and figures, the plot at the full width of
+ * the screen, the latest epoch, and the legend.
+ *
+ * Its own scroll rather than the analysis template's weighted plot. A
+ * circle needs as much height as width, and the template hands the plot
+ * whatever the words leave: fourteen lines of them left a dot, and a
+ * compact page still left a circle narrower than the screen. Here the
+ * plot is square at full width, always, and the page scrolls when the
+ * screen is short -- which on a 1080x2340 phone it does not.
  */
 @Composable
-private fun SelfPosDetail(sr: SrDoc, stats: Stats, mountpoint: String) {
+internal fun SelfPosView(doc: BridgeDocument?) {
     val trail = MonitorService.selfPos
     // Read so a point recorded between documents still redraws us; the
     // 1 Hz document is the usual trigger.
     @Suppress("UNUSED_EXPRESSION") trail.revision
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
-    val st = spState(sr)
+    val pad = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+    val sr = doc?.sr
+    val stats = doc?.stats
 
-    AnalysisBands(
-        explainer = stringResource(R.string.sp_explainer),
-        summary = {
-            val pad = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-            Text(
-                stringResource(
-                    when (st) {
-                        SpState.SOLVED -> R.string.sp_state_solved
-                        SpState.NOT_COMPUTABLE -> R.string.sp_state_not_computable
-                        SpState.NOT_SOLVED -> R.string.sp_state_not_solved
-                        SpState.GATHERING -> R.string.sp_state_gathering
-                    }),
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                modifier = pad,
-            )
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Text(stringResource(R.string.sp_explainer),
+             style = MaterialTheme.typography.bodySmall, color = faint,
+             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+        if (sr == null) {
+            Text(stringResource(R.string.sp_no_run),
+                 style = MaterialTheme.typography.bodyMedium, modifier = pad)
+            return@Column
+        }
+
+        val st = spState(sr)
+        Text(
+            stringResource(
+                when (st) {
+                    SpState.SOLVED -> R.string.sp_state_solved
+                    SpState.NOT_COMPUTABLE -> R.string.sp_state_not_computable
+                    SpState.NOT_SOLVED -> R.string.sp_state_not_solved
+                    SpState.GATHERING -> R.string.sp_state_gathering
+                }),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = pad,
+        )
+        if (st != SpState.SOLVED) {
             Text(spWhy(st, sr.selfposStatus),
                  style = MaterialTheme.typography.bodySmall, color = faint,
                  modifier = pad)
-            if (st == SpState.SOLVED) {
-                val e = sr.selfposMeanE
-                val n = sr.selfposMeanN
-                val u = sr.selfposMeanU
-                Text(stringResource(R.string.sp_epochs_line, sr.selfposSamples, sr.samples),
-                     style = MaterialTheme.typography.bodySmall, modifier = pad)
+        } else {
+            val e = sr.selfposMeanE
+            val n = sr.selfposMeanN
+            val u = sr.selfposMeanU
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
+                SpFigure(stringResource(R.string.sp_f_epochs),
+                         stringResource(R.string.sp_v_of, sr.selfposSamples, sr.samples))
                 if (e != null && n != null && u != null)
-                    Text(stringResource(R.string.sp_offset_line,
-                                        signedM(e), signedM(n), signedM(u)),
-                         style = MaterialTheme.typography.bodySmall, modifier = pad)
-                Text(stringResource(R.string.sp_offset_note),
-                     style = MaterialTheme.typography.bodySmall, color = faint,
-                     modifier = pad)
+                    SpFigure(stringResource(R.string.sp_f_offset),
+                             String.format(Locale.US, "%+.2f %+.2f %+.2f m", e, n, u))
                 sr.selfposScatter?.let {
-                    Text(stringResource(R.string.sp_scatter_line,
-                                        String.format(Locale.US, "%.3f m", it)),
-                         style = MaterialTheme.typography.bodySmall, modifier = pad)
+                    SpFigure(stringResource(R.string.sp_f_scatter),
+                             String.format(Locale.US, "%.3f m", it))
                 }
                 sr.selfposRmsWorst?.let {
-                    Text(stringResource(R.string.sp_rms_line,
-                                        String.format(Locale.US, "%.3f m", it)),
-                         style = MaterialTheme.typography.bodySmall, modifier = pad)
+                    SpFigure(stringResource(R.string.sp_f_rms),
+                             String.format(Locale.US, "%.3f m", it))
                 }
-                Text(
-                    sr.selfposSpeedMedian?.let {
-                        stringResource(R.string.sp_motion_line,
-                                       String.format(Locale.US, "%.1f mm/s", it))
-                    } ?: stringResource(R.string.sp_motion_none),
-                    style = MaterialTheme.typography.bodySmall, modifier = pad,
-                )
+                SpFigure(stringResource(R.string.sp_f_motion),
+                         sr.selfposSpeedMedian?.let {
+                             String.format(Locale.US, "%.1f mm/s", it)
+                         } ?: stringResource(R.string.sp_v_no_rates))
             }
-        },
-        plot = { m -> SelfPosPlot(trail.points(), Modifier.then(m).padding(12.dp)) },
-        footer = {
-            // The latest epoch: a diagnostic, labelled as one -- one
-            // epoch is never the measurement.
-            val pad = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-            if (stats.selfposStatus == SPP_OK && stats.selfposSats > 0) {
-                Text(
-                    stringResource(
-                        R.string.sp_latest_line, stats.selfposSats,
-                        String.format(Locale.US, "%.1f", stats.selfposPdop ?: 0.0),
-                        String.format(Locale.US, "%.3f m", stats.selfposCodeRms ?: 0.0)),
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = faint, modifier = pad,
-                )
-                // Shown only when it is news: a station whose receiver
-                // encodes its rates backwards, which a rover trusting
-                // them inherits (RFSEE01, 2026-10-10).
-                if (stats.selfposRateSign < 0)
-                    Text(stringResource(R.string.sp_reversed),
-                         style = MaterialTheme.typography.bodySmall,
-                         color = MaterialTheme.colorScheme.error, modifier = pad)
-            }
-            Text(stringResource(R.string.sp_footer, mountpoint),
-                 style = MaterialTheme.typography.bodySmall,
-                 fontFamily = FontFamily.Monospace, color = faint,
-                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-        },
-        legend = {
-            Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SpLegend(SP_DOT, stringResource(R.string.sp_legend_epochs))
-                SpLegend(SP_DOT_LAST, stringResource(R.string.sp_legend_latest))
-                SpLegend(SP_MEAN, stringResource(R.string.sp_legend_mean))
-                SpLegend(SP_ARP, stringResource(R.string.sp_legend_arp))
-            }
-        },
-    )
+        }
+
+        // Square, at the full width of the screen.
+        SelfPosPlot(trail.points(), Modifier.fillMaxWidth().aspectRatio(1f))
+
+        // The latest epoch: a diagnostic, labelled as one -- one epoch
+        // is never the measurement. One line with the station.
+        if (stats != null) {
+            val latest = if (stats.selfposStatus == SPP_OK && stats.selfposSats > 0)
+                stringResource(
+                    R.string.sp_latest_line, stats.selfposSats,
+                    String.format(Locale.US, "%.1f", stats.selfposPdop ?: 0.0),
+                    String.format(Locale.US, "%.2f m", stats.selfposCodeRms ?: 0.0))
+            else null
+            Text(
+                if (latest != null) "${stats.mountpoint} · $latest" else stats.mountpoint,
+                style = MaterialTheme.typography.bodySmall,
+                color = faint, modifier = pad,
+            )
+            // Shown only when it is news: a station whose receiver
+            // encodes its rates backwards, which a rover trusting them
+            // inherits (RFSEE01, 2026-10-10).
+            if (latest != null && stats.selfposRateSign < 0)
+                Text(stringResource(R.string.sp_reversed),
+                     style = MaterialTheme.typography.bodySmall,
+                     color = MaterialTheme.colorScheme.error, modifier = pad)
+        }
+
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SpLegend(SpMark.EPOCH, stringResource(R.string.sp_legend_epochs))
+            SpLegend(SpMark.LATEST, stringResource(R.string.sp_legend_latest))
+            SpLegend(SpMark.MEAN, stringResource(R.string.sp_legend_mean))
+            SpLegend(SpMark.ARP, stringResource(R.string.sp_legend_arp))
+        }
+    }
 }
 
+/**
+ * One figure: its name, and its value to the right, on one line. Never
+ * wrapped -- "Mean offset E / N / U" broke onto a second line on the
+ * Huawei with its value beside it (2026-10-12).
+ */
 @Composable
-private fun SpLegend(colour: Color, label: String) {
+private fun SpFigure(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = MaterialTheme.typography.bodySmall,
+             color = MaterialTheme.colorScheme.onSurfaceVariant,
+             maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+             modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        Text(value, style = MaterialTheme.typography.bodySmall,
+             fontFamily = FontFamily.Monospace, maxLines = 1, softWrap = false)
+    }
+}
+
+/**
+ * A legend entry: the plot's own mark, drawn by the same function, and
+ * its name -- colour alone tells a reader who cannot see colour nothing.
+ */
+@Composable
+private fun SpLegend(mark: SpMark, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.size(10.dp)) { drawCircle(colour) }
-        Spacer(Modifier.width(5.dp))
+        Canvas(Modifier.size(16.dp)) {
+            spMark(mark, Offset(size.width / 2f, size.height / 2f), 1.4f)
+        }
+        Spacer(Modifier.width(4.dp))
         Text(label, style = MaterialTheme.typography.bodySmall,
              color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -403,20 +414,23 @@ private fun spDistance(m: Double): String =
 /**
  * East/north about the broadcast position: the reference at the centre,
  * and staying there, because self-centring would hide the offset --
- * one of the two things this screen exists to show.
+ * one of the two things this view exists to show.
  */
 @Composable
 private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
     val labelStyle = MaterialTheme.typography.bodySmall.copy(color = faint)
     val arpStyle = MaterialTheme.typography.bodySmall.copy(color = SP_ARP)
+    val page = MaterialTheme.colorScheme.surface
     val measurer = rememberTextMeasurer()
     val noneText = stringResource(R.string.sp_plot_empty)
 
     Canvas(modifier) {
         val cx = size.width / 2f
         val cy = size.height / 2f
-        val half = minOf(cx, cy) - 18.dp.toPx()
+        // As little margin as the N and E letters need: the circle is
+        // the screen's width less two letters.
+        val half = minOf(cx, cy) - 14.dp.toPx()
         if (half < 20f) return@Canvas
 
         var widest = 0.0
@@ -427,6 +441,15 @@ private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
         val radius = spPlotRadius(widest)
         val scale = (half / radius).toFloat()
 
+        // A label on a patch of the page's own colour; [above] puts its
+        // baseline at y rather than its top.
+        fun label(t: TextLayoutResult, x: Float, y: Float, above: Boolean = false) {
+            val top = if (above) y - t.size.height else y
+            drawRect(page, Offset(x - 3f, top),
+                     Size(t.size.width + 6f, t.size.height.toFloat()))
+            drawText(t, topLeft = Offset(x, top))
+        }
+
         // Rings at the full radius and half of it, and the cross through
         // the reference.
         val grid = faint.copy(alpha = 0.3f)
@@ -434,29 +457,24 @@ private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
         drawCircle(grid, half / 2f, Offset(cx, cy), style = Stroke(1.5f))
         drawLine(grid, Offset(cx - half, cy), Offset(cx + half, cy), 1f)
         drawLine(grid, Offset(cx, cy - half), Offset(cx, cy + half), 1f)
-        drawText(measurer, "N", Offset(cx + 6f, cy - half), style = labelStyle)
-        drawText(measurer, "E", Offset(cx + half - 14f, cy - 30f), style = labelStyle)
+        val nText = measurer.measure("N", labelStyle)
+        drawText(nText, topLeft = Offset(cx + 6f, cy - half - nText.size.height / 2f))
+        val eText = measurer.measure("E", labelStyle)
+        drawText(eText, topLeft = Offset(cx + half - eText.size.width - 2f,
+                                         cy - eText.size.height - 4f))
 
-        // The origin, named: every offset is measured from it.
-        drawLine(SP_ARP, Offset(cx - 9f, cy), Offset(cx + 9f, cy), 3f)
-        drawLine(SP_ARP, Offset(cx, cy - 9f), Offset(cx, cy + 9f), 3f)
-        drawText(measurer, "ARP", Offset(cx + 10f, cy + 4f), style = arpStyle)
+        spMark(SpMark.ARP, Offset(cx, cy), 1f)
 
         // Rings are labelled only once points set the scale: an empty
         // plot labelled "0.125 m" read as a station holding to a tenth
         // of a metre (desktop, 2026-10-09).
         if (points.isEmpty()) {
+            label(measurer.measure("ARP", arpStyle), cx + 10f, cy - 4f, above = true)
             val t = measurer.measure(noneText, labelStyle)
             drawText(t, topLeft = Offset(cx - t.size.width / 2f,
                                          cy - half / 2f - t.size.height))
             return@Canvas
         }
-        drawText(measurer, spDistance(radius),
-                 Offset(cx + half - 4f - measurer.measure(spDistance(radius), labelStyle).size.width,
-                        cy + 4f), style = labelStyle)
-        drawText(measurer, spDistance(radius / 2.0),
-                 Offset(cx + half / 2f - 4f - measurer.measure(spDistance(radius / 2.0), labelStyle).size.width,
-                        cy + 4f), style = labelStyle)
 
         // The run: small, because an hour is three and a half thousand
         // points and a visible dot would be a solid disc long before.
@@ -465,18 +483,30 @@ private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
         for (p in points) {
             sumE += p.e
             sumN += p.n
-            drawCircle(SP_DOT, 2.5f, Offset(cx + p.e * scale, cy - p.n * scale))
+            spMark(SpMark.EPOCH, Offset(cx + p.e * scale, cy - p.n * scale), 1f)
         }
+
+        // Labels over the run, each on a patch of the page, so a point
+        // under one hides behind it instead of reading as part of a
+        // letter -- a dot sat in "2.50 m" (Huawei, 2026-10-12). Drawn
+        // before the mean and the latest epoch, which stay on top.
+        // "ARP" above the axis, where the desktop puts it below: the
+        // ring labels sit below the axis, and on a phone the half ring's
+        // label began where "ARP" ended -- "AR2.50 m" (Huawei, 2026-10-12).
+        label(measurer.measure("ARP", arpStyle), cx + 10f, cy - 4f, above = true)
+        val full = measurer.measure(spDistance(radius), labelStyle)
+        label(full, cx + half - 4f - full.size.width, cy + 4f)
+        val halfLbl = measurer.measure(spDistance(radius / 2.0), labelStyle)
+        label(halfLbl, cx + half / 2f - 4f - halfLbl.size.width, cy + 4f)
 
         // Where the run centres, from the points drawn: the plot's own
         // crosshair, not a published figure -- that is the core's.
-        val mx = cx + (sumE / points.size).toFloat() * scale
-        val my = cy - (sumN / points.size).toFloat() * scale
-        drawLine(SP_MEAN, Offset(mx - 12f, my), Offset(mx + 12f, my), 4f)
-        drawLine(SP_MEAN, Offset(mx, my - 12f), Offset(mx, my + 12f), 4f)
+        spMark(SpMark.MEAN,
+               Offset(cx + (sumE / points.size).toFloat() * scale,
+                      cy - (sumN / points.size).toFloat() * scale), 1f)
 
         // The epoch that just solved, large enough to follow.
         val last = points.last()
-        drawCircle(SP_DOT_LAST, 6f, Offset(cx + last.e * scale, cy - last.n * scale))
+        spMark(SpMark.LATEST, Offset(cx + last.e * scale, cy - last.n * scale), 1f)
     }
 }

@@ -114,7 +114,17 @@ internal fun runColour(v: RunVerdict): Color = when (v) {
  * one level and an enum cannot express "go back". */
 
 /** Which analysis view is showing. */
-enum class AnalysisTab { SKY, SIGNAL, ELEVATION }
+/**
+ * The analysis views, in tab order. SELFPOS is last and pro's only
+ * ([Features.HAS_SELFPOS]); [analysisTabs] is the list an edition shows,
+ * and since SELFPOS is last every other tab keeps its ordinal as its
+ * page index in both editions.
+ */
+enum class AnalysisTab { SKY, SIGNAL, ELEVATION, SELFPOS }
+
+/** The tabs this edition shows, in order. */
+val analysisTabs: List<AnalysisTab> =
+    AnalysisTab.entries.filter { it != AnalysisTab.SELFPOS || Features.HAS_SELFPOS }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
