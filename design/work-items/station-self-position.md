@@ -50,6 +50,21 @@ broadcast solution is a quality metric, not a coordinate.
 **Nothing here may change either listing while pro is in review.** Pro's
 fortnight ends about 2026-10-12 (`pro-to-play.md` S4).
 
+**Decided 2026-10-12 (author): the sentence becomes "It does not steer
+a rover or survey a coordinate. It measures what the station actually
+delivers…" on both listings.** That is true with P7 and without it. A
+metre-level solution from broadcast orbits is a check on the station,
+not a surveyed coordinate; real coordinates go through CSRS-PPP
+(`docs/base-declaration.md`).
+
+The one constraint is order. The old sentence stays true for 3.8.0,
+which predates this work. It would be false for the first build from
+`main`, whose snapshot export (pro's JSON and CSV, written verbatim by
+`MonitorService`) already carries `selfpos_*`, with or without a P7
+screen. So **the new sentence goes live with the first Android release
+from `main`, or before it, never after.** P7 is no longer waiting on a
+decision, only on that release.
+
 **Decided 2026-10-09 (author): the desktop first, and no listing
 change.** P1–P6 ship in the GUI, the CLI and the daemon, which carry no
 store text, so nothing published becomes false. P7, the paid Android
