@@ -64,6 +64,13 @@ no `Referer`, with 403 *Access blocked* (also seen). Without a tile
 source the picker now opens over the built-in outlines and says they
 cannot show a mast; with one, it opens at street level as before.
 
+### Fixed — the CLI's help described `-r` wrongly
+
+`--help` said to use `-r` "with -m", and its example was `-m -r`, which
+the CLI refuses ("Cannot combine action flags", exit 2). `-r` is an
+action of its own: it prints the sourcetable as the caster sent it. The
+help now says so.
+
 ### Fixed — "Copied to clipboard!" when nothing was copied
 
 The picker's copy routine fell back only when the browser lacked the

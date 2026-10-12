@@ -301,9 +301,12 @@ allows 1 m there and pins that the result is never NaN.
 names and advertised-type lists from the sample that broke a first
 draft.
 
-**Also noticed, not fixed:** `ntrip-analyser --help` says `-r` is to be
-used "with -m", but combining the two is refused ("Cannot combine
-action flags"). `-r` alone prints the raw table.
+**Also noticed:** `ntrip-analyser --help` said `-r` is to be used "with
+-m", but combining the two is refused ("Cannot combine action flags").
+`-r` alone prints the raw table. *Fixed 2026-10-12:* the help now
+describes `-r` as its own action. The comment in `main.c` that claimed
+`-m -r` and `-m -d` were allowed was corrected too: `claim_action()`
+has never allowed either.
 
 ### M2 — the core: the page's data, escaped once
 

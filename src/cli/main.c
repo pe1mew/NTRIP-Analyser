@@ -1432,11 +1432,12 @@ int main(int argc, char *argv[]) {
         verbose = true;
     }
 
-    /* Reject combinations of action flags (e.g. `-d -S`).  --raw is allowed
-     * to combine with -m (it modifies the mount-list format), and the
-     * -d/--decode action also tolerates -m setting the verb first since
-     * the historical CLI lets `-m -d` chain the two.  Everything else
-     * is rejected so the user knows their request was ambiguous. */
+    /* Reject combinations of action flags (e.g. `-d -S`, `-m -r`), so the
+     * user knows their request was ambiguous.  -m and -r are two actions
+     * -- the formatted list and the sourcetable as sent -- not a verb and
+     * its modifier.  This comment used to say `-m -r` and `-m -d` were
+     * allowed and the help said to use -r "with -m"; claim_action() has
+     * never allowed either, and the help now says what it does. */
     if (action_seen_second) {
         ERR("[ERROR] Cannot combine action flags: %s and %s\n"
             "        Pick one action per invocation.\n",

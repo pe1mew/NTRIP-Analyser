@@ -24,7 +24,7 @@ void print_help(const char *progname) {
     printf("Options:\n");
     printf("  -c, --config [file]      Specify config file (default: config.json)\n");
     printf("  -m, --mounts             Show mountpoint list (sourcetable)\n");
-    printf("  -r, --raw                Show mountpoint list in raw format (use with -m)\n");
+    printf("  -r, --raw                Show the sourcetable as the caster sent it (instead of -m)\n");
     printf("  -d, --decode [types]     Start NTRIP stream (optionally filter message types, comma-separated)\n");
     printf("  -s, --sat [seconds]      Analyze unique satellites for N seconds (default: 60)\n");
     printf("  -t, --time [seconds]     Analyze message types for N seconds (default: 60)\n");
@@ -116,7 +116,7 @@ void print_help(const char *progname) {
     printf("  -h, --help               Show this help message\n");
     printf("\nExamples:\n");
     printf("  %s -m                            Show mountpoint list\n", progname);
-    printf("  %s -m -r                         Show mountpoint list in raw format\n", progname);
+    printf("  %s -r                            Show the sourcetable as the caster sent it\n", progname);
     printf("  %s -d 1004,1012                  Start stream, filter for types 1004 and 1012\n", progname);
     printf("  %s -s 120                        Analyze satellites for 120 seconds\n", progname);
     printf("  %s -S                            Collect sky-heatmap, save PNG on Ctrl-C\n", progname);
