@@ -150,6 +150,10 @@ Opening a stream, or replaying a capture, now forgets the ARP first; an
 auto-reconnect, the same mountpoint inside the same session, keeps it.
 Not affected: the CLI runs one stream per process, and the service and
 the Android app take their ARP from the session, never from this value. Pinned by `test_station_arp`.
+Checked live on the GUI, 2026-10-12: RFSEE01 then HANESE in one window
+left Broadcast ARP empty until HANESE's first 1005 and ARP stability
+green, with no jump. Replaying an RFSEE01 capture after a live HANESE
+stream showed RFSEE01, also with no jump.
 
 ### Changed — the stability report's JSON is schema 3
 
