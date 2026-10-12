@@ -38,19 +38,26 @@ same reason: on a phone with both installed, the labels truncate to
 
     Watch stations for hours: stability verdicts, network-RTK checks, exports.
 
+## Pending change to the full description
+
+Kept outside the description's own section on purpose:
+`tools/check_release.py` measures everything in that section against
+Play's 4000-character limit, and a note there was counted as listing
+text (4181 characters, CI, 2026-10-12).
+
+**Decided 2026-10-12 (author):** with the first Android release from
+`main`, or before it, never after, the sentence *"It does not steer a
+rover and it does not compute a position."* becomes *"It does not steer
+a rover or survey a coordinate."* on **both** listings. From that
+release pro exports the station's self-position (`selfpos_*`), and pro
+adds a bullet once P7 ships. The text in the next section is what is
+live; change it there when the console changes. Reasoning:
+`design/work-items/station-self-position.md`, "The gate".
+
 ## Full description
 
 Shared opening, then an edition-specific section. Play descriptions take
 no formatting beyond line breaks.
-
-**Pending, decided 2026-10-12 (author):** with the first Android release
-from `main`, or before it, never after, the sentence *"It does not steer
-a rover and it does not compute a position."* becomes *"It does not
-steer a rover or survey a coordinate."* on **both** listings. From that
-release pro exports the station's self-position (`selfpos_*`), and pro
-adds a bullet once P7 ships. The text below is what is live; change it
-here when the console changes. Reasoning:
-`design/work-items/station-self-position.md`, "The gate".
 
     NTRIP Analyser connects to an NTRIP caster and answers one question
     about a GNSS base station: is it fit to serve RTK, and if not, why?
