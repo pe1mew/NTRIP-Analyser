@@ -169,7 +169,8 @@ function wants a home of its own.
   function, so the map and Stream Health cannot disagree about a
   station. Step 2, which compares the ARP with the GGA, stays where it
   is: it depends on the live stream, not on the sourcetable.
-- `sourcetable_pos_valid()` rejects a position when:
+- `sourcetable_pos_usable()` (proposed as `sourcetable_pos_valid`;
+  renamed, see "M1 — as built") rejects a position when:
   - it is 0,0;
   - it is out of range;
   - it is not finite.
@@ -277,7 +278,17 @@ a side effect of M1.
   and the cross-check had nothing to work from on that path. They are
   now taken when the table arrives.
 - The distance column measured from positions such as latitude 400.
-  It now shows a dash for any position `sourcetable_pos_valid` refuses.
+  It now shows a dash for any position `sourcetable_pos_usable` refuses.
+
+**Renamed after CI, 2026-10-12.** The function was first called
+`sourcetable_pos_valid`, which is also the name of an `NsStatsSnapshot`
+field that nothing fills yet (measurement-tiers phase 0).
+`check_release.py` finds unfilled fields by whole-word search outside
+`ns_stats.c`, so the function's name read as the field being filled,
+and CI failed with "remove from SNAPSHOT_KNOWN_GAPS". The field is
+still a gap. The function became `sourcetable_pos_usable` so that one
+name stops meaning two things. Phase 0 will very likely fill the field
+*with* this function's answer.
 
 **Distance.** `src/core/geo.{c,h}`: `geo_distance_m` and
 `geo_bearing_deg`. These replace the GUI's two private copies
@@ -426,7 +437,7 @@ M1–M5 can be merged as one branch to `main`.
 *Optional, as asked. It starts only after the author confirms D3 and D4,
 and after pro is in production (the same gate as self-position P7).*
 
-- The bridge exposes `sourcetable_kind`, `sourcetable_pos_valid` and
+- The bridge exposes `sourcetable_kind`, `sourcetable_pos_usable` and
   distance and bearing per entry. Kotlin computes none of them.
 - A Compose Canvas screen opened from the sourcetable dialog:
   - origin at the centre;

@@ -606,6 +606,11 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the premise was `actions/checkout`'s *default* depth, not this repository's workflow. A correct, documented default -- and the wrong evidence, because the workflow overrides it two lines from where it would have been read.
 **Fix**: none needed in the code -- the file-based check that replaced it passes and proves the same thing on `main`, so it stays. The lesson is the promoted one, in its purest form: **a toolchain's reputation is not evidence, even when the reputation is accurate**; read the workflow the check will actually run in. Caught by the next curation reading the old entry, not by any check.
 
+### [RESOLVED] A new function's name filled a snapshot field it never touched (2026-10-12)
+**Problem**: CI failed on `e978ec8`, but the cause was M1 (`38e32f0`), pushed with it: `check_release.py` reported "the known-gap list has no entries that are now filled -- sourcetable_pos_valid". Nothing had filled the field. M1 had added a core function of exactly that name, `sourcetable_pos_valid(lat, lon)`.
+**Root cause**: the unfilled-field check is a whole-word search for each `NsStatsSnapshot` field name outside `ns_stats.c`, so any identifier spelled like a field counts as a write. The local run before committing M1 was `test_all` and `verify_memory.py`, not `check_release.py`. The guard that would have caught it locally was never run.
+**Fix**: the function became `sourcetable_pos_usable`, so one name stops meaning two things, and the field stays on `SNAPSHOT_KNOWN_GAPS` where it belongs. Before naming a core function, grep `ns_stats.h` for the name. Run `python tools/check_release.py` after any `src/core` change; locally, its only expected failures are the stale-release-artefact lines.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop

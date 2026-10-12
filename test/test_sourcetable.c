@@ -153,24 +153,24 @@ int main(void)
               "NULL, empty, and a bare \"STR;\" yield nothing");
 
         one("STR;N;I;F;D;2;GPS;N;NLD;nan;inf;0;0\n", &e);
-        check(!sourcetable_pos_valid(e.latitude, e.longitude),
+        check(!sourcetable_pos_usable(e.latitude, e.longitude),
               "\"nan\" and \"inf\" parse, and the position check refuses them");
     }
 
     /* ── 4. Which positions can be used ───────────────────────────── */
     {
-        check(sourcetable_pos_valid(52.2, 5.9), "an ordinary position");
-        check(!sourcetable_pos_valid(0.0, 0.0), "0,0 is \"not stated\"");
-        check(sourcetable_pos_valid(0.0, 6.0) && sourcetable_pos_valid(52.0, 0.0),
+        check(sourcetable_pos_usable(52.2, 5.9), "an ordinary position");
+        check(!sourcetable_pos_usable(0.0, 0.0), "0,0 is \"not stated\"");
+        check(sourcetable_pos_usable(0.0, 6.0) && sourcetable_pos_usable(52.0, 0.0),
               "but the equator and the prime meridian each alone are places");
-        check(sourcetable_pos_valid(90.0, 180.0) && sourcetable_pos_valid(-90.0, -180.0),
+        check(sourcetable_pos_usable(90.0, 180.0) && sourcetable_pos_usable(-90.0, -180.0),
               "the limits themselves are valid");
-        check(!sourcetable_pos_valid(90.0001, 6.0) && !sourcetable_pos_valid(52.0, 180.0001) &&
-              !sourcetable_pos_valid(-90.0001, 6.0) && !sourcetable_pos_valid(52.0, -180.0001),
+        check(!sourcetable_pos_usable(90.0001, 6.0) && !sourcetable_pos_usable(52.0, 180.0001) &&
+              !sourcetable_pos_usable(-90.0001, 6.0) && !sourcetable_pos_usable(52.0, -180.0001),
               "just past them is not, and is refused rather than clamped");
-        check(!sourcetable_pos_valid(1e308, 6.0) && !sourcetable_pos_valid(52.0, -1e308),
+        check(!sourcetable_pos_usable(1e308, 6.0) && !sourcetable_pos_usable(52.0, -1e308),
               "nor is a huge number");
-        check(!sourcetable_pos_valid(nan(""), 6.0) && !sourcetable_pos_valid(52.0, INFINITY),
+        check(!sourcetable_pos_usable(nan(""), 6.0) && !sourcetable_pos_usable(52.0, INFINITY),
               "nor NaN or infinity");
     }
 

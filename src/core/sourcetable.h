@@ -197,7 +197,7 @@ SourcetableKind sourcetable_kind(const SourcetableEntry *e,
  * @param lat,lon Position as parsed, degrees.
  * @return true when the position can be used.
  */
-bool sourcetable_pos_valid(double lat, double lon);
+bool sourcetable_pos_usable(double lat, double lon);
 
 #ifdef __cplusplus
 }

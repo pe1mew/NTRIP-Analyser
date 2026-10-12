@@ -72,8 +72,8 @@ int ParseMountTable(const char *raw, HWND listview, double userLat, double userL
         /* Distance from the configured rover position.  A dash where
          * either end of the pair is unusable, rather than a confident
          * distance measured from 0N 0E or from a latitude of 400. */
-        if (!sourcetable_pos_valid(userLat, userLon) ||
-            !sourcetable_pos_valid(e[row].latitude, e[row].longitude)) {
+        if (!sourcetable_pos_usable(userLat, userLon) ||
+            !sourcetable_pos_usable(e[row].latitude, e[row].longitude)) {
             snprintf(buf, sizeof(buf), "-");
         } else {
             snprintf(buf, sizeof(buf), "%.1f",

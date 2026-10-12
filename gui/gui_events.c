@@ -1244,7 +1244,7 @@ static const SourcetableEntry *SourceEntryForMount(const AppState *state)
 static void SourcePosFromEntry(AppState *state, const SourcetableEntry *e)
 {
     snprintf(state->sourceNetwork, sizeof(state->sourceNetwork), "%s", e->network);
-    state->sourcePosValid = sourcetable_pos_valid(e->latitude, e->longitude);
+    state->sourcePosValid = sourcetable_pos_usable(e->latitude, e->longitude);
     state->sourceLat = state->sourcePosValid ? e->latitude  : 0.0;
     state->sourceLon = state->sourcePosValid ? e->longitude : 0.0;
 }

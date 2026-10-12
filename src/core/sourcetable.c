@@ -323,7 +323,7 @@ SourcetableKind sourcetable_kind(const SourcetableEntry *e, char *why, size_t ca
     return ST_KIND_UNKNOWN;
 }
 
-bool sourcetable_pos_valid(double lat, double lon)
+bool sourcetable_pos_usable(double lat, double lon)
 {
     if (!isfinite(lat) || !isfinite(lon)) return false;
     if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0) return false;
