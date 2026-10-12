@@ -515,6 +515,82 @@ int main(void)
               "sixty identical epochs scatter by nothing at all");
     }
 
+    /* ── 16. What can be said about the self-position yet ────────────
+     *
+     * Decided by sr_build since 2026-10-12, so the GUI and the phone say
+     * the same thing at the same moment. The GUI decided it before,
+     * against the constant SR_MIN_WINDOW_S while the report judged by
+     * the loaded policy -- the last case is the one that difference
+     * would get wrong. */
+    {
+        NsStatsSnapshot noeph = healthy();
+        noeph.selfpos_status = SPP_NO_EPHEMERIS;
+
+        /* Five minutes without orbits: ordinary at the start of a run. */
+        sr_reset(&st, false, NULL);
+        for (int i = 0; i < 11; i++) sr_feed(&st, &noeph, 60.0 + i * 30.0);
+        sr_build(&st, &r);
+        check(r.sp_state == SR_SP_GATHERING,
+              "five minutes with no orbits is gathering, not a finding");
+
+        /* An hour without orbits: now it is one. */
+        sr_reset(&st, false, NULL);
+        for (int i = 0; i < 61; i++) sr_feed(&st, &noeph, 60.0 + i * 60.0);
+        sr_build(&st, &r);
+        check(r.sp_state == SR_SP_NOT_SOLVED,
+              "an hour with nothing solved is not solved");
+
+        /* Single frequency is told at once: waiting cannot change it. */
+        NsStatsSnapshot one = healthy();
+        one.selfpos_status = SPP_SINGLE_FREQ;
+        sr_reset(&st, false, NULL);
+        for (int i = 0; i < 3; i++) sr_feed(&st, &one, 60.0 + i * 10.0);
+        sr_build(&st, &r);
+        check(r.sp_state == SR_SP_NOT_COMPUTABLE,
+              "a single-frequency station is not computable from the first minute");
+
+        /* One epoch that solved makes the window solved, however short. */
+        NsStatsSnapshot ok = healthy();
+        ok.selfpos_status = 0;
+        ok.selfpos_sats   = 8;
+        ok.selfpos_e = ok.selfpos_n = ok.selfpos_u = 0.5;
+        sr_reset(&st, false, NULL);
+        sr_feed(&st, &noeph, 60.0);
+        sr_feed(&st, &ok, 61.0);
+        sr_feed(&st, &noeph, 62.0);
+        sr_build(&st, &r);
+        check(r.sp_state == SR_SP_SOLVED,
+              "one solved epoch makes the window solved, even among failures");
+
+        /* A policy with a two-minute window: five minutes without orbits
+         * is now long enough, and the state must follow the policy, as
+         * the six verdicts do -- not SR_MIN_WINDOW_S. */
+        SrPolicy p;
+        sr_policy_defaults(&p);
+        p.min_window_s = 120.0;
+        p.min_samples  = 5;
+        sr_reset(&st, false, &p);
+        for (int i = 0; i < 11; i++) sr_feed(&st, &noeph, 60.0 + i * 30.0);
+        sr_build(&st, &r);
+        check(r.sp_state == SR_SP_NOT_SOLVED,
+              "under a shorter policy window the same five minutes are not solved");
+
+        /* The key crosses to the frontends, with the schema bumped. */
+        SrJsonCtx ctx;
+        memset(&ctx, 0, sizeof(ctx));
+        char json[8192];
+        int n = sr_to_json(&r, &ctx, json, sizeof(json));
+        check(n > 0 && strstr(json, "\"selfpos_state\":\"not_solved\"") != NULL,
+              "the report says selfpos_state as a frozen key");
+        check(strstr(json, "\"report_schema_version\":4") != NULL,
+              "and the schema says 4");
+        check(strcmp(sr_selfpos_state_key(SR_SP_GATHERING), "gathering") == 0 &&
+              strcmp(sr_selfpos_state_key(SR_SP_SOLVED), "solved") == 0 &&
+              strcmp(sr_selfpos_state_key(SR_SP_NOT_COMPUTABLE), "not_computable") == 0 &&
+              strcmp(sr_selfpos_state_key(-7), "gathering") == 0,
+              "every state has its key, and nonsense reads as gathering");
+    }
+
     printf("\n%s\n", failures ? "FAILURES" : "all station-report cases pass");
     return failures ? 1 : 0;
 }

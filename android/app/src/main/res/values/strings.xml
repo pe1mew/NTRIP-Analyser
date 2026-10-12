@@ -80,6 +80,35 @@
     <string name="ho_legend_arp">reference position</string>
     <string name="ho_legend_hist">where it was</string>
     <string name="ho_chart">last five minutes</string>
+    <!-- Self-position (P7). Figures, never a verdict; the state is the
+         core's (report schema 4), these are only its words. -->
+    <string name="sp_title">Self-position</string>
+    <string name="sp_state_solved">SOLVED — no verdict</string>
+    <string name="sp_state_gathering">GATHERING</string>
+    <string name="sp_state_not_computable">NOT COMPUTABLE</string>
+    <string name="sp_state_not_solved">NOT SOLVED</string>
+    <string name="sp_no_verdict">No threshold for a station’s own scatter has been established from evidence, so these are figures, not a judgement.</string>
+    <string name="sp_why_single_freq">A single-frequency station: its own position cannot be computed, and waiting will not change that.</string>
+    <string name="sp_why_no_eph">Waiting for orbits: the station’s stream or the ephemeris stream supplies them.</string>
+    <string name="sp_why_too_few">Waiting for four usable GPS satellites on two frequencies.</string>
+    <string name="sp_why_diverged">The solution did not settle.</string>
+    <string name="sp_why_first_epoch">Waiting for the first observation epoch to solve.</string>
+    <string name="sp_explainer">Where the station’s own observations place it, against the position it broadcasts. GPS only, from broadcast orbits: metres, a check on the station rather than a coordinate.</string>
+    <string name="sp_epochs_line">%1$d epoch(s) solved of %2$d snapshot(s) in the window</string>
+    <string name="sp_offset_line">Mean offset E %1$s · N %2$s · U %3$s</string>
+    <string name="sp_offset_note">Mostly this solution’s own bias, not a moved antenna.</string>
+    <string name="sp_scatter_line">Scatter about the mean %1$s — the part that measures something</string>
+    <string name="sp_rms_line">Worst code residual %1$s</string>
+    <string name="sp_motion_line">Median apparent motion %1$s — a still base reads tens of mm/s from broadcast orbits</string>
+    <string name="sp_motion_none">No apparent motion: the stream carries no phase-range rates (MSM4, MSM6, legacy).</string>
+    <string name="sp_latest_line">Latest epoch: %1$d sats · PDOP %2$s · residual %3$s</string>
+    <string name="sp_reversed">Phase-range rates REVERSED: this station’s receiver encodes them backwards.</string>
+    <string name="sp_footer">%1$s — about its broadcast position (ARP)</string>
+    <string name="sp_plot_empty">no epoch has solved yet</string>
+    <string name="sp_legend_epochs">epochs</string>
+    <string name="sp_legend_latest">latest</string>
+    <string name="sp_legend_mean">mean</string>
+    <string name="sp_legend_arp">ARP</string>
     <string name="action_again">Run again</string>
     <string name="action_stop">Stop</string>
     <string name="action_browse">Browse mountpoints…</string>

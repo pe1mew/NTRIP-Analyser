@@ -86,6 +86,18 @@ data class SrDoc(
     @SerialName("delivery_verdict") val deliveryVerdict: Int? = null,
     @SerialName("delivery_value") val deliveryValue: Double? = null,
     @SerialName("delivery_detail") val deliveryDetail: String = "",
+    /* Self-position over the window (P7): figures with no verdict. The
+     * state is the core's decision (report schema 4); every figure is
+     * null until an epoch has solved. */
+    @SerialName("selfpos_samples") val selfposSamples: Int = 0,
+    @SerialName("selfpos_state") val selfposState: String = "gathering",
+    @SerialName("selfpos_status") val selfposStatus: Int = 1,
+    @SerialName("selfpos_mean_e_m") val selfposMeanE: Double? = null,
+    @SerialName("selfpos_mean_n_m") val selfposMeanN: Double? = null,
+    @SerialName("selfpos_mean_u_m") val selfposMeanU: Double? = null,
+    @SerialName("selfpos_scatter_m") val selfposScatter: Double? = null,
+    @SerialName("selfpos_code_rms_worst_m") val selfposRmsWorst: Double? = null,
+    @SerialName("selfpos_speed_median_mms") val selfposSpeedMedian: Double? = null,
 ) {
     /** One row: the frozen key, and the scalars filed under it. */
     data class Row(val key: String, val verdict: Int?, val detail: String)
@@ -173,6 +185,21 @@ data class Stats(
     @SerialName("advertised_gnss") val advertisedGnss: Int = 0,
     val types: List<TypeStat> = emptyList(),
     val gnss: List<GnssStat> = emptyList(),
+    /** The stream's own clock: a solved epoch is plotted once per value. */
+    @SerialName("stream_time_s") val streamTimeS: Double? = null,
+    /* The latest epoch's self-position (P7). The core's SppStatus, and
+     * null figures whenever that epoch did not solve -- one epoch is a
+     * diagnostic; the window's figures are in SrDoc. */
+    @SerialName("selfpos_status") val selfposStatus: Int = 1,
+    @SerialName("selfpos_e_m") val selfposE: Double? = null,
+    @SerialName("selfpos_n_m") val selfposN: Double? = null,
+    @SerialName("selfpos_u_m") val selfposU: Double? = null,
+    @SerialName("selfpos_code_rms_m") val selfposCodeRms: Double? = null,
+    @SerialName("selfpos_pdop") val selfposPdop: Double? = null,
+    @SerialName("selfpos_sats") val selfposSats: Int = 0,
+    @SerialName("selfpos_rate_rms_ms") val selfposRateRms: Double? = null,
+    /** +1 as RTCM defines it, -1 reversed by the station's receiver, 0 undecided. */
+    @SerialName("selfpos_rate_sign") val selfposRateSign: Int = 0,
 )
 
 /** One `STR` record from a caster's sourcetable. */

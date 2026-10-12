@@ -185,6 +185,7 @@ gaining a row for it.
 | `HAS_HANDOVER` | false | true | Rover-to-ARP distance and the hand-over history |
 | `HAS_EXPORT` | false | true | Statistics export: the snapshot as JSON or the daemon's CSV |
 | `HAS_TIER2` | false | true | The stability report: six metrics over stream time, ten minutes of evidence or an honest shrug |
+| `HAS_SELFPOS` | false | true | The self-position screen and its run-scoped E/N trail; the solve itself runs in both |
 | `MAX_MOUNTPOINTS` | 1 | 16 | Saved connection profiles and the switcher |
 | `SOURCETABLE_SELECTABLE` | false | true | Tap-to-use in the sourcetable browser |
 | `HAS_LIVE_GGA` | false | true | The phone's live position in the GGA uplink |

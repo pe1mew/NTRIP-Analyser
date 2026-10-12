@@ -940,6 +940,58 @@ out to need changes in `src/core`, decision 8 was not kept.
 station over the same window. And before any of it: the sentence in
 `play-listing.md` changed on both listings, deliberately.
 
+### P7 — as built, on branch `self-position-pro`  *(2026-10-12, not yet on hardware)*
+
+**What was already there.** Decision 8 held:
+- the solve runs in the shared session layer on the phone, every epoch;
+- the bridge decodes orbits from the observation stream;
+- the snapshot and the tier-2 report reach Kotlin with every
+  `selfpos_*` key.
+
+P7 is a screen, a trail and strings:
+
+- **`SelfPosition.kt`** (main), holding `SelfPosPanel`, its card and
+  its detail screen.
+  - **The plot** follows the desktop's rules point for point: the
+    broadcast position at the centre and staying there; `spPlotRadius`
+    is `PlotRadius`; rings are labelled only once points set the
+    scale; the desktop's four colours; the newest epoch is larger;
+    the mean is a cross.
+  - **The rest of the screen**: the latest epoch below the plot,
+    labelled as a diagnostic, and **REVERSED** only when it is news.
+  - **`SelfPosTrail`** keeps a point per solved epoch, keyed on
+    `stream_time_s` as the GUI keys it, capped at the GUI's 7200. It
+    lives in `MonitorService`'s companion, cleared at run start.
+- **`Features.HAS_SELFPOS`**, false in free and true in pro, gates the
+  screen and the trail, never the solve. `SelfPosPanel` sits in pro's
+  registry after `Tier2Panel`.
+- **`tools/check_release.py`** compares `SppStatus` between `spp.h`
+  and `SelfPosition.kt`, as it does the failure codes. The release
+  checks went from 106 to 114.
+
+**One core change, and why it keeps decision 8 rather than breaking it.**
+The GUI decided *gathering / not computable / not solved* itself
+(`SelfPosState`), against the constant `SR_MIN_WINDOW_S`. The phone
+could only have matched that by copying the rule into Kotlin, which is
+a rule in a frontend, which the hard constraints forbid. So
+`sr_build` now decides it (`StationReport.sp_state`, `SrSelfPosState`)
+by the very `enough` rule the six verdicts use: the policy's window
+and sample floor. It publishes it as `selfpos_state`, report schema 4,
+and the GUI reads it. That also fixed a GUI defect the move exposed:
+with a loaded thresholds policy, the GUI said *not solved* on a
+different clock than the report judged by. `test_station_report`
+case 16 pins all four states, including the policy case.
+
+**Still to do:**
+- **On hardware:** pro on the S23 against RFSEE01, side by side with
+  the GUI over the same window; the figures must agree as the GUI and
+  daemon did (scatter 2.17 vs 2.18 m).
+- **CPU and battery:** over a Watch run of hours with the screen off,
+  since the solve runs every epoch and that has not been measured on a
+  phone.
+- **Release:** P7 waits for pro's production access and the listing
+  sentence (*The gate*, above).
+
 ### P8 — say so
 
 Split by the decision above.
