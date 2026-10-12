@@ -33,7 +33,7 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 89 entries, 44 resolved in code or procedure |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 118 entries, 64 resolved in code or procedure |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
@@ -42,7 +42,8 @@
 | `design/work-items/pro-to-play.md` | Anything in the Play Console, for either edition | Pro's store rollout, and every console mechanic that cost a step: price and regions, licence testing as the tester sees it, reviewer credentials and where the form lives |
 | `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
-| `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§16 are the check, the stability window, threshold loading and self-position, as built |
+| `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§17 are the check, the stability window, threshold loading, self-position and the mountpoint map, as built |
+| `design/work-items/mountpoint-map.md` | The mountpoint map, map tiles, the location picker, or sourcetable classification | M1–M5 as built with every measurement: 8471 sourcetable records behind the kinds, why there is no default tile source, five faults found by opening the page. M6–M8 (Android pro) open |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
@@ -53,6 +54,22 @@
 | `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Twelve published pages; the app links into them, so a claim here is a claim in the product |
 
 ## Current State
+
+<!-- 2026-10-12 -->
+
+- **The mountpoint map is complete on the desktop, on `main`**
+  (2026-10-11/12, plan steps M1–M5, a commit each). View → Mountpoint
+  map opens the loaded sourcetable in the browser over built-in Natural
+  Earth outlines, and **Use** selects a row through a clipboard token
+  the core builds and checks. Tools → Map tiles takes the user's own
+  tile key; the **Map** button no longer shows CARTO watermarks. On the
+  way: sourcetable classification moved into the core (measured on
+  8471 records), the GUI's ARP cross-check stopped using a 0.01°
+  position, and a stream no longer inherits the previous station's
+  ARP. **M6–M8** (a drawn plot in Android pro) are optional and wait
+  for pro's production and decisions D3/D4. Plan:
+  `design/work-items/mountpoint-map.md`.
+  <!-- verify: test -f gui/gui_mountmap.c && test -f src/core/sourcetable_map.c && grep -q "Mountpoint map" design/feature-matrix.md -->
 
 <!-- 2026-10-10 -->
 
@@ -88,10 +105,11 @@
   *Teruggave starten*) is going out individually. Reviewer credentials
   are already entered for pro's production review (rotated to a
   dedicated account 2026-09-19, watched daily). **The fortnight has
-  twelve testers opted in since 2026-09-28**, so fourteen continuous
-  days complete around **2026-10-12** — twelve being the bare minimum,
-  one person leaving restarts it. The console's own counter is the
-  authority. Plan: `design/work-items/pro-to-play.md`.
+  twelve testers opted in since 2026-09-28**; on 2026-10-12 the
+  console's own counter read twelve testers for **13** consecutive
+  days, so the production request opens on **2026-10-13** if nobody
+  leaves — twelve being the bare minimum, one person leaving restarts
+  it. Then step S5 of the plan: `design/work-items/pro-to-play.md`.
   <!-- verify: manual — the Play Console is the only source for track state -->
 - **GH#5 decided: pro picks up where free left off, by consent**
   (2026-09-13). Free's and pro's Play app signing certificates differ
@@ -253,9 +271,11 @@ Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md).
   promoted from gotcha-log 2026-10-10 to Active Decisions below.
 - If you **hand the author a command**, put everything it depends on
   **in the command itself** — the shell it is written for and, for git,
-  `git -C <checkout>` — never in a sentence beside it (a Bash heredoc
+  `git -C <checkout>`, and for a commit the message as
+  `commit -F <file>` — never in a sentence beside it (a Bash heredoc
   at a PowerShell prompt, 2026-10-09; a bare `git commit` in the wrong
-  checkout, 2026-10-10) — promoted from gotcha-log 2026-10-10 to Active
+  checkout, 2026-10-10; a bare `git commit` whose editor closed empty,
+  2026-10-12) — promoted from gotcha-log 2026-10-10 to Active
   Decisions below.
 
 ## Key File Paths
@@ -330,11 +350,41 @@ Supplementing CLAUDE.md's list with paths found during work:
   each frontend decodes what it needs. Promoted 2026-10-10 (three
   occurrences, with *Read the wiring, missed the gate*).
 - **A command handed to the author carries all its context in the
-  command itself**: the shell it is written for, and for git
-  `git -C <checkout>`. Never in a sentence beside it. A Bash heredoc
+  command itself**: the shell it is written for, for git
+  `git -C <checkout>`, and for a commit the message in a file,
+  `commit -F <file>`. Never in a sentence beside it. A Bash heredoc
   met a PowerShell prompt (2026-10-09); a bare `git commit` met the
   wrong checkout and committed another session's staged work under this
-  one's message, already pushed before anyone noticed (2026-10-10).
+  one's message, already pushed before anyone noticed (2026-10-10); a
+  bare `git commit` met an editor that closed empty and was reported as
+  committed (2026-10-12). **Check a claimed commit before building on
+  it** — `git log`, and the worktrees — which is what caught the third.
+- **The map underneath is the program's own** (2026-10-12). Both GUI
+  map pages draw over Natural Earth 1:50m, public domain, compiled in;
+  tiles only from a source the user sets up with their own key, kept in
+  HKCU and never in a config file or the log. CARTO had silently started
+  watermarking every tile for everyone (about 2026-09-23), breaking the
+  shipped **Map** button for three weeks, and the OSM Foundation's
+  server refuses a page opened from a file. **A dependency on someone
+  else's free service is a claim about their terms, and terms change.**
+  Credited with Natural Earth's own long line in the readme, the
+  notices, the data file and on the maps (`docs/licences.md`).
+- **What a sourcetable entry *is* was measured, not assumed**
+  (2026-10-11, 8471 records from seven casters, `sourcetable_kind` in
+  the core). The STR solution field is filled everywhere and wrong both
+  ways; `nmea` is set on every RTK2go base; services name themselves in
+  the mountpoint name, not the field the GUI's rule read. Keywords
+  anywhere decide *network*; advertising no station messages decides
+  *product*; the field's 0 is believed and its 1 is not. Stream Health
+  keeps its own rule — whether a *name* should gate the VRS check is
+  the station check's decision, not a side effect.
+- **Text from outside reaches a page as text, at both boundaries.** The
+  core escapes caster and user strings once for the page source
+  (`sourcetable_map.c`); the page hands them to Leaflet only as elements
+  built with `textContent`, because Leaflet sets a *string* tooltip or
+  attribution as HTML — a hostile mountpoint name ran script on hover
+  until it did (2026-10-12). Test a page with a hostile sourcetable and
+  a `window.pwned` canary; reading the code missed it.
 - **RFSEE01's receiver sends the phase-range rate with the sign
   reversed** (2026-10-10) — every satellite the exact negative of what
   its orbit predicts. The solver now fits both conventions and keeps
