@@ -13,33 +13,11 @@
 #include "resource.h"
 #include "gui_state.h"
 #include "core/sourcetable.h"
+#include "core/geo.h"
 
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
-
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
-/**
- * @brief Compute the Haversine distance in kilometres between two WGS-84 points.
- */
-static double haversine_km(double lat1, double lon1, double lat2, double lon2)
-{
-    const double R = 6371.0;  /* Earth mean radius in km */
-    double dLat = (lat2 - lat1) * M_PI / 180.0;
-    double dLon = (lon2 - lon1) * M_PI / 180.0;
-    double rLat1 = lat1 * M_PI / 180.0;
-    double rLat2 = lat2 * M_PI / 180.0;
-
-    double a = sin(dLat / 2.0) * sin(dLat / 2.0) +
-               cos(rLat1) * cos(rLat2) *
-               sin(dLon / 2.0) * sin(dLon / 2.0);
-    double c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a));
-    return R * c;
-}
 
 /* Documented in gui_state.h -- the contract lives with the declaration.
  *
@@ -49,17 +27,19 @@ static double haversine_km(double lat1, double lon1, double lat2, double lon2)
  * fill the ListView, and compute the distance column the core has no
  * business knowing about.  It previously carried its own tokeniser,
  * which meant two implementations of one format could disagree. */
-void ParseMountTable(const char *raw, HWND listview, double userLat, double userLon)
+int ParseMountTable(const char *raw, HWND listview, double userLat, double userLon,
+                    SourcetableEntry **entries_out)
 {
-    if (!raw || !listview) return;
+    if (entries_out) *entries_out = NULL;
+    if (!raw || !listview) return 0;
 
     ListView_DeleteAllItems(listview);
 
     int n = sourcetable_parse(raw, NULL, 0);
-    if (n <= 0) return;
+    if (n <= 0) return 0;
 
     SourcetableEntry *e = (SourcetableEntry *)calloc((size_t)n, sizeof(*e));
-    if (!e) return;
+    if (!e) return 0;
     n = sourcetable_parse(raw, e, n);
 
     for (int row = 0; row < n; row++) {
@@ -67,9 +47,10 @@ void ParseMountTable(const char *raw, HWND listview, double userLat, double user
 
         LVITEM lvi;
         ZeroMemory(&lvi, sizeof(lvi));
-        lvi.mask    = LVIF_TEXT;
+        lvi.mask    = LVIF_TEXT | LVIF_PARAM;
         lvi.iItem   = row;
         lvi.pszText = e[row].mountpoint;
+        lvi.lParam  = row;           /* survives sorting; see stEntries */
         ListView_InsertItem(listview, &lvi);
 
         ListView_SetItemText(listview, row, 1, e[row].identifier);
@@ -89,20 +70,22 @@ void ParseMountTable(const char *raw, HWND listview, double userLat, double user
         ListView_SetItemText(listview, row, 9, buf);
 
         /* Distance from the configured rover position.  A dash where
-         * either end of the pair is unknown, rather than a confident
-         * distance measured from 0N 0E. */
-        if ((userLat == 0.0 && userLon == 0.0) ||
-            (e[row].latitude == 0.0 && e[row].longitude == 0.0)) {
+         * either end of the pair is unusable, rather than a confident
+         * distance measured from 0N 0E or from a latitude of 400. */
+        if (!sourcetable_pos_valid(userLat, userLon) ||
+            !sourcetable_pos_valid(e[row].latitude, e[row].longitude)) {
             snprintf(buf, sizeof(buf), "-");
         } else {
             snprintf(buf, sizeof(buf), "%.1f",
-                     haversine_km(userLat, userLon,
-                                  e[row].latitude, e[row].longitude));
+                     geo_distance_m(userLat, userLon,
+                                    e[row].latitude, e[row].longitude) / 1000.0);
         }
         ListView_SetItemText(listview, row, 10, buf);
     }
 
-    free(e);
+    if (entries_out) *entries_out = e;
+    else             free(e);
+    return n;
 }
 
 /* ── Advertised message types (sourcetable STR field 4) ──────────────────── */

@@ -157,7 +157,8 @@ every other threshold does.
 function wants a home of its own.
 
 - `SourcetableEntry` gains `int solution`: −1 if absent, otherwise 0 or 1.
-- `sourcetable_kind(const SourcetableEntry*)` returns FIXED, NETWORK or
+- *(Proposed; the measurement changed it. See "M1 — as built" below.)*
+  `sourcetable_kind(const SourcetableEntry*)` returns FIXED, NETWORK or
   UNKNOWN, with the reason as a string, using the evidence the
   sourcetable carries:
   - the `solution` field;
@@ -192,6 +193,106 @@ rule stays the main signal. Either way the answer is written into this
 plan.
 
 `src/core` changes, so rebuild and test all four programs (`RUNBOOK.md`).
+
+### M1 — as built, and what the casters said  *(2026-10-11)*
+
+**The measurement.** Raw sourcetables from seven configured casters
+(`ntrip-analyser -c <config> -r`), 8471 STR records, run through the
+core's own parser by a scratch program:
+
+| Caster | Entries | solution 0 / 1 | keyword in details or network | `nmea` set | position unusable |
+|---|---|---|---|---|---|
+| onocoy | 6123 | 6123 / 0 | 0 | 3 | 9 |
+| Centipede | 1287 | 1287 / 0 | 0 | 2 | 0 |
+| RTK2go | 769 | 769 / 0 | 0 | **769** | 16 |
+| EUREF-IP | 223 | 211 / 12 | 0 | 0 | 0 |
+| Kadaster | 61 | 58 / 3 | 0 | 0 | 0 |
+| GEODNET | 6 | 6 / 0 | 0 | 5 | **6** |
+| RFSEE | 2 | 2 / 0 | 0 | 0 | 0 |
+
+No duplicate mountpoint names on any caster.
+
+What the plan assumed, and what turned out to be true:
+
+- **The `solution` field is always filled, and wrong in both
+  directions.** All 15 entries saying "network" were checked:
+  - 10 are ephemeris or SSR products: `BCEP00BKG0`, `BCEP00KAD0`,
+    `RTCM3EPH`, `RTCM3EPH2`, `EUREF01/02`, `SSRA0x`;
+  - 5 are physical IGS stations: Grasse, Toulouse, Ny-Ålesund,
+    Oberpfaffenhofen, Santa Cruz.
+
+  Meanwhile Centipede's `NEAR` and `NEAR4` (nearest-base services) and
+  GEODNET's `AUTO*` (a network service) all say "single base".
+- **The keyword rule never fired** on these casters: no keyword in the
+  details or network field of any of the 8471 entries. Services are
+  named in the *mountpoint name* instead: `NEAR`, `NEAR4`.
+- **`nmea` is no evidence of a network.** RTK2go sets it on all 769 of
+  its single bases.
+
+**So the rule changed** from the one proposed above
+(`sourcetable_kind`, documented in `sourcetable.h`). The first that
+applies wins:
+
+1. A keyword in the details or network field gives NETWORK. This is the
+   GUI's rule, unchanged.
+2. A keyword in the mountpoint name gives NETWORK. A trailing number is
+   allowed (`NEAR4`), a letter is not (`MACO` and `TMAC` are towns).
+3. A fourth kind, **PRODUCT**: types are advertised, and none of them
+   comes from a station. That means no observations (legacy or MSM) and
+   nothing describing a station (1005–1008, 1033, 1230). The
+   descriptive messages count because 26 real bases listed only those,
+   for example `1005,1033` or `1230(10)`. A first version that looked at
+   observations alone called those 26 bases products.
+4. `solution` 0 gives FIXED. It was wrong for 3 of 8456: `NEAR`,
+   `NEAR4` (caught by rule 2) and GEODNET's `AUTO*` (not caught;
+   position 0,0, so not drawn either).
+5. Anything else is UNKNOWN, **including `solution` 1**, with the reason
+   shown.
+
+The resulting tally:
+
+| Kind | Entries |
+|---|---|
+| Network | 2 (`NEAR`, `NEAR4`) |
+| Product | 13, every one an ephemeris or SSR stream by name |
+| Unknown | 5, the IGS stations above |
+| Fixed | the remaining 8451 |
+
+**Stream Health is unchanged.** The GUI's step 1 now calls
+`sourcetable_network_keyword()`, the same list and the same whole-word
+rule, moved. It does not use rules 2–5. The decision whether a
+mountpoint *name* should switch Stream Health into network mode, and
+therefore gate the VRS check, belongs to the station check. It is not
+a side effect of M1.
+
+**Found while moving it, and fixed in M1:**
+
+- The GUI took the declared position for the ARP cross-check from the
+  list's *display text*, which is rounded to 0.01° (about 1 km). The GUI
+  now keeps the parsed entries (`AppState.stEntries`, each row's
+  `lParam` is its index) and reads the position from them at full
+  precision.
+- When the sourcetable was fetched while opening a stream, the network
+  field and declared position were never taken at all. Classification
+  and the cross-check had nothing to work from on that path. They are
+  now taken when the table arrives.
+- The distance column measured from positions such as latitude 400.
+  It now shows a dash for any position `sourcetable_pos_valid` refuses.
+
+**Distance.** `src/core/geo.{c,h}`: `geo_distance_m` and
+`geo_bearing_deg`. These replace the GUI's two private copies
+(`haversine_km`, `geo_distance_m`). Metres, not the kilometres the plan
+said: the ARP checks need metres. Near the antipode the haversine is
+0.13 m short of half the circumference (measured, gcc `-O2`). The test
+allows 1 m there and pins that the result is never NaN.
+
+**Tests:** `test_sourcetable`, 21st in the suite. It includes the real
+names and advertised-type lists from the sample that broke a first
+draft.
+
+**Also noticed, not fixed:** `ntrip-analyser --help` says `-r` is to be
+used "with -m", but combining the two is refused ("Cannot combine
+action flags"). `-r` alone prints the raw table.
 
 ### M2 — the core: the page's data, escaped once
 
@@ -230,7 +331,8 @@ The test parses the output back and compares it field by field.
 - A menu item, enabled when a sourcetable is loaded. It writes
   `ntrip_mountpoint_map.html` to `%TEMP%` and opens it.
 - The page is built on the `OnMapPick` template:
-  - circle markers, coloured by kind (fixed / network / unknown);
+  - circle markers, coloured by kind (fixed / network / product /
+    unknown; see "M1 — as built");
   - the origin marker taken from the Lat/Lon fields, when they are set;
   - `fitBounds` on the valid entries;
   - a popup with the fields above, and the distance and bearing when

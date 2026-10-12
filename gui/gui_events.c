@@ -24,6 +24,7 @@
 #include "core/rtcm3x_parser.h"
 #include "core/rinex_nav.h"
 #include "core/config.h"
+#include "core/geo.h"
 #include "core/version.h"
 #include "cJSON.h"
 
@@ -148,7 +149,6 @@ static void TrayRestore(HWND hwnd, AppState *state)
     TrayRemove(hwnd, state);
 }
 static void MsgStatsSeedAdvertised(AppState *state);
-static double geo_distance_m(double lat1, double lon1, double lat2, double lon2);
 
 /* ── Generic ListView sort state ──────────────────────────── */
 static int  g_sortColumn    = -1;   /* currently sorted column (-1 = none) */
@@ -501,57 +501,6 @@ static void HistorySample(AppState *state, double now)
 }
 
 /**
- * @brief Great-circle distance in metres between two WGS-84 positions.
- */
-static double geo_distance_m(double lat1, double lon1, double lat2, double lon2)
-{
-    const double R = 6371008.8;            /* mean Earth radius, metres */
-    double p1 = lat1 * M_PI / 180.0;
-    double p2 = lat2 * M_PI / 180.0;
-    double dp = (lat2 - lat1) * M_PI / 180.0;
-    double dl = (lon2 - lon1) * M_PI / 180.0;
-    double a  = sin(dp / 2) * sin(dp / 2) +
-                cos(p1) * cos(p2) * sin(dl / 2) * sin(dl / 2);
-    return 2.0 * R * atan2(sqrt(a), sqrt(1.0 - a));
-}
-
-/** VRS keywords as they appear in sourcetable Details / Network fields. */
-static const char *k_vrs_keywords[] = {
-    "VRS", "MAC", "NEAR", "FKP", "IMAX", "SSR",
-};
-
-/**
- * @brief Case-insensitive search for @p token as a whole word.
- *
- * A plain substring test is not safe here.  These keywords are short --
- * "MAC", "SSR", "NEAR" -- and appear inside ordinary words: "LINEAR"
- * contains "NEAR", "MACHINE" contains "MAC".  Matching those would
- * classify a fixed base as a virtual station, which *suppresses* the
- * position checks and hides the very fault this feature exists to find,
- * so the error must not be made in that direction.
- *
- * A match therefore requires non-alphanumeric characters (or the string
- * ends) on both sides, which still matches the real forms: "VRS",
- * "NET-VRS", "1077(1) MAC", "Network;NEAR;".
- */
-static bool contains_token_ci(const char *haystack, const char *token)
-{
-    if (!haystack || !token || !*token) return false;
-    size_t tlen = strlen(token);
-
-    for (const char *p = haystack; *p; p++) {
-        if (_strnicmp(p, token, tlen) != 0) continue;
-
-        char before = (p == haystack) ? '\0' : p[-1];
-        char after  = p[tlen];
-        bool lhs_ok = (before == '\0') || !isalnum((unsigned char)before);
-        bool rhs_ok = (after  == '\0') || !isalnum((unsigned char)after);
-        if (lhs_ok && rhs_ok) return true;
-    }
-    return false;
-}
-
-/**
  * @brief Classify the mountpoint as a fixed base or a network service.
  *
  * Two independent signals, either sufficient:
@@ -569,16 +518,17 @@ static bool contains_token_ci(const char *haystack, const char *token)
  */
 static void ClassifyStation(AppState *state)
 {
-    /* 1. Sourcetable keywords. */
-    for (size_t i = 0; i < sizeof(k_vrs_keywords) / sizeof(k_vrs_keywords[0]); i++) {
-        const char *kw = k_vrs_keywords[i];
-        if (contains_token_ci(state->sourceDetails, kw) ||
-            contains_token_ci(state->sourceNetwork, kw)) {
-            state->stationType = STATION_VRS;
-            snprintf(state->stationWhy, sizeof(state->stationWhy),
-                     "sourcetable names \"%s\"", kw);
-            return;
-        }
+    /* 1. Sourcetable keywords -- the core's list and the core's
+     *    whole-word rule, so the mountpoint map reads them the same way.
+     *    Only the keywords: the STR solution field is not used here
+     *    (design/work-items/mountpoint-map.md, M1). */
+    const char *kw = sourcetable_network_keyword(state->sourceDetails);
+    if (!kw) kw = sourcetable_network_keyword(state->sourceNetwork);
+    if (kw) {
+        state->stationType = STATION_VRS;
+        snprintf(state->stationWhy, sizeof(state->stationWhy),
+                 "sourcetable names \"%s\"", kw);
+        return;
     }
 
     /* 2. Behavioural: does the reference point sit on the rover? */
@@ -1244,6 +1194,69 @@ static void OnGetMountpoints(HWND hwnd, AppState *state)
 
 /* ── Open Stream ──────────────────────────────────────────── */
 
+/**
+ * @brief The loaded sourcetable's entry for the configured mountpoint.
+ *
+ * The selected row first, when it names that mountpoint -- a caster can
+ * list one name twice, and the click says which was meant -- then the
+ * first entry by name.  A leading '/' and case are ignored on both
+ * sides, as configs store the name either way.
+ *
+ * @return The entry, or NULL when no sourcetable is loaded or it does
+ *         not list the mountpoint.
+ */
+static const SourcetableEntry *SourceEntryForMount(const AppState *state)
+{
+    if (!state->stEntries || state->stCount <= 0) return NULL;
+
+    const char *want = state->config.MOUNTPOINT;
+    if (want[0] == '/') want++;
+
+    int sel = ListView_GetNextItem(state->hLvMountpoints, -1, LVNI_SELECTED);
+    if (sel >= 0) {
+        LVITEM lvi;
+        ZeroMemory(&lvi, sizeof(lvi));
+        lvi.mask  = LVIF_PARAM;
+        lvi.iItem = sel;
+        if (ListView_GetItem(state->hLvMountpoints, &lvi) &&
+            lvi.lParam >= 0 && lvi.lParam < state->stCount) {
+            const SourcetableEntry *e = &state->stEntries[lvi.lParam];
+            const char *c = (e->mountpoint[0] == '/') ? e->mountpoint + 1 : e->mountpoint;
+            if (_stricmp(c, want) == 0) return e;
+        }
+    }
+
+    for (int i = 0; i < state->stCount; i++) {
+        const SourcetableEntry *e = &state->stEntries[i];
+        const char *c = (e->mountpoint[0] == '/') ? e->mountpoint + 1 : e->mountpoint;
+        if (_stricmp(c, want) == 0) return e;
+    }
+    return NULL;
+}
+
+/**
+ * @brief Take the network field and declared position from an entry.
+ *
+ * Full precision, from the parse -- not from the list's text, which
+ * shows positions to 0.01 degree (about a kilometre) and once fed that
+ * rounding into the ARP cross-check.
+ */
+static void SourcePosFromEntry(AppState *state, const SourcetableEntry *e)
+{
+    snprintf(state->sourceNetwork, sizeof(state->sourceNetwork), "%s", e->network);
+    state->sourcePosValid = sourcetable_pos_valid(e->latitude, e->longitude);
+    state->sourceLat = state->sourcePosValid ? e->latitude  : 0.0;
+    state->sourceLon = state->sourcePosValid ? e->longitude : 0.0;
+}
+
+/** @brief Replace the kept sourcetable entries, freeing the old ones. */
+static void KeepSourcetable(AppState *state, SourcetableEntry *e, int n)
+{
+    free(state->stEntries);
+    state->stEntries = e;
+    state->stCount   = e ? n : 0;
+}
+
 static void OnOpenStream(HWND hwnd, AppState *state)
 {
     if (state->bWorkerRunning) {
@@ -1335,10 +1348,9 @@ static void OnOpenStream(HWND hwnd, AppState *state)
      * "RTCM 3.2", "RT27", "LB2") so the worker can identify RAW
      * streams that are wrapped inside RTCM 3.x framing.
      *
-     * Strategy: first check the currently selected/focused row (fast
-     * path when user double-clicked a row), then fall back to a name
-     * search through all rows.  Skip leading '/' in mountpoint names
-     * since some configs store it with or without the slash. */
+     * The entry comes from the kept parse (SourceEntryForMount), so the
+     * declared position is at full precision for the cross-check
+     * against the broadcast ARP. */
     state->sourceFormat[0]  = '\0';
     state->sourceDetails[0] = '\0';
     state->sourceNav[0]     = '\0';
@@ -1347,54 +1359,12 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     state->sourceLon        = 0.0;
     state->sourcePosValid   = FALSE;
     {
-        const char *mpName = state->config.MOUNTPOINT;
-        if (mpName[0] == '/') mpName++;   /* skip leading '/' */
-
-        int found = -1;
-
-        /* Fast path: check focused/selected row first */
-        int sel = ListView_GetNextItem(state->hLvMountpoints, -1, LVNI_SELECTED);
-        if (sel >= 0) {
-            char mp[256] = "";
-            ListView_GetItemText(state->hLvMountpoints, sel, 0, mp, sizeof(mp));
-            const char *c = (mp[0] == '/') ? mp + 1 : mp;
-            if (_stricmp(c, mpName) == 0) found = sel;
-        }
-
-        /* Fallback: search all rows */
-        if (found < 0) {
-            int count = ListView_GetItemCount(state->hLvMountpoints);
-            for (int i = 0; i < count; i++) {
-                char mp[256] = "";
-                ListView_GetItemText(state->hLvMountpoints, i, 0, mp, sizeof(mp));
-                const char *c = (mp[0] == '/') ? mp + 1 : mp;
-                if (_stricmp(c, mpName) == 0) { found = i; break; }
-            }
-        }
-
-        if (found >= 0) {
-            ListView_GetItemText(state->hLvMountpoints, found, 2,
-                                 state->sourceFormat, sizeof(state->sourceFormat));
-            ListView_GetItemText(state->hLvMountpoints, found, 3,
-                                 state->sourceDetails, sizeof(state->sourceDetails));
-            ListView_GetItemText(state->hLvMountpoints, found, 5,
-                                 state->sourceNav, sizeof(state->sourceNav));
-            ListView_GetItemText(state->hLvMountpoints, found, 6,
-                                 state->sourceNetwork, sizeof(state->sourceNetwork));
-
-            /* Declared position, for the cross-check against the ARP the
-             * station actually broadcasts. */
-            char latBuf[32] = "", lonBuf[32] = "";
-            ListView_GetItemText(state->hLvMountpoints, found, 8, latBuf, sizeof(latBuf));
-            ListView_GetItemText(state->hLvMountpoints, found, 9, lonBuf, sizeof(lonBuf));
-            if (latBuf[0] && lonBuf[0]) {
-                state->sourceLat = atof(latBuf);
-                state->sourceLon = atof(lonBuf);
-                /* 0,0 is the caster convention for "not stated", not a
-                 * position in the Gulf of Guinea. */
-                state->sourcePosValid = (state->sourceLat != 0.0 ||
-                                         state->sourceLon != 0.0);
-            }
+        const SourcetableEntry *e = SourceEntryForMount(state);
+        if (e) {
+            snprintf(state->sourceFormat,  sizeof(state->sourceFormat),  "%s", e->format);
+            snprintf(state->sourceDetails, sizeof(state->sourceDetails), "%s", e->format_details);
+            snprintf(state->sourceNav,     sizeof(state->sourceNav),     "%s", e->nav_systems);
+            SourcePosFromEntry(state, e);
         }
     }
 
@@ -3702,9 +3672,21 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         state = GetAppState(hwnd);
         char *table = (char *)lParam;
         if (state && table) {
-            ParseMountTable(table, state->hLvMountpoints,
-                            state->config.LATITUDE, state->config.LONGITUDE);
-            int n = ListView_GetItemCount(state->hLvMountpoints);
+            SourcetableEntry *entries = NULL;
+            int n = ParseMountTable(table, state->hLvMountpoints,
+                                    state->config.LATITUDE, state->config.LONGITUDE,
+                                    &entries);
+            KeepSourcetable(state, entries, n);
+
+            /* The worker took the format, details and NavSys from this
+             * table before connecting; the network field and declared
+             * position were never taken on this path, which left the
+             * station classification and the ARP cross-check with
+             * nothing to work from.  Take them here, on the UI thread
+             * that reads them. */
+            const SourcetableEntry *e = SourceEntryForMount(state);
+            if (e) SourcePosFromEntry(state, e);
+
             char m[128];
             snprintf(m, sizeof(m),
                      "[INFO] Sourcetable fetched on connect: %d mountpoint(s).\r\n", n);
@@ -3735,8 +3717,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         if (wParam == 0 && mount_table) {
             /* Success — parse and populate the ListView */
             GuiToConfig(state);  /* ensure latest lat/lon from GUI */
-            ParseMountTable(mount_table, state->hLvMountpoints,
-                            state->config.LATITUDE, state->config.LONGITUDE);
+            SourcetableEntry *entries = NULL;
+            int n = ParseMountTable(mount_table, state->hLvMountpoints,
+                                    state->config.LATITUDE, state->config.LONGITUDE,
+                                    &entries);
+            KeepSourcetable(state, entries, n);
 
             int count = ListView_GetItemCount(state->hLvMountpoints);
             char logmsg[128];

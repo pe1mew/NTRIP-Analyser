@@ -160,6 +160,23 @@ declared coordinates.
   was otherwise clean under it, and is built with it from now on.
 - The tray tooltip bounds the mountpoint name so a long one cannot push
   the satellite count and rate — the part that changes — off the end.
+- **Stream Health's "Sourcetable match" compared the broadcast ARP with
+  a position rounded to 0.01°.** The GUI read the declared position
+  back from the mountpoint list's display text, which shows two
+  decimals. On RFSEE01, registered at 52.2115167, 5.9837064, rounding
+  alone moves the position to 52.21, 5.98: 169 m north and 253 m east,
+  304 m in all (computed), three times the 100 m tolerance. Any station
+  chosen from the list could read *check the caster registration*
+  because of rounding. The GUI now keeps the parsed sourcetable and
+  takes the position from it at full precision.
+- **A sourcetable fetched while opening a stream** gave the GUI the
+  mountpoint's format and message types, but never its network field or
+  declared position. On that path the station classification had no
+  keywords to read, and "Sourcetable match" had no position to compare.
+  Both are now taken when the table arrives.
+- The mountpoint list's distance column measured from any position the
+  caster sent. It now shows a dash for positions that cannot be used:
+  0,0, out of range, or not a number.
 
 ## [3.8.0] - 2026-08-25
 

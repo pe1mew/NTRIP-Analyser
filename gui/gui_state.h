@@ -26,6 +26,7 @@
 #include "core/thresholds.h"
 #include "core/vrs_check.h"
 #include "core/iono.h"
+#include "core/sourcetable.h"
 #include "net/ntrip_proto.h"
 #include "resource.h"    /* IDI_APP_ICON; pure #defines, also fed to windres */
 
@@ -704,6 +705,14 @@ typedef struct {
     BOOL   sourcePosValid;
     char   sourceNetwork[64];         /* Network field, also carries VRS hints */
 
+    /* The sourcetable as the core parsed it, one entry per mountpoint
+     * row; each row's lParam is its index here.  The source* fields
+     * above are filled from this, at full precision -- the list shows
+     * positions to 0.01 degree, about a kilometre, and they used to be
+     * read back from that text.  UI thread only. */
+    SourcetableEntry *stEntries;
+    int               stCount;
+
     int    stationType;               /* STATION_* below */
     char   stationWhy[160];           /* which signal decided it, for display */
 
@@ -1070,12 +1079,19 @@ void LogPumpTimer(AppState *state);
  * from the supplied position, which is what makes the list sortable by
  * proximity — the usual way of choosing a base.
  *
- * @param raw      Raw sourcetable text from the caster.
- * @param listview Destination ListView; cleared first.
- * @param userLat  Reference latitude, degrees, for the distance column.
- * @param userLon  Reference longitude, degrees.
+ * Each row's lParam is the index of its entry in @p entries_out, so a
+ * row still finds its entry after the list has been sorted.
+ *
+ * @param raw         Raw sourcetable text from the caster.
+ * @param listview    Destination ListView; cleared first.
+ * @param userLat     Reference latitude, degrees, for the distance column.
+ * @param userLon     Reference longitude, degrees.
+ * @param entries_out [out] The parsed entries, allocated; the caller
+ *                    owns and frees them. NULL when there are none.
+ * @return Number of entries, which is also the number of rows.
  */
-void ParseMountTable(const char *raw, HWND listview, double userLat, double userLon);
+int ParseMountTable(const char *raw, HWND listview, double userLat, double userLon,
+                    SourcetableEntry **entries_out);
 
 /**
  * @brief Find one mountpoint's STR line in a raw sourcetable.

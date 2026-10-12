@@ -127,6 +127,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
      * the time the message loop ends. */
     if (state->csRtcmDumpInit)
         DeleteCriticalSection(&state->csRtcmDump);
+    free(state->stEntries);
     free(state);
     WSACleanup();
 

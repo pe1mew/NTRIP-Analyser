@@ -114,6 +114,7 @@ add_library(ntrip_core STATIC
     src/core/station_report.c
     src/core/thresholds.c
     src/core/sourcetable.c
+    src/core/geo.c
     src/core/vrs_check.c
     src/core/iono.c
     src/core/rinex_nav.c
@@ -284,6 +285,16 @@ add_test(NAME tls
 # snapshot struct and the caller's clock -- so both endings (gated,
 # fixed base), every failure branch, and the policy override are driven
 # synthetically, with the 60 s hold and 90 s gate costing nothing.
+# The sourcetable parser is shared by the GUI, the CLI and the Android
+# bridge, and only live casters had ever exercised it -- which are
+# polite. Records cut short, a solution field holding the wrong thing,
+# positions that are not positions, the whole-word keyword rule, and
+# distance and bearing against hand-worked cases
+# (design/work-items/mountpoint-map.md, M1).
+add_executable(test_sourcetable test/test_sourcetable.c)
+target_link_libraries(test_sourcetable PRIVATE ntrip_core)
+add_test(NAME sourcetable COMMAND test_sourcetable)
+
 add_executable(test_vrs test/test_vrs.c)
 target_link_libraries(test_vrs PRIVATE ntrip_core)
 add_test(NAME vrs COMMAND test_vrs)
@@ -353,7 +364,8 @@ add_custom_target(test_all
             test_sv_state test_spp test_selfpos_session
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall test_failure test_vrs test_bridge_vrs test_tls)
+            test_stall test_failure test_sourcetable test_vrs test_bridge_vrs
+            test_tls)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
 if(WIN32)
