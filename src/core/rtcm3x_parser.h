@@ -111,6 +111,17 @@ void rtcm_get_station_arp(bool *valid,
                           double *lat_deg, double *lon_deg, double *alt_m);
 
 /**
+ * @brief Forget the decoded reference-station ARP.
+ *
+ * After this call @ref rtcm_get_station_arp reports valid == false until
+ * the next 1005/1006 is decoded.  The ARP is process-wide, so a frontend
+ * that opens a second stream in the same process must call this first:
+ * otherwise the previous station's position is reported as the new
+ * one's until the new station's first 1005/1006 arrives.
+ */
+void rtcm_reset_station_arp(void);
+
+/**
  * @brief Extract the list of satellites tracked in a single MSM4/5/6/7 frame.
  *
  * Reads the 64-bit satellite mask at the correct RTCM 10403.3 offset

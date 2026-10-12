@@ -949,6 +949,11 @@ void rtcm_get_station_arp(bool *valid,
     if (alt_m)   *alt_m   = g_station_arp.alt_m;
 }
 
+void rtcm_reset_station_arp(void)
+{
+    memset(&g_station_arp, 0, sizeof(g_station_arp));
+}
+
 void ecef_to_geodetic(double x, double y, double z, double h, double *lat_deg, double *lon_deg, double *alt) {
     double a = 6378137.0;
     double e2 = 6.69437999014e-3;

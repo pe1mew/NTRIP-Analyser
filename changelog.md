@@ -136,6 +136,21 @@ and this one side by side for five minutes, 262 report samples each —
 **0** solved before, **82** after (the rest waiting for enough GPS
 orbits to arrive on the station's own slow cycle).
 
+### Fixed — the GUI showed the previous station's ARP as the new one's
+
+The broadcast ARP is decoded into one process-wide value that nothing
+ever cleared, and the GUI opens stream after stream in one process. Until
+the new station's first 1005/1006 arrived, Station type, Broadcast ARP,
+Sourcetable match and VRS distance described the station before it, and
+ARP stability recorded the old position as the new station's first. Seen
+live: RFSEE01, then HANESE, read *moved 1x, 2 distinct positions,
+largest jump 24.98 km — a fixed base should not move*, in red; 24.98 km
+is the distance between the two stations, not a movement of either.
+Opening a stream, or replaying a capture, now forgets the ARP first; an
+auto-reconnect, the same mountpoint inside the same session, keeps it.
+Not affected: the CLI runs one stream per process, and the service and
+the Android app take their ARP from the session, never from this value. Pinned by `test_station_arp`.
+
 ### Changed — the stability report's JSON is schema 3
 
 `report_schema_version` 3 adds the `selfpos_*` keys (2 added them

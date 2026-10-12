@@ -191,6 +191,13 @@ add_executable(test_rtcm_hostile test/test_rtcm_hostile.c)
 target_link_libraries(test_rtcm_hostile PRIVATE ntrip_core)
 add_test(NAME rtcm_hostile COMMAND test_rtcm_hostile)
 
+# The decoded ARP is process-wide, and the GUI opens stream after stream
+# in one process: the previous station's position was read as the next
+# one's until its own 1005 arrived.  Decode, reset, decode is pinned.
+add_executable(test_station_arp test/test_station_arp.c)
+target_link_libraries(test_station_arp PRIVATE ntrip_core)
+add_test(NAME station_arp COMMAND test_station_arp)
+
 # The C/N0 offsets differ per MSM, and a wrong one returns a plausible
 # number instead of failing -- so the layout is pinned by construction
 # rather than only by a live station that might not be there tomorrow.
@@ -360,7 +367,8 @@ add_test(NAME kpi_stopped COMMAND test_kpi_stopped)
 
 add_custom_target(test_all
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_rinex_nav test_rtcm_hostile test_msm_cnr test_observables
+    DEPENDS test_rinex_nav test_rtcm_hostile test_station_arp
+            test_msm_cnr test_observables
             test_sv_state test_spp test_selfpos_session
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped

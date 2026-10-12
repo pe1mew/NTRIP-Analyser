@@ -1312,6 +1312,19 @@ static void OnOpenStream(HWND hwnd, AppState *state)
     state->vrsDistHistHead  = 0;
     state->vrsDistHistCount = 0;
     state->vrsArpHistCount  = 0;
+    /* The broadcast ARP lives in the core, process-wide, and outlives
+     * the stream that sent it.  Left alone, the previous station's
+     * 1005/1006 was read as this one's until its own arrived: RFSEE01
+     * then HANESE showed "moved 1x, largest jump 24.98 km", the
+     * distance between the two (2026-10-11).
+     *
+     * Reset here, on every Open, even for the same mountpoint: a value
+     * this stream has not sent must not satisfy what asks for it.  An
+     * auto-reconnect is different -- it happens inside the session, the
+     * same station on the same mountpoint, and never comes through
+     * here, so the ARP survives it and a station that does move across
+     * a drop is still caught by the history above. */
+    rtcm_reset_station_arp();
     state->ggaSendEnabled   = TRUE;
     state->ggaOverrideValid = FALSE;
     state->ggaOverrideLat   = 0.0;
@@ -2812,6 +2825,10 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             state->skyState.filter_gnss_id = 0;
             state->skyState.sessionT0      = gui_get_time_seconds();
             memset(&state->sigCnr, 0, sizeof(state->sigCnr));
+            /* A capture is another station as far as anyone can tell:
+             * same reason as in OnOpenStream. */
+            state->vrsArpHistCount = 0;
+            rtcm_reset_station_arp();
             ListView_DeleteAllItems(state->hLvMsgStats);
             ListView_DeleteAllItems(state->hLvSatellites);
             for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
