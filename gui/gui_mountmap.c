@@ -60,12 +60,14 @@ static const char k_js_base[] =
     "    L.polyline(ll(b[1]), {interactive: false, color: '#8c7f6c', weight: 1,\n"
     "      dashArray: b[0] ? '4,4' : null}).addTo(map);\n"
     "  });\n"
-    /* Natural Earth's own suggested credit. Public domain needs none;
-     * the project gives it anyway (THIRD-PARTY-NOTICES.txt too). The
-     * version comes from the project's own generated file. */
-    "  map.attributionControl.addAttribution('<a href=\"https://www.naturalearthdata.com\" ' +\n"
-    "    'target=\"_blank\" rel=\"noopener\">Made with Natural Earth</a> ' +\n"
-    "    NE_BASEMAP.version + ', 1:50m, public domain');\n"
+    /* Natural Earth's own long credit line, verbatim from its terms of
+     * use. Public domain needs none; the project gives it anyway
+     * (readme, THIRD-PARTY-NOTICES.txt, docs/licences.md). The release
+     * comes from the project's own generated file. */
+    "  map.attributionControl.addAttribution('Made with Natural Earth. ' +\n"
+    "    'Free vector and raster map data @ <a href=\"https://www.naturalearthdata.com\" ' +\n"
+    "    'target=\"_blank\" rel=\"noopener\">naturalearthdata.com</a>. ' +\n"
+    "    'Release ' + NE_BASEMAP.version + ', 1:50m, public domain');\n"
     "  return 'outlines';\n"
     "}\n"
     /* One world, the same with tiles as over the outlines. Tiles used to

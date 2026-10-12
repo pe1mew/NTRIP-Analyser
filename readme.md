@@ -373,6 +373,17 @@ See [compilation guide](docs/compile.md) for complete build instructions.
 |---|---|
 | The code | [Apache License 2.0 with the Commons Clause](LICENSE) |
 | The documentation and other non-code content | [CC BY-NC 4.0](license.md) |
+| The map data built into the Windows GUI (`gui/basemap_ne50m.js`) | **Public domain** — Natural Earth's, not ours, and covered by neither licence above |
+
+**Map data: made with Natural Earth.** Free vector and raster map data
+@ [naturalearthdata.com](https://www.naturalearthdata.com). The Windows
+GUI's mountpoint map and location picker draw over Natural Earth's 1:50m
+land and country boundaries, release 5.1.2, whose primary authors are
+Tom Patterson and Nathaniel Vaughn Kelso. Natural Earth places its data
+in the public domain and asks no credit
+([terms of use](https://www.naturalearthdata.com/about/terms-of-use/));
+it gets one here all the same. [`tools/make_basemap.py`](tools/make_basemap.py)
+records exactly what was taken and how.
 
 The Commons Clause forbids **selling** the software — including paid
 hosting or support where the value comes substantially from it. It does
