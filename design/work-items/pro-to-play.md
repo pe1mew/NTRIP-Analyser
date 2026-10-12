@@ -369,6 +369,72 @@ There, switch to *some or all functionality is restricted* and use
 Tested from **mobile data** before sending: a caster reachable from
 the home network proves nothing about a reviewer's reach.
 
+**The production-access application, submitted 2026-10-12 at 16:17.**
+The console's counter cleared all three conditions on 2026-10-12, a
+day ahead of the arithmetic above. The console then read *"We hebben je
+aanvraag voor productietoegang gekregen"*: a decision by email to the
+account owner, usually within seven days. Free's answers in 2026-09
+were never written down, so there was nothing to reuse; pro's are kept
+here, so the next application, or a request for more testing, starts
+from them.
+
+The form (Dutch console) has three steps per Google's
+[help page](https://support.google.com/googleplay/android-developer/answer/14151465):
+*Over je gesloten test*, *Over je app* and *Je productiegereedheid*.
+Each text field is capped at **300 characters**. The answers are not
+public and do not affect visibility, and **unsaved answers are lost**
+if the page is left. No install estimate was asked in these steps.
+Google may ask for more testing, most often for too few testers or
+too little engagement.
+
+The texts below are **as drafted**, each counted under 300 characters.
+Where a draft had an **[AUTEUR]** gap, the author filled it in the
+console, and that wording was not reported back. **The author's final
+wording replaces the gap text here when known**; until then the gaps
+stand as they were, so nobody mistakes a draft for what was sent.
+
+*Over je gesloten test*
+
+- **Hoe heb je gebruikers voor je gesloten test geworven?** (299)
+  > Geen betaalde testprovider. De testers komen uit de gebruikers van de gratis editie en de melders van issues op GitHub: beheerders van GNSS-basisstations en landmeters. Ieder kreeg een persoonlijke uitnodiging in het Nederlands met uitleg. 14 uitgenodigd, 12 doorlopend aangemeld sinds 28 september.
+- **Hoe makkelijk was het om testers te werven?** Five choices from
+  *Heel moeilijk* to *Heel makkelijk*. **[AUTEUR: the choice made]**.
+  The facts behind it: exactly the minimum of twelve, two to spare on
+  the lists, each invited individually.
+- **Beschrijf de betrokkenheid…** (274 as drafted)
+  > Testers gebruikten de app op hun eigen basisstations: stationscontrole, langdurig volgen, satellietsporen en export [AUTEUR: klopt dit?]. Dat is ook het echte gebruik: een beheerder controleert zijn eigen station. De netwerk-RTK-controle werkt alleen waar een VRS-dienst is.
+- **Geef een overzicht van de feedback…** (223 as drafted)
+  > Feedback via GitHub-issues en e-mail. [AUTEUR: wat kwam er binnen, of: er kwamen geen foutmeldingen binnen.] Android vitals: [AUTEUR: crashes/ANR's]. Dezelfde code staat sinds 16 september in productie als de gratis editie.
+
+*Over je app*
+
+- **Wat is de beoogde doelgroep van je app?** (279)
+  > Professionals die GNSS-basisstations voor RTK beheren, installeren of opleveren: beheerders van basisstations en NTRIP-casters, landmeters en installateurs die moeten weten of een station geschikt is. Een technisch meetinstrument voor volwassen vakgebruikers, niet voor kinderen.
+- **Beschrijf hoe je app waarde biedt voor gebruikers** (296)
+  > Beantwoordt in het veld in circa 90 seconden of een NTRIP-basisstation geschikt is voor RTK, en zo niet waarom: acht KPI's, dezelfde meetkern als de desktoptools. Pro voegt toe: uren volgen met stabiliteitsrapport, netwerk-RTK-controle, satellietsporen, export, meerdere verbindingen en live GGA.
+
+  Every pro feature named is a `true` flag in pro's `Features.kt`.
+  Hand-over and the sourcetable picker did not fit.
+
+*Je productiegereedheid*
+
+- **Welke wijzigingen heb je in je app aangebracht op basis van wat je
+  hebt geleerd tijdens de gesloten test?** (284 as drafted)
+  > Het pre-launch-rapport van de gesloten test markeerde het Caster-venster als inlogscherm. Daarom staat er nu een vast reviewer-account met reserve-mountpoint op een eigen, altijd bereikbare caster, dagelijks gecontroleerd. De app zelf bleef 3.8.0 [AUTEUR: tenzij testers iets vonden].
+
+  The pre-launch finding is the one on record above ("Pro's closed-track
+  pre-launch report had already flagged the same dialog"). The app
+  itself did not change: the only Android commits since 2026-09-09 add
+  core files to the build list.
+- **Hoe heb je besloten dat je app klaar is voor productie?** (244 as drafted)
+  > Dezelfde 3.8.0-build draaide de hele test op hardware van testers [AUTEUR: Android vitals, crashes/ANR's]. De gratis editie met dezelfde code staat sinds 16 september in productie. Elke release doorloopt CI en 106 automatische releasecontroles.
+
+**After access is granted, release the build the testers ran.**
+Promote the closed track's 3.8.0 to production. Do not build a new
+one: 3.8.0 is what fourteen days of testing validated, and `main` has
+since gained only desktop and core changes the app does not use. P7
+and M6–M8 then go out as an ordinary update, reviewed like any other.
+
 ### S6 — say so
 
 The readme's edition table gains pro's Play link; the wiki Pro page's

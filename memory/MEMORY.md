@@ -105,11 +105,11 @@
   *Teruggave starten*) is going out individually. Reviewer credentials
   are already entered for pro's production review (rotated to a
   dedicated account 2026-09-19, watched daily). **The fortnight has
-  twelve testers opted in since 2026-09-28**; on 2026-10-12 the
-  console's own counter read twelve testers for **13** consecutive
-  days, so the production request opens on **2026-10-13** if nobody
-  leaves — twelve being the bare minimum, one person leaving restarts
-  it. Then step S5 of the plan: `design/work-items/pro-to-play.md`.
+  twelve testers opted in since 2026-09-28**; the console cleared all
+  three conditions on 2026-10-12 and **production access was requested
+  that day at 16:17** — a decision by email, usually within seven days.
+  The answers are kept in step S5 of `design/work-items/pro-to-play.md`.
+  On approval, promote the closed track's 3.8.0 rather than a new build.
   <!-- verify: manual — the Play Console is the only source for track state -->
 - **GH#5 decided: pro picks up where free left off, by consent**
   (2026-09-13). Free's and pro's Play app signing certificates differ
