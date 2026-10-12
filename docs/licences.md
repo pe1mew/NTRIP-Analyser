@@ -170,17 +170,24 @@ browser, not this program, fetches what the page names.
   Integrity, so a changed file is refused rather than run. It is not
   shipped, so its notice is not reproduced. The hashes were computed
   from the files served on 2026-10-12.
-- **The mountpoint map fetches no tiles.** It draws over Natural Earth
-  outlines carried in the executable (§2).
-- **The location picker uses CARTO's tiles.** Since about 2026-09-23
-  CARTO requires an API key from everyone. Without one, every tile
-  carries an *API key required* watermark, which was seen on 2026-10-12
-  ([terms](https://carto.com/basemaps/apikey): free for non-commercial
-  use up to 5M requests a month). The OSM Foundation's tile server is
-  not an alternative for a page opened from a file: it answers a
-  request without a `Referer` with *403 Access blocked*, also seen on
-  2026-10-12. A tile source the user configures with their own key is
-  the open item `design/work-items/mountpoint-map.md` M3b.
+- **By default neither page fetches tiles.** Both draw over Natural
+  Earth outlines carried in the executable (§2). Those show a country
+  well and cannot show a mast, and the picker says so.
+- **Tiles only from a source the user sets up**, under Tools → Map
+  tiles, with their own key. The URL template and attribution are kept
+  in the registry for that Windows user. They are never written to a
+  config file or the log, and the attribution is shown as plain text.
+  The user accepts that provider's terms. The project supplies no key
+  and brokers none, as with casters (below).
+- **Why there is no default tile source.** Since about 2026-09-23 CARTO,
+  which the picker used until 2026-10-12, requires an API key from
+  everyone. Without one, every tile carries an *API key required*
+  watermark, seen on 2026-10-12. Its
+  [terms](https://carto.com/basemaps/apikey) make a key free for
+  non-commercial use up to 5M requests a month and pass it as
+  `?key=`. The OSM Foundation's tile server is not an alternative for a
+  page opened from a file: it answers a request without a `Referer`
+  with *403 Access blocked*, also seen on 2026-10-12.
 
 ### Casters in general
 

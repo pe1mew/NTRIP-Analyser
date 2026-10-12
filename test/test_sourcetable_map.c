@@ -380,6 +380,68 @@ int main(void)
               "NULL text, no caster loaded, no sourcetable loaded: each refused by name");
     }
 
+    /* ── 7. A tile source the user supplies (M3b) ──────────────────── */
+    {
+        static const struct { const char *url; int ok; const char *what; } c[] = {
+            { "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=abc123",
+              1, "a CARTO template with a key, {s} and {r}" },
+            { "https://api.example.com/tiles/{z}/{x}/{y}.png?key=K", 1, "a plain template with a key" },
+            { "http://tiles.example.com/{z}/{x}/{y}.png", 0, "http: the key would travel in clear" },
+            { "https://tiles.example.com/{z}/{x}.png", 0, "no {y}" },
+            { "https://tiles.example.com/{z}/{x}/{y}/{foo}.png", 0,
+              "a placeholder Leaflet does not fill, which would throw on every tile" },
+            { "https://tiles.example.com/{z}/{x}/{y.png", 0, "an unclosed brace" },
+            { "https://tiles.example.com/z}/{x}/{y}.png", 0, "a stray closing brace" },
+            { "https://tiles.example.com/{z}/{x}/{y}.png?k=a b", 0, "a space" },
+            { "https://tiles.example.com/{z}/{x}/{y}.png?k=\"x", 0, "a double quote" },
+            { "https://tiles.example.com/{z}/{x}/{y}.png?k='x", 0, "a single quote" },
+            { "https://tiles.example.com/{z}/{x}/{y}.png?k=</script>", 0, "< and >" },
+            { "https://tiles.example.com/{z}/{x}/{y}.png?k=\\x", 0, "a backslash" },
+            { "https://tiles.example.com/{z}/{x}/{y}.png\n", 0, "a trailing newline" },
+            { "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=", 0,
+              "the dialog's CARTO template with no key pasted after key=" },
+            { "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=abc", 1,
+              "the same with a key" },
+            { "", 0, "empty" },
+        };
+        for (size_t i = 0; i < sizeof(c) / sizeof(c[0]); i++) {
+            char why[160] = "unset";
+            int ok = map_tile_url_usable(c[i].url, why, sizeof(why));
+            char what[200];
+            snprintf(what, sizeof(what), "tile URL, %s: %s (%s)",
+                     c[i].ok ? "accepted" : "refused", c[i].what, why);
+            check(ok == c[i].ok && (ok ? why[0] == '\0' : why[0] != '\0'), what);
+        }
+        check(!map_tile_url_usable(NULL, NULL, 0), "NULL is refused, with no reason buffer");
+
+        char longurl[MAP_TILE_URL_MAX + 2];
+        memset(longurl, 'a', sizeof(longurl) - 1);
+        longurl[sizeof(longurl) - 1] = '\0';
+        memcpy(longurl, "https://x/{z}/{x}/{y}", 21);
+        check(!map_tile_url_usable(longurl, NULL, 0), "a template over MAP_TILE_URL_MAX is refused");
+        longurl[MAP_TILE_URL_MAX] = '\0';
+        check(map_tile_url_usable(longurl, NULL, 0), "one at the limit is accepted");
+
+        /* The attribution is free text, so only the quoting protects it. */
+        const char *attr = "\xC2\xA9 Me </script><img src=x onerror=1> \"q\" \\ \xE2\x80\xA8";
+        long need = map_json_quote(attr, NULL, 0);
+        char *q = (char *)malloc((size_t)need + 1);
+        check(map_json_quote(attr, q, (size_t)need + 1) == need && script_safe(q),
+              "a hostile attribution quotes to nothing a <script> block trips on");
+        char doc[600];
+        snprintf(doc, sizeof(doc), "{\"a\":%s}", q);
+        cJSON *j = cJSON_Parse(doc);
+        check(j && str_is(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j, "a")), attr),
+              "and parses back to exactly the text typed");
+        cJSON_Delete(j);
+        check(map_json_quote(attr, q, (size_t)need) == need && q[0] == '\0',
+              "one byte short: the full length returned, an empty string written");
+        free(q);
+        char two[4];
+        check(map_json_quote(NULL, two, sizeof(two)) == 2 && str_is(two, "\"\""),
+              "NULL quotes as an empty string");
+    }
+
     printf("\n%s (%d failure%s)\n", failures ? "FAILED" : "PASSED",
            failures, failures == 1 ? "" : "s");
     return failures ? 1 : 0;

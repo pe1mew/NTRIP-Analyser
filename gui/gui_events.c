@@ -54,6 +54,8 @@ static void OnStreamDone(HWND hwnd, AppState *state);
 static void OnStatUpdate(AppState *state, int msg_type, int count);
 static void OnSatUpdate(AppState *state);
 static void RefreshStreamHealth(AppState *state);
+static char *MapTilesJson(AppState *state);
+static void OnMapTiles(HWND hwnd, AppState *state);
 
 /* ── Notification area ("tray") ───────────────────────────────────────
  *
@@ -1616,6 +1618,34 @@ static void OnStreamDone(HWND hwnd, AppState *state)
 /* ── Mountpoint map ─────────────────────────────────────────── */
 
 /**
+ * @brief Write the built-in Natural Earth outlines beside a map page.
+ *
+ * From the executable's own resources, so nothing under the map is
+ * fetched.  On failure the page still opens and says the outlines
+ * could not be loaded.
+ */
+static BOOL MapWriteBasemap(AppState *state, const char *dir)
+{
+    char path[MAX_PATH + 32];
+    HRSRC   hRes  = FindResource(NULL, MAKEINTRESOURCE(IDR_BASEMAP_JS), RT_RCDATA);
+    HGLOBAL hData = hRes ? LoadResource(NULL, hRes) : NULL;
+    const void *bm = hData ? LockResource(hData) : NULL;
+    DWORD bmLen    = hRes ? SizeofResource(NULL, hRes) : 0;
+    snprintf(path, sizeof(path), "%sntrip_basemap.js", dir);
+    FILE *fb = (bm && bmLen) ? fopen(path, "wb") : NULL;
+    BOOL ok = FALSE;
+    if (fb) {
+        ok = (fwrite(bm, 1, bmLen, fb) == bmLen);
+        if (fclose(fb) != 0) ok = FALSE;
+    }
+    if (!ok)
+        AppendLog(state->hEditLog,
+                  "[WARN] The built-in map outlines could not be written; "
+                  "the map will have a blank background.\r\n");
+    return ok;
+}
+
+/**
  * @brief View -> Mountpoint map: every mountpoint of the loaded
  *        sourcetable, in the browser (design/work-items/mountpoint-map.md).
  *
@@ -1654,31 +1684,15 @@ static void OnMountMap(HWND hwnd, AppState *state)
     char dir[MAX_PATH], path[MAX_PATH + 32];
     GetTempPathA(MAX_PATH, dir);
 
-    /* The basemap goes beside the page, from the executable's own
-     * resources: Natural Earth outlines, so nothing under the map is
-     * fetched.  If this fails the page still opens, and says the
-     * outlines could not be loaded. */
-    HRSRC   hRes  = FindResource(NULL, MAKEINTRESOURCE(IDR_BASEMAP_JS), RT_RCDATA);
-    HGLOBAL hData = hRes ? LoadResource(NULL, hRes) : NULL;
-    const void *bm = hData ? LockResource(hData) : NULL;
-    DWORD bmLen    = hRes ? SizeofResource(NULL, hRes) : 0;
-    snprintf(path, sizeof(path), "%sntrip_basemap.js", dir);
-    FILE *fb = (bm && bmLen) ? fopen(path, "wb") : NULL;
-    BOOL bmOk = FALSE;
-    if (fb) {
-        bmOk = (fwrite(bm, 1, bmLen, fb) == bmLen);
-        if (fclose(fb) != 0) bmOk = FALSE;
-    }
-    if (!bmOk)
-        AppendLog(state->hEditLog,
-                  "[WARN] The built-in map outlines could not be written; "
-                  "the map will show stations on a blank background.\r\n");
+    char *tiles = MapTilesJson(state);
+    if (!tiles) MapWriteBasemap(state, dir);
 
     snprintf(path, sizeof(path), "%sntrip_mountpoint_map.html", dir);
     FILE *f = fopen(path, "wb");
-    int rc = f ? MountMapWritePage(f, json) : -1;
+    int rc = f ? MountMapWritePage(f, json, tiles) : -1;
     if (f && fclose(f) != 0) rc = -1;
     free(json);
+    free(tiles);
     if (rc != 0) {
         MessageBox(hwnd, "Failed to write the mountpoint map file.",
                    APP_TITLE, MB_ICONERROR | MB_OK);
@@ -1705,8 +1719,6 @@ static void OnMountMap(HWND hwnd, AppState *state)
  */
 static void OnMapPick(HWND hwnd, AppState *state)
 {
-    (void)hwnd;
-
     /* Read current lat/lon from edit controls */
     char latBuf[64], lonBuf[64];
     GetWindowText(state->hEditLatitude,  latBuf, sizeof(latBuf));
@@ -1721,96 +1733,30 @@ static void OnMapPick(HWND hwnd, AppState *state)
         lon = -0.09;
     }
 
-    /* Zoom 13 = neighbourhood-scale (~1:35 000); close enough that an
-     * installer can see the actual reference-station mast and confirm
-     * which roof / pole the antenna sits on. */
-    int zoom = 13;
-
-    /* Build HTML content with embedded Leaflet.js */
-    char html[8192];
-    snprintf(html, sizeof(html),
-        "<!DOCTYPE html>\n"
-        "<html><head><meta charset=\"utf-8\">\n"
-        "<title>Pick Location - NTRIP-Analyser</title>\n"
-        /* Subresource Integrity: hashes computed from the files unpkg
-         * served on 2026-10-12; gui_mountmap.c carries the same pair. */
-        "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\"\n"
-        "  integrity=\"sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=\" crossorigin=\"\"/>\n"
-        "<script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"\n"
-        "  integrity=\"sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=\" crossorigin=\"\"></script>\n"
-        "<style>\n"
-        "  body{margin:0;font-family:sans-serif}\n"
-        "  #map{height:calc(100vh - 50px)}\n"
-        "  #bar{height:50px;display:flex;align-items:center;justify-content:center;"
-        "background:#333;color:#fff;font-size:16px;gap:15px}\n"
-        "  #coords{font-family:monospace;font-size:18px;color:#0f0}\n"
-        "  #status{font-size:13px;color:#aaa;transition:opacity 0.3s}\n"
-        "</style>\n"
-        "</head><body>\n"
-        "<div id=\"bar\">\n"
-        "  <span>Click the map to pick a location:</span>\n"
-        "  <span id=\"coords\">%.6f, %.6f</span>\n"
-        "  <span id=\"status\"></span>\n"
-        "</div>\n"
-        "<div id=\"map\"></div>\n"
-        "<script>\n"
-        "var map=L.map('map').setView([%.6f,%.6f],%d);\n"
-        /* CartoDB Voyager: OSM data, hosted by Carto.  Drop-in
-         * replacement for the OSM Foundation tile server, which
-         * blocks third-party apps and replaces tiles with an
-         * 'access blocked' placeholder per their tile-usage policy
-         * (https://operations.osmfoundation.org/policies/tiles/).
-         * CartoDB has a more permissive free-tier policy and serves
-         * the same map content.  Subdomains a-d for parallel load. */
-        "L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',{\n"
-        "  maxZoom:19,subdomains:'abcd',\n"
-        "  attribution:'&copy; OpenStreetMap contributors &copy; CARTO'}).addTo(map);\n"
-        "var marker=L.marker([%.6f,%.6f]).addTo(map);\n"
-        "var st=document.getElementById('status');\n"
-        "function copyText(t){\n"
-        "  if(navigator.clipboard&&window.isSecureContext){\n"
-        "    navigator.clipboard.writeText(t);\n"
-        "  }else{\n"
-        "    var ta=document.createElement('textarea');\n"
-        "    ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';\n"
-        "    document.body.appendChild(ta);ta.select();\n"
-        "    document.execCommand('copy');\n"
-        "    document.body.removeChild(ta);\n"
-        "  }\n"
-        "}\n"
-        "map.on('click',function(e){\n"
-        "  var la=e.latlng.lat.toFixed(6);\n"
-        "  var lo=e.latlng.lng.toFixed(6);\n"
-        "  marker.setLatLng(e.latlng);\n"
-        "  document.getElementById('coords').textContent=la+', '+lo;\n"
-        "  copyText(la+','+lo);\n"
-        "  st.textContent='Copied to clipboard!';\n"
-        "  st.style.opacity='1';\n"
-        "  setTimeout(function(){st.style.opacity='0'},2000);\n"
-        "});\n"
-        "</script>\n"
-        "</body></html>\n",
-        lat, lon,       /* initial coords display */
-        lat, lon, zoom, /* map centre + zoom */
-        lat, lon        /* initial marker */
-    );
-
-    /* Write to temp file */
+    /* The page (gui_mountmap.c, MapPickWritePage) opens at
+     * neighbourhood scale over the user's tiles, close enough to see
+     * the mast; without a tile source it opens over the built-in
+     * outlines and says why there are no streets.  Until 2026-10-12 it
+     * used CARTO's tiles unconditionally, which by then showed only
+     * "API KEY REQUIRED" watermarks. */
     char tempPath[MAX_PATH];
     GetTempPathA(MAX_PATH, tempPath);
+
+    char *tiles = MapTilesJson(state);
+    if (!tiles) MapWriteBasemap(state, tempPath);
 
     char filePath[MAX_PATH + 32];
     snprintf(filePath, sizeof(filePath), "%sntrip_map_picker.html", tempPath);
 
-    FILE *f = fopen(filePath, "w");
-    if (!f) {
+    FILE *f = fopen(filePath, "wb");
+    int rc = f ? MapPickWritePage(f, lat, lon, tiles) : -1;
+    if (f && fclose(f) != 0) rc = -1;
+    free(tiles);
+    if (rc != 0) {
         MessageBox(hwnd, "Failed to create temporary map file.",
                    APP_TITLE, MB_ICONERROR | MB_OK);
         return;
     }
-    fputs(html, f);
-    fclose(f);
-
     /* Open in default browser */
     ShellExecuteA(NULL, "open", filePath, NULL, NULL, SW_SHOWNORMAL);
 
@@ -2244,6 +2190,204 @@ static void GuiThresholdsRemember(const char *path)
     else
         RegDeleteValue(k, GUI_REG_VALUE);
     RegCloseKey(k);
+}
+
+/* ── Map tiles (mountpoint-map.md, M3b) ──────────────────────────────
+ *
+ * The user's own tile source for both map pages.  It lives beside the
+ * thresholds path in the registry, not in a config file: a key is
+ * personal to the user, while config files describe a caster and get
+ * shared.  It is never written to the log, since the URL carries the
+ * key.  Unset is the default, and the pages then draw the built-in
+ * Natural Earth outlines. */
+
+#define MAP_REG_URL  "MapTileUrl"
+#define MAP_REG_ATTR "MapTileAttribution"
+
+/* CARTO's raster template as its key page gives it
+ * (carto.com/basemaps/apikey, read 2026-10-12), ending at "key=" for
+ * the user's key -- the core refuses it saved without one -- and the
+ * attribution CARTO asks for.  0xA9 is the copyright sign in the ANSI
+ * code page this GUI works in; MapTilesJson converts it to UTF-8. */
+#define CARTO_TILE_URL  "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key="
+#define CARTO_TILE_ATTR "\xA9 OpenStreetMap contributors \xA9 CARTO"
+#define CARTO_KEY_PAGE  "https://carto.com/basemaps/apikey"
+
+/**
+ * @brief ANSI (the GUI's code page) to UTF-8, which the page is in.
+ *
+ * Without it a typed or pasted "\xA9" reached the page as a lone 0xA9
+ * byte, and the core's escaping rightly turned it into U+FFFD.
+ *
+ * @return Allocated UTF-8, or NULL; the caller frees it.
+ */
+static char *AnsiToUtf8(const char *s)
+{
+    int wn = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
+    if (wn <= 0) return NULL;
+    WCHAR *w = (WCHAR *)malloc((size_t)wn * sizeof(WCHAR));
+    if (!w) return NULL;
+    MultiByteToWideChar(CP_ACP, 0, s, -1, w, wn);
+    int un = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    char *u = (un > 0) ? (char *)malloc((size_t)un) : NULL;
+    if (u) WideCharToMultiByte(CP_UTF8, 0, w, -1, u, un, NULL, NULL);
+    free(w);
+    return u;
+}
+
+/** @brief A REG_SZ value, terminated whatever the registry holds. */
+static BOOL RegGetString(const char *name, char *out, DWORD cap)
+{
+    out[0] = '\0';
+    HKEY k;
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, GUI_REG_KEY, 0, KEY_QUERY_VALUE, &k) != ERROR_SUCCESS)
+        return FALSE;
+    DWORD type = 0, len = cap - 1;
+    LONG r = RegQueryValueEx(k, name, NULL, &type, (BYTE *)out, &len);
+    RegCloseKey(k);
+    if (r != ERROR_SUCCESS || type != REG_SZ) { out[0] = '\0'; return FALSE; }
+    out[len < cap ? len : cap - 1] = '\0';   /* a stored string need not be terminated */
+    return TRUE;
+}
+
+static void RegPutString(const char *name, const char *value)
+{
+    HKEY k;
+    if (RegCreateKeyEx(HKEY_CURRENT_USER, GUI_REG_KEY, 0, NULL, 0,
+                       KEY_SET_VALUE, NULL, &k, NULL) != ERROR_SUCCESS)
+        return;
+    if (value && value[0])
+        RegSetValueEx(k, name, 0, REG_SZ, (const BYTE *)value, (DWORD)strlen(value) + 1);
+    else
+        RegDeleteValue(k, name);
+    RegCloseKey(k);
+}
+
+/**
+ * @brief The saved tile source as the pages' TILES object, or NULL.
+ *
+ * NULL when none is saved, or when the saved one is no longer usable --
+ * then the log says why, without the URL, and the pages fall back to
+ * the outlines.  Both strings go through the core's quoting.  The
+ * caller frees the result.
+ */
+static char *MapTilesJson(AppState *state)
+{
+    char url[MAP_TILE_URL_MAX + 1], attr[MAP_TILE_ATTR_MAX + 1], why[160];
+    if (!RegGetString(MAP_REG_URL, url, sizeof(url)) || !url[0]) return NULL;
+    if (!map_tile_url_usable(url, why, sizeof(why))) {
+        char msg[256];
+        snprintf(msg, sizeof(msg),
+                 "[WARN] The saved map tile source is not usable (%s); "
+                 "using the built-in outlines.\r\n", why);
+        AppendLog(state->hEditLog, msg);
+        return NULL;
+    }
+    RegGetString(MAP_REG_ATTR, attr, sizeof(attr));
+    char *attr8 = AnsiToUtf8(attr);   /* the URL is ASCII by map_tile_url_usable */
+    if (!attr8) return NULL;
+
+    long a = map_json_quote(url, NULL, 0), b = map_json_quote(attr8, NULL, 0);
+    if (a < 0 || b < 0) { free(attr8); return NULL; }
+    size_t cap = (size_t)a + (size_t)b + 32;
+    char *qa = (char *)malloc((size_t)a + 1), *qb = (char *)malloc((size_t)b + 1);
+    char *out = (char *)malloc(cap);
+    if (qa && qb && out &&
+        map_json_quote(url,   qa, (size_t)a + 1) == a &&
+        map_json_quote(attr8, qb, (size_t)b + 1) == b) {
+        snprintf(out, cap, "{\"url\":%s,\"attribution\":%s}", qa, qb);
+    } else {
+        free(out);
+        out = NULL;
+    }
+    free(qa);
+    free(qb);
+    free(attr8);
+    return out;
+}
+
+static INT_PTR CALLBACK MapTilesDlgProc(HWND dlg, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg) {
+    case WM_INITDIALOG: {
+        char url[MAP_TILE_URL_MAX + 1], attr[MAP_TILE_ATTR_MAX + 1];
+        RegGetString(MAP_REG_URL, url, sizeof(url));
+        RegGetString(MAP_REG_ATTR, attr, sizeof(attr));
+        SendDlgItemMessage(dlg, IDC_TILE_URL,  EM_LIMITTEXT, MAP_TILE_URL_MAX, 0);
+        SendDlgItemMessage(dlg, IDC_TILE_ATTR, EM_LIMITTEXT, MAP_TILE_ATTR_MAX, 0);
+        SetDlgItemText(dlg, IDC_TILE_EX_URL,  CARTO_TILE_URL "YOUR_KEY");
+        SetDlgItemText(dlg, IDC_TILE_EX_ATTR, "Attribution: " CARTO_TILE_ATTR);
+        if (url[0]) {
+            SetDlgItemText(dlg, IDC_TILE_URL, url);
+            SetDlgItemText(dlg, IDC_TILE_ATTR, attr);
+        } else {
+            /* Nothing saved: CARTO's template, ready for the key. */
+            PostMessage(dlg, WM_COMMAND, MAKEWPARAM(IDC_TILE_CARTO, BN_CLICKED), 0);
+        }
+        return TRUE;
+    }
+    case WM_NOTIFY: {
+        const NMHDR *nh = (const NMHDR *)lParam;
+        if (nh->idFrom == IDC_TILE_LINK && (nh->code == NM_CLICK || nh->code == NM_RETURN)) {
+            ShellExecuteA(dlg, "open", CARTO_KEY_PAGE, NULL, NULL, SW_SHOWNORMAL);
+            return TRUE;
+        }
+        return FALSE;
+    }
+    case WM_COMMAND:
+        switch (LOWORD(wParam)) {
+        case IDC_TILE_CLEAR:
+            SetDlgItemText(dlg, IDC_TILE_URL, "");
+            SetDlgItemText(dlg, IDC_TILE_ATTR, "");
+            return TRUE;
+        case IDC_TILE_CARTO: {
+            /* Fill in CARTO's template and put the caret after "key=",
+             * so the key can be pasted straight in. */
+            HWND ed = GetDlgItem(dlg, IDC_TILE_URL);
+            SetWindowText(ed, CARTO_TILE_URL);
+            SetDlgItemText(dlg, IDC_TILE_ATTR, CARTO_TILE_ATTR);
+            SetFocus(ed);
+            int n = GetWindowTextLength(ed);
+            SendMessage(ed, EM_SETSEL, n, n);
+            return TRUE;
+        }
+        case IDOK: {
+            char url[MAP_TILE_URL_MAX + 2], attr[MAP_TILE_ATTR_MAX + 2], why[160];
+            GetDlgItemText(dlg, IDC_TILE_URL, url, sizeof(url));
+            GetDlgItemText(dlg, IDC_TILE_ATTR, attr, sizeof(attr));
+            if (url[0] && !map_tile_url_usable(url, why, sizeof(why))) {
+                char m[256];
+                snprintf(m, sizeof(m), "This tile URL cannot be used: %s.", why);
+                MessageBox(dlg, m, APP_TITLE, MB_ICONWARNING | MB_OK);
+                SetFocus(GetDlgItem(dlg, IDC_TILE_URL));
+                return TRUE;
+            }
+            RegPutString(MAP_REG_URL, url);
+            RegPutString(MAP_REG_ATTR, url[0] ? attr : "");
+            EndDialog(dlg, IDOK);
+            return TRUE;
+        }
+        case IDCANCEL:
+            EndDialog(dlg, IDCANCEL);
+            return TRUE;
+        }
+        break;
+    }
+    return FALSE;
+}
+
+/** @brief Tools -> Map tiles: set, change or clear the tile source. */
+static void OnMapTiles(HWND hwnd, AppState *state)
+{
+    HINSTANCE hInst = (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
+    if (DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_MAP_TILES), hwnd,
+                       MapTilesDlgProc, 0) != IDOK)
+        return;
+    char url[MAP_TILE_URL_MAX + 1];   /* full size: a short buffer reads as "none" */
+    RegGetString(MAP_REG_URL, url, sizeof(url));
+    AppendLog(state->hEditLog, url[0]
+        ? "[INFO] Map tile source saved; the map pages will use it.\r\n"
+        : "[INFO] Map tile source cleared; the map pages use the built-in outlines.\r\n");
 }
 
 /**
@@ -3174,6 +3318,10 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         case IDM_VIEW_MOUNTMAP:
             OnMountMap(hwnd, state);
+            return 0;
+
+        case IDM_TOOLS_MAP_TILES:
+            OnMapTiles(hwnd, state);
             return 0;
 
         case IDM_VIEW_SELFPOS:

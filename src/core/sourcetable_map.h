@@ -34,6 +34,7 @@
 #ifndef SOURCETABLE_MAP_H
 #define SOURCETABLE_MAP_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include "core/sourcetable.h"
 
@@ -151,6 +152,54 @@ long sourcetable_to_geojson(const SourcetableEntry *entries, int n,
                             const char *caster, int port,
                             double origin_lat, double origin_lon,
                             char *buf, size_t cap);
+
+/* ── A tile source the user supplies (mountpoint-map.md, M3b) ────────── */
+
+/** @brief Longest tile URL template accepted, in bytes. */
+#define MAP_TILE_URL_MAX  1024
+/** @brief Longest attribution text accepted, in bytes. */
+#define MAP_TILE_ATTR_MAX 256
+
+/**
+ * @brief Whether a tile URL template can be handed to the map pages.
+ *
+ * The user types it, usually pasted from a provider's page with a key
+ * in it (`...?api_key=...`). It must:
+ *
+ * - start with `https://` -- the key would otherwise travel in clear;
+ * - contain `{z}`, `{x}` and `{y}`;
+ * - use no other placeholder than those and `{s}` and `{r}`, the only
+ *   ones Leaflet fills -- any other makes Leaflet throw on every tile;
+ * - hold no white space, control character, quote, backslash, `<` or
+ *   `>` -- none belongs in a URL, and refusing them here means the page
+ *   never has to cope with them;
+ * - not end with `=` -- the dialog offers a template ending in `?key=`
+ *   for the key to be pasted after, and saved without one every tile
+ *   would fail;
+ * - be at most @ref MAP_TILE_URL_MAX bytes.
+ *
+ * @param url Template; NULL or empty is refused.
+ * @param why [out] The first reason it was refused, for the dialog;
+ *            may be NULL.
+ * @param cap Capacity of @p why.
+ * @return true when usable.
+ */
+bool map_tile_url_usable(const char *url, char *why, size_t cap);
+
+/**
+ * @brief A string as a JSON literal that is safe inside `<script>`.
+ *
+ * The same escaping as every string in @ref sourcetable_to_geojson, for
+ * text the GUI puts into a page by itself -- the user's tile URL and
+ * attribution. All or nothing, like that function.
+ *
+ * @param s   Text; NULL is written as `""`.
+ * @param buf [out] Destination, or NULL to measure.
+ * @param cap Capacity of @p buf.
+ * @return Length of the literal including its quotes, excluding the
+ *         terminator; it fits when this is less than @p cap.
+ */
+long map_json_quote(const char *s, char *buf, size_t cap);
 
 #ifdef __cplusplus
 }

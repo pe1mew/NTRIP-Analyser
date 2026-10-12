@@ -56,6 +56,8 @@ BEGIN
         MENUITEM "Toggle &auto-send GGA",             IDM_TOOLS_VRS_GGA_TOGGLE
         MENUITEM "Auto-&reconnect on drop",           IDM_TOOLS_AUTO_RECONNECT
         MENUITEM "&Minimise to notification area",    IDM_TOOLS_TRAY_MINIMIZE
+        MENUITEM SEPARATOR
+        MENUITEM "Map &tiles...",                     IDM_TOOLS_MAP_TILES
     END
     POPUP "&Help"
     BEGIN
@@ -79,6 +81,31 @@ IDI_APP_ICON ICON "gui/ntrip-analyser.ico"
  * Written beside the mountpoint map page as ntrip_basemap.js, so the
  * map underneath needs no tile server and no network. */
 IDR_BASEMAP_JS RCDATA "gui/basemap_ne50m.js"
+
+/* ── Tools -> Map tiles ───────────────────────────────────── */
+/* The user's own tile source for both map pages. The example is CARTO's
+ * template as its key page gives it (carto.com/basemaps/apikey, read
+ * 2026-10-12): the key goes in the "key" query parameter. */
+IDD_MAP_TILES DIALOGEX 0, 0, 360, 178
+STYLE DS_MODALFRAME | DS_CENTER | DS_SHELLFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Map tiles"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT           "Tile URL template, with your key in it. It must start with https:// and contain {z}, {x} and {y}; {s} and {r} are also allowed.", -1, 8, 8, 344, 18
+    EDITTEXT        IDC_TILE_URL, 8, 28, 344, 14, ES_AUTOHSCROLL
+    LTEXT           "Attribution, as your provider requires it on the map:", -1, 8, 48, 344, 10
+    EDITTEXT        IDC_TILE_ATTR, 8, 60, 344, 14, ES_AUTOHSCROLL
+    /* Selectable and copyable: read-only edits, not static text, and the
+     * key page as a real link (SysLink; opened in WM_NOTIFY). */
+    CONTROL         "Example, CARTO: get a free key at <a href=""https://carto.com/basemaps/apikey"">carto.com/basemaps/apikey</a>, press CARTO below, paste the key after key=", IDC_TILE_LINK, "SysLink", WS_TABSTOP, 8, 82, 344, 10
+    EDITTEXT        IDC_TILE_EX_URL, 14, 94, 338, 12, ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER
+    EDITTEXT        IDC_TILE_EX_ATTR, 14, 106, 338, 12, ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER
+    LTEXT           "Without a tile source both maps use the built-in Natural Earth outlines. The template is kept in the registry for this Windows user only, never in a config file.", -1, 8, 124, 344, 18
+    PUSHBUTTON      "Clear", IDC_TILE_CLEAR, 8, 156, 50, 14
+    PUSHBUTTON      "CARTO", IDC_TILE_CARTO, 62, 156, 50, 14
+    DEFPUSHBUTTON   "OK", IDOK, 246, 156, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 302, 156, 50, 14
+END
 
 /* ── Version Information ──────────────────────────────────────
  * Values come from src/core/version.h so the GUI, CLI, service and

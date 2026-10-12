@@ -50,6 +50,7 @@
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
 #define IDM_TOOLS_AUTO_RECONNECT   9041  /* reconnect with backoff on drop */
 #define IDM_TOOLS_TRAY_MINIMIZE    9042  /* minimise to the notification area */
+#define IDM_TOOLS_MAP_TILES        9043  /* the user's own tile source for the map pages */
 
 /* ── Tray context menu ────────────────────────────────────── */
 #define IDM_TRAY_RESTORE        3010
@@ -165,6 +166,16 @@
 
 /* ── Self-position window ────────────────────────────────── */
 #define IDC_SELFPOS_LIST        1920
+
+/* Tools -> Map tiles dialog (mountpoint-map.md M3b) */
+#define IDD_MAP_TILES           300
+#define IDC_TILE_URL            1930
+#define IDC_TILE_ATTR           1931
+#define IDC_TILE_CLEAR          1932
+#define IDC_TILE_CARTO          1933  /* fill in CARTO's template, ready for a key */
+#define IDC_TILE_LINK           1934  /* SysLink to CARTO's key page */
+#define IDC_TILE_EX_URL         1935  /* read-only, copyable example URL */
+#define IDC_TILE_EX_ATTR        1936  /* read-only, copyable example attribution */
 
 /* ── Context menu IDs ────────────────────────────────────── */
 #define IDM_CTX_SELECT_ALL      3001

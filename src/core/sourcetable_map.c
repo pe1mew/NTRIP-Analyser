@@ -372,3 +372,69 @@ long sourcetable_to_geojson(const SourcetableEntry *entries, int n,
     }
     return (long)o.len;
 }
+
+/* ── A tile source the user supplies ─────────────────────────────────── */
+
+static bool refuse(char *why, size_t cap, const char *reason)
+{
+    if (why && cap) snprintf(why, cap, "%s", reason);
+    return false;
+}
+
+bool map_tile_url_usable(const char *url, char *why, size_t cap)
+{
+    if (why && cap) why[0] = '\0';
+    if (!url || !*url) return refuse(why, cap, "the URL is empty");
+    if (strlen(url) > MAP_TILE_URL_MAX)
+        return refuse(why, cap, "the URL is longer than 1024 characters");
+    if (strncmp(url, "https://", 8) != 0)
+        return refuse(why, cap, "the URL must start with https:// -- "
+                                "a key in it would otherwise travel in clear");
+
+    bool z = false, x = false, y = false;
+    for (const char *p = url; *p; p++) {
+        unsigned char c = (unsigned char)*p;
+        if (c <= 0x20 || c == 0x7F || c == '"' || c == '\'' || c == '\\' ||
+            c == '<' || c == '>' || c == '`')
+            return refuse(why, cap, "the URL contains a space, quote, backslash, "
+                                    "< or > -- none belongs in a tile URL");
+        if (c == '}') return refuse(why, cap, "the URL has a '}' with no '{'");
+        if (c != '{') continue;
+
+        const char *end = strchr(p, '}');
+        if (!end || end - p != 2)
+            return refuse(why, cap, "only {z} {x} {y} {s} and {r} may appear in braces");
+        switch (p[1]) {
+        case 'z': z = true; break;
+        case 'x': x = true; break;
+        case 'y': y = true; break;
+        case 's': case 'r': break;
+        default:
+            return refuse(why, cap, "only {z} {x} {y} {s} and {r} may appear in braces");
+        }
+        p = end;
+    }
+    if (!z || !x || !y)
+        return refuse(why, cap, "the URL needs {z}, {x} and {y}");
+    /* The dialog offers CARTO's template ending in "?key=", for the key
+     * to be pasted after; saved as it is, every tile would fail. */
+    if (url[strlen(url) - 1] == '=')
+        return refuse(why, cap, "the URL ends with '=' -- paste your key after it");
+    return true;
+}
+
+long map_json_quote(const char *s, char *buf, size_t cap)
+{
+    if (buf && cap) buf[0] = '\0';
+    Out o = { buf, buf ? cap : 0, 0, false };
+    put_json_str(&o, s);
+    if (o.broken) {
+        if (buf && cap) buf[0] = '\0';
+        return -1;
+    }
+    if (buf && cap) {
+        if (o.len < cap) buf[o.len] = '\0';
+        else             buf[0] = '\0';
+    }
+    return (long)o.len;
+}

@@ -498,6 +498,109 @@ accepted, which matters on `OnMapPick` too. No console errors.
 **Not built here, M3b:** an optional tile source the user configures
 with their own key, used by both pages, and the fix for `OnMapPick`.
 
+### M3b — the user's own tile source  *(2026-10-12)*
+
+**Asked for** by the author: *"optional add a feature where the user
+adds its own key for OSM or CARTO."* One correction was made before
+building. The OSM Foundation's tile server has no key to add; it
+refuses our pages for want of a `Referer`. The feature is therefore
+*a tile URL template with the user's key in it*, which covers CARTO
+and any provider of the same shape.
+
+What was built:
+
+- **Core** (`sourcetable_map.{c,h}`):
+  - `map_tile_url_usable()` refuses an empty URL, a non-`https://` URL
+    (the key would travel in clear), one missing any of `{z}` `{x}`
+    `{y}`, any placeholder Leaflet does not fill (it throws on every
+    tile), and any white space, quote, backslash, `<` or `>`. The
+    first reason found goes to the dialog.
+  - `map_json_quote()` puts the URL and the attribution into the page
+    with the same script-safe escaping as the GeoJSON.
+  - Both are in `test_sourcetable_map`, now 82 checks.
+- **GUI, Tools → Map tiles…**: the project's first dialog (`DIALOGEX
+  IDD_MAP_TILES`). It holds the URL template and the attribution, with
+  CARTO's template as the example, exactly as CARTO's key page gives
+  it: `…/rastertiles/voyager/{z}/{x}/{y}.png?key=YOUR_KEY`, read
+  2026-10-12. OK refuses an unusable URL with the reason; Clear removes
+  both. Both values are stored under `HKCU\Software\NTRIP-Analyser` (`MapTileUrl`,
+  `MapTileAttribution`), beside the thresholds path:
+  - not in a config file, because a key is personal while config files
+    describe a caster and get shared;
+  - never in the log, because the URL carries the key.
+
+  A saved URL that has stopped being usable falls back to the outlines,
+  and the log says why without naming the URL.
+- **Both pages share `drawBase()`**: tiles when set, otherwise the
+  Natural Earth outlines. The attribution goes through `textContent`
+  before Leaflet, which sets attribution as HTML.
+- **The location picker** moved from a `snprintf` into an 8 KB buffer
+  in `OnMapPick` to `MapPickWritePage()` in `gui_mountmap.c`.
+  - **Without tiles** it opens at zoom 8 over the outlines, with the
+    note *"No tile source is set, so this shows outlines only: too
+    coarse to find a mast"*.
+  - **With tiles** it opens at zoom 13, as before.
+  - **A NaN or out-of-range start** opens at 0,0 rather than writing
+    `nan` into the script.
+  - **Click to copy** is unchanged.
+
+**Checked in a browser** with the harness pages, using a deliberately
+hostile attribution (`<img src=x onerror=…>`):
+
+| Page | Result |
+|---|---|
+| Mountpoint map with tiles | requests go to `basemaps.cartocdn.com/…?key=…`; the attribution is shown as literal text; `window.pwned` stays unset |
+| Picker without tiles | outlines and the note |
+| Picker with tiles | zoom 13 |
+| Picker with a NaN start | 0,0, no errors |
+
+A click on the picker updated the coordinates and showed "Copied to
+clipboard!". Whether text reaches the Windows clipboard, and the
+dialog itself, are for the author's check on the GUI.
+
+**After the author's first look at the dialog (2026-10-12):** *"add
+default/example url for carto so that api key can easily be added;
+make links clickable and selectable so they can be copied."*
+
+- **With nothing saved, the dialog opens pre-filled** with CARTO's
+  template ending in `?key=`, the caret placed after it, and CARTO's
+  attribution. A **CARTO** button refills both.
+- **The core now refuses a URL ending in `=`**, so the template cannot
+  be saved without the key. That is pinned in the test.
+- **The key page is a SysLink** that opens in the browser.
+  `ICC_LINK_CLASS` was added to the GUI's `InitCommonControlsEx`.
+- **The example URL and attribution are read-only edits**, selectable
+  and copyable, where they were static text.
+
+**Found while doing it:** the GUI is an ANSI program, so a typed `©`
+is the single byte 0xA9. In a UTF-8 page the core rightly turns that
+byte into U+FFFD, which would have shown CARTO's own attribution as
+`� OpenStreetMap contributors � CARTO`. The attribution is now
+converted from the ANSI code page to UTF-8 (`AnsiToUtf8`) before it
+is quoted. The URL needs no conversion, since `map_tile_url_usable`
+admits ASCII only.
+
+**Verified by the author with a real CARTO key (2026-10-12).** Streets
+and place names are shown, so the key is accepted from a page opened
+from a file. The attribution shows correct © signs, and Centipede's
+1295 entries include the two `NEAR` services.
+
+**One world, not several.** On a wide window the tiles repeated
+sideways while the stations, drawn once, did not, which left a second
+North America with no stations on it (author's screenshot). The tile
+layer now has `noWrap` and the view is held to one world with
+`maxBounds`. Two things were measured on the way:
+
+- **`noWrap` alone still requested tiles off the world's edge**, x =
+  −2…5 at zoom 2, 16 of 32 requests. Leaflet's documentation pairs
+  `noWrap` with `bounds` for exactly that. With `bounds` set, exactly
+  the 16 tiles of the zoom-2 world are requested.
+- **Raising the least zoom until the world fills the window's width**
+  was tried and dropped. At 1900×950 it forced zoom 3, too tall to
+  show Centipede's stations from Iceland to Réunion at once. Beside
+  the single world there is now plain sea colour, and the opening view
+  shows every station drawn.
+
 ### M4 — the GUI: choosing from the map (D2)
 
 The clipboard listener, active only while a map page has been opened

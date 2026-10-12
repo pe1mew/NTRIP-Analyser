@@ -35,10 +35,32 @@
  * Leaflet is loaded from unpkg with Subresource Integrity, so a changed
  * file is refused by the browser rather than run.
  *
+ * Under the stations: the user's tile source when @p tiles is given,
+ * otherwise the built-in Natural Earth outlines, which the caller writes
+ * beside the page as `ntrip_basemap.js`.
+ *
  * @param f       Destination, opened for writing.
  * @param geojson Output of `sourcetable_to_geojson()`.
+ * @param tiles   The tile source as a JSON object,
+ *                `{"url":...,"attribution":...}`, its strings quoted by
+ *                `map_json_quote()`; NULL for none.
  * @return 0 on success, -1 on a NULL argument or a write error.
  */
-int MountMapWritePage(FILE *f, const char *geojson);
+int MountMapWritePage(FILE *f, const char *geojson, const char *tiles);
+
+/**
+ * @brief Write the location picker page (the Map button).
+ *
+ * A click copies `lat,lon` to the clipboard for the GUI's "<<" button.
+ * Without a tile source it opens over the outlines and says they cannot
+ * show a mast, where it used to open a page of CARTO watermarks.
+ *
+ * @param f     Destination, opened for writing.
+ * @param lat   Starting latitude, degrees; out of range or NaN becomes 0.
+ * @param lon   Starting longitude, degrees; likewise.
+ * @param tiles As for MountMapWritePage(); NULL for none.
+ * @return 0 on success, -1 on a NULL file or a write error.
+ */
+int MapPickWritePage(FILE *f, double lat, double lon, const char *tiles);
 
 #endif /* GUI_MOUNTMAP_H */

@@ -25,7 +25,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     /* ── Initialize Common Controls (ListView, Tab, StatusBar) ── */
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(icex);
-    icex.dwICC  = ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES | ICC_BAR_CLASSES;
+    icex.dwICC  = ICC_LISTVIEW_CLASSES | ICC_TAB_CLASSES | ICC_BAR_CLASSES |
+                  ICC_LINK_CLASS;   /* SysLink, in the Map tiles dialog */
     InitCommonControlsEx(&icex);
 
     /* ── Initialize Winsock ───────────────────────────────────── */
