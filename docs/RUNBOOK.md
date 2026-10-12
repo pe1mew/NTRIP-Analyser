@@ -76,13 +76,22 @@ cd android
 ```bash
 export PATH="$LOCALAPPDATA/Android/Sdk/platform-tools:$PATH"
 adb install -r app/build/outputs/apk/pro/debug/app-pro-debug.apk
-adb shell am start -n nl.pe1mew.ntripanalyser.pro/nl.pe1mew.ntripanalyser.MainActivity
+adb shell am start -n nl.pe1mew.ntripanalyser.pro.dev/nl.pe1mew.ntripanalyser.MainActivity
 adb logcat -c && adb logcat -d -s ntrip_android:V     # the app's own tag
 adb exec-out screencap -p > shot.png                  # look at the result
 ```
 
 Editions install side by side: `…ntripanalyser.free` and `….pro`, each
 with its own sandbox and its own saved connections.
+
+**A debug build is its own app** (2026-10-12): `….pro.dev` and
+`….free.dev`, named "(dev)" in the app bar. It installs **beside** the
+Play build rather than over it. Play signs with its own key, so an
+install of a debug build over a Play-installed app is refused, and the
+only way past that is an uninstall that takes the user's saved
+connections with it. A dev build starts empty: enter a caster once.
+Release builds keep the store's ids. Never take store screenshots from
+a dev build.
 
 **Comparing the editions: same build, same mountpoint.** Install both
 from one invocation, and point them at the *same* caster before
@@ -105,7 +114,7 @@ phone. Two defects fixed in shared code were reported as live in pro,
 whose APK was an hour older than the fix:
 
 ```bash
-adb -s <serial> shell dumpsys package nl.pe1mew.ntripanalyser.pro | grep lastUpdateTime
+adb -s <serial> shell dumpsys package nl.pe1mew.ntripanalyser.pro.dev | grep lastUpdateTime
 ```
 
 Installing a release-signed build over a debug-signed one needs an
@@ -115,7 +124,7 @@ navigation file with it. Know what is on the device before doing it.
 Inspecting a debug build's stored settings:
 
 ```bash
-adb shell "run-as nl.pe1mew.ntripanalyser.pro ls shared_prefs/"
+adb shell "run-as nl.pe1mew.ntripanalyser.pro.dev ls shared_prefs/"
 ```
 
 `caster_secure.xml` is `EncryptedSharedPreferences`; nothing readable
