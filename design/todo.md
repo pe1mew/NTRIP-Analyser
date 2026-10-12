@@ -707,6 +707,37 @@ Scheduled after production because it is a release of **both** editions.
 
 ---
 
+### 2.6 Every mountpoint on a map — **Desktop shipped; Android open (optional)**
+
+Plan: [`design/work-items/mountpoint-map.md`](work-items/mountpoint-map.md) (2026-10-11).
+
+A caster's stations by place rather than by name: where its coverage
+is, which base is nearest, and whether an entry's registered position
+is believable. The GUI opens **View → Mountpoint map** in the browser
+and a mountpoint can be chosen there. It is documented in `docs/gui.md`
+and as built in `design/gui-design.md` §17.
+
+**Not 4.2 coming back.** 4.2 dropped a map *widget* because one fixed
+base is a dot that never moves. This shows every station at once, which
+is the spatial relationship 4.2 said a map needs. It is also used once,
+to choose, and is closed during the run.
+
+Along the way:
+
+- **Classification moved into the core**, measured on 8471 real
+  entries: the STR solution field is wrong in both directions, and
+  `nmea` is set on every RTK2go base.
+- **The core gained** distance and bearing, and the parser its first
+  test.
+- **The GUI's ARP cross-check** stopped using a position rounded to
+  0.01°.
+- **The location picker** stopped showing CARTO watermarks; the user
+  may now supply their own tile key.
+
+**Open:** M6–M8, the Android pro bearing-and-distance plot. It is
+optional, and waits for pro to reach production and the author's word
+on decisions D3 and D4.
+
 ## 3. Tier 3 — Flagship, high effort
 
 ### 3.1 Ionospheric monitor — **Shipped**

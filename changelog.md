@@ -6,6 +6,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — every mountpoint on a map (Windows GUI)
+
+**View → Mountpoint map** opens the loaded sourcetable in your browser:
+each station by kind, its registration, and its distance and bearing
+from your Lat/Lon. **Use this mountpoint** in a popup selects that row in
+the GUI, exactly as a double-click does. The choice comes back through
+the clipboard as a token the GUI accepts only for the loaded caster, a
+listed name, and one row.
+
+**The kinds are measured, not assumed.** Seven live casters, 8471
+sourcetable records:
+
+- **The solution field is filled everywhere and wrong both ways.** Its
+  15 "network" entries are 10 ephemeris or SSR streams and 5 physical
+  IGS stations, while nearest-base services say "single base".
+- **RTK2go sets `nmea` on all 769 of its bases.**
+- **No entry carries a network keyword** where the old rule looked;
+  services name themselves in the mountpoint name instead.
+
+So the core now reads keywords in the name too, calls an entry that
+advertises no station messages a *product*, and believes the field's 0
+but not its 1. On that sample: 2 networks, 13 products (every one an
+ephemeris or SSR stream by name), 5 unknown, the rest fixed.
+
+**The map underneath is built in.** It is Natural Earth 1:50m land and
+borders, public domain, compiled into the GUI, so nothing under the map
+is fetched. Or the user's own tile source, below. onocoy's 6123 entries
+open in 0.65 s, 6114 drawn and 9 counted for want of a usable position.
+
+**Found on the way, and fixed before release:**
+
+- **Script on hover.** A mountpoint named `<img onerror=…>` ran its
+  script on hover, because Leaflet treats a string tooltip as HTML.
+  Every caster-supplied string now reaches the page as text; a hostile
+  sourcetable was re-tested clean.
+- **The world repeated sideways on a wide window**, with stations on
+  one copy only.
+
+### Added — Tools → Map tiles: your own tile source
+
+A tile URL template with your key in it, and its attribution, for both
+map pages. With nothing saved the dialog opens on CARTO's template
+ending in `?key=`, ready for a key, and refuses it saved without one.
+The template is kept in the registry for your Windows user only: never
+in a configuration file, which gets shared, and never in the log,
+since it carries the key. Verified with a real CARTO key from a page
+opened from a file.
+
+### Fixed — the Map button showed only watermarks
+
+The location picker used CARTO's tiles unconditionally. CARTO has
+required a key from everyone since about 2026-09-23, so every tile read
+*API KEY REQUIRED* (seen 2026-10-12). The OSM Foundation's tile server
+is no way round it: it answers a page opened from a file, which sends
+no `Referer`, with 403 *Access blocked* (also seen). Without a tile
+source the picker now opens over the built-in outlines and says they
+cannot show a mast; with one, it opens at street level as before.
+
+### Fixed — "Copied to clipboard!" when nothing was copied
+
+The picker's copy routine fell back only when the browser lacked the
+clipboard API, not when it refused it. In a browser that refused
+(`NotAllowedError`, seen 2026-10-12) the page still said "Copied", and
+**<<** then pasted whatever was on the clipboard before. Both map pages
+now share one routine that tries both ways of copying and says when
+neither worked.
+
 ### Added — self-position: where the station's own data puts it
 
 The station broadcasts where it is, in 1005/1006. This works out where

@@ -730,6 +730,23 @@ that case.
 
 M1–M5 can be merged as one branch to `main`.
 
+**M5 as built (2026-10-12).** Everything above went straight to
+`main`, a commit per step:
+
+- **`docs/gui.md`**: feature list, the *Mountpoint Map*, *Map and <<*
+  and *Map tiles* sections (including what each marker means and does
+  not), both menus, and the source files.
+- **`design/gui-design.md` §17** (Reference moved to §18).
+- **`design/todo.md` 2.6**, keeping 4.2 dropped and saying why this
+  is not it.
+- **`design/feature-matrix.md`**: a *Mountpoint map* row (GUI ●, pro
+  ⋯), and the *Position from map* row corrected for the desktop's
+  tiles.
+- **`changelog.md`**: four entries, each with its measurement.
+
+`docs/licences.md` and `THIRD-PARTY-NOTICES.txt` were done in M3 and
+M3b.
+
 ### M6 — Android pro: the bearing-and-distance plot (D3, optional)
 
 *Optional, as asked. It starts only after the author confirms D3 and D4,

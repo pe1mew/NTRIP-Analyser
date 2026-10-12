@@ -1171,7 +1171,113 @@ with every figure in it matching the image to the last digit.
 
 ---
 
-## 17. Reference
+## 17. Mountpoint map
+
+Every mountpoint of the loaded sourcetable on a map, and a way to
+choose one there. Plan and measurements:
+[`design/work-items/mountpoint-map.md`](work-items/mountpoint-map.md)
+(M1–M4 as built, 2026-10-11/12). This section is the GUI's half, as
+built.
+
+### 17.1 Somebody else's map, as the picker's always was
+
+**View → Mountpoint map** writes a page to `%TEMP%` and opens it in the
+default browser, the same shape as the location picker (**Map**).
+`OnMountMap` (`gui_events.c`) builds the data and `gui_mountmap.c`
+writes the page. That file uses only standard C I/O, so a harness
+produces the very page the GUI opens. Nothing on the page is decided
+in the GUI:
+
+- each entry's kind (`sourcetable_kind`), position check, distance and
+  bearing come from the core;
+- so does every escape (`sourcetable_to_geojson`, `map_json_quote`);
+- the page only lays them out.
+
+### 17.2 What is under the map
+
+The default is **Natural Earth 1:50m** land and borders, public domain:
+`tools/make_basemap.py` turns release v5.1.2 into
+`gui/basemap_ne50m.js` (1.18 MB, reproducible). It is compiled in as
+`IDR_BASEMAP_JS` RCDATA and written beside the page as
+`ntrip_basemap.js`, so nothing under the map is fetched. Only Leaflet
+1.9.4 is fetched, with Subresource Integrity.
+
+Over the outlines the map opens no closer than zoom 8: closer, two
+stations 25 km apart sat on plain land with no coast in sight.
+
+**Tools → Map tiles** (`OnMapTiles`, `IDD_MAP_TILES`, the program's
+first dialog) takes the user's own tile URL template and attribution:
+
+- **Storage:** `HKCU\Software\NTRIP-Analyser`, values `MapTileUrl` and
+  `MapTileAttribution`. Never a config file, never the log.
+- **Defaults:** with nothing saved, the dialog opens on CARTO's
+  template ending in `?key=`, the caret after it, with a *CARTO*
+  button to refill both.
+- **The key page** is a SysLink (`ICC_LINK_CLASS`), and the example is
+  in read-only edits so it can be copied.
+- **Checking:** the core's `map_tile_url_usable` refuses anything the
+  page could choke on, including a URL still ending in `=`.
+- **Encoding:** the attribution is converted from the ANSI code page
+  to UTF-8 (`AnsiToUtf8`) before quoting; a typed © was otherwise a
+  lone 0xA9 shown as U+FFFD.
+
+Both pages share `drawBase()`: the user's tiles when set, otherwise the
+outlines. Tiles go in with `noWrap` and `bounds`, and the view is held
+to one world (`lockWorld`). Repeated worlds left a second North America
+without stations, and `noWrap` alone still requested tiles off the
+edge.
+
+**Why there is no default tile source**, measured 2026-10-12:
+
+- CARTO has watermarked every tile *API KEY REQUIRED* for everyone
+  since about 2026-09-23.
+- The OSM Foundation's tile server answers a request without a
+  `Referer`, which is what a page opened from a file sends, with 403.
+
+The picker used CARTO unconditionally until then and showed only
+watermarks. Without a tile source it now opens over the outlines and
+says they cannot show a mast.
+
+### 17.3 Choosing on the map
+
+The page cannot call the GUI, so **Use this mountpoint** copies a token
+the core built (`sourcetable_make_token`): caster, port and mountpoint,
+percent-encoded. `OnMountMap` registers `AddClipboardFormatListener`.
+`KeepSourcetable` removes it (`MapStopListening`), and so does
+`WM_DESTROY`, so a page left open from an earlier table selects
+nothing.
+
+`WM_CLIPBOARDUPDATE` → `MapTokenFromClipboard` hands the text to
+`sourcetable_match_token`:
+
+- **Accepted** only for the loaded caster and port, a listed name, and
+  exactly one row.
+- **Ordinary text** is silent; every refusal is logged with its reason.
+
+A match finds the row by the entry index each row carries in `lParam`,
+so sorting cannot misdirect it, and goes through `UseMountpointRow`,
+which a double-click now uses too. The token carries an identifier,
+never a value: format, details and position come from the GUI's own
+parse (`AppState.stEntries`, full precision). The taskbar button
+flashes, since Windows keeps the browser in front.
+
+### 17.4 Defects found by looking at it
+
+Each was found by opening the page, not by reading the code:
+
+| Found | Fault | Now |
+|---|---|---|
+| First draft | Map created while its container was 0 px high; opened at maximum zoom on empty sea | Flex layout, bar filled before the map is made |
+| Hostile sourcetable | A mountpoint named `<img onerror=…>` ran script **on hover**: Leaflet sets a string tooltip as innerHTML | Tooltips and popups get elements, never strings; re-tested clean |
+| Author, Centipede | The world repeated sideways with stations on one copy only | `noWrap` + `bounds` + `maxBounds` |
+| Browser pane | Copy refused (`NotAllowedError`) while the picker said "Copied" — since the picker was written | One `copyText` for both pages: `execCommand`, then the API, then says it failed and offers the text |
+| CARTO dialog | `©` would have shown as `�` | ANSI → UTF-8 before quoting |
+
+Measured: onocoy's 6123 entries load in 0.65 s with the outlines, 6114
+drawn and 9 counted for want of a usable position. No clustering is
+needed.
+
+## 18. Reference
 
 - Win32 API: [Microsoft Learn — Desktop Win32 Apps](https://learn.microsoft.com/en-us/windows/win32/)
 - Common Controls: [Microsoft Learn — About Common Controls](https://learn.microsoft.com/en-us/windows/win32/controls/common-controls-intro)

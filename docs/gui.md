@@ -32,6 +32,11 @@ The Windows GUI application (`ntrip-analyser-gui.exe`) provides a user-friendly 
   the offset, the residuals and the apparent motion. Figures only, with no
   verdict, because no threshold for a station's own scatter has been
   established from evidence yet
+- **Mountpoint map** - Every mountpoint of the loaded sourcetable on a
+  map in your browser, by kind (fixed base, network service, product,
+  unknown), with distance and bearing from your position; choose one
+  there and the GUI selects it. Drawn over built-in Natural Earth
+  outlines, or over your own tile source if you set one
 - **VRS monitor** - Rover-to-virtual-station distance, direction plot and
   rolling distance chart for network mountpoints
 - **Multi-GNSS ephemerides** - GPS / GLONASS / Galileo / QZSS / BeiDou
@@ -173,6 +178,76 @@ than discarded.
 
 Right-click the list for **Select All** / **Copy**; `Ctrl+A` and `Ctrl+C`
 work too. Click any column header to sort.
+
+#### 🗺 Mountpoint Map
+**Purpose:** See where a caster's stations are, and choose one by place
+rather than by name
+
+**How to use:**
+1. Load a sourcetable (**Get Mountpoints**, or open a stream)
+2. **View → Mountpoint map...** — the map opens in your browser
+3. Hover over a station for its name; click it for its registration and,
+   when the Lat/Lon fields hold a position, its distance and bearing from
+   you. That position is drawn as a ring
+4. **Use this mountpoint** in the popup selects that row in the GUI, as a
+   double-click would. The GUI's taskbar button flashes, since Windows
+   keeps your browser in front
+
+What the markers mean, and what they do not:
+
+| Marker | Kind | How the sourcetable says so |
+|---|---|---|
+| Filled blue dot | Fixed base | Its solution field says single base |
+| Hollow orange ring | Network service | VRS, MAC, NEAR, FKP, IMAX or SSR in its details, network field or mountpoint name |
+| Small violet dot | Product, no station | It advertises only ephemerides, corrections and the like — nothing a station sends |
+| Grey dot, dotted edge | Unknown | The entry does not say. Includes entries whose solution field says *network* without naming a service: casters use that for products and for physical stations alike |
+
+**Kinds and positions are what the sourcetable states, not
+measurements.** A stream's own 1005/1006 is the evidence of where a
+station is, and the Station Check is what judges it. Entries with no
+usable position (0,0, out of range) are counted in the header and not
+drawn.
+
+The choice reaches the GUI through the clipboard: **Use** copies a short
+token naming the caster and the mountpoint, and the GUI listens from the
+moment you open the map until the next sourcetable loads. It is accepted
+only when it names the loaded caster and port, a mountpoint in that
+table, and exactly one row; anything else is logged with the reason, and
+ordinary copying is ignored. If your browser refuses to copy, the popup
+says so and shows the token to copy by hand.
+
+#### 📍 Map and << (pick a position)
+**Purpose:** Fill the Lat/Lon fields from a map instead of typing them
+
+**Map** opens a page in your browser at the current Lat/Lon. Clicking it
+copies `lat,lon`, and **<<** pastes that into the fields.
+
+Without a tile source this shows the built-in outlines, which are too
+coarse to find a mast, and the page says so. For street-level detail,
+set up **Tools → Map tiles...**.
+
+#### 🧩 Map tiles (your own tile source)
+Both map pages draw over **Natural Earth** outlines built into the
+program: land, sea and borders at 1:50m, public domain, nothing fetched.
+Good for a country, coarse for a town.
+
+For streets, **Tools → Map tiles...** takes a tile URL template with
+your own key in it and the attribution your provider requires. With
+nothing saved, the dialog opens on CARTO's template ending in `?key=`;
+get a free key from the linked page, paste it after `key=`, and press
+OK. The template must use `https://` and contain `{z}`, `{x}` and `{y}`,
+and a URL still ending in `=` is refused. **Clear** then **OK** goes
+back to the outlines.
+
+The template is kept in the registry for your Windows user only — never
+in a configuration file, which describes a caster and gets shared, and
+never in the log, since it carries your key. The provider's terms are
+between you and them.
+
+Why there is no tile source by default: CARTO, which the Map button used
+until 2026-10-12, has required a key from everyone since about
+2026-09-23, and the OpenStreetMap Foundation's tile server refuses a page
+opened from a file. See `docs/licences.md`.
 
 #### 📡 Open Stream
 **Purpose:** Start receiving and decoding RTCM data
@@ -817,6 +892,8 @@ by capture time.
 - **Station Check...** — the acceptance test over the open stream
 - **Stability...** — tier 2: has it *been* fit, over hours of stream
 - **Self-position...** — where its own observations put it, no verdict
+- **Mountpoint map...** — every mountpoint of the loaded sourcetable on a
+  map in your browser; choose one there
 
 Under **File**: **Load Thresholds...** — judge by a policy of your own
 - **Sky Plot...** — floating polar sky-visibility window
@@ -827,6 +904,8 @@ Under **File**: **Load Thresholds...** — judge by a policy of your own
 **Tools Menu:**
 - **Toggle auto-send GGA** — stop or resume the periodic GGA uplink, used
   to test how a VRS mountpoint reacts
+- **Map tiles...** — your own tile source, with your key, for both map
+  pages; without one they use the built-in outlines
 
 **Help Menu:**
 - **About NTRIP-Analyser**
@@ -933,6 +1012,8 @@ gui/
 ├── gui_check_window.c  — Floating Station Check (KPI rows, verdict, VRS)
 ├── gui_report_window.c — Floating Stability (tier-2 rows, rolling verdict)
 ├── gui_selfpos_window.c— Floating Self-position (E/N scatter + figures)
+├── gui_mountmap.c      — The two browser map pages: mountpoint map, Map picker
+├── basemap_ne50m.js    — Natural Earth 1:50m outlines, compiled in (generated)
 ├── gui_snapshot.c      — GDI+ PNG snapshot + shared save-with-prompt flow
 ├── gui_sv_detail.c     — Per-SV detail popup (left-click on marker)
 ├── gui_state.h         — AppState structure, constants, function prototypes
