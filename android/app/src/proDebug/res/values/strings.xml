@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pro debug builds name themselves apart from the Play build they sit
+  beside (`….pro.dev`, app/build.gradle.kts). The app bar shows this
+  name on every screen, so a capture says which build it came from,
+  and a store screenshot is never taken from one (tools/make_store_shots.py).
+-->
+<resources>
+    <string name="app_name">NTRIP Analyser Pro (dev)</string>
+</resources>
