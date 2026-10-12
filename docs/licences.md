@@ -50,6 +50,7 @@ commercially. The wiki inherits that and says so on its front page.
 | Component | Version | Licence | Obligation |
 |---|---|---|---|
 | cJSON | vendored in `lib/cJSON` | MIT | Reproduce the copyright and permission notice in the distribution |
+| Natural Earth 1:50m land and boundary lines (Windows GUI only) | 5.1.2, derived into `gui/basemap_ne50m.js` by `tools/make_basemap.py` | Public domain | None. *"Crediting the authors is unnecessary"* ([terms](https://www.naturalearthdata.com/about/terms-of-use/), read 2026-10-12). Credited anyway: on the mountpoint map and in `THIRD-PARTY-NOTICES.txt` |
 | AndroidX core-ktx | 1.15.0 | Apache 2.0 | Attribution / NOTICE |
 | AndroidX lifecycle | 2.8.7 | Apache 2.0 | Attribution / NOTICE |
 | AndroidX activity-compose | 1.9.3 | Apache 2.0 | Attribution / NOTICE |
@@ -158,6 +159,28 @@ citations**. That combination — credentials plus a citation obligation —
 is why CDDIS is a poor fit for an in-app download and why BKG was used
 instead.
 [Data use guidance](https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-use-guidance)
+
+### Map pages (Windows GUI)
+
+Two GUI features write a page to `%TEMP%` and open it in the user's
+browser: the location picker (**Map**) and View → Mountpoint map. The
+browser, not this program, fetches what the page names.
+
+- **Leaflet 1.9.4** (BSD-2-Clause) is loaded from unpkg with Subresource
+  Integrity, so a changed file is refused rather than run. It is not
+  shipped, so its notice is not reproduced. The hashes were computed
+  from the files served on 2026-10-12.
+- **The mountpoint map fetches no tiles.** It draws over Natural Earth
+  outlines carried in the executable (§2).
+- **The location picker uses CARTO's tiles.** Since about 2026-09-23
+  CARTO requires an API key from everyone. Without one, every tile
+  carries an *API key required* watermark, which was seen on 2026-10-12
+  ([terms](https://carto.com/basemaps/apikey): free for non-commercial
+  use up to 5M requests a month). The OSM Foundation's tile server is
+  not an alternative for a page opened from a file: it answers a
+  request without a `Referer` with *403 Access blocked*, also seen on
+  2026-10-12. A tile source the user configures with their own key is
+  the open item `design/work-items/mountpoint-map.md` M3b.
 
 ### Casters in general
 

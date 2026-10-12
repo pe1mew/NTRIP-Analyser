@@ -74,6 +74,15 @@ MBEDTLS_NOTICE = """Copyright The Mbed TLS Contributors. Vendored from the offic
 long-term-support release for TLS connections to NTRIP casters; see
 lib/mbedtls/NTRIP-ANALYSER-NOTE.md for exactly what the copy contains."""
 
+NATURAL_EARTH_NOTICE = """Made with Natural Earth -- https://www.naturalearthdata.com
+
+The land and border outlines under the Windows GUI's mountpoint map
+(1:50m land and admin-0 boundary lines) are Natural Earth data. Natural
+Earth states that all its data is in the public domain and that
+crediting the authors is unnecessary; it is credited here, and on the
+map itself, all the same. gui/basemap_ne50m.js holds exactly what is
+included and tools/make_basemap.py how it was derived."""
+
 APACHE_SUMMARY = """Licensed under the Apache License, Version 2.0 (the "License"); you may
 not use these files except in compliance with the License. You may
 obtain a copy of the License at
@@ -103,6 +112,15 @@ def mbedtls_version():
         text = f.read()
     return re.search(r'#define MBEDTLS_VERSION_STRING\s+"([^"]+)"',
                      text).group(1)
+
+
+def natural_earth_version():
+    """The release the built-in basemap was made from, from the file the
+    GUI compiles in -- never typed here."""
+    path = os.path.join(ROOT, "gui", "basemap_ne50m.js")
+    with open(path, encoding="ascii") as f:
+        head = f.read(512)
+    return re.search(r'"version":"([^"]+)"', head).group(1)
 
 
 def versions():
@@ -147,6 +165,11 @@ def build(android):
         # own Apache-licensed list below; the desktop text has no such
         # list, so the summary rides here.
         out += [reflow(APACHE_SUMMARY, width), ""]
+
+        # Desktop only: the GUI carries the basemap, the app does not.
+        out += [rule, "",
+                "Natural Earth " + natural_earth_version() + " -- public domain",
+                "", reflow(NATURAL_EARTH_NOTICE, width), ""]
 
     if android:
         v = versions()

@@ -712,6 +712,8 @@ typedef struct {
      * read back from that text.  UI thread only. */
     SourcetableEntry *stEntries;
     int               stCount;
+    char              stCaster[256];  /* caster and port the entries came from */
+    int               stPort;
 
     int    stationType;               /* STATION_* below */
     char   stationWhy[160];           /* which signal decided it, for display */

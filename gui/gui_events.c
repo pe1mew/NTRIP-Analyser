@@ -25,7 +25,9 @@
 #include "core/rinex_nav.h"
 #include "core/config.h"
 #include "core/geo.h"
+#include "core/sourcetable_map.h"
 #include "core/version.h"
+#include "gui_mountmap.h"
 #include "cJSON.h"
 
 #include <stdio.h>
@@ -1255,6 +1257,12 @@ static void KeepSourcetable(AppState *state, SourcetableEntry *e, int n)
     free(state->stEntries);
     state->stEntries = e;
     state->stCount   = e ? n : 0;
+
+    /* Whose table this is.  Both callers hold the config the fetch
+     * used, and the caster field may be edited afterwards; the map and
+     * its tokens must name the caster the entries came from. */
+    snprintf(state->stCaster, sizeof(state->stCaster), "%s", state->config.NTRIP_CASTER);
+    state->stPort = state->config.NTRIP_PORT;
 }
 
 static void OnOpenStream(HWND hwnd, AppState *state)
@@ -1605,6 +1613,88 @@ static void OnStreamDone(HWND hwnd, AppState *state)
     SendMessage(state->hStatusBar, SB_SETTEXT, 3, (LPARAM)"");
 }
 
+/* ── Mountpoint map ─────────────────────────────────────────── */
+
+/**
+ * @brief View -> Mountpoint map: every mountpoint of the loaded
+ *        sourcetable, in the browser (design/work-items/mountpoint-map.md).
+ *
+ * Data and escaping come from the core (sourcetable_to_geojson), the
+ * page from gui_mountmap.c.  The page names the caster the sourcetable
+ * came from, recorded when it was kept -- not whatever the caster field
+ * says now.  Distances are measured from the Lat/Lon fields when they
+ * hold a usable position; empty fields read as 0,0, which is none.
+ */
+static void OnMountMap(HWND hwnd, AppState *state)
+{
+    if (!state->stEntries || state->stCount <= 0) {
+        MessageBox(hwnd, "No sourcetable is loaded.\n\nPress Get Mountpoints first.",
+                   APP_TITLE, MB_ICONINFORMATION | MB_OK);
+        return;
+    }
+
+    char latBuf[64], lonBuf[64];
+    GetWindowText(state->hEditLatitude,  latBuf, sizeof(latBuf));
+    GetWindowText(state->hEditLongitude, lonBuf, sizeof(lonBuf));
+    double lat = atof(latBuf), lon = atof(lonBuf);
+
+    long need = sourcetable_to_geojson(state->stEntries, state->stCount,
+                                       state->stCaster, state->stPort,
+                                       lat, lon, NULL, 0);
+    char *json = (need >= 0) ? (char *)malloc((size_t)need + 1) : NULL;
+    if (!json ||
+        sourcetable_to_geojson(state->stEntries, state->stCount,
+                               state->stCaster, state->stPort,
+                               lat, lon, json, (size_t)need + 1) != need) {
+        free(json);
+        AppendLog(state->hEditLog, "[ERROR] Could not build the mountpoint map data.\r\n");
+        return;
+    }
+
+    char dir[MAX_PATH], path[MAX_PATH + 32];
+    GetTempPathA(MAX_PATH, dir);
+
+    /* The basemap goes beside the page, from the executable's own
+     * resources: Natural Earth outlines, so nothing under the map is
+     * fetched.  If this fails the page still opens, and says the
+     * outlines could not be loaded. */
+    HRSRC   hRes  = FindResource(NULL, MAKEINTRESOURCE(IDR_BASEMAP_JS), RT_RCDATA);
+    HGLOBAL hData = hRes ? LoadResource(NULL, hRes) : NULL;
+    const void *bm = hData ? LockResource(hData) : NULL;
+    DWORD bmLen    = hRes ? SizeofResource(NULL, hRes) : 0;
+    snprintf(path, sizeof(path), "%sntrip_basemap.js", dir);
+    FILE *fb = (bm && bmLen) ? fopen(path, "wb") : NULL;
+    BOOL bmOk = FALSE;
+    if (fb) {
+        bmOk = (fwrite(bm, 1, bmLen, fb) == bmLen);
+        if (fclose(fb) != 0) bmOk = FALSE;
+    }
+    if (!bmOk)
+        AppendLog(state->hEditLog,
+                  "[WARN] The built-in map outlines could not be written; "
+                  "the map will show stations on a blank background.\r\n");
+
+    snprintf(path, sizeof(path), "%sntrip_mountpoint_map.html", dir);
+    FILE *f = fopen(path, "wb");
+    int rc = f ? MountMapWritePage(f, json) : -1;
+    if (f && fclose(f) != 0) rc = -1;
+    free(json);
+    if (rc != 0) {
+        MessageBox(hwnd, "Failed to write the mountpoint map file.",
+                   APP_TITLE, MB_ICONERROR | MB_OK);
+        return;
+    }
+
+    ShellExecuteA(NULL, "open", path, NULL, NULL, SW_SHOWNORMAL);
+
+    char msg[400];
+    snprintf(msg, sizeof(msg),
+             "[INFO] Mountpoint map of %.200s:%d opened in the browser "
+             "(%d entries, %.1f MB).\r\n",
+             state->stCaster, state->stPort, state->stCount, need / 1e6);
+    AppendLog(state->hEditLog, msg);
+}
+
 /* ── Map picker helpers ─────────────────────────────────────── */
 
 /**
@@ -1642,8 +1732,12 @@ static void OnMapPick(HWND hwnd, AppState *state)
         "<!DOCTYPE html>\n"
         "<html><head><meta charset=\"utf-8\">\n"
         "<title>Pick Location - NTRIP-Analyser</title>\n"
-        "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\"/>\n"
-        "<script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"></script>\n"
+        /* Subresource Integrity: hashes computed from the files unpkg
+         * served on 2026-10-12; gui_mountmap.c carries the same pair. */
+        "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css\"\n"
+        "  integrity=\"sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=\" crossorigin=\"\"/>\n"
+        "<script src=\"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js\"\n"
+        "  integrity=\"sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=\" crossorigin=\"\"></script>\n"
         "<style>\n"
         "  body{margin:0;font-family:sans-serif}\n"
         "  #map{height:calc(100vh - 50px)}\n"
@@ -3076,6 +3170,10 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                                APP_TITLE, MB_ICONERROR | MB_OK);
                 }
             }
+            return 0;
+
+        case IDM_VIEW_MOUNTMAP:
+            OnMountMap(hwnd, state);
             return 0;
 
         case IDM_VIEW_SELFPOS:

@@ -53,5 +53,18 @@ permissions and limitations under the License.
 
 ====================================================================
 
+Natural Earth 5.1.2 -- public domain
+
+Made with Natural Earth -- https://www.naturalearthdata.com
+
+The land and border outlines under the Windows GUI's mountpoint map
+(1:50m land and admin-0 boundary lines) are Natural Earth data.
+Natural Earth states that all its data is in the public domain and
+that crediting the authors is unnecessary; it is credited here, and
+on the map itself, all the same. gui/basemap_ne50m.js holds exactly
+what is included and tools/make_basemap.py how it was derived.
+
+====================================================================
+
 The GNSS data this software reads belongs to whoever operates the
 caster you connect to, under their terms, not ours.

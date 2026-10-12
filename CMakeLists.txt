@@ -404,6 +404,7 @@ if(WIN32)
         gui/gui_check_window.c
         gui/gui_report_window.c
         gui/gui_selfpos_window.c
+        gui/gui_mountmap.c
         gui/gui_signal_window.c
         gui/gui_hist_window.c
         gui/gui_iono_window.c
@@ -427,8 +428,8 @@ if(WIN32)
         # see.  Without these, editing the icon leaves windres thinking it
         # is up to date and the executable keeps the previous one -- a
         # stale-build trap that looks like the icon change silently
-        # failing.
-        OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gui/ntrip-analyser.ico;${CMAKE_CURRENT_SOURCE_DIR}/gui/ntrip-gui.exe.manifest")
+        # failing.  The basemap is an RCDATA file in the same position.
+        OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/gui/ntrip-analyser.ico;${CMAKE_CURRENT_SOURCE_DIR}/gui/ntrip-gui.exe.manifest;${CMAKE_CURRENT_SOURCE_DIR}/gui/basemap_ne50m.js")
 endif()
 
 # ── Monitoring service ────────────────────────────────────────────────

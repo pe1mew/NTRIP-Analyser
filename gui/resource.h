@@ -8,6 +8,7 @@
 
 /* ── Application icon ─────────────────────────────────────── */
 #define IDI_APP_ICON            100
+#define IDR_BASEMAP_JS          101   /* Natural Earth outlines for the mountpoint map */
 
 /* ── Menu bar ─────────────────────────────────────────────── */
 #define IDR_MAIN_MENU           200
@@ -43,6 +44,7 @@
 #define IDM_VIEW_STATION_CHECK  9027  /* bounded acceptance test, ~90 s */
 #define IDM_VIEW_STABILITY      9028  /* tier 2: stability over hours */
 #define IDM_VIEW_SELFPOS        9029  /* where the station's own data puts it */
+#define IDM_VIEW_MOUNTMAP       9032  /* every mountpoint on a map, in the browser */
 
 /* ── Menu items: Tools ────────────────────────────────────── */
 #define IDM_TOOLS_VRS_GGA_TOGGLE   9040  /* toggle auto-send GGA on/off */
