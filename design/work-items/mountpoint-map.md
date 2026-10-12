@@ -337,6 +337,62 @@ block, whichever way a frontend embeds it.
 
 The test parses the output back and compares it field by field.
 
+### M2 — as built  *(2026-10-12)*
+
+`src/core/sourcetable_map.{c,h}` holds both ends of the map route.
+`test/test_sourcetable_map.c` is the 23rd test.
+
+- **Out:** `sourcetable_to_geojson()`.
+  - **Output:** a FeatureCollection whose top-level members are
+    `caster`, `port`, `origin`, `total` and `omitted`. Each feature
+    carries mountpoint, identifier, network, country, format, NavSys,
+    `nmea`, `kind`, `kind_why`, `token`, `distance_m` and
+    `bearing_deg`.
+  - **Sizing:** like snprintf, and all or nothing. Every capacity from
+    1 to the full length is tested to give an empty string, never a
+    prefix.
+  - **Escaping:** `<` `>` `&`, control characters, DEL and U+2028/9
+    are all written as `\uXXXX`.
+  - **Invalid UTF-8** becomes U+FFFD byte for byte, including
+    overlong forms and surrogates. It is never guessed to be Latin-1.
+- **Back:** `sourcetable_make_token()` and `sourcetable_match_token()`.
+  - **Encoding:** caster and mountpoint are percent-encoded outside
+    `A-Z a-z 0-9 - . _ ~`. This settles the open question from M4: a
+    name containing `/` or `:` (or an IPv6 caster) cannot be misread,
+    and a bare reserved character in a token is malformed rather than
+    guessed at.
+  - **Refusals:** NONE (ordinary text, not an event), MALFORMED,
+    OTHER_CASTER, NOT_LISTED, AMBIGUOUS, each tested by name.
+  - **Matching:** the mountpoint is compared exactly, the caster
+    ignoring case. A token is made from the exact entry, so a case
+    difference means another entry. The M1 sample had no names that
+    differed only in case.
+
+**What the casters send.** The 8471 records of the M1 sample hold
+exactly one non-ASCII name (`Tombebœuf`, valid UTF-8). None holds a
+control character, invalid UTF-8, or any of `< > & " \`. The escaping
+is for the caster that is not polite. The test pins that `Tombebœuf`
+passes unchanged.
+
+**Two faults in the first draft, found by its own test and by mutation:**
+
+- **The writer formatted pieces into a 64-byte scratch buffer and cut
+  them silently.** The feature header came out as
+  `[5.9"mountpoint"`, and the test crashed reading the unparseable
+  result. Long fixed text now goes through `put_s`, and a formatted
+  piece that does not fit marks the output broken. The whole document
+  is then refused (-1), never emitted cut.
+- **A mutation run** built the test against 13 deliberately broken
+  copies of the module. Three survived at first:
+  - **an explicit NUL check:** redundant, because the decoder already
+    refuses NUL. It was removed rather than kept as untested code.
+  - **the length limit:** the 64 KB case was malformed for another
+    reason. The test now pads a *valid* token past `ST_TOKEN_MAX`.
+  - **the kind:** every test entry was a fixed base. The test now has
+    a network, a product and an unknown.
+
+  All 13 mutants are now caught.
+
 ### M3 — the GUI: View → Mountpoint map
 
 - A menu item, enabled when a sourcetable is loaded. It writes

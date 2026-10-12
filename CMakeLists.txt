@@ -114,6 +114,7 @@ add_library(ntrip_core STATIC
     src/core/station_report.c
     src/core/thresholds.c
     src/core/sourcetable.c
+    src/core/sourcetable_map.c
     src/core/geo.c
     src/core/vrs_check.c
     src/core/iono.c
@@ -302,6 +303,16 @@ add_executable(test_sourcetable test/test_sourcetable.c)
 target_link_libraries(test_sourcetable PRIVATE ntrip_core)
 add_test(NAME sourcetable COMMAND test_sourcetable)
 
+# The two places text from outside crosses into a page and back: a
+# caster's sourcetable written into the mountpoint map, and clipboard
+# text read as a selection. Output is parsed back with cJSON and must
+# carry nothing that could close a <script> block; tokens are tried with
+# every way a hostile clipboard could misrepresent one (mountpoint-map
+# M2).
+add_executable(test_sourcetable_map test/test_sourcetable_map.c)
+target_link_libraries(test_sourcetable_map PRIVATE ntrip_core)
+add_test(NAME sourcetable_map COMMAND test_sourcetable_map)
+
 add_executable(test_vrs test/test_vrs.c)
 target_link_libraries(test_vrs PRIVATE ntrip_core)
 add_test(NAME vrs COMMAND test_vrs)
@@ -372,7 +383,8 @@ add_custom_target(test_all
             test_sv_state test_spp test_selfpos_session
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall test_failure test_sourcetable test_vrs test_bridge_vrs
+            test_stall test_failure test_sourcetable test_sourcetable_map
+            test_vrs test_bridge_vrs
             test_tls)
 
 # ── Windows GUI ───────────────────────────────────────────────────────
