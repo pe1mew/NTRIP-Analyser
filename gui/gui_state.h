@@ -714,6 +714,12 @@ typedef struct {
     int               stCount;
     char              stCaster[256];  /* caster and port the entries came from */
     int               stPort;
+    /* Listening to the clipboard for a mountpoint chosen on the map
+     * (mountpoint-map.md M4): from opening a map page until the next
+     * sourcetable is kept, so a page left open from another table can
+     * select nothing.  The token's own caster check holds even if this
+     * bookkeeping fails. */
+    BOOL              mapListening;
 
     int    stationType;               /* STATION_* below */
     char   stationWhy[160];           /* which signal decided it, for display */

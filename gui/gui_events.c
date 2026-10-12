@@ -56,6 +56,7 @@ static void OnSatUpdate(AppState *state);
 static void RefreshStreamHealth(AppState *state);
 static char *MapTilesJson(AppState *state);
 static void OnMapTiles(HWND hwnd, AppState *state);
+static void MapTokenFromClipboard(HWND hwnd, AppState *state);
 
 /* ── Notification area ("tray") ───────────────────────────────────────
  *
@@ -1253,9 +1254,48 @@ static void SourcePosFromEntry(AppState *state, const SourcetableEntry *e)
     state->sourceLon = state->sourcePosValid ? e->longitude : 0.0;
 }
 
+/**
+ * @brief Make a mountpoint row the one to use: what a double-click does.
+ *
+ * One path for the list and the map (mountpoint-map.md M4), so a
+ * choice made on the map cannot set less, or more, than a click.
+ *
+ * @param how NULL for a click on the list, else words for the log
+ *            saying where the choice came from.
+ */
+static void UseMountpointRow(AppState *state, int row, const char *how)
+{
+    char mount[256] = "";
+    ListView_GetItemText(state->hLvMountpoints, row, 0, mount, sizeof(mount));
+    if (!mount[0]) return;
+
+    SetWindowText(state->hEditMountpoint, mount);
+    GuiToConfig(state);
+
+    char logmsg[400];
+    snprintf(logmsg, sizeof(logmsg), "[INFO] Mountpoint set to: %s%s%s\r\n",
+             mount, how ? " " : "", how ? how : "");
+    AppendLog(state->hEditLog, logmsg);
+}
+
+/** @brief Stop watching the clipboard for map tokens. */
+static void MapStopListening(AppState *state)
+{
+    if (state->mapListening) {
+        RemoveClipboardFormatListener(state->hMain);
+        state->mapListening = FALSE;
+    }
+}
+
 /** @brief Replace the kept sourcetable entries, freeing the old ones. */
 static void KeepSourcetable(AppState *state, SourcetableEntry *e, int n)
 {
+    /* A map page opened over the old table must select nothing in this
+     * one; its tokens would also fail the caster check if the caster
+     * changed, but the same caster's new table could list the name at
+     * another row. */
+    MapStopListening(state);
+
     free(state->stEntries);
     state->stEntries = e;
     state->stCount   = e ? n : 0;
@@ -1707,6 +1747,92 @@ static void OnMountMap(HWND hwnd, AppState *state)
              "(%d entries, %.1f MB).\r\n",
              state->stCaster, state->stPort, state->stCount, need / 1e6);
     AppendLog(state->hEditLog, msg);
+
+    /* From now until the next sourcetable, a mountpoint chosen on the
+     * page ("Use" copies its token) is taken from the clipboard. */
+    if (!state->mapListening && AddClipboardFormatListener(hwnd))
+        state->mapListening = TRUE;
+}
+
+/**
+ * @brief The clipboard changed while a map page is open: is it a token?
+ *
+ * The page cannot call the GUI, so "Use" copies a token
+ * (sourcetable_make_token) and this reads it back (decision D2).  The
+ * core decides: the token must name the caster and port the loaded
+ * table came from, a mountpoint in it, and exactly one row.  Ordinary
+ * text is not an event and is ignored without a word; a refused token
+ * is logged with its reason.  The token is an identifier, never a
+ * value: everything the row sets comes from the GUI's own parse.
+ */
+static void MapTokenFromClipboard(HWND hwnd, AppState *state)
+{
+    if (!state->mapListening || !state->stEntries) return;
+    if (!IsClipboardFormatAvailable(CF_TEXT)) return;
+    if (GetClipboardOwner() == hwnd) return;        /* our own copies */
+    if (!OpenClipboard(hwnd)) return;
+
+    /* At most one byte past the longest token, so the core can refuse an
+     * overlong one; anything bigger is ordinary text or not ours. */
+    char text[ST_TOKEN_MAX + 2];
+    size_t len = 0;
+    HANDLE h = GetClipboardData(CF_TEXT);
+    const char *p = h ? (const char *)GlobalLock(h) : NULL;
+    if (p) {
+        size_t avail = GlobalSize(h);
+        while (len < avail && len < sizeof(text) && p[len]) len++;
+        memcpy(text, p, len);
+        GlobalUnlock(h);
+    }
+    CloseClipboard();
+    if (len == 0) return;
+
+    int matches = 0;
+    int idx = sourcetable_match_token(text, len, state->stCaster, state->stPort,
+                                      state->stEntries, state->stCount, &matches);
+    if (idx == ST_TOKEN_NONE) return;
+
+    char msg[400];
+    if (idx < 0) {
+        const char *why =
+            idx == ST_TOKEN_OTHER_CASTER ? "it names another caster than the "
+                                           "loaded sourcetable's -- a map page "
+                                           "left open from an earlier one?" :
+            idx == ST_TOKEN_NOT_LISTED   ? "the loaded sourcetable has no such "
+                                           "mountpoint" :
+            idx == ST_TOKEN_AMBIGUOUS    ? "the sourcetable lists that name more "
+                                           "than once" :
+                                           "it could not be read";
+        if (idx == ST_TOKEN_AMBIGUOUS)
+            snprintf(msg, sizeof(msg),
+                     "[WARN] Mountpoint from the map not used: %s (%d rows).\r\n",
+                     why, matches);
+        else
+            snprintf(msg, sizeof(msg),
+                     "[WARN] Mountpoint from the map not used: %s.\r\n", why);
+        AppendLog(state->hEditLog, msg);
+        return;
+    }
+
+    /* The row is found by the index the list carries, so a sorted list
+     * still selects the entry the token named. */
+    LVFINDINFO fi;
+    ZeroMemory(&fi, sizeof(fi));
+    fi.flags  = LVFI_PARAM;
+    fi.lParam = idx;
+    int row = ListView_FindItem(state->hLvMountpoints, -1, &fi);
+    if (row < 0) return;
+
+    ListView_SetItemState(state->hLvMountpoints, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
+    ListView_SetItemState(state->hLvMountpoints, row,
+                          LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+    ListView_EnsureVisible(state->hLvMountpoints, row, FALSE);
+    UseMountpointRow(state, row, "(chosen on the map)");
+
+    /* Windows will not let us take the foreground from the browser;
+     * flashing the taskbar button says where the choice went. */
+    FLASHWINFO fw = { sizeof(fw), hwnd, FLASHW_TRAY | FLASHW_TIMERNOFG, 0, 0 };
+    FlashWindowEx(&fw);
 }
 
 /* ── Map picker helpers ─────────────────────────────────────── */
@@ -2728,19 +2854,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         /* Double-click on mountpoint ListView → copy mountpoint to config */
         if (nmh->idFrom == IDC_LV_MOUNTPOINTS && nmh->code == NM_DBLCLK) {
             int sel = ListView_GetNextItem(state->hLvMountpoints, -1, LVNI_SELECTED);
-            if (sel >= 0) {
-                char mount[256] = "";
-                ListView_GetItemText(state->hLvMountpoints, sel, 0, mount, sizeof(mount));
-                if (mount[0]) {
-                    SetWindowText(state->hEditMountpoint, mount);
-                    GuiToConfig(state);
-
-                    char logmsg[320];
-                    snprintf(logmsg, sizeof(logmsg),
-                             "[INFO] Mountpoint set to: %s\r\n", mount);
-                    AppendLog(state->hEditLog, logmsg);
-                }
-            }
+            if (sel >= 0) UseMountpointRow(state, sel, NULL);
         }
 
         /* Double-click on Msg Stats ListView → open detail window */
@@ -4007,6 +4121,13 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
 
+    case WM_CLIPBOARDUPDATE: {
+        /* Only registered while a mountpoint map is open (OnMountMap). */
+        state = GetAppState(hwnd);
+        if (state) MapTokenFromClipboard(hwnd, state);
+        return 0;
+    }
+
     case WM_DESTROY: {
         /* Free the last-decoded-text cache */
         state = GetAppState(hwnd);
@@ -4015,6 +4136,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
              * classic notification-area bug, leaving a ghost that only
              * disappears when the user hovers over it. */
             TrayRemove(hwnd, state);
+            MapStopListening(state);
 
             for (int i = 0; i < GUI_MAX_MSG_TYPES; i++) {
                 if (state->lastDecodedText[i]) {

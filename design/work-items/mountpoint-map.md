@@ -655,6 +655,64 @@ parsing goes where it can be tested.
 - copy ordinary text, then confirm nothing changes and nothing is
   logged.
 
+### M4 — as built  *(2026-10-12)*
+
+- **The page:** each popup has *Use this mountpoint*, which copies the
+  feature's `token` as the core wrote it. The page never assembles
+  one.
+- **The GUI:**
+  - `AddClipboardFormatListener` from opening a map page until the
+    next `KeepSourcetable`, which calls `MapStopListening`; also
+    removed on `WM_DESTROY`.
+  - `WM_CLIPBOARDUPDATE` → `MapTokenFromClipboard` reads `CF_TEXT`,
+    at most `ST_TOKEN_MAX + 1` bytes. The GUI's own copies are
+    skipped.
+  - `sourcetable_match_token` decides. NONE (ordinary text) is
+    silent. Every refusal is logged with its reason: another caster
+    ("a map page left open from an earlier one?"), not listed,
+    ambiguous with the row count, or unreadable.
+- **A match** finds the row by the index its `lParam` carries, so a
+  sorted list still selects the right entry. It selects and scrolls
+  to the row, then calls `UseMountpointRow`, which is now also what a
+  double-click calls: one path, so the map can set neither more nor
+  less than a click. The log says "(chosen on the map)". The taskbar
+  button flashes, because Windows will not let the GUI take the
+  foreground from the browser.
+
+**Found by testing the page: copying could claim success it did not
+have.** The location picker's copy routine, carried over unchanged
+since before this plan, used `navigator.clipboard` whenever it existed
+and fell back only when it did not. In the browser pane the write was
+refused (`NotAllowedError: Write permission denied`), and the page
+still said "Copied to clipboard!". There is now one `copyText(t, done)`
+for both pages:
+
+1. `execCommand('copy')` first, which answers at once;
+2. the clipboard API second;
+3. `done(false)` when neither wrote.
+
+The map then says *"The browser would not copy. Copy this with
+Ctrl+C:"* and offers the token in a selected box. The picker says to
+select the numbers.
+
+**Checked in a browser** with the hostile sourcetable:
+
+- **A successful copy** captured exactly the core's percent-encoded
+  token for the `<img onerror>` mountpoint on caster `evil"host<`.
+- **With both copy methods refused**, the fallback text and the
+  selected box appeared.
+- **Nothing ran**: `window.pwned` stayed unset throughout.
+
+**Still to be seen on the GUI** (the plan's M4 test list): a token
+selects the row and sets the Mountpoint field; a token for an
+unlisted name is refused with its reason; a page from caster A after
+loading caster B's table is refused; ordinary text does nothing.
+
+A duplicated name cannot be staged live, because no configured caster
+lists one (M1 measured 0 duplicates in 8471 records) and the GUI
+cannot load a sourcetable from a file. `test_sourcetable_map` pins
+that case.
+
 ### M5 — say so (desktop)
 
 - `docs/gui.md`: the menu item, what the colours mean, the clipboard
