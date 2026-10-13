@@ -727,8 +727,9 @@ class TrackAccumulator {
 }
 
 /**
- * The hand-over detail: the analysis screens’ template, filled with
- * the reference position’s story.
+ * The hand-over view: the analysis screens’ template, filled with
+ * the reference position’s story. Pro's last analysis tab since
+ * 2026-10-12; before that, the detail screen behind a hub card.
  *
  * Laid out through [AnalysisBands] by the author’s direction
  * (2026-08-24): the same six bands as the three analysis views, in the
@@ -750,6 +751,7 @@ internal fun HandoverDetail(
     roverLon: Double,
     mountpoint: String,
     roverIsFix: Boolean,
+    worstJumpM: Double?,
 ) {
     val sum = hoSummary(stats, vrs, roverLat, roverLon)
     val trail = MonitorService.arpTrail
@@ -787,6 +789,15 @@ internal fun HandoverDetail(
                     MaterialTheme.colorScheme.error else faint,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+            // Carried over from the hub card this view replaced.
+            if (moves > 0 && worstJumpM != null) {
+                Text(
+                    stringResource(R.string.ho_jump, distanceText(worstJumpM)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = faint,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
         },
         plot = { m ->
             Column(m.padding(12.dp)) {

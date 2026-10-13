@@ -373,18 +373,6 @@ private fun evidenceFor(index: Int, s: Stats, arp: ArpInfo? = null): List<Pair<S
 }
 
 /**
- * Where the reference position stands relative to the rover, and
- * whether it has moved.
- *
- * The distance takes the usability colours A3 judges by -- green under
- * 5 km, amber under 50, red beyond. The movement sentence is chosen by
- * what the service *is*, on the desktop's own evidence rule: a
- * reference position within 150 m of the position being sent is a
- * network answering you (`gui_events.c`, ClassifyStation), and a
- * resolved gate test outranks the guess. The same count reads as a
- * network doing its job or a base that should worry you -- never both.
- */
-/**
  * Tier 2: stability over the run, in its own vocabulary.
  *
  * Never tier 1's words -- fit *now* and stable *lately* are different
@@ -490,7 +478,19 @@ internal fun srLabel(key: String): String = stringResource(
         else -> R.string.sr_title
     })
 
-/** What both the card and the detail screen say about the ARP. */
+/**
+ * Where the reference position stands relative to the rover, and
+ * whether its moves are a network's or a base's -- what the Reference
+ * position tab says about the ARP.
+ *
+ * The distance takes the usability colours A3 judges by -- green under
+ * 5 km, amber under 50, red beyond. The movement sentence is chosen by
+ * what the service *is*, on the desktop's own evidence rule: a
+ * reference position within 150 m of the position being sent is a
+ * network answering you (`gui_events.c`, ClassifyStation), and a
+ * resolved gate test outranks the guess. The same count reads as a
+ * network doing its job or a base that should worry you -- never both.
+ */
 internal data class HoSummary(
     val distM: Double,
     val bearingDeg: Double,
@@ -519,65 +519,6 @@ internal fun hoDistColour(distM: Double) = when {
     distM < 5_000.0 -> verdictColour(Verdict.PASS)
     distM < 50_000.0 -> verdictColour(Verdict.WARN)
     else -> verdictColour(Verdict.FAIL)
-}
-
-@Composable
-internal fun HandoverCard(
-    stats: Stats,
-    vrs: VrsDoc?,
-    roverLat: Double,
-    roverLon: Double,
-    roverIsFix: Boolean,
-    moves: Int,
-    worstJumpM: Double?,
-) {
-    val sum = hoSummary(stats, vrs, roverLat, roverLon) ?: return
-    val distM = sum.distM
-    val bearing = sum.compass
-    val distColour = hoDistColour(distM)
-    val isNetwork = sum.isNetwork
-
-    // A plain card, deliberately not a FoldableCard: this row *leads*
-    // somewhere, and a row cannot honestly carry both the fold mark and
-    // the forward mark -- nor can an inner fold-toggle share a tap with
-    // the drill-in the shell wraps around it. Three short lines do not
-    // need folding; they need to be a door.
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Text(
-                stringResource(R.string.ho_title),
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                stringResource(
-                    if (roverIsFix) R.string.ho_distance_fix
-                    else R.string.ho_distance_set,
-                    distanceText(distM), bearing),
-                style = MaterialTheme.typography.bodySmall,
-                color = distColour,
-                fontWeight = FontWeight.Medium,
-            )
-            Text(
-                when {
-                    moves == 0 -> stringResource(R.string.ho_stable)
-                    isNetwork -> stringResource(R.string.ho_moves_net, moves)
-                    else -> stringResource(R.string.ho_moves_fixed, moves)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color =
-                    if (moves > 0 && !isNetwork) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (moves > 0 && worstJumpM != null) {
-                Text(
-                    stringResource(R.string.ho_jump, distanceText(worstJumpM)),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
 }
 
 /**

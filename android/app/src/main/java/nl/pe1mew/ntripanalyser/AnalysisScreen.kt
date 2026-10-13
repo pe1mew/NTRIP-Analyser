@@ -1,6 +1,6 @@
 /**
  * @file AnalysisScreen.kt
- * @brief The live views: three in both editions, a fourth in pro.
+ * @brief The live views: three in both editions, two more in pro.
  *
  * A destination of its own (GUI v2, P1.4), taking what it draws as
  * parameters rather than reaching into the shell's state: the same
@@ -13,7 +13,9 @@
  * No tab was added in phase 1 or phase 2 -- satellite tracks are drawn
  * inside the sky canvas, not beside it. Self-position (P7) is the first:
  * a fourth tab, last, pro's only, on the author's direction (2026-10-12),
- * where a view of a station's behaviour over the run belongs.
+ * where a view of a station's behaviour over the run belongs. Reference
+ * position followed it from the hub the same day, for the same reason:
+ * a fifth tab, pro's too, after Self-position.
  *
  * Project: NTRIP-Analyser
  * Author: Remko Welling, PE1MEW
@@ -84,6 +86,7 @@ fun AnalysisScreen(
     menu: MenuActions,
     tracks: TrackAccumulator? = null,
     trackRevision: Int = 0,
+    refPos: @Composable () -> Unit = {},
 ) {
     val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
@@ -105,7 +108,7 @@ fun AnalysisScreen(
 
     // One page per view, so a swipe moves between them with the
     // content following the finger rather than cutting. The edition's
-    // own list: pro has a fourth, Self-position (P7).
+    // own list: pro adds Self-position (P7) and Reference position.
     val tabs = analysisTabs
     val current = tabs.indexOf(tab).coerceAtLeast(0)
     val pagerState = rememberPagerState(initialPage = current) { tabs.size }
@@ -241,6 +244,7 @@ fun AnalysisScreen(
                         ElevationView(elevSamples, elevRevision)
                     AnalysisTab.SELFPOS ->
                         SelfPosView(doc)
+                    AnalysisTab.REFPOS -> refPos()
                   }
                 }
             }
@@ -254,4 +258,5 @@ private fun tabTitle(t: AnalysisTab): Int = when (t) {
     AnalysisTab.SIGNAL -> R.string.view_bars
     AnalysisTab.ELEVATION -> R.string.view_elev
     AnalysisTab.SELFPOS -> R.string.view_selfpos
+    AnalysisTab.REFPOS -> R.string.ho_title
 }

@@ -291,6 +291,18 @@ design decision. It is not planned; it is written down here so the
 next person asking finds the boundary and its reasons rather than an
 accident.
 
+### H8 — an analysis tab, not a card  *(2026-10-12)*
+
+On the author's direction, following Self-position (P7 of
+`station-self-position.md`): the H4 screen is now **pro's fifth
+analysis tab, "Reference position", after Self-position**, and the hub
+card of H3 is gone. `HandoverPanel` stays in pro's registry, drawing
+nothing, so its section of the shared report is unchanged; the tab
+draws `HandoverPanel.View`, which was the panel's detail screen, and
+the panel no longer has a `Dest.Detail` route. `HandoverCard` was
+deleted; the one line it had that the screen lacked — the largest
+jump between recorded positions — moved into the screen's summary.
+
 ## Open, and worth an answer before H3
 
 1. **Should free's check-3 evidence quote `arp_moves`?** It is
