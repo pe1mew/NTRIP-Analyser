@@ -132,6 +132,43 @@ Desktop only, deliberately: both Play listings say the app "does not
 compute a position", and that sentence stays true until the paid
 edition gains this on purpose.
 
+### Added — self-position in the paid Android edition
+
+The same figures on the phone, as pro's fourth analysis tab after
+C/N0 vs elevation: the offset on one line, the scatter, the worst code
+residual and the median apparent motion, over an E/N plot about the
+ARP at the screen's full width, the latest epoch as a labelled
+diagnostic, and `REVERSED` when the station's receiver sends its rates
+backwards. The share report gains a *Self-position* section. Free runs
+the same solve and draws nothing — a measurement is never gated by
+edition, only what is shown.
+
+**The phone and the GUI cannot disagree about the state.** Whether a
+station is *solved*, still *gathering*, *not computable*
+(single-frequency) or *not solved* is now decided once, in the core,
+and carried in the report as `selfpos_state`; the GUI used to decide it
+for itself. Report schema **4**.
+
+**Checked against the GUI on the same station.** RFSEE01, phone and
+GUI side by side on 2026-10-12: offset +0.97 / +1.69 / −3.46 m on the
+phone against +1.072 / +1.978 / −3.680 m in the GUI, scatter 2.939
+against 2.990 m, median motion 30.5 against 32.5 mm/s, the latest epoch
+9 satellites and 2.08 m in both, and `REVERSED` in both. The GUI had
+run eight minutes longer, which accounts for the worst residual
+differing (3.702 against 3.408 m).
+
+**Reference position moved beside it.** The rover-to-ARP plot and the
+hand-over history, a hub card with a screen behind it until now, are
+pro's fifth analysis tab. Nothing it said was dropped: the card's
+largest-jump line is in the tab's summary.
+
+**Debug builds install beside the store apps** as `….pro.dev` and
+`….free.dev`, named "NTRIP Pro (dev)" and "NTRIP (dev)", so a test
+phone keeps its Play installation and its saved connections.
+
+Released only with the listing sentence changed on purpose, on both
+editions: "It does not steer a rover or survey a coordinate."
+
 ### Added — the service fetches orbits for the stations that send none
 
 The monitoring daemon now honours a station's `eph_*` block, as the GUI

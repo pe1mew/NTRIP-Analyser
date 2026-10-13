@@ -1061,6 +1061,16 @@ schema change, and three fixes found on the way. No listing text
 changed: both Play listings still say the app "does not compute a
 position", and on Android that is still true.
 
+**Phone half, 2026-10-13, with P7:** `design/feature-matrix.md`'s
+Self-position row goes pro ⋯ → ●, and the hand-over row and both gate
+descriptions name the analysis tabs; `android/design/editions.md`
+gains rows for self-position and the hand-over view;
+`android/design/views.md` gains §4 Self-position and §5 Reference
+position; `changelog.md`'s `[Unreleased]` gains the Android entry with
+the phone-against-GUI comparison. **Still the author's, at release:**
+the listing sentence on both editions (`play-listing.md`, pending
+section) and the wiki's pro pages.
+
 ## What this will not claim
 
 - Not a survey-grade coordinate, and not a replacement for the
