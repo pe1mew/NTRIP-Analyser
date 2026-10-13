@@ -263,6 +263,8 @@ char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
      * text, where a straddle cannot hide. */
     int received;
     int quiet = 0;
+    bool ended = false;      /* ENDSOURCETABLE seen: the list is whole */
+    bool too_big = false;
     for (;;) {
         received = ns_transport_recv(t, (unsigned char *)buffer,
                                      (int)sizeof(buffer) - 1, 10000);
@@ -284,6 +286,7 @@ char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
                     "[WARN] Sourcetable exceeded %zu bytes; truncating. "
                     "A caster sending more than this is not serving a "
                     "mountpoint list.\n", MOUNT_TABLE_MAX);
+            too_big = true;
             break;
         }
         mount_table_size += received;
@@ -300,6 +303,7 @@ char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
          * be hundreds of kilobytes and this runs per read. */
         size_t from = old_size > 14 ? old_size - 14 : 0;
         if (strstr(mount_table + from, "ENDSOURCETABLE")) {
+            ended = true;
             break;
         }
     }
@@ -307,12 +311,21 @@ char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
     /* Why, for a caller that asks: nothing at all is a connection closed
      * (a read failed) or one left silent (twenty seconds of nothing);
      * anything is the caster's answer, read from its status line before
-     * the body is touched. The text is returned either way, as before. */
+     * the body is touched. The text is returned either way, as before.
+     *
+     * An answer that says yes and stops before ENDSOURCETABLE is not a
+     * list but part of one: onocoy went silent mid-transfer, and the
+     * phone drew 12 of its ~5900 mountpoints as though that were all
+     * (2026-10-13). Six casters checked that day -- onocoy, Centipede,
+     * Kadaster, RTK2go, EUREF-IP, GEODNET -- all end a whole table with
+     * the line, as NTRIP requires. */
     if (why) {
         if (!mount_table)
             *why = received < 0 ? NS_FAIL_DROPPED : NS_FAIL_STALLED;
-        else
-            *why = ns_proto_sourcetable_answer(mount_table);
+        else if ((*why = ns_proto_sourcetable_answer(mount_table)) == NS_FAIL_NONE
+                 && !ended)
+            *why = too_big ? NS_FAIL_REJECTED
+                 : received < 0 ? NS_FAIL_DROPPED : NS_FAIL_STALLED;
     }
 
     if (mount_table) {

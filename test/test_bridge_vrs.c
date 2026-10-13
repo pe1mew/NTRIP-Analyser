@@ -32,7 +32,9 @@
 #include "core/rtcm3x_parser.h"   /* crc24q, for valid junk frames */
 #include "core/ns_stats.h"        /* the CSV dialect the export must match */
 
+#include <math.h>     /* NAN: no origin for the sourcetable cases */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
@@ -80,6 +82,16 @@ static void check(int ok, const char *what)
     "none;none;B;N;0;\r\n"                                              \
     "ENDSOURCETABLE\r\n"
 
+/* The same list, stopped before ENDSOURCETABLE: what onocoy sent the
+ * phone on 2026-10-13, when the map drew 12 of ~5900 mountpoints. */
+#define TABLE_CUT                                                       \
+    "SOURCETABLE 200 OK\r\n"                                            \
+    "Content-Type: text/plain\r\n"                                      \
+    "\r\n"                                                              \
+    "STR;TEST;TEST;RTCM 3.2;1074(1);2;GPS;NET;NLD;52.00;5.00;1;0;"      \
+    "none;none;B;N;0;\r\n"
+
+static volatile int g_cut;    /**< this many sourcetable requests get TABLE_CUT */
 static volatile int g_drop;   /**< close the stream: the gate's answer */
 static volatile int g_quit;
 
@@ -151,7 +163,9 @@ static void *caster_thread(void *arg)
             if (n <= 0) continue;
             req[n] = 0;
             if (strstr(req, "GET / ")) {          /* the sourcetable */
-                send(client[i], TABLE_ANSWER, (int)strlen(TABLE_ANSWER), 0);
+                const char *t = TABLE_ANSWER;
+                if (g_cut > 0) { g_cut--; t = TABLE_CUT; }
+                send(client[i], t, (int)strlen(t), 0);
                 close_sock(client[i]);
                 client[i] = SOCK_BAD;
             } else {                              /* the stream */
@@ -320,6 +334,34 @@ int main(void)
               strstr(doc, "\"delivery_detail\"") != NULL,
               "and the frozen per-metric keys");
         bridge_close(b);
+    }
+
+    /* A list cut short is part of a list. Asked for once more; drawn
+     * never -- 12 of ~5900 onocoy mountpoints on the phone's map said
+     * the caster had 12 (mountpoint-map.md, 2026-10-13). */
+    {
+        int len = -1, fail = -1;
+        g_cut = 1;
+        char *j = bridge_sourcetable_json("127.0.0.1", port, "", "", false,
+                                          NAN, NAN, &len, &fail);
+        check(j && strstr(j, "\"mountpoint\":\"TEST\"") && fail == NS_FAIL_NONE &&
+              g_cut == 0,
+              "a list cut short once is asked for again, and the whole one used");
+        free(j);
+
+        g_cut = 2;
+        j = bridge_sourcetable_json("127.0.0.1", port, "", "", false,
+                                    NAN, NAN, &len, &fail);
+        check(j == NULL && fail == NS_FAIL_DROPPED && g_cut == 0,
+              "cut short twice: refused with its reason, never shown as the list");
+        free(j);
+
+        g_cut = 0;
+        j = bridge_sourcetable_json("127.0.0.1", port, "", "", false,
+                                    NAN, NAN, &len, &fail);
+        check(j && fail == NS_FAIL_NONE,
+              "a whole list the first time is taken as it is");
+        free(j);
     }
 
     g_quit = 1;

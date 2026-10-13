@@ -982,9 +982,42 @@ view; *Recentre* after moving.
   bridge log `sourcetable fetch failed for clients.onocoy.com:2101:
   stalled`. onocoy accepted the connection and the request, then sent
   nothing for the fetch's twenty seconds. Not DNS, not refused, not
-  TLS, not a reset. *Why* onocoy goes silent for the phone and not the
-  desktop on the same network has not been established; nothing here
-  shows it is throttling, and nothing rules it out.
+  TLS, not a reset.
+
+  **Not the phone's alone, and not only at the start** (the same
+  evening, 21:29–21:52). With a retry in place, one opening on the phone
+  drew **12 of ~5900** mountpoints as though that were the list: onocoy
+  went silent part-way, and twenty seconds of silence was taken as the
+  end. From the desktop, curl then got 1315 entries with no
+  `ENDSOURCETABLE`, then 9, then none — where the five desktop fetches
+  earlier had all been whole. So onocoy stalls for any client at times,
+  at the start or part-way; why has not been established.
+
+  **Fixed:** a table that says yes and stops before `ENDSOURCETABLE`
+  is now reported as `stalled` (silence) or `dropped` (closed) by
+  `receive_mount_table_ex()`, with the part still returned, so the
+  CLI, GUI and daemon behave as before. The bridge asks once more after
+  a silence or a list cut short, and refuses a list still cut short
+  with its reason; KPI 8's lookup at run start goes the same way, so a
+  mountpoint is never called missing for not having been reached.
+  Every whole table from the six casters checked — onocoy (saved
+  earlier that day), Centipede, Kadaster, RTK2go, EUREF-IP, GEODNET —
+  ends with the line, as NTRIP requires; a caster that omitted it would
+  now be refused. Through the bridge from the desktop, six fetches ten
+  seconds apart: five whole (5894–5907 entries, one after about ninety
+  seconds — a second asking), one refused as `dropped` after both
+  askings were cut short; **no partial list**. `test_bridge_vrs` serves
+  a cut table once (asked again, the whole one used), twice (refused
+  as `dropped`) and not at all. **On the phone**, eight openings
+  21:54–22:05: seven whole (5901–5912 entries), one refused — the log
+  shows the first asking *stalled (0 bytes)*, the second *stalled
+  (302400 bytes)*, about a sixth of the list, and the app said
+  *Connected, but nothing is arriving.* rather than drawing it. No
+  partial list.
+
+  *Not changed:* the CLI and the GUI still take a list cut short as
+  whole, as they always have; they call `receive_mount_table()`, which
+  keeps its behaviour. Worth the same treatment there.
 - **onocoy's `NRBY_*` entries were classed as fixed bases.** *Fixed
   the same day* (author's decision): `NRBY` joined the network
   keywords in `src/core/sourcetable.c`, so the GUI and the phone both

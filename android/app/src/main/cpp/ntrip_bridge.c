@@ -86,6 +86,51 @@ static SourcetableEntry *bridge_parse_table(const char *raw, int *count)
     return e;
 }
 
+/** @brief Part of a list: an answer that stopped before ENDSOURCETABLE. */
+static bool bridge_cut_short(const char *raw, NsFailure w)
+{
+    return raw && (w == NS_FAIL_STALLED || w == NS_FAIL_DROPPED);
+}
+
+/**
+ * @brief The sourcetable, whole, asked for once more if the caster went
+ *        silent or stopped part-way; never a part of one.
+ *
+ * onocoy, from the Huawei, accepted the request and then sent nothing
+ * for 4 of 12 fetches a minute apart, and in a later run stopped after
+ * 12 of its ~5900 entries -- which the map then drew as all there was
+ * (2026-10-13, mountpoint-map.md). A silence or a list cut short is
+ * asked again, once; a refusal, a wrong host or a bad password would
+ * say the same thing twice. The cost is a second wait when the caster
+ * stays silent. A list still cut short after that is refused with its
+ * reason: drawn, it would say a caster has 12 mountpoints, and KPI 8
+ * would call a mountpoint missing that was only not reached.
+ *
+ * @param why [out] The last attempt's reason; may be NULL.
+ */
+static char *bridge_fetch_table(const NTRIP_Config *cfg, NsFailure *why)
+{
+    NsFailure w = NS_FAIL_NONE;
+    char *raw = receive_mount_table_ex(cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB), &w);
+    if ((!raw && w == NS_FAIL_STALLED) || bridge_cut_short(raw, w)) {
+        BLOG("sourcetable from %s:%d %s (%zu bytes); asking once more",
+             cfg->NTRIP_CASTER, cfg->NTRIP_PORT, ns_failure_name(w),
+             raw ? strlen(raw) : (size_t)0);
+        free(raw);
+        raw = receive_mount_table_ex(cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB), &w);
+        BLOG("sourcetable from %s:%d, second asking: %s (%zu bytes)",
+             cfg->NTRIP_CASTER, cfg->NTRIP_PORT,
+             w == NS_FAIL_NONE ? "whole" : ns_failure_name(w),
+             raw ? strlen(raw) : (size_t)0);
+    }
+    if (bridge_cut_short(raw, w)) {
+        free(raw);
+        raw = NULL;
+    }
+    if (why) *why = w;
+    return raw;
+}
+
 static void bridge_on_event(const NsEvent *ev, void *user);
 static void bridge_eph_event(const NsEvent *ev, void *user);
 
@@ -377,11 +422,12 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
     /* What this mountpoint promises, so KPI 8 has something to compare
      * against.  One extra request at open; without it the comparison
      * reports "cannot judge" rather than a false pass. */
-    char *table = receive_mount_table(&opt.config,
-                                      NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
+    NsFailure st_why = NS_FAIL_NONE;
+    char *table = bridge_fetch_table(&opt.config, &st_why);
     if (!table) {
-        BLOG("sourcetable fetch failed for %s:%d; KPI 8 cannot judge",
-             opt.config.NTRIP_CASTER, opt.config.NTRIP_PORT);
+        BLOG("sourcetable fetch failed for %s:%d: %s; KPI 8 cannot judge",
+             opt.config.NTRIP_CASTER, opt.config.NTRIP_PORT,
+             ns_failure_name(st_why));
     }
     if (table) {
         int n = 0;
@@ -868,8 +914,7 @@ char *bridge_sourcetable_json(const char *caster, int port,
      * phone while the reason went to stderr, which Android drops, and
      * the app said "could not reach" for every cause (2026-10-13). */
     NsFailure why = NS_FAIL_NONE;
-    char *raw = receive_mount_table_ex(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
-                                       &why);
+    char *raw = bridge_fetch_table(&cfg, &why);
     if (!raw) {
         BLOG("sourcetable fetch failed for %s:%d: %s", cfg.NTRIP_CASTER, port,
              ns_failure_name(why));

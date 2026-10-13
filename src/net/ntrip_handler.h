@@ -171,7 +171,12 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent);
  *   byte arrived: @ref NS_FAIL_DROPPED;
  * - twenty seconds of silence and nothing: @ref NS_FAIL_STALLED;
  * - an answer: @ref ns_proto_sourcetable_answer of it -- the text is
- *   still returned, so a caller can show what the caster said.
+ *   still returned, so a caller can show what the caster said;
+ * - an answer that says yes and stops before `ENDSOURCETABLE`: part of
+ *   a list, not a list -- @ref NS_FAIL_STALLED after silence,
+ *   @ref NS_FAIL_DROPPED after a close, @ref NS_FAIL_REJECTED past the
+ *   4 MB ceiling. The part is returned; a caller that wants whole lists
+ *   only (the Android bridge) refuses it.
  *
  * Added because the Android app said "Could not reach the caster" for
  * all of these while the reason went to stderr, which Android drops
