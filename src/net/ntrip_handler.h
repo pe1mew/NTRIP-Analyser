@@ -188,6 +188,29 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent);
 char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
                              NsFailure *why);
 
+/**
+ * @brief A whole sourcetable, or none and why. What every frontend
+ *        that shows or uses a list calls.
+ *
+ * @ref receive_mount_table_ex, asked once more after a silence or a
+ * list cut short -- onocoy did both on 2026-10-13, and once a phone
+ * drew 12 of its ~5900 mountpoints as all there were
+ * (design/work-items/mountpoint-map.md). Then:
+ * - a list still cut short: NULL, @p why stalled or dropped;
+ * - a refusal with no list in it (401, a web page): NULL, @p why its
+ *   reason;
+ * - a whole list: the text, @p why NS_FAIL_NONE (or the status line's
+ *   complaint, when the caster sent a list all the same).
+ *
+ * @param why   [out] The last attempt's reason; may be NULL.
+ * @param first [out] The first attempt's reason when it was asked
+ *              again, NS_FAIL_NONE when once was enough; may be NULL.
+ *              For a log line, so a second asking is never invisible.
+ * @return The table, freed by the caller, or NULL.
+ */
+char* receive_mount_table_whole(const NTRIP_Config *config, const char *agent,
+                                NsFailure *why, NsFailure *first);
+
 
 
 

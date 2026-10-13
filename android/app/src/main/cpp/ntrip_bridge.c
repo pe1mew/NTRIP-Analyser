@@ -86,47 +86,22 @@ static SourcetableEntry *bridge_parse_table(const char *raw, int *count)
     return e;
 }
 
-/** @brief Part of a list: an answer that stopped before ENDSOURCETABLE. */
-static bool bridge_cut_short(const char *raw, NsFailure w)
-{
-    return raw && (w == NS_FAIL_STALLED || w == NS_FAIL_DROPPED);
-}
-
 /**
- * @brief The sourcetable, whole, asked for once more if the caster went
- *        silent or stopped part-way; never a part of one.
- *
- * onocoy, from the Huawei, accepted the request and then sent nothing
- * for 4 of 12 fetches a minute apart, and in a later run stopped after
- * 12 of its ~5900 entries -- which the map then drew as all there was
- * (2026-10-13, mountpoint-map.md). A silence or a list cut short is
- * asked again, once; a refusal, a wrong host or a bad password would
- * say the same thing twice. The cost is a second wait when the caster
- * stays silent. A list still cut short after that is refused with its
- * reason: drawn, it would say a caster has 12 mountpoints, and KPI 8
- * would call a mountpoint missing that was only not reached.
+ * @brief A whole sourcetable, or none and why: receive_mount_table_whole,
+ *        the fetch the CLI and the GUI make, with its asking logged here
+ *        because Android drops the stderr it warns on.
  *
  * @param why [out] The last attempt's reason; may be NULL.
  */
 static char *bridge_fetch_table(const NTRIP_Config *cfg, NsFailure *why)
 {
-    NsFailure w = NS_FAIL_NONE;
-    char *raw = receive_mount_table_ex(cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB), &w);
-    if ((!raw && w == NS_FAIL_STALLED) || bridge_cut_short(raw, w)) {
-        BLOG("sourcetable from %s:%d %s (%zu bytes); asking once more",
-             cfg->NTRIP_CASTER, cfg->NTRIP_PORT, ns_failure_name(w),
-             raw ? strlen(raw) : (size_t)0);
-        free(raw);
-        raw = receive_mount_table_ex(cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB), &w);
-        BLOG("sourcetable from %s:%d, second asking: %s (%zu bytes)",
-             cfg->NTRIP_CASTER, cfg->NTRIP_PORT,
-             w == NS_FAIL_NONE ? "whole" : ns_failure_name(w),
-             raw ? strlen(raw) : (size_t)0);
-    }
-    if (bridge_cut_short(raw, w)) {
-        free(raw);
-        raw = NULL;
-    }
+    NsFailure w = NS_FAIL_NONE, first = NS_FAIL_NONE;
+    char *raw = receive_mount_table_whole(cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
+                                          &w, &first);
+    if (first != NS_FAIL_NONE)
+        BLOG("sourcetable from %s:%d %s; asked once more: %s",
+             cfg->NTRIP_CASTER, cfg->NTRIP_PORT, ns_failure_name(first),
+             raw ? "whole" : ns_failure_name(w));
     if (why) *why = w;
     return raw;
 }
@@ -921,22 +896,8 @@ char *bridge_sourcetable_json(const char *caster, int port,
         if (fail) *fail = why;
         return NULL;
     }
-    /* An answer that is a refusal -- 401, a web page -- carries no list;
-     * one that carries a list is believed, whatever its status line. */
-    if (why != NS_FAIL_NONE && !bridge_has_entries(raw)) {
-        char line[96];
-        size_t k = 0;
-        while (raw[k] && raw[k] != '\r' && raw[k] != '\n' && k < sizeof(line) - 1) {
-            line[k] = raw[k];
-            k++;
-        }
-        line[k] = '\0';
-        BLOG("sourcetable from %s:%d refused: %s (\"%s\")", cfg.NTRIP_CASTER,
-             port, ns_failure_name(why), line);
-        if (fail) *fail = why;
-        free(raw);
-        return NULL;
-    }
+    /* A refusal with no list in it -- 401, a web page -- came back above
+     * as NULL with its reason; receive_mount_table_whole decides. */
 
     /* The writer refuses rather than cuts, so a refusal with a bigger
      * buffer still to try means "too small": grow and write again from

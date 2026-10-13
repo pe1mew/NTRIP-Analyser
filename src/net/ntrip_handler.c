@@ -5,6 +5,7 @@
 #include "core/nmea_parser.h"
 #include "core/rtcm3x_parser.h"
 #include "core/version.h"
+#include "core/sourcetable.h"   /* receive_mount_table_whole: is there a list? */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -335,6 +336,40 @@ char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
 
     ns_transport_close(t);
     return mount_table; // 0 (success)
+}
+
+/* Part of a list: an answer that stopped before ENDSOURCETABLE. */
+static bool mount_table_cut_short(const char *raw, NsFailure w)
+{
+    return raw && (w == NS_FAIL_STALLED || w == NS_FAIL_DROPPED);
+}
+
+char* receive_mount_table_whole(const NTRIP_Config *config, const char *agent,
+                                NsFailure *why, NsFailure *first) {
+    NsFailure w = NS_FAIL_NONE;
+    if (first) *first = NS_FAIL_NONE;
+
+    char *raw = receive_mount_table_ex(config, agent, &w);
+    if ((!raw && w == NS_FAIL_STALLED) || mount_table_cut_short(raw, w)) {
+        fprintf(stderr, "[WARN] Sourcetable %s after %zu bytes; asking once more.\n",
+                ns_failure_name(w), raw ? strlen(raw) : (size_t)0);
+        if (first) *first = w;
+        free(raw);
+        raw = receive_mount_table_ex(config, agent, &w);
+    }
+
+    /* A list still cut short is refused: shown, it would say a caster
+     * has 12 mountpoints, and a check would call a mountpoint missing
+     * that was only not reached. An answer that refuses -- a 401, a web
+     * page -- and carries no list is refused with its own reason. One
+     * that carries a list is believed, whatever its status line. */
+    if (mount_table_cut_short(raw, w) ||
+        (raw && w != NS_FAIL_NONE && sourcetable_parse(raw, NULL, 0) <= 0)) {
+        free(raw);
+        raw = NULL;
+    }
+    if (why) *why = w;
+    return raw;
 }
 
 void extract_satellites(const unsigned char *data, int len, int msg_type, SatStatsSummary *summary) {

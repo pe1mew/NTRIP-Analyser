@@ -1015,9 +1015,20 @@ view; *Recentre* after moving.
   *Connected, but nothing is arriving.* rather than drawing it. No
   partial list.
 
-  *Not changed:* the CLI and the GUI still take a list cut short as
-  whole, as they always have; they call `receive_mount_table()`, which
-  keeps its behaviour. Worth the same treatment there.
+  **The CLI and the GUI the same way** (author, the same evening): the
+  asking-again and the refusal moved from the bridge into
+  `receive_mount_table_whole()` in `src/net`, which the bridge, `-m`/`-r`
+  and `--check`'s KPI 8 lookup in the CLI, and the GUI's Get Mountpoints
+  and its stream-open lookup all call. A failure is now said in the
+  core's words (`ns_failure_text`): the CLI with a wrong port printed
+  *Failed to retrieve mountpoint list: caster.centipede.fr:1 did not
+  answer. The service may be down, or a firewall may be dropping it.*
+  where it said only *Failed to retrieve mountpoint list.* Live, `-r`:
+  Centipede 1295 entries, onocoy six fetches whole (5912–5918); onocoy
+  did not stall in that window, so the second asking was not seen live
+  there — `test_bridge_vrs` drives it through the bridge, which now
+  calls the same function. `receive_mount_table()` stays, as the
+  plain fetch; nothing calls it any more.
 - **onocoy's `NRBY_*` entries were classed as fixed bases.** *Fixed
   the same day* (author's decision): `NRBY` joined the network
   keywords in `src/core/sourcetable.c`, so the GUI and the phone both

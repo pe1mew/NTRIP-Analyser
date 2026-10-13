@@ -1545,8 +1545,11 @@ int main(int argc, char *argv[]) {
     // === 1. Request and display mountpoint list ===
     if (operation == OP_SHOW_MOUNT_FORMATTED || operation == OP_SHOW_MOUNT_RAW) {
         INFO("[DEBUG] Requesting mountpoint list (sourcetable)...\n");
-        char *mount_table = receive_mount_table(&config,
-                                NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI));
+        /* Whole, or not at all: a list cut short would print as though
+         * it were the caster's (mountpoint-map.md, 2026-10-13). */
+        NsFailure why = NS_FAIL_NONE;
+        char *mount_table = receive_mount_table_whole(&config,
+                                NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI), &why, NULL);
         if (mount_table) {
             /* Sourcetable IS the data -- keep it on stdout. */
             if (operation == OP_SHOW_MOUNT_RAW) {
@@ -1556,7 +1559,12 @@ int main(int argc, char *argv[]) {
             }
             free(mount_table);
         } else {
-            ERR("[ERROR] Failed to retrieve mountpoint list.\n");
+            char reason[256];
+            if (ns_failure_text(reason, sizeof(reason), why, config.NTRIP_CASTER,
+                                config.NTRIP_PORT, config.MOUNTPOINT) > 0)
+                ERR("[ERROR] Failed to retrieve mountpoint list: %s\n", reason);
+            else
+                ERR("[ERROR] Failed to retrieve mountpoint list.\n");
 #ifdef _WIN32
             WSACleanup();
 #endif
