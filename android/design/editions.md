@@ -30,6 +30,7 @@ edition withholds is convenience, never protection.
 | Verdict, reasons, throughput/SV chips | yes | yes |
 | Mountpoint entry | **typed manually, one saved** | several saved connections, switched from the tile |
 | Sourcetable | **viewable, not selectable** | browse and tap to use |
+| Mountpoint map | **viewable, not selectable**: tap a mountpoint for what it is; the balloon says what pro adds | the same, and **Select mountpoint** in the balloon |
 | Watch mode | **not available** | yes, unlimited |
 | Sky plot (coverage heatmap) | yes | yes |
 | Ephemeris source | the station's own stream, an imported RINEX file, phone GNSS | the same three, plus an on-demand ephemeris stream when the station carries none |
@@ -204,6 +205,20 @@ modern Android browser, but the same shape and the same reasons:
 This does not revive desktop item 4.2 (map *widget*), which stays
 dropped: a picker answers "which point?" once, where a widget would draw
 a stationary dot for the length of a run.
+
+**The mountpoint map keeps to all three** (2026-10-13,
+`design/work-items/mountpoint-map.md`, M6). It is a drawing, not a tile
+map: every mountpoint of the caster placed by the core's own distance
+and bearing from the centre, over Natural Earth's land and borders,
+which the app carries as an asset (`basemap_ne50m.bin`, public domain,
+credited on the map and in Notices). Nothing is fetched but the
+sourcetable the list fetches anyway, so the data-safety answer does not
+move, and there is no tile provider whose policy or attribution could
+be ours to break. The outlines are good for a country and coarse for a
+town, which is all a question of "which base is near me?" needs; a
+street-level position is still the map app's job, through *Pick on
+map* above. Both editions see it — the information is free — and only
+pro selects from it, as with the list.
 
 ### Why the privacy story is not the same in both editions
 

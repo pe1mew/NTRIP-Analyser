@@ -25,7 +25,7 @@ Compiled from the defining sources on 2026-08-15: `src/cli/cli_help.c`,
 | NTRIP v1/v2 client, Basic auth | Connects, authenticates, reports which protocol the caster answered. The handshake is itself a diagnostic: a v1 ICY answer from a caster claiming v2 is a finding. | ● | ● | ● | ● | ● |
 | Sourcetable retrieval | Lists what the caster advertises — the only statement of intent to judge delivery against, which is what KPI 8 does. | ● | ● | ● | ● | ○ |
 | Sourcetable as a picker | Tap a row to use it, taking its position and `nmea` flag along. The information is free; the workflow is the paid proposition. | ○ | ◐ | ○ | ● | ○ |
-| Mountpoint map | Every mountpoint of a sourcetable by place: kind (fixed, network, product, unknown — decided in the core, from 8471 measured entries), distance and bearing from your position, and **Use** to select one. The GUI opens it in the browser over built-in Natural Earth outlines, or the user's own tiles. Pro plans a drawn bearing-and-distance plot rather than a tile map, keeping the app no tile client; whether free sees it, inert, is the author's open decision. | ○ | ● | ○ | ⋯ | ○ |
+| Mountpoint map | Every mountpoint of a sourcetable by place: kind (fixed, network, product, unknown — decided in the core, from 8471 measured entries), distance and bearing from your position, and **Use** to select one. The GUI opens it in the browser over built-in Natural Earth outlines, or the user's own tiles. The phone draws it itself — an azimuthal equidistant map about the phone, zoomed and panned, over the same Natural Earth outlines carried in the app, fetching nothing, so the app stays no tile client. Free sees it and taps a mountpoint for what it is; pro also selects it there (the author's D3 and D4, 2026-10-13). | ○ | ● | ◐ | ● | ○ |
 | Saved connections | The CLI reads `mountpoints[]` and uses the first, saying how many it ignored. Free keeps one, pro sixteen, the daemon holds all of them at once. | ◐ | ◐ | ◐ | ● | ● |
 | Encrypted credential store | Android encrypts profile credentials at rest. Desktop configs hold passwords in the clear, by design and documented — `docs/jsonConfigs.md`. | ○ | ○ | ● | ● | ○ |
 | Config file load / save | One JSON format across all five programs, so a configuration moves between desktop, daemon and phone unchanged. The daemon reads and never writes — a service that rewrites its own configuration is a service you cannot reason about. | ● | ● | ○ | ● | ◐ |
@@ -186,5 +186,5 @@ gaining a row for it.
 | `HAS_EXPORT` | false | true | Statistics export: the snapshot as JSON or the daemon's CSV |
 | `HAS_TIER2` | false | true | The stability report: six metrics over stream time, ten minutes of evidence or an honest shrug |
 | `MAX_MOUNTPOINTS` | 1 | 16 | Saved connection profiles and the switcher |
-| `SOURCETABLE_SELECTABLE` | false | true | Tap-to-use in the sourcetable browser |
+| `SOURCETABLE_SELECTABLE` | false | true | Tap-to-use in the sourcetable browser, and *Select mountpoint* on the mountpoint map |
 | `HAS_LIVE_GGA` | false | true | The phone's live position in the GGA uplink |

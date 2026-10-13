@@ -1096,6 +1096,32 @@ the file, and record that here. Only then decide whether to build it.
 - the Play listing, **only if** the listing describes the feature. The
   free listing's sentence about picking positions on a map stays true.
 
+**M8 as built (2026-10-13).**
+
+- **`android/design/views.md`**: *The mountpoint map — a picker, not an
+  analysis view*, at the end of the file (the P7 branch numbers new
+  sections after §3, so a section here would collide on merge).
+- **`android/design/editions.md`**: a *Mountpoint map* row in the
+  split, and a paragraph under *the map is somebody else's* on how a
+  drawn map with carried outlines keeps to all three of its reasons.
+- **`design/feature-matrix.md`**: the *Mountpoint map* row goes free
+  ○ → ◐, pro ⋯ → ●; the `SOURCETABLE_SELECTABLE` gate names *Select
+  mountpoint*.
+- **`changelog.md`**: an `[Unreleased]` entry with the measurements,
+  and the fixes found on the way.
+- **The Play listing: unchanged.** It mentions the sourcetable browser
+  and positions picked on a map, both still true, and does not
+  describe a mountpoint map. Whether a listing line or a store
+  screenshot should show it is the author's call.
+
+**GUI checked by the author** after the fixes of that evening: *Get
+Mountpoints* on onocoy gave 5906 and 5904 mountpoints; on port 2102,
+*Failed to retrieve mountpoint list: clients.onocoy.com:2102 did not
+answer. The service may be down, or a firewall may be dropping it.*
+
+**Still not seen on a device:** pinch zoom, *Select mountpoint* from the
+map, free's balloon, the no-origin view.
+
 ## What this will not claim
 
 - That a mountpoint is *at* its sourcetable position. The position is

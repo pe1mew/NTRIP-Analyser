@@ -351,3 +351,36 @@ cannot tell that from a fact.
 - The free edition no longer needs an ephemeris caster configured at
   all, which removes the largest piece of setup from the free flow. On a
   station that broadcasts its own orbits it needs no file either.
+
+## The mountpoint map — a picker, not an analysis view
+
+Every mountpoint of the caster on one screen, opened from *Map
+mountpoints…* beside *Browse mountpoints…* on the hub, before a run
+(`MountMap.kt`; plan and measurements in
+[`mountpoint-map.md`](../../design/work-items/mountpoint-map.md), M6).
+It answers *which base is near me, and which way?* once, the way the
+list answers *which one?*, so it lives beside the list and not among
+the analysis tabs, which watch a run.
+
+- **Projection: azimuthal equidistant about the centre** — the phone
+  where it has a fix, the set position otherwise, and the header says
+  which. In it a place's distance and bearing from the centre are true
+  everywhere on the screen, so the marks are placed by the **core's**
+  distance and bearing (`bridge_sourcetable_to_json`) and the rings,
+  1-2-5 apart, mean what they say. Outlines further out stretch; the
+  header says that too. With no usable centre the map centres on the
+  mountpoints and gives no distances.
+- **Marks:** the kind by colour and shape — fixed base (circle), network
+  service (diamond), product with no station (triangle), unknown
+  (square) — the core's classification, with its reason in the balloon.
+  Entries with no usable position are counted, never drawn.
+- **Under them:** Natural Earth 1:50m land and borders from the app's
+  asset; nothing fetched. Rendered to an image off the main thread when
+  the view rests, so a pan with 5900 marks stays in reach of a phone.
+- **Tap:** a balloon with the mountpoint, identifier, format, systems,
+  network, kind and why, distance and bearing, and whether it expects a
+  GGA. Pro selects it there, by the same path as a list row; free is
+  told what pro adds.
+- **A list that did not come** is said in the app's failure sentences —
+  silence, a refusal, a closed connection — and a list cut short is
+  asked for once more and never drawn as the whole caster.
