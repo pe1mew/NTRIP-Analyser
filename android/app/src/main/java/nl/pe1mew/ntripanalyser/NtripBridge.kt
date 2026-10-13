@@ -175,8 +175,11 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
             caster: String, port: Int, user: String, password: String,
             tls: Boolean = false,
             originLat: Double = Double.NaN, originLon: Double = Double.NaN,
+            /** Set to the [Failure] code when null is returned. */
+            failure: IntArray? = null,
         ): String? =
-            nativeSourcetable(caster, port, user, password, tls, originLat, originLon)
+            nativeSourcetable(caster, port, user, password, tls, originLat, originLon,
+                              failure ?: IntArray(1))
                 ?.toString(Charsets.UTF_8)
 
         /** Open a session replaying a captured `.rtcm3` file. */
@@ -223,6 +226,7 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         @JvmStatic private external fun nativeSourcetable(
             caster: String, port: Int, user: String, password: String,
             tls: Boolean, originLat: Double, originLon: Double,
+            failOut: IntArray,
         ): ByteArray?
         @JvmStatic private external fun nativePump(h: Long, timeoutMs: Int, nowS: Double): Int
         @JvmStatic private external fun nativeSnapshotJson(h: Long): String?

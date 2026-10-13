@@ -159,7 +159,8 @@ JNIEXPORT jbyteArray JNICALL
 JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
                           jstring caster, jint port,
                           jstring user, jstring password, jboolean tls,
-                          jdouble originLat, jdouble originLon)
+                          jdouble originLat, jdouble originLon,
+                          jintArray failOut)
 {
     (void)thiz;
     const char *c_caster = str_in(env, caster);
@@ -170,12 +171,18 @@ JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
      * onocoy's 1.26 MB once each entry carried the core's figures
      * (M6a), which the app would have shown as an unreachable caster. */
     int n = -1;
+    int fail = 0;
     char *buf = bridge_sourcetable_json(c_caster ? c_caster : "", (int)port,
                                         c_user ? c_user : "",
                                         c_pass ? c_pass : "",
                                         tls == JNI_TRUE,
                                         (double)originLat, (double)originLon,
-                                        &n);
+                                        &n, &fail);
+    /* Why it failed, for the app's own words (Failure.kt). */
+    if (failOut && (*env)->GetArrayLength(env, failOut) > 0) {
+        jint code = (jint)fail;
+        (*env)->SetIntArrayRegion(env, failOut, 0, 1, &code);
+    }
     jbyteArray outv = NULL;
     if (buf && n >= 0) {
         outv = (*env)->NewByteArray(env, (jsize)n);

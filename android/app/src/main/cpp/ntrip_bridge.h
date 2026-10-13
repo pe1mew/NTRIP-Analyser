@@ -186,15 +186,20 @@ int bridge_stats_csv(NtripBridge *b, char *out, size_t cap);
  *                 (0,0, NaN) means none.
  * @param len      [out] Length of the document, excluding the
  *                 terminator; -1 on failure. May be NULL.
+ * @param fail     [out] On failure, why, as @ref NsFailure: the
+ *                 connection's reason, or the caster's refusal
+ *                 (@ref ns_proto_sourcetable_answer). NS_FAIL_NONE when
+ *                 the caster answered properly and sent no entry. May be
+ *                 NULL.
  * @return The document, allocated to fit, which the caller frees; NULL
- *         when the caster cannot be reached, sends no entry, or the
- *         document would pass 32 MB. Sized here because no caller can
- *         know it: onocoy's came to 1.26 MB.
+ *         when the caster cannot be reached, refuses, sends no entry, or
+ *         the document would pass 32 MB. Sized here because no caller
+ *         can know it: onocoy's came to 1.26 MB.
  */
 char *bridge_sourcetable_json(const char *caster, int port,
                               const char *user, const char *password,
                               bool tls, double origin_lat, double origin_lon,
-                              int *len);
+                              int *len, int *fail);
 
 /**
  * @brief A sourcetable as received, as the JSON the app decodes.

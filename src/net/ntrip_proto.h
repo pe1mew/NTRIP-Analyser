@@ -119,6 +119,29 @@ int ns_proto_header_end(const unsigned char *data, int len);
 bool ns_proto_header_value(const char *header, const char *name,
                            char *out, size_t cap);
 
+/**
+ * @brief How a caster answered a request for its sourcetable.
+ *
+ * Not @ref ns_failure_from_response: there a sourcetable is the caster
+ * saying a *stream* does not exist, and here it is the answer that was
+ * asked for. A request for the list names no mountpoint, so 403 and 404
+ * are a refusal of the request (@ref NS_FAIL_REJECTED), never the
+ * stream's "forbidden mountpoint" or "no such mountpoint", whose
+ * sentences name one.
+ *
+ * - `SOURCETABLE 200 OK` (NTRIP 1), or HTTP 200: @ref NS_FAIL_NONE;
+ *   an HTTP 200 carrying `text/html` is a web server on that port,
+ *   @ref NS_FAIL_NOT_NTRIP.
+ * - 401: @ref NS_FAIL_AUTH. 409 or 503: @ref NS_FAIL_BUSY.
+ * - Any other status: @ref NS_FAIL_REJECTED.
+ * - No status line at all: @ref NS_FAIL_NOT_NTRIP.
+ * - Nothing received: @ref NS_FAIL_DROPPED.
+ *
+ * @param reply The reply as received, from its first byte; NULL or ""
+ *              for nothing.
+ */
+NsFailure ns_proto_sourcetable_answer(const char *reply);
+
 #ifdef __cplusplus
 }
 #endif

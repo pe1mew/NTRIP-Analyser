@@ -180,6 +180,8 @@
     <string name="sourcetable_title">%1$s</string>
     <string name="sourcetable_loading">Fetching the sourcetable…</string>
     <string name="sourcetable_failed">Could not reach the caster.</string>
+    <string name="sourcetable_empty">The caster answered, but listed no mountpoints.</string>
+    <string name="sourcetable_unreadable">The caster’s mountpoint list could not be read.</string>
     <string name="sourcetable_filter">Filter</string>
     <string name="sourcetable_count">Showing %1$d of %2$d mountpoints</string>
     <string name="sourcetable_readonly">Type the mountpoint into settings to use it.</string>

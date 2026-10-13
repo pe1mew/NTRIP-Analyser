@@ -967,15 +967,37 @@ view; *Recentre* after moving.
 **Found, not fixed here:**
 
 - **onocoy's sourcetable fetch fails on the phone now and then**: four
-  times in about twenty fetches, each a minute or so after a good one.
-  The bridge now logs it as a failed download, not a decode; the
-  desktop fetched it five times five seconds apart without a failure.
-  Why it fails (DNS, connect, reset) is printed to stderr, which
-  Android drops.
-- **onocoy's `NRBY_*` entries are drawn as fixed bases.** They are
-  nearest-base services with a nominal position (`NRBY_ADV` at 52, 6),
-  but the core's name keywords know `NEAR`, not `NRBY`. A change to
-  `sourcetable_kind` is a core decision, for the four programs.
+  times in about twenty fetches, each a minute or so after a good one;
+  the desktop fetched it five times five seconds apart without a
+  failure. *The reason now reaches the app (2026-10-13):*
+  `receive_mount_table_ex()` reports it in the `NsFailure` vocabulary
+  (`ns_proto_sourcetable_answer()` reads a caster's answer to the
+  request, tested in `test_failure`), the bridge logs it and hands the
+  code to the app, and the list and the map say it in the app's own
+  failure sentences.
+
+  **What it is:** twelve openings of the map about a minute apart on
+  the Huawei, 20:21–20:33: **8 loaded** (5901–5925 entries), **4
+  failed, all `stalled`** — *Connected, but nothing is arriving.*;
+  bridge log `sourcetable fetch failed for clients.onocoy.com:2101:
+  stalled`. onocoy accepted the connection and the request, then sent
+  nothing for the fetch's twenty seconds. Not DNS, not refused, not
+  TLS, not a reset. *Why* onocoy goes silent for the phone and not the
+  desktop on the same network has not been established; nothing here
+  shows it is throttling, and nothing rules it out.
+- **onocoy's `NRBY_*` entries were classed as fixed bases.** *Fixed
+  the same day* (author's decision): `NRBY` joined the network
+  keywords in `src/core/sourcetable.c`, so the GUI and the phone both
+  call them network services. The raw records, fetched 2026-10-13:
+  `STR;NRBY_ADV;GLOBAL;RTCM 3;;2;;onocoy;INT;;;1;0;…` — no format
+  details, **no position**, country `INT`, `nmea` 1, solution 0. *An
+  earlier note here said `NRBY_ADV` sat at a nominal 52, 6: wrong.
+  That was the app's default set position, kept because the entry had
+  no usable position to give.* They are not drawn on the map either
+  way; the kind shows in the list, the GUI and the balloon. Through the
+  bridge, onocoy now has 3 network (the three `NRBY_*`), 1 product
+  (`EPHEMERIS`), 5916 fixed, and those 4 are its 4 unusable positions;
+  Centipede (2 network) and Kadaster (3 product) are unchanged.
 
 **M6d — the hub row.** `BrowsePanel` draws the two buttons, half width
 each, on one row.

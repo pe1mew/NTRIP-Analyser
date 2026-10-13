@@ -851,9 +851,10 @@ int bridge_sourcetable_to_json(const char *raw,
 char *bridge_sourcetable_json(const char *caster, int port,
                               const char *user, const char *password,
                               bool tls, double origin_lat, double origin_lon,
-                              int *len)
+                              int *len, int *fail)
 {
     if (len) *len = -1;
+    if (fail) *fail = NS_FAIL_NONE;
 
     NTRIP_Config cfg;
     memset(&cfg, 0, sizeof(cfg));
@@ -863,12 +864,32 @@ char *bridge_sourcetable_json(const char *caster, int port,
     cfg.NTRIP_PORT = port;
     cfg.TLS        = tls;
 
-    char *raw = receive_mount_table(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
+    /* Why, not only whether: onocoy's list failed now and then on the
+     * phone while the reason went to stderr, which Android drops, and
+     * the app said "could not reach" for every cause (2026-10-13). */
+    NsFailure why = NS_FAIL_NONE;
+    char *raw = receive_mount_table_ex(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
+                                       &why);
     if (!raw) {
-        /* The app says "could not reach" for every failure; this line
-         * is what tells a failed download from a document that would
-         * not fit (seen intermittently on onocoy, 2026-10-13). */
-        BLOG("sourcetable fetch failed for %s:%d", cfg.NTRIP_CASTER, port);
+        BLOG("sourcetable fetch failed for %s:%d: %s", cfg.NTRIP_CASTER, port,
+             ns_failure_name(why));
+        if (fail) *fail = why;
+        return NULL;
+    }
+    /* An answer that is a refusal -- 401, a web page -- carries no list;
+     * one that carries a list is believed, whatever its status line. */
+    if (why != NS_FAIL_NONE && !bridge_has_entries(raw)) {
+        char line[96];
+        size_t k = 0;
+        while (raw[k] && raw[k] != '\r' && raw[k] != '\n' && k < sizeof(line) - 1) {
+            line[k] = raw[k];
+            k++;
+        }
+        line[k] = '\0';
+        BLOG("sourcetable from %s:%d refused: %s (\"%s\")", cfg.NTRIP_CASTER,
+             port, ns_failure_name(why), line);
+        if (fail) *fail = why;
+        free(raw);
         return NULL;
     }
 

@@ -23,6 +23,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include "core/ns_failure.h"   /* NsFailure, for receive_mount_table_ex */
 #ifndef NTRIP_HANDLER_H
 #define NTRIP_HANDLER_H
 
@@ -158,6 +159,29 @@ bool base64_encode_n(const char *input, char *output, size_t out_cap);
  * @return Pointer to the mount table string (must be freed by caller), or NULL on error.
  */
 char* receive_mount_table(const NTRIP_Config *config, const char *agent);
+
+/**
+ * @brief @ref receive_mount_table, saying why it failed.
+ *
+ * The same fetch. @p why says what happened, in the vocabulary every
+ * stream failure uses:
+ * - no connection: the transport's own reason (DNS, refused,
+ *   unreachable, timeout, TLS);
+ * - the request could not be sent, or the connection closed before a
+ *   byte arrived: @ref NS_FAIL_DROPPED;
+ * - twenty seconds of silence and nothing: @ref NS_FAIL_STALLED;
+ * - an answer: @ref ns_proto_sourcetable_answer of it -- the text is
+ *   still returned, so a caller can show what the caster said.
+ *
+ * Added because the Android app said "Could not reach the caster" for
+ * all of these while the reason went to stderr, which Android drops
+ * (mountpoint-map.md, M6c).
+ *
+ * @param why [out] @ref NsFailure; NS_FAIL_NONE for a sourcetable
+ *            answered properly. May be NULL.
+ */
+char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
+                             NsFailure *why);
 
 
 

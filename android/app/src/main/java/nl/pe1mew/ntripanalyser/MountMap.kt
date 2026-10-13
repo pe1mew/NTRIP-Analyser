@@ -240,11 +240,11 @@ fun MountMapScreen(
     }
 
     var entries by remember { mutableStateOf<List<SourceEntry>?>(null) }
-    var failed by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(settings.caster, settings.port) {
         fetchSourcetable(settings, origin.first, origin.second)
             .onSuccess { entries = it }
-            .onFailure { failed = true }
+            .onFailure { failed = sourcetableFailureText(context, it, settings) }
     }
 
     val all = entries.orEmpty()
@@ -472,7 +472,7 @@ fun MountMapScreen(
                 }
 
                 when {
-                    failed -> Text(stringResource(R.string.sourcetable_failed),
+                    failed != null -> Text(failed.orEmpty(),
                                    color = MaterialTheme.colorScheme.error,
                                    modifier = Modifier.align(Alignment.Center).padding(16.dp))
                     entries == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))

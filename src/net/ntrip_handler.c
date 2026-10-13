@@ -173,6 +173,12 @@ static void dechunk_in_place(char *buf, size_t *len)
 }
 
 char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
+    return receive_mount_table_ex(config, agent, NULL);
+}
+
+char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
+                             NsFailure *why) {
+    if (why) *why = NS_FAIL_NONE;
     if (!config) {
         fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
         return NULL; // -1
@@ -199,6 +205,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
             fprintf(stderr, "TLS failed: %s\n", ns_failure_short(fail));
         else
             fprintf(stderr, "Connection failed\n");
+        if (why) *why = fail != NS_FAIL_NONE ? fail : NS_FAIL_UNREACHABLE;
         return NULL; // -4
     }
 
@@ -236,6 +243,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     if (ns_transport_send(t, request, (int)strlen(request)) <= 0) {
         fprintf(stderr, "[ERROR] Failed to send mountpoint list request\n");
         ns_transport_close(t);
+        if (why) *why = NS_FAIL_DROPPED;
         return NULL; // -5
     }
 
@@ -294,6 +302,17 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
         if (strstr(mount_table + from, "ENDSOURCETABLE")) {
             break;
         }
+    }
+
+    /* Why, for a caller that asks: nothing at all is a connection closed
+     * (a read failed) or one left silent (twenty seconds of nothing);
+     * anything is the caster's answer, read from its status line before
+     * the body is touched. The text is returned either way, as before. */
+    if (why) {
+        if (!mount_table)
+            *why = received < 0 ? NS_FAIL_DROPPED : NS_FAIL_STALLED;
+        else
+            *why = ns_proto_sourcetable_answer(mount_table);
     }
 
     if (mount_table) {

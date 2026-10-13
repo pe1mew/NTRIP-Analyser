@@ -28,6 +28,7 @@
  */
 #include "session/ntrip_session.h"
 #include "net/ntrip_proto.h"
+#include "net/ntrip_handler.h"   /* receive_mount_table_ex */
 
 #include <stdio.h>
 #include <string.h>
@@ -355,6 +356,66 @@ static void case_words(void)
           "so does the absence of one");
 }
 
+/**
+ * A request for the sourcetable, answered every way a caster can.
+ *
+ * The phone said "Could not reach the caster" for every one of these
+ * until 2026-10-13, while the reason went to stderr (mountpoint-map.md,
+ * M6c). Here a sourcetable is the answer asked for, so the stream's
+ * reading of it -- "no such mountpoint" -- must not leak in, and a 403
+ * or 404 names no mountpoint either.
+ */
+static void case_sourcetable(void)
+{
+    static const struct { const char *reply; NsFailure want; const char *what; } t[] = {
+        { "SOURCETABLE 200 OK\r\nServer: x\r\n\r\nSTR;A;;\r\nENDSOURCETABLE\r\n",
+          NS_FAIL_NONE, "NTRIP 1's SOURCETABLE 200 is the answer" },
+        { "HTTP/1.1 200 OK\r\nContent-Type: gnss/sourcetable\r\n\r\nSTR;A;;\r\n",
+          NS_FAIL_NONE, "NTRIP 2's 200 with a sourcetable is the answer, not 'no mountpoint'" },
+        { "HTTP/1.1 401 Unauthorized\r\n\r\n", NS_FAIL_AUTH, "401: the user name or password" },
+        { "HTTP/1.1 403 Forbidden\r\n\r\n", NS_FAIL_REJECTED,
+          "403 refuses the request; there is no mountpoint to blame" },
+        { "HTTP/1.1 404 Not Found\r\n\r\n", NS_FAIL_REJECTED, "so does 404" },
+        { "HTTP/1.1 503 Service Unavailable\r\n\r\n", NS_FAIL_BUSY, "503: busy" },
+        { "HTTP/1.1 409 Conflict\r\n\r\n", NS_FAIL_BUSY, "409: busy" },
+        { "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<html>",
+          NS_FAIL_NOT_NTRIP, "a web page on the port is not a caster" },
+        { "<html><body>nginx</body></html>", NS_FAIL_NOT_NTRIP, "nor is no status line" },
+        { "SOURCETABLE 404 Not Found\r\n\r\n", NS_FAIL_REJECTED,
+          "a SOURCETABLE line that is not 200 is a refusal" },
+        { "", NS_FAIL_DROPPED, "nothing at all: the connection gave nothing" },
+    };
+    for (size_t i = 0; i < sizeof(t) / sizeof(t[0]); i++)
+        check(ns_proto_sourcetable_answer(t[i].reply) == t[i].want, t[i].what);
+    check(ns_proto_sourcetable_answer(NULL) == NS_FAIL_DROPPED, "NULL as nothing");
+
+    /* Through the fetch itself, on a port that was listening a moment
+     * ago: the transport's reason reaches the caller, where it used to
+     * stop at a line on stderr. */
+    Caster c;
+    if (!caster_start(&c, NULL)) {
+        check(0, "the loopback caster started");
+        return;
+    }
+    int port = c.port;
+    caster_stop(&c);
+
+    NTRIP_Config cfg;
+    memset(&cfg, 0, sizeof(cfg));
+    strncpy(cfg.NTRIP_CASTER, "127.0.0.1", sizeof(cfg.NTRIP_CASTER) - 1);
+    cfg.NTRIP_PORT = port;
+    NsFailure why = NS_FAIL_NONE;
+    char *table = receive_mount_table_ex(&cfg, "test", &why);
+    check(table == NULL && why == NS_FAIL_REFUSED,
+          "a refused sourcetable fetch says it was refused");
+    free(table);
+
+    why = NS_FAIL_AUTH;
+    table = receive_mount_table_ex(NULL, "test", &why);
+    check(table == NULL && why == NS_FAIL_NONE,
+          "no configuration: nothing fetched, and no reason invented");
+}
+
 int main(void)
 {
     printf("== failure classification ==\n");
@@ -363,6 +424,7 @@ int main(void)
     case_answers();
     case_healthy();
     case_words();
+    case_sourcetable();
 
     printf("\n%s\n", failures ? "FAILURES" : "all passed");
     return failures ? 1 : 0;
