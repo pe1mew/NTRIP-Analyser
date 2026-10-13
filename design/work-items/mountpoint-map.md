@@ -915,6 +915,68 @@ full screen, Back closes it.
 - **Loading:** the same fetch the list makes, shared rather than
   copied.
 
+**M6c and M6d — as built  *(2026-10-13)*.** `MountMap.kt` (the
+screen, `Dest.MountMap`), `Basemap.kt` (the asset's reader and the
+projection), `fetchSourcetable()` in `Dialogs.kt` (the loader the list
+and the map share), `useEntry` in `MainActivity.kt` (one path for a
+list row and the map's *Select*), and `BrowsePanel` drawing *Browse
+mountpoints…* and *Map mountpoints…* half a row each, in the run
+verbs' 12 dp shape (author, 2026-10-13).
+
+- **The centre** is fixed when the map opens: the phone's display
+  position where it has a fix, the set position otherwise, and the
+  header says which. Whether the core accepted it is read from the
+  core's own answer: a distance on every usable entry, or on none.
+- **Marks** are placed by the core's distance along the core's bearing.
+  Outlines go through `Aeqd` on the core's sphere; `EARTH_RADIUS_M` is
+  `GEO_EARTH_RADIUS_M` (comment in both; not yet checked mechanically).
+- **Outlines** render to an image off the main thread 150 ms after the
+  view rests, and are moved and scaled in between.
+
+**On the Huawei, onocoy, pro `.dev`:**
+
+- **5922 drawn, 4 counted** as without a usable position; centred on
+  the phone; the first view reaches about 60 km, rings at 20 km.
+- **NLDGELARN1 (Arnhem)**: balloon *25,0 km S (185°) of the centre*,
+  drawn 247 px from the centre at 185° with the 20 km ring at 198 px —
+  24.9 km. Arnhem lies about 25 km south of Apeldoorn.
+- **The Dutch-German border** drawn south-east, where it is.
+- **Frames while panning**, `dumpsys gfxinfo`, debug build:
+
+  | Version | Median | 90th | Janky |
+  |---|---|---|---|
+  | outlines drawn live each frame | 81 ms | 117 ms | 100 % |
+  | outlines as an image | 73 ms | 117 ms | 100 % |
+  | view no longer read in composition (empty map) | 7 ms | 10 ms | 2.4 % |
+  | and 5900 marks reading the view once, not per mark | **24 ms** | 57 ms | 98 % |
+
+  A rendered image costs 15–30 ms, off the main thread. Still not
+  smooth at 5900 marks; a debug build runs Compose unoptimised, and a
+  release build cannot be installed beside the Play app to measure.
+
+**Faults found by looking, fixed:** the canvas painted rings over the
+header and the key (now clipped); four legend entries ran off the edge
+(now wrapping); the view was framed on an empty table before the
+entries arrived and never re-framed; *Browse mountpoints…* cut to
+*Browse* at half width (now two lines).
+
+**Not yet seen on a device:** pinch zoom (adb cannot pinch); *Select*
+from the map in pro; free's balloon with the pro line; the no-origin
+view; *Recentre* after moving.
+
+**Found, not fixed here:**
+
+- **onocoy's sourcetable fetch fails on the phone now and then**: four
+  times in about twenty fetches, each a minute or so after a good one.
+  The bridge now logs it as a failed download, not a decode; the
+  desktop fetched it five times five seconds apart without a failure.
+  Why it fails (DNS, connect, reset) is printed to stderr, which
+  Android drops.
+- **onocoy's `NRBY_*` entries are drawn as fixed bases.** They are
+  nearest-base services with a nominal position (`NRBY_ADV` at 52, 6),
+  but the core's name keywords know `NEAR`, not `NRBY`. A change to
+  `sourcetable_kind` is a core decision, for the four programs.
+
 **M6d — the hub row.** `BrowsePanel` draws the two buttons, half width
 each, on one row.
 

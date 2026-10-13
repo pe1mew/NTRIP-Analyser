@@ -26,6 +26,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -105,25 +108,46 @@ object ConnectionPanel : Panel {
     }
 }
 
-/** Reading the caster's sourcetable; not offered while a run is going. */
+/**
+ * Reading the caster's sourcetable, as a list or on a map, half the row
+ * each (author, 2026-10-13); not offered while a run is going.
+ */
 object BrowsePanel : Panel {
     override val key = "browse"
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
         if (state.settings.caster.isNotBlank() && !state.run.running) {
-            OutlinedButton(
-                onClick = { actions.browseSourcetable() },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.action_browse)) }
+            // Half a row is narrower than "Browse mountpoints…" at a
+            // large font: one line cut both to their first word on the
+            // Huawei (2026-10-13). Two lines are allowed, centred, and
+            // the pair kept the same height.
+            Row(
+                Modifier.height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val pad = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                // The run verbs' shape, not Material's pill: one family
+                // on the hub (author, 2026-10-13).
+                OutlinedButton(
+                    onClick = { actions.browseSourcetable() },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    shape = TRANSPORT_SHAPE,
+                    contentPadding = pad,
+                ) { Text(stringResource(R.string.action_browse), textAlign = TextAlign.Center) }
+                OutlinedButton(
+                    onClick = { actions.openDetail(Dest.MountMap) },
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    shape = TRANSPORT_SHAPE,
+                    contentPadding = pad,
+                ) { Text(stringResource(R.string.action_mount_map), textAlign = TextAlign.Center) }
+            }
         }
     }
 
-    // Same condition as the card above, deliberately duplicated: a mark
-    // over a row that is not drawn would be a control that is not there.
-    override fun affordance(state: HubState) =
-        if (state.settings.caster.isNotBlank() && !state.run.running)
-            Affordance.FORWARD else Affordance.NONE
+    // No mark: the hub draws one per panel, at the row's end, and this
+    // row is two doors. A single arrow would sit on the second and say
+    // nothing about the first. The ellipsis on each says "more".
 }
 
 /** Rate, satellites, mountpoint -- the stream at a glance. */

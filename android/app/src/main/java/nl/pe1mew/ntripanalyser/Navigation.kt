@@ -53,6 +53,9 @@ sealed interface Dest {
     data object Hub : Dest { override val route = "hub" }
     data object Analysis : Dest { override val route = "analysis" }
 
+    /** Every mountpoint of the caster on a map (mountpoint-map.md, M6). */
+    data object MountMap : Dest { override val route = "mountmap" }
+
     /**
      * The screen behind a hub card.
      *
@@ -82,6 +85,7 @@ sealed interface Dest {
         fun of(route: String): Dest? = when {
             route == Hub.route -> Hub
             route == Analysis.route -> Analysis
+            route == MountMap.route -> MountMap
             // A detail whose panel this edition does not contain simply
             // has no key that matches at render time, and the shell
             // sends the user to the hub -- the same outcome as an

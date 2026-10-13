@@ -864,7 +864,13 @@ char *bridge_sourcetable_json(const char *caster, int port,
     cfg.TLS        = tls;
 
     char *raw = receive_mount_table(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
-    if (!raw) return NULL;
+    if (!raw) {
+        /* The app says "could not reach" for every failure; this line
+         * is what tells a failed download from a document that would
+         * not fit (seen intermittently on onocoy, 2026-10-13). */
+        BLOG("sourcetable fetch failed for %s:%d", cfg.NTRIP_CASTER, port);
+        return NULL;
+    }
 
     /* The writer refuses rather than cuts, so a refusal with a bigger
      * buffer still to try means "too small": grow and write again from
@@ -880,6 +886,10 @@ char *bridge_sourcetable_json(const char *caster, int port,
         if (n >= 0) break;
         if (!bridge_has_entries(raw)) break;   /* nothing to grow for */
     }
+    if (n < 0)
+        BLOG("sourcetable from %s:%d: %zu bytes received, no document "
+             "(%d entries parsed)", cfg.NTRIP_CASTER, port, strlen(raw),
+             sourcetable_parse(raw, NULL, 0));
     free(raw);
     if (n < 0) { free(out); return NULL; }
     if (len) *len = n;

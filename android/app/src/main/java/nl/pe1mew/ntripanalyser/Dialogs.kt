@@ -592,6 +592,38 @@ private fun NoticesDialog(onDismiss: () -> Unit) {
 }
 
 /**
+ * A caster's sourcetable, fetched and decoded off the main thread: the
+ * one loader the list and the mountpoint map share.
+ *
+ * Distance and bearing in each entry are the core's, from
+ * [originLat], [originLon]; NaN for none.
+ *
+ * Fails with "unreachable" when the bridge returned nothing, or with the
+ * decoder's message -- which the log gets, so the two are told apart
+ * after the fact even where the screen says one thing for both.
+ */
+internal suspend fun fetchSourcetable(
+    settings: CasterSettings,
+    originLat: Double = Double.NaN,
+    originLon: Double = Double.NaN,
+): Result<List<SourceEntry>> = withContext(Dispatchers.IO) {
+    val json = NtripBridge.sourcetable(
+        settings.caster, settings.port, settings.user,
+        settings.password, settings.tls, originLat, originLon,
+    )
+    if (json == null) {
+        android.util.Log.i("ntrip_android", "sourcetable: bridge returned nothing")
+        Result.failure(IllegalStateException("unreachable"))
+    } else {
+        runCatching { bridgeJson.decodeFromString<Sourcetable>(json).entries }
+            .onFailure {
+                android.util.Log.w("ntrip_android",
+                    "sourcetable: ${json.length} chars did not decode: ${it.message}")
+            }
+    }
+}
+
+/**
  * A caster's mountpoint list.
  *
  * Fetching blocks on the network, so it runs on Dispatchers.IO; the
@@ -614,19 +646,9 @@ internal fun SourcetableDialog(
     var filter by remember { mutableStateOf("") }
 
     LaunchedEffect(settings.caster, settings.port) {
-        val json = withContext(Dispatchers.IO) {
-            NtripBridge.sourcetable(
-                settings.caster, settings.port, settings.user,
-                settings.password, settings.tls,
-            )
-        }
-        if (json == null) {
-            error = "unreachable"
-        } else {
-            runCatching { bridgeJson.decodeFromString<Sourcetable>(json) }
-                .onSuccess { entries = it.entries }
-                .onFailure { error = it.message }
-        }
+        fetchSourcetable(settings)
+            .onSuccess { entries = it }
+            .onFailure { error = it.message ?: "failed" }
     }
 
     AlertDialog(
