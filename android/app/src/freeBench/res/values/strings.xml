@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Free bench builds name themselves apart from the Play build and the
+  dev build they sit beside (`….free.bench`, app/build.gradle.kts):
+  release settings, debug key, for measuring. Short, so the app bar
+  keeps to one line, as the dev names do. Never a store screenshot.
+-->
+<resources>
+    <string name="app_name">NTRIP (bench)</string>
+</resources>

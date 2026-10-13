@@ -93,6 +93,24 @@ connections with it. A dev build starts empty: enter a caster once.
 Release builds keep the store's ids. Never take store screenshots from
 a dev build.
 
+**Measure on a bench build, not a dev build** (2026-10-13). A debug build
+runs Compose unoptimised, so a frame time measured on one says little
+about the app people install. `assembleProBench` / `assembleFreeBench`
+build exactly as release -- R8, shrinking, not debuggable -- but as
+`….pro.bench` / `….free.bench`, named "(bench)", signed with the debug
+key, so they install beside the Play and dev apps:
+
+```powershell
+.\gradlew.bat assembleProBench
+adb install -r app\build\outputs\apk\pro\bench\app-pro-bench.apk
+adb shell dumpsys gfxinfo nl.pe1mew.ntripanalyser.pro.bench reset   # then do the thing
+adb shell dumpsys gfxinfo nl.pe1mew.ntripanalyser.pro.bench         # and read it
+```
+
+A bench build is not debuggable, so `run-as` does not reach its files,
+and its `Log.d` lines are kept (R8 does not strip logging here). Never
+upload one: it carries the debug key and an id that is not the store's.
+
 **Comparing the editions: same build, same mountpoint.** Install both
 from one invocation, and point them at the *same* caster before
 concluding anything. An apparent edition difference is usually neither:
