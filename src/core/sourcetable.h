@@ -125,8 +125,9 @@ int sourcetable_parse(const char *raw, SourcetableEntry *out, int max);
 /**
  * @brief Find a network-service keyword in sourcetable text.
  *
- * `VRS`, `MAC`, `NEAR`, `FKP`, `IMAX` or `SSR`, case-insensitive, as a
- * whole word. A plain substring test is not safe: "LINEAR" contains
+ * `VRS`, `MAC`, `NEAR`, `NRBY`, `FKP`, `IMAX` or `SSR`, case-insensitive,
+ * as a whole word. `NRBY` is onocoy's name for its nearest-base services
+ * (`NRBY_ADV`, added 2026-10-13). A plain substring test is not safe: "LINEAR" contains
  * "NEAR" and "MACHINE" contains "MAC", and reading a fixed base as a
  * virtual station *suppresses* the position checks -- it hides the very
  * fault they exist to find, so the error must not be made in that

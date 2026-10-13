@@ -227,7 +227,11 @@ int main(void)
         k.format_details[0] = '\0';
 
         /* The mountpoint name, where services are numbered. */
-        static const char *const svc[] = { "NEAR", "NEAR4", "CORS_VRS", "vrs3_rtcm32" };
+        /* NRBY_* as onocoy lists them (2026-10-13): nearest-base
+         * services with no position, which the solution field calls
+         * single bases. */
+        static const char *const svc[] = { "NEAR", "NEAR4", "CORS_VRS", "vrs3_rtcm32",
+                                           "NRBY_ADV", "NRBY_B12", "NRBY_B15" };
         for (size_t i = 0; i < sizeof(svc) / sizeof(svc[0]); i++) {
             char what[96];
             snprintf(k.mountpoint, sizeof(k.mountpoint), "%s", svc[i]);
@@ -258,7 +262,8 @@ int main(void)
         check(sourcetable_kind(&k, why, sizeof(why)) == ST_KIND_NETWORK,
               "in the network field, in lower case, after a hyphen");
 
-        static const char *const not_kw[] = { "LINEAR", "MACHINE", "VRSX", "XFKP", "SSR2" };
+        static const char *const not_kw[] = { "LINEAR", "MACHINE", "VRSX", "XFKP", "SSR2",
+                                              "NRBYX" };
         for (size_t i = 0; i < sizeof(not_kw) / sizeof(not_kw[0]); i++) {
             char what[96];
             snprintf(what, sizeof(what), "\"%s\" is not a keyword", not_kw[i]);
