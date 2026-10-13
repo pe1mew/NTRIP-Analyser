@@ -51,6 +51,7 @@
 #  include <unistd.h>
 #  include <fcntl.h>
 #  include <pthread.h>
+#  include <signal.h>     /* SIGPIPE: see main */
 #  include <time.h>
    typedef int sock_t;
 #  define SOCK_BAD    (-1)
@@ -225,6 +226,14 @@ int main(void)
 #ifdef _WIN32
     WSADATA wsa;
     WSAStartup(MAKEWORD(2, 2), &wsa);
+#else
+    /* The caster thread writes to a stream the bridge has closed: after
+     * bridge_close, until it notices. On Linux that write raised SIGPIPE
+     * and killed the test (CI, 2026-10-13) once the sourcetable cases
+     * kept the process alive past the close; Windows has no such
+     * signal, which is why it passed there. The transport itself sends
+     * with MSG_NOSIGNAL; test_tls.c does the same as this. */
+    signal(SIGPIPE, SIG_IGN);
 #endif
     g_listener = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in a;
