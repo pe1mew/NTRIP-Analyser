@@ -188,6 +188,16 @@ data class SourceEntry(
     val carrier: Int = 0,
     /** The caster expects a GGA uplink: a network-RTK mountpoint. */
     val nmea: Boolean = false,
+    val network: String = "",
+    /** The core's word for it: fixed, network, product or unknown. */
+    val kind: String = "unknown",
+    /** Which evidence decided [kind], in the core's words. */
+    @SerialName("kind_why") val kindWhy: String = "",
+    /** False: [lat]/[lon] are no place; nothing draws or measures from them. */
+    val usable: Boolean = false,
+    /** From the origin the fetch was given; null without one. */
+    @SerialName("distance_m") val distanceM: Double? = null,
+    @SerialName("bearing_deg") val bearingDeg: Double? = null,
 )
 
 @Serializable

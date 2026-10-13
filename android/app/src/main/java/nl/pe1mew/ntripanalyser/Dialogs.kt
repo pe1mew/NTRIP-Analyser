@@ -208,7 +208,7 @@ internal fun SettingsDialog(
             hint = when {
                 entry == null ->
                     context.getString(R.string.station_lookup_failed, mp)
-                entry.lat == 0.0 && entry.lon == 0.0 ->
+                !entry.usable ->
                     context.getString(R.string.station_lookup_no_pos, mp)
                 else -> {
                     lat = show(entry.lat)

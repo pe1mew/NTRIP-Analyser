@@ -174,25 +174,67 @@ int bridge_stats_csv(NtripBridge *b, char *out, size_t cap);
  * what to check, so this takes credentials directly rather than needing
  * a bridge handle.
  *
- * ```json
- * {"entries":[{"mountpoint":"APEL00NLD0","identifier":"Apeldoorn",
- *              "format":"RTCM 3.3","nav_systems":"GPS+GLO+GAL+BDS",
- *              "country":"NLD","lat":52.23,"lon":5.94,
- *              "carrier":2,"nmea":false}, ...]}
- * ```
+ * The fetch, then @ref bridge_sourcetable_to_json, which says what the
+ * document holds.
  *
  * @param caster   Caster hostname.
  * @param port     Caster port.
  * @param user     Username; "" for none.
  * @param password Password; "" for none.
- * @param out      Destination buffer.
- * @param cap      Capacity; a large caster needs 64 kB or more.
- * @return Bytes written excluding the terminator, or <0 on failure
- *         (unreachable caster, or a buffer too small for the table).
+ * @param origin_lat,origin_lon Where distance and bearing are measured
+ *                 from; a position @ref sourcetable_pos_usable refuses
+ *                 (0,0, NaN) means none.
+ * @param len      [out] Length of the document, excluding the
+ *                 terminator; -1 on failure. May be NULL.
+ * @return The document, allocated to fit, which the caller frees; NULL
+ *         when the caster cannot be reached, sends no entry, or the
+ *         document would pass 32 MB. Sized here because no caller can
+ *         know it: onocoy's came to 1.26 MB.
  */
-int bridge_sourcetable_json(const char *caster, int port,
-                            const char *user, const char *password,
-                            bool tls, char *out, size_t cap);
+char *bridge_sourcetable_json(const char *caster, int port,
+                              const char *user, const char *password,
+                              bool tls, double origin_lat, double origin_lon,
+                              int *len);
+
+/**
+ * @brief A sourcetable as received, as the JSON the app decodes.
+ *
+ * Split from the fetch so it can be tested without a caster. Every
+ * figure about an entry is the core's -- the app computes none of them
+ * (`mountpoint-map.md`, M6a):
+ *
+ * ```json
+ * {"entries":[{"mountpoint":"APEL00NLD0","identifier":"Apeldoorn",
+ *              "format":"RTCM 3.3","nav_systems":"GPS+GLO+GAL+BDS",
+ *              "network":"NSGI","country":"NLD",
+ *              "lat":52.23,"lon":5.94,"carrier":2,"nmea":false,
+ *              "kind":"fixed","kind_why":"...","usable":true,
+ *              "distance_m":12345.6,"bearing_deg":87.1}, ...]}
+ * ```
+ *
+ * - `kind` / `kind_why`: @ref sourcetable_kind, named by
+ *   @ref sourcetable_kind_name.
+ * - `usable`: @ref sourcetable_pos_usable. When false, `lat` and `lon`
+ *   are 0 -- a non-finite position cannot be written as a JSON number --
+ *   and nothing may draw or measure from them.
+ * - `distance_m` / `bearing_deg`: great-circle, from the origin
+ *   (`geo.h`); null when there is no usable origin or position.
+ *
+ * Strings carry the core's script-safe escaping (@ref map_json_quote):
+ * control characters escaped, invalid UTF-8 replaced by U+FFFD, so a
+ * hostile caster cannot make the document unreadable.
+ *
+ * @param raw  The table as received.
+ * @param origin_lat,origin_lon As for @ref bridge_sourcetable_json.
+ * @param out  Destination buffer.
+ * @param cap  Capacity.
+ * @return Bytes written excluding the terminator, or <0 when @p raw is
+ *         NULL, holds no entry (an error page parses to nothing too), or
+ *         the document does not fit -- never a cut document.
+ */
+int bridge_sourcetable_to_json(const char *raw,
+                               double origin_lat, double origin_lon,
+                               char *out, size_t cap);
 
 /** @brief Overall verdict as @ref KpiRunVerdict, for a cheap poll. */
 int bridge_overall(const NtripBridge *b);

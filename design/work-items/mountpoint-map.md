@@ -3,9 +3,9 @@
 **Asked for** by the author (2026-10-11): show all of a caster's
 mountpoints on a map in the Windows GUI, and optionally in Android pro.
 
-**Status:** plan only. Nothing is built. The decisions in
-[§ Decisions](#decisions-open-until-the-author-confirms) are open until
-the author confirms them.
+**Status:** M1–M5 (desktop) built and on `main`, 2026-10-12. D3 and D4
+decided by the author 2026-10-13, changing M6 into a zoomable map on
+the phone (see "D3 and D4 — decided"). M6 not started.
 
 ## What it answers
 
@@ -119,6 +119,40 @@ but not be able to tap it, just as its sourcetable list cannot be
 tapped. The author asked for pro only. The plan builds it behind a
 `Features.HAS_MOUNT_MAP` flag, so either answer costs one line. **The
 author's word decides it.**
+
+### D3 and D4 — decided  *(author, 2026-10-13)*
+
+**D3: the plot, with Natural Earth under it.** Of three options put to
+the author — the bare polar plot, the polar plot over Natural Earth,
+and share-as-GeoJSON only — the second. The outlines are the GUI's
+own: Natural Earth 1:50m, public domain, carried in the app, so the
+app still fetches nothing and the data-safety answer is unchanged. The
+objection to osmdroid and a WebView was to *fetching* tiles; this
+fetches none.
+
+**What it costs, measured:** `gui/basemap_ne50m.js` is 1 184 613 bytes
+and **437 424 compressed** (zlib level 6, which is what an APK's
+asset compression is), against 13.4 MB for each debug APK today:
+about 3 %. 1:110m was not measured; at this cost it is not needed.
+
+**D4: free sees the map and cannot select from it**, as with its
+sourcetable list — the information free, the workflow paid
+(`editions.md`).
+
+**The author's shape for it:**
+
+- On the hub, *Browse mountpoints…* takes half the width, and a new
+  *Map mountpoints…* sits beside it on the same row.
+- *Map mountpoints…* opens a **full-screen map** that can be zoomed and
+  panned, and closed.
+- Tapping a mountpoint shows its information in a **balloon**, in both
+  editions.
+- In pro the balloon has a **Select mountpoint** button.
+- In free the balloon carries a brief line saying what pro adds.
+
+So the gate is the one the list already has,
+`SOURCETABLE_SELECTABLE`; no `HAS_MOUNT_MAP` flag is needed, since both
+editions show the map.
 
 **D5 — Distance on a sphere, no baseline verdict.** Distance and bearing
 are great-circle figures (haversine, mean Earth radius), as the GUI's
@@ -750,7 +784,114 @@ M1–M5 can be merged as one branch to `main`.
 `docs/licences.md` and `THIRD-PARTY-NOTICES.txt` were done in M3 and
 M3b.
 
-### M6 — Android pro: the bearing-and-distance plot (D3, optional)
+### M6 — Android, both editions: the map  *(replanned 2026-10-13)*
+
+Replaces the plan below it, which predates D3 and D4. Built on a
+branch; it ships after pro is in production, the same gate as P7.
+
+**M6a — the bridge says what each entry is.** Kotlin computes none of
+it. `bridge_sourcetable_json` gains, per entry, from the core:
+`kind` and `kind_why` (`sourcetable_kind`), `usable`
+(`sourcetable_pos_usable`), and `distance_m` / `bearing_deg`
+(`geo.c`) from an origin passed in — the phone's position in pro, the
+set position otherwise. `sourcetable_map.c` and `geo.c` are already in
+the Android build. The JSON writing is split from the network fetch
+(`bridge_sourcetable_to_json(raw, origin, …)`), so it is tested
+offline in `test/` with the M1 hostile names, which the fetch never
+allowed.
+
+**M6a — as built  *(2026-10-13)*.** `bridge_sourcetable_to_json(raw,
+origin, out, cap)` writes the document; `bridge_sourcetable_json` now
+fetches, then grows its own buffer from 256 KB to at most 32 MB,
+writing again from the same table, and returns it allocated. Each
+entry gains `network`, `kind`, `kind_why`, `usable`, `distance_m`,
+`bearing_deg`; `SourceEntry` decodes them. The app's two places that
+took a position from an entry (*From station*, and picking from the
+list) now ask `usable` instead of testing for 0,0 themselves.
+`test_bridge_sourcetable`, the 24th test: every field, a hand-worked
+distance, three ways to have no origin, three positions that are no
+place, hostile text parsed back with cJSON, and every buffer size from
+32 bytes to one short refused, never cut.
+
+**Found while building it, all fixed here:**
+
+- **The bridge escaped only `"`, `\` and newline**, and wrote the
+  position with `%f`. A control character in a name, or a latitude of
+  `nan`, gave the app a document it could not decode — shown as an
+  unreachable caster. Strings now go through the core's
+  `map_json_quote`; an unusable position is written 0,0 and flagged.
+- **`NewStringUTF` takes modified UTF-8** (JNI specification), which a
+  caster's four-byte character is not. The document now crosses as
+  bytes and Kotlin decodes it as UTF-8.
+- **A fixed 1 MB in the JNI glue would have refused onocoy** once each
+  entry carried the core's figures: measured at 1.26 MB for 4096
+  entries. Hence the bridge sizing its own output.
+- **The bridge stopped at 4096 entries**, so the phone's list of onocoy
+  (over 6100) silently lacked about a third. The ceiling is now 16384.
+
+**Measured through the bridge's own fetch**, compiled on the desktop
+against live casters, origin RFSEE01:
+
+| Caster | Entries | Document | Fixed / network / product | Unusable |
+|---|---|---|---|---|
+| onocoy | 5930 (4096 before) | 1 827 843 bytes | 5929 / 0 / 1 (`EPHEMERIS`) | 4 |
+| Centipede | 1298 | 392 914 bytes | 1296 / 2 (`NEAR`, `NEAR4`) / 0 | 0 |
+| Kadaster | 61 | 19 156 bytes | 58 / 0 / 3 (`BCEP00KAD0`, `RTCM3EPH`, `RTCM3EPH2`) | 0 |
+
+The kinds agree with M1's. Nearest to RFSEE01: Kadaster `APEL0` 1.6 km
+at 264°, Centipede `NLDAL` 21.7 km at 101°.
+
+**Not yet seen on the phone.** This branch is cut from `main`, which
+has no `.dev` application id, so a debug build here would install over
+the Play edition; the Kotlin decode waits for that.
+
+**M6b — the outlines as an asset.** `tools/make_basemap.py` also
+writes `android/app/src/main/assets/basemap_ne50m.bin`: the same
+polygons and border classes from the same pinned v5.1.2 input,
+coordinates as 32-bit integers in thousandths of a degree — the
+rounding the JS already has. Byte-identical on a second run. Credit in
+the app's Notices (`make_notices.py`, which already reads the version)
+and on the map itself.
+
+**M6c — the screen.** A destination of its own (`Dest.MountMap`),
+full screen, Back closes it.
+
+- **Projection: azimuthal equidistant about the origin.** Distance
+  and bearing from the centre are then true everywhere on the screen,
+  so the plot's rings mean what they say, which a Mercator map's would
+  not. Outlines further out are distorted, and get worse with distance.
+  That is the projection's cost, and it is stated on the screen.
+- **Rings** by the self-position plot's 1-2-5 rule, in km. **North
+  up.** **Pinch to zoom, drag to pan**, and a control that returns to
+  the origin.
+- **Marks:** the kind by colour **and** shape (fixed, network,
+  product, unknown), as the GUI's legend. Entries with no usable
+  position are counted on screen, never drawn.
+- **No origin.** When no usable position is set, the map centres on
+  the entries and draws no rings, and says why.
+- **Tap:** the nearest mark within a finger's reach opens a balloon
+  with the mountpoint, identifier, format, NavSys, kind with its
+  reason, and distance and bearing. In pro, **Select mountpoint** does
+  exactly what tapping the list row does: one path. In free, a line
+  saying pro selects from here.
+- **Loading:** the same fetch the list makes, shared rather than
+  copied.
+
+**M6d — the hub row.** `BrowsePanel` draws the two buttons, half width
+each, on one row.
+
+**Verify on a device**, against real casters:
+
+- a station known to lie north-east of the phone is drawn north-east,
+  at the distance the balloon gives;
+- Kadaster's Caribbean entries appear across the Atlantic, at their
+  distance;
+- onocoy's 6123 entries pan and zoom smoothly on the Huawei, measured
+  in frame time, not judged by eye;
+- in pro, Select fills the mountpoint as the list does; in free the
+  balloon shows the line and nothing is selected.
+
+### M6 as first planned  *(superseded by the above)*
 
 *Optional, as asked. It starts only after the author confirms D3 and D4,
 and after pro is in production (the same gate as self-position P7).*
@@ -775,7 +916,8 @@ and after pro is in production (the same gate as self-position P7).*
 
 ### M7 — Android: share as GeoJSON (optional, D3 second route)
 
-Only if M6 has shipped and the author wants it. `Share.kt` already
+Not chosen for D3 (2026-10-13); kept as an option. Only if M6 has
+shipped and the author wants it. `Share.kt` already
 shares files. First find out on a device which installed map apps open
 the file, and record that here. Only then decide whether to build it.
 

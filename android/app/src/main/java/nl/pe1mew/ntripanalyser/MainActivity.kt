@@ -689,10 +689,10 @@ fun MainScreen() {
                 store = Settings.save(context, settings.copy(
                     mountpoint = e.mountpoint,
                     sendGga = e.nmea,
-                    latitude = if (e.lat != 0.0 || e.lon != 0.0) e.lat
-                               else settings.latitude,
-                    longitude = if (e.lat != 0.0 || e.lon != 0.0) e.lon
-                                else settings.longitude,
+                    // The core's rule for a position, not 0,0 alone: a
+                    // latitude of 400 is no place either (M6a).
+                    latitude = if (e.usable) e.lat else settings.latitude,
+                    longitude = if (e.usable) e.lon else settings.longitude,
                 ))
                 showSourcetable = false
             },
