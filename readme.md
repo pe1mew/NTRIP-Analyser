@@ -373,7 +373,7 @@ See [compilation guide](docs/compile.md) for complete build instructions.
 |---|---|
 | The code | [Apache License 2.0 with the Commons Clause](LICENSE) |
 | The documentation and other non-code content | [CC BY-NC 4.0](license.md) |
-| The map data built into the Windows GUI (`gui/basemap_ne50m.js`) | **Public domain** — Natural Earth's, not ours, and covered by neither licence above |
+| The map data built into the Windows GUI (`gui/basemap_ne50m.js`) and the Android app (`android/app/src/main/assets/basemap_ne50m.bin`) | **Public domain** — Natural Earth's, not ours, and covered by neither licence above |
 
 **Map data: made with Natural Earth.** Free vector and raster map data
 @ [naturalearthdata.com](https://www.naturalearthdata.com). The Windows

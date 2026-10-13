@@ -79,10 +79,11 @@ lib/mbedtls/NTRIP-ANALYSER-NOTE.md for exactly what the copy contains."""
 # 2026-10-12), then what we use and the terms in brief.
 NATURAL_EARTH_NOTICE = """Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com.
 
-The land and border outlines under the Windows GUI's map pages are
-Natural Earth 1:50m land and admin-0 boundary lines, compiled in as
-gui/basemap_ne50m.js by tools/make_basemap.py, which records exactly
-what was taken and how.
+The land and border outlines under the Windows GUI's map pages and the
+Android app's mountpoint map are Natural Earth 1:50m land and admin-0
+boundary lines, carried as gui/basemap_ne50m.js and as the app's
+basemap_ne50m.bin, both written by tools/make_basemap.py, which records
+exactly what was taken and how.
 
 Natural Earth's primary authors are Tom Patterson and Nathaniel Vaughn
 Kelso. All Natural Earth data is in the public domain; no permission is
@@ -176,10 +177,11 @@ def build(android):
         # list, so the summary rides here.
         out += [reflow(APACHE_SUMMARY, width), ""]
 
-        # Desktop only: the GUI carries the basemap, the app does not.
-        out += [rule, "",
-                "Natural Earth " + natural_earth_version() + " -- public domain",
-                "", reflow(NATURAL_EARTH_NOTICE, width), ""]
+    # Both: the GUI carries the basemap, and the app since its
+    # mountpoint map (mountpoint-map.md, M6b).
+    out += [rule, "",
+            "Natural Earth " + natural_earth_version() + " -- public domain",
+            "", reflow(NATURAL_EARTH_NOTICE, width), ""]
 
     if android:
         v = versions()

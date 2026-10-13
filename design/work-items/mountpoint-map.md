@@ -841,9 +841,25 @@ against live casters, origin RFSEE01:
 The kinds agree with M1's. Nearest to RFSEE01: Kadaster `APEL0` 1.6 km
 at 264°, Centipede `NLDAL` 21.7 km at 101°.
 
-**Not yet seen on the phone.** This branch is cut from `main`, which
-has no `.dev` application id, so a debug build here would install over
-the Play edition; the Kotlin decode waits for that.
+**On the phone** (Huawei, pro `.dev` beside the Play app, after the
+dev-package commit was cherry-picked onto this branch, 2026-10-13):
+
+| Caster | List shows | Desktop fetch, same hour |
+|---|---|---|
+| rfsee.net | 2 of 2 | — |
+| Centipede | 1295 of 1295 | 1298 |
+| onocoy | **5933 of 5933** (4096 at most before) | 5932 |
+
+Tables change by the minute, so the counts differ by a few. Picking a
+row from onocoy's list (NRBY_ADV, by an accidental tap) set the
+mountpoint, its GGA flag and its position, through `usable`.
+
+**Seen once and not again:** one opening of onocoy's list said *Could
+not reach the caster*, a minute after it had loaded; three later
+attempts, phone and desktop, succeeded. The cause is unknown — the
+bridge logs nothing on this path, and the app shows the same words
+whether the fetch failed or the decode did. Worth a log line and
+separate wording if it recurs.
 
 **M6b — the outlines as an asset.** `tools/make_basemap.py` also
 writes `android/app/src/main/assets/basemap_ne50m.bin`: the same
@@ -852,6 +868,28 @@ coordinates as 32-bit integers in thousandths of a degree — the
 rounding the JS already has. Byte-identical on a second run. Credit in
 the app's Notices (`make_notices.py`, which already reads the version)
 and on the map itself.
+
+**M6b — as built  *(2026-10-13)*.** `tools/make_basemap.py` writes
+both files in one run from the same rounded values; the binary's layout
+is in its docstring (`NEBM`, format 1, the release, then polygons of
+rings and classed border lines, coordinates as little-endian 32-bit
+thousandths of a degree).
+
+- **Inputs** confirmed as pinned: 1 636 166 and 760 189 bytes.
+- **`gui/basemap_ne50m.js` unchanged**, byte for byte, by the rewrite.
+- **`basemap_ne50m.bin`: 653 930 bytes**, identical on a second run
+  (SHA-256 `24761e2d…4e06fd`). 1421 polygons, 393 border lines,
+  80 427 points.
+- **Checked independently:** a separate reader decoded the binary and
+  compared every coordinate with the JS file's, parsed as decimals: all
+  equal, no trailing bytes.
+- **In the APKs**, both editions: stored compressed, **319 544 bytes**,
+  against 13.18 MB per debug APK — about 2.4 %, below the 3 % the D3
+  estimate gave from the JS file.
+- **Credit:** `make_notices.py` now puts the Natural Earth section in
+  the app's Notices as well as `THIRD-PARTY-NOTICES.txt`;
+  `docs/licences.md` and the readme's licence table name the asset.
+  On the map itself it comes with M6c.
 
 **M6c — the screen.** A destination of its own (`Dest.MountMap`),
 full screen, Back closes it.
