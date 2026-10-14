@@ -444,7 +444,12 @@ control**, not a courtesy:
 
 Pro checks free the same way before asking. The connection travels in
 the result, in the project's one exchange format, and never touches a
-file; pro merges it by the rule that loads a configuration file.
+file; pro merges it by the rule that loads a configuration file, with
+one difference: a connection pro already holds keeps what free cannot
+hold — its ephemeris stream and the handset's live-GGA choice — because
+free's blank there means "I have no such field", not "remove it". The
+first build replaced the connection outright and blanked the ephemeris
+stream (S23, 2026-10-14).
 
 `Handover.kt` holds the contract and the signer check;
 `ShareConnectionsActivity.kt` is the consent screen. It lives in

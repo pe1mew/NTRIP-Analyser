@@ -368,6 +368,72 @@ static void case_default(void)
     printf("      default: %.0f s\n", opt.stall_timeout_s);
 }
 
+/**
+ * A stall that the reconnect cures must stop being reported.
+ *
+ * The snapshot's failure is "zero and empty while a stream is healthy"
+ * (Model.kt says so, and the daemon's Munin graph and the phone's
+ * banner both rely on it). A session that set it on the stall and never
+ * cleared it left the phone showing a fault under STATION OK. Here the
+ * caster goes quiet, the session reports the stall and reconnects, the
+ * caster answers and feeds again -- and the failure must be gone.
+ */
+static void case_stall_then_recovers(void)
+{
+    printf("\n-- a stall the reconnect cures --\n");
+
+    Caster c;
+    if (!caster_start(&c, FEED_THEN_QUIET)) {
+        check(0, "the loopback caster started");
+        return;
+    }
+
+    NsOptions opt;
+    options_for(&opt, c.port, 1.0);
+    opt.auto_reconnect = true;
+
+    Seen seen;
+    memset(&seen, 0, sizeof(seen));
+    seen.end_reason = -1;
+
+    NtripSession *sess = ns_open(&opt, on_event, &seen);
+    check(sess != NULL, "the session opened");
+    if (!sess) { caster_stop(&c); return; }
+
+    const NsStatsSnapshot *st = ns_stats(sess);
+    int waited = 0;
+    for (; waited < 6000 && st->failure != NS_FAIL_STALLED; waited += 20) {
+        caster_service(&c);
+        ns_pump(sess, 10);
+        sleep_ms(10);
+    }
+    check(st->failure == NS_FAIL_STALLED && st->failure_detail[0] != '\0',
+          "the stall is reported, with its sentence");
+
+    /* The caster comes back: a fresh client, answered and fed. */
+    if (c.client != SOCK_BAD) close_sock(c.client);
+    c.client   = SOCK_BAD;
+    c.answered = 0;
+    c.fed      = 0;
+    c.mode     = FEED_ALWAYS;
+
+    for (waited = 0; waited < 15000; waited += 20) {
+        caster_service(&c);
+        ns_pump(sess, 10);
+        sleep_ms(10);
+        if (st->reconnects > 0 && st->connected && c.fed > 5) break;
+    }
+    check(st->reconnects > 0 && c.fed > 5,
+          "the session reconnected and the stream is flowing again");
+    check(st->failure == NS_FAIL_NONE && st->failure_detail[0] == '\0',
+          "and the stall is no longer reported");
+    if (st->failure != NS_FAIL_NONE)
+        printf("      still reporting: \"%s\"\n", st->failure_detail);
+
+    ns_close(sess);
+    caster_stop(&c);
+}
+
 int main(void)
 {
 #ifdef _WIN32
@@ -383,6 +449,7 @@ int main(void)
     case_default();
     case_goes_quiet();
     case_never_sends();
+    case_stall_then_recovers();
     case_keeps_sending();
     case_disabled();
 

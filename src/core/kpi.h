@@ -330,6 +330,32 @@ void kpi_run_start(KpiRun *run, double now, const KpiPolicy *pol);
 void kpi_update(KpiRun *run, const NsStatsSnapshot *s, double now,
                 KpiReport *out);
 
+/** @brief How many of the most recent drops a watch keeps in detail. */
+#define KPI_WATCH_DROPS 8
+
+/**
+ * @brief One spell out of STATION OK: when, how long, how bad, and why.
+ *
+ * A count of degradations says that health was lost and not *what* was
+ * lost.  An 8-hour watch on the phone ended "2 degradations, the worst
+ * FAILED", and nothing anywhere recorded which check had failed or for
+ * how long (station-self-position.md, P7) -- so the record is kept per
+ * drop.  The masks are the union over the whole spell: a KPI that
+ * failed for one second of it is named.
+ *
+ * Bit *i* stands for KPI *i* + 1, the numbering every screen shows.
+ */
+typedef struct {
+    double t_s;            /**< watch-elapsed time OK was left          */
+    double dur_s;          /**< until OK returned; <0 while still out   */
+    int    worst;          /**< worst @ref KpiRunVerdict during it      */
+    unsigned fail_mask;    /**< KPIs at @ref KPI_FAIL at any point      */
+    unsigned warn_mask;    /**< KPIs at @ref KPI_WARN at any point      */
+    unsigned pending_mask; /**< KPIs back at @ref KPI_PENDING -- after a
+                                reconnect every check starts again, and
+                                that is a different story from a fail */
+} KpiDrop;
+
 /**
  * @struct KpiWatch
  * @brief Long-run health accumulator: how a station behaves over hours.
@@ -376,6 +402,11 @@ typedef struct {
     int    worst;           /**< worst @ref KpiRunVerdict seen            */
     double last_degrade_t;  /**< elapsed time of the last one; <0 = never */
     int    last_overall;
+
+    /** The most recent drops, oldest first; @ref degradations counts
+     *  them all, this keeps the last @ref KPI_WATCH_DROPS. */
+    KpiDrop drops[KPI_WATCH_DROPS];
+    int     n_drops;        /**< entries in @ref drops, 0..KPI_WATCH_DROPS */
 } KpiWatch;
 
 /**

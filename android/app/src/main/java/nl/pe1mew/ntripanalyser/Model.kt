@@ -300,6 +300,24 @@ data class Watch(
     @SerialName("worst_name") val worstName: String = "",
     val availability: Double? = null,
     @SerialName("last_degrade_s") val lastDegradeS: Double? = null,
+    /** The last few drops in detail, oldest first; [degradations] counts all. */
+    val drops: List<WatchDrop> = emptyList(),
+)
+
+/**
+ * One spell out of STATION OK, as the core's `KpiDrop` records it:
+ * when (watch time), how long (null while still out), how bad, and
+ * which KPIs failed, warned or restarted -- numbered 1..8 as the hub
+ * numbers them.
+ */
+@Serializable
+data class WatchDrop(
+    @SerialName("t_s") val tS: Double = 0.0,
+    @SerialName("dur_s") val durS: Double? = null,
+    val worst: String = "",
+    val fail: List<Int> = emptyList(),
+    val warn: List<Int> = emptyList(),
+    val pending: List<Int> = emptyList(),
 )
 
 /**

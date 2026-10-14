@@ -213,6 +213,17 @@ object WatchPanel : Panel {
         (state.doc?.stats?.reconnects ?: 0).let {
             if (it > 0) lines += "$it reconnect(s)"
         }
+        // Each drop kept, oldest first, in plain words a reader can act on.
+        for (d in w.drops) {
+            val span = d.durS?.let { "${d.worst} for ${dur(it)}" } ?: "${d.worst}, still out"
+            val (fail, warn, pending) = dropKpis(d)
+            val why = buildList {
+                if (fail.isNotEmpty()) add("KPI ${fail.joinToString(", ")} failed")
+                if (warn.isNotEmpty()) add("KPI ${warn.joinToString(", ")} warned")
+                if (pending.isNotEmpty()) add("KPI ${pending.joinToString(", ")} restarting")
+            }.joinToString("; ")
+            lines += "drop at ${dur(d.tS)}: $span" + if (why.isNotEmpty()) ". $why" else ""
+        }
         return ShareSection("Over time", lines)
     }
 }

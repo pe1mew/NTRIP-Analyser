@@ -1132,8 +1132,17 @@ the clusters' boundary is one.
   whose mean wanders 4.2 m. The trail now carries the satellite set
   per point (GH#13); an overnight run exported with **S** can place
   the clusters' boundary against it.
-- **The two degradations:** whether the report already records when
-  and which KPI, and the card only does not show it.
+- **The two degradations: answered 2026-10-14 — nothing recorded
+  them.** The watch accumulator (`KpiWatch`, `src/core/kpi.c`) kept a
+  count, the worst verdict and the time of the *last* drop, and no
+  record of which KPI failed or for how long; the card could not have
+  said, and neither could anything else. "Healthy 100.0 %" of 8.2 h
+  bounds the two together to under about 15 s. The watch now keeps
+  each drop (`KpiDrop`: when, how long, worst verdict, and which KPIs
+  failed, warned or restarted, the last eight in detail), the phone's
+  card and share report list them, and `test_kpi_watch` pins it — the
+  accumulator's first test. The two drops of that night cannot be
+  recovered; the next overnight run will name its own.
 - **Release:** P7 waits for pro's production access and the listing
   sentence (*The gate*, above).
 

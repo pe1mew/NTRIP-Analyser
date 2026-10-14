@@ -718,6 +718,41 @@ internal fun skySource(
     else -> PositionSource.NONE
 }
 
+/**
+ * Each KPI of a drop named once, at the worst it reached: failed, else
+ * warned, else restarting. The core keeps every state each KPI passed
+ * through in the spell; "KPI 1 failed; KPI 1 warned" is true and reads
+ * as a contradiction (seen on the S23, 2026-10-14). Card and shared
+ * report both read it here, so they cannot disagree.
+ */
+internal fun dropKpis(d: WatchDrop): Triple<List<Int>, List<Int>, List<Int>> {
+    val warn = d.warn - d.fail.toSet()
+    val pending = d.pending - d.fail.toSet() - d.warn.toSet()
+    return Triple(d.fail, warn, pending)
+}
+
+/**
+ * One drop as a line: "at 3 h 12 m, FAILED for 6 s: KPI 4 failed;
+ * KPI 2, 6 warned". The words are the core's verdict names; only the
+ * arrangement is the app's.
+ */
+@Composable
+private fun dropLine(d: WatchDrop): String {
+    val (fail, warn, pending) = dropKpis(d)
+    val parts = buildList {
+        if (fail.isNotEmpty())
+            add(stringResource(R.string.watch_drop_fail, fail.joinToString(", ")))
+        if (warn.isNotEmpty())
+            add(stringResource(R.string.watch_drop_warn, warn.joinToString(", ")))
+        if (pending.isNotEmpty())
+            add(stringResource(R.string.watch_drop_pending, pending.joinToString(", ")))
+    }
+    val span = d.durS?.let { stringResource(R.string.watch_drop_for, d.worst, dur(it)) }
+        ?: stringResource(R.string.watch_drop_open, d.worst)
+    return stringResource(R.string.watch_drop_line, dur(d.tS), span,
+                          parts.joinToString("; "))
+}
+
 /** Compact duration: "45 s", "12 min", "3 h 07 m". */
 internal fun dur(seconds: Double): String {
     val s = seconds.toInt()
@@ -814,6 +849,25 @@ internal fun WatchCard(w: Watch, reconnects: Int = 0) {
                 color = if (w.degradations > 0) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // Each drop the core kept, newest first: when, how long, how
+            // bad, and which checks. "2 degradations, the worst FAILED"
+            // alone sent an 8-hour run home with no way to say what had
+            // failed (station-self-position.md, P7).
+            for (d in w.drops.asReversed()) {
+                Text(
+                    dropLine(d),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (w.degradations > w.drops.size) {
+                Text(
+                    stringResource(R.string.watch_drops_older,
+                                   w.degradations - w.drops.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             // Only when it happened: a nought here would be one more
             // number to read past on every watch that went cleanly, and
             // the fact worth surfacing is the exception.

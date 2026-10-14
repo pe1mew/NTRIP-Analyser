@@ -397,6 +397,7 @@ SNAPSHOT_KNOWN_GAPS = {
 # sentinels, include guards.
 THRESHOLD_MACRO_SKIP = {
     "KPI_H", "KPI_COUNT", "KPI_MAX_CRC_RATE",
+    "KPI_WATCH_DROPS",   # how many drops a watch details; judges nothing
     "STATION_REPORT_H", "SR_METRIC_COUNT", "SR_JSON_SCHEMA_VERSION",
     "VRS_CHECK_H", "VRS_ASSERT_COUNT", "VRS_GATE_UNTESTED", "VRS_GATE_TESTING",
     "VRS_GATE_GATED", "VRS_GATE_NOT_GATED",

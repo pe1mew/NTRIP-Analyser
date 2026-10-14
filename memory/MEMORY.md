@@ -178,8 +178,8 @@
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.
-- **Twenty-five C tests**, including two desktop-built bridge harnesses:
-  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 25 -->
+- **Twenty-six C tests**, including two desktop-built bridge harnesses:
+  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 26 -->
   `test_bridge_vrs.c`, which drives the phone's own plumbing over a
   loopback socket with a synthetic clock, and
   `test_bridge_sourcetable.c`, the sourcetable document the app decodes.

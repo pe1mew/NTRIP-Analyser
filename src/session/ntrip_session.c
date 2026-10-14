@@ -1257,6 +1257,13 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
         emit_end(s, NS_END_REJECTED);
         return -1;
     }
+    /* The caster has accepted us: whatever stopped the stream before is
+     * over, and the snapshot says so. Not at the TCP connect -- a caster
+     * that answers 401 is still a failure -- but here, where the answer
+     * is in. Left set, a stall or a DNS miss survived the reconnect that
+     * cured it, and the phone showed "Cannot find rfsee.net" under
+     * STATION OK (S23, 2026-10-14). */
+    if (s->failure != NS_FAIL_NONE) set_failure(s, NS_FAIL_NONE);
     if (s->handshake.version == NS_PROTO_V1) {
         emit_log(s, NS_LOG_INFO,
                  "Caster answered NTRIP 1.0 (ICY) although Ntrip/2.0 was requested");

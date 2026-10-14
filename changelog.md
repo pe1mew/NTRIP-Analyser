@@ -6,6 +6,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the watch says when health was lost, for how long, and why (paid Android edition)
+
+An 8-hour watch ended "2 degradations, the worst FAILED" and could say
+nothing more: the watch counted drops out of STATION OK and kept the
+worst verdict and the time of the last one, and no record anywhere of
+which check had failed or for how long. It now keeps each drop — when
+in the watch, how long, the worst verdict, and which KPIs failed,
+warned or started again (a reconnect restarts them all) — the last
+eight in detail, every one in the count. The watch card lists them,
+newest first ("At 3 h 12 m: FAILED for 6 s. KPI 4 failed"), and the
+shared report carries them. The record is the core's (`KpiDrop`), and
+`test_kpi_watch` — the first test of the watch at all — pins the
+spell, its union of KPIs, a reconnect, an open spell and the ring.
+Seen on a Samsung S23 with airplane mode on for 15 s: *"At 6 min:
+FAILED for 1 min. KPI 1, 5 failed; KPI 6 warned"*.
+
+### Fixed — a cured fault stayed on screen (all programs)
+
+A stream that stalled or lost its caster's address and then came back
+kept reporting the fault: the phone showed *"Cannot find rfsee.net"*
+under STATION OK, and the service's snapshot kept the failure that its
+own documentation says is zero while a stream is healthy. The session
+set the failure when a connection failed and never cleared it; it now
+clears it when the caster accepts the reconnect — not at the TCP
+connect, since a caster that answers 401 is still a failure.
+`test_stall` drives it against a loopback caster that goes quiet and
+comes back, and fails without the fix.
+
+### Fixed — importing from free erased pro's ephemeris stream (paid Android edition)
+
+When free shared a connection pro already had, the merge replaced
+pro's copy outright, and with it everything free cannot hold: the
+ephemeris stream and the phone's live-GGA choice. A station that sends
+no orbits then sat at *"waiting for orbits"* in self-position. Those
+are now kept; what free does hold — user, password, position, TLS —
+still wins. Verified on the S23: the ephemeris stream survived an
+import, and self-position on RFSEE01 solved 65 of 65 epochs from it.
+
 ### Changed — the Android app is built with AGP 9 (both editions)
 
 The Play Console recommended R8's optimised resource shrinking and the

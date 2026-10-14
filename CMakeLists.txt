@@ -311,6 +311,13 @@ add_executable(test_station_class test/test_station_class.c)
 target_link_libraries(test_station_class PRIVATE ntrip_core)
 add_test(NAME station_class COMMAND test_station_class)
 
+# The watch accumulator and the record it keeps of each drop: an 8-hour
+# watch ended "2 degradations, the worst FAILED" and nothing could say
+# which check or for how long (station-self-position.md, P7).
+add_executable(test_kpi_watch test/test_kpi_watch.c)
+target_link_libraries(test_kpi_watch PRIVATE ntrip_core)
+add_test(NAME kpi_watch COMMAND test_kpi_watch)
+
 # The two places text from outside crosses into a page and back: a
 # caster's sourcetable written into the mountpoint map, and clipboard
 # text read as a selection. Output is parsed back with cJSON and must
@@ -405,7 +412,7 @@ add_custom_target(test_all
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
             test_stall test_failure test_sourcetable test_station_class
-            test_sourcetable_map
+            test_kpi_watch test_sourcetable_map
             test_vrs test_bridge_vrs test_bridge_sourcetable
             test_tls)
 

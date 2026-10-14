@@ -200,9 +200,18 @@ object Settings {
      * the caller can say how many. In the free edition that limit is one,
      * which is the same rule the CLI and the GUI follow: use the first
      * connection, mention the rest.
+     *
+     * @param fromFree the connections come from the free edition (GH#5),
+     *   which holds no ephemeris stream and has no live GGA. An update
+     *   then keeps those from the connection already here: free's blank
+     *   is "I cannot hold this", not "remove it". Without this the
+     *   import blanked pro's ephemeris stream, and self-position on a
+     *   station that sends no orbits sat at "waiting for orbits" (S23,
+     *   2026-10-14).
      */
     fun mergeConnections(
         context: Context, incoming: List<CasterSettings>,
+        fromFree: Boolean = false,
     ): MergeResult {
         val store = loadProfiles(context)
         val list = store.profiles.toMutableList()
@@ -223,7 +232,15 @@ object Settings {
             val existing = list.indexOfFirst { sameConnection(it, c) }
             when {
                 existing >= 0 -> {
-                    list[existing] = c
+                    val here = list[existing]
+                    list[existing] = if (!fromFree) c else c.copy(
+                        name = c.name.ifBlank { here.name },
+                        ggaLive = here.ggaLive,
+                        ephCaster = if (c.ephCaster.isBlank()) here.ephCaster else c.ephCaster,
+                        ephPort = if (c.ephCaster.isBlank()) here.ephPort else c.ephPort,
+                        ephMountpoint = if (c.ephCaster.isBlank()) here.ephMountpoint else c.ephMountpoint,
+                        ephTls = if (c.ephCaster.isBlank()) here.ephTls else c.ephTls,
+                    )
                     updated++
                     if (firstTouched < 0) firstTouched = existing
                 }

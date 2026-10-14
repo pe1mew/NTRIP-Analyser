@@ -212,7 +212,7 @@ fun MainScreen() {
                 if (incoming.isNullOrEmpty()) {
                     context.getString(R.string.handover_unreadable)
                 } else {
-                    val r = Settings.mergeConnections(context, incoming)
+                    val r = Settings.mergeConnections(context, incoming, fromFree = true)
                     store = r.store
                     context.getString(R.string.handover_taken,
                         r.added + r.updated, r.store.current.mountpoint)

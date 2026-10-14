@@ -643,6 +643,39 @@ void kpi_watch_update(KpiWatch *w, const KpiReport *rep, double now)
         w->degradations++;
         w->last_degrade_t = now - w->t_start;
         w->streak_s = 0.0;
+
+        /* Open a record of this spell; the oldest goes when full. */
+        if (w->n_drops == KPI_WATCH_DROPS) {
+            memmove(&w->drops[0], &w->drops[1],
+                    (KPI_WATCH_DROPS - 1) * sizeof w->drops[0]);
+            w->n_drops--;
+        }
+        KpiDrop *d = &w->drops[w->n_drops++];
+        memset(d, 0, sizeof *d);
+        d->t_s   = w->last_degrade_t;
+        d->dur_s = -1.0;
+        d->worst = v;
+    }
+
+    /* The open spell, if any: what is wrong now joins what was wrong
+     * earlier in it, and a return to OK closes it. */
+    if (w->n_drops > 0 && w->drops[w->n_drops - 1].dur_s < 0.0) {
+        KpiDrop *d = &w->drops[w->n_drops - 1];
+        if (v == KPI_RUN_OK) {
+            d->dur_s = (now - w->t_start) - d->t_s;
+        } else {
+            for (int i = 0; i < KPI_COUNT; i++) {
+                const unsigned bit = 1u << i;
+                switch (rep->kpi[i].verdict) {
+                case KPI_FAIL:    d->fail_mask    |= bit; break;
+                case KPI_WARN:    d->warn_mask    |= bit; break;
+                case KPI_PENDING: d->pending_mask |= bit; break;
+                default: break;
+                }
+            }
+            if (v >= 0 && v <= KPI_RUN_FAILED &&
+                severity[v] > severity[d->worst]) d->worst = v;
+        }
     }
     w->last_overall = v;
 }

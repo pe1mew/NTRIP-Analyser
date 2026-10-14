@@ -277,6 +277,15 @@
     <string name="watch_streak">Current healthy streak %1$s (best %2$s)</string>
     <string name="watch_drops">%1$d degradation(s); worst %2$s</string>
     <string name="watch_clean">No degradation yet; worst %1$s</string>
+    <!-- One drop the core kept (KpiDrop): when in the watch, the worst
+         verdict and for how long, then which checks. -->
+    <string name="watch_drop_line">At %1$s: %2$s. %3$s</string>
+    <string name="watch_drop_for">%1$s for %2$s</string>
+    <string name="watch_drop_open">%1$s, still out</string>
+    <string name="watch_drop_fail">KPI %1$s failed</string>
+    <string name="watch_drop_warn">KPI %1$s warned</string>
+    <string name="watch_drop_pending">KPI %1$s restarting</string>
+    <string name="watch_drops_older">%1$d earlier drop(s) not kept in detail</string>
     <!-- Shown only when it happened. The app reconnects by itself after
          a drop, which is what a phone needs; the count is how a reader
          tells a station that faltered from a link that did. -->

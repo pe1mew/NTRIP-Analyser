@@ -797,9 +797,38 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
         if (avail >= 0.0) app(out, cap, &pos, "\"availability\":%.4f,", avail);
         else              app(out, cap, &pos, "\"availability\":null,");
         if (b->w.last_degrade_t >= 0.0)
-            app(out, cap, &pos, "\"last_degrade_s\":%.1f}", b->w.last_degrade_t);
+            app(out, cap, &pos, "\"last_degrade_s\":%.1f,", b->w.last_degrade_t);
         else
-            app(out, cap, &pos, "\"last_degrade_s\":null}");
+            app(out, cap, &pos, "\"last_degrade_s\":null,");
+
+        /* Each drop the watch kept: when, how long (null while still
+         * out), how bad, and which KPIs, numbered as the screens number
+         * them. The count above keeps them all; this keeps the last
+         * KPI_WATCH_DROPS. */
+        app(out, cap, &pos, "\"drops\":[");
+        for (int k = 0; k < b->w.n_drops; k++) {
+            const KpiDrop *d = &b->w.drops[k];
+            app(out, cap, &pos, "%s{\"t_s\":%.1f,", k ? "," : "", d->t_s);
+            if (d->dur_s >= 0.0) app(out, cap, &pos, "\"dur_s\":%.1f,", d->dur_s);
+            else                 app(out, cap, &pos, "\"dur_s\":null,");
+            app(out, cap, &pos, "\"worst\":\"%s\"", kpi_run_verdict_name(d->worst));
+            const struct { const char *key; unsigned mask; } sets[] = {
+                { "fail", d->fail_mask }, { "warn", d->warn_mask },
+                { "pending", d->pending_mask },
+            };
+            for (int s = 0; s < 3; s++) {
+                app(out, cap, &pos, ",\"%s\":[", sets[s].key);
+                int first = 1;
+                for (int i = 0; i < KPI_COUNT; i++)
+                    if (sets[s].mask & (1u << i)) {
+                        app(out, cap, &pos, "%s%d", first ? "" : ",", i + 1);
+                        first = 0;
+                    }
+                app(out, cap, &pos, "]");
+            }
+            app(out, cap, &pos, "}");
+        }
+        app(out, cap, &pos, "]}");
     }
 
     app(out, cap, &pos, "}");
