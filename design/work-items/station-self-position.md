@@ -1077,8 +1077,43 @@ with its time, which places the jump, and the snapshot's satellite
 count and PDOP around it. Release waits for an explanation: a scatter
 figure that our own solver may have made is not one to publish.
 
+**The GUI run, 2026-10-14** (`20261014143211_SelfPosition.json`,
+RFSEE01, 7264 s, STABLE, no reconnects, no CRC errors). 6733 points
+over 7289 s: 556 seconds, 7.6 %, have no solution. Mean offset
+−2.096 m E, −0.445 m N, −2.663 m U; scatter 2.407 m; worst code
+residual 3.401 m; median apparent motion 31.5 mm/s; REVERSED.
+
+- **One cloud, not two, and elongated:** the major axis lies at
+  azimuth 42°, standard deviation 1.58 m along it and 0.65 m across.
+- **Most of it is the mean moving, not noise.** Means over 10-minute
+  windows travel from (−3.14 E, −1.97 N) at minute 60 to (−0.32 E,
+  +1.18 N) at minute 100 — 4.2 m in 40 minutes, along the same axis —
+  while the spread within each window is 0.5–0.9 m.
+- **One step:** 3.74 m between consecutive epochs at t = 6841 s; the
+  next largest is 1.48 m.
+
+What it suggests, not shown: a slow wander of the solution, which over
+two hours reads as one stretched cloud, would read as two clouds over
+a night if it dwelt at two ends. That would make the overnight phone
+run's clusters this same behaviour on a longer window, not a switch
+between two states. It does not account for their direction (east–west
+there, NE–SW here) or their 5–6 m separation against about 4 m here.
+The solve is iono-free with Saastamoinen's troposphere (`spp.c`), so
+neither first-order ionosphere nor the troposphere is the obvious
+candidate; code multipath, amplified by the iono-free combination, and
+the changing geometry are, and both are guesses.
+
+**The export cannot test the hypothesis above.** A point is
+`[t, e, n, u]`; the satellite count and PDOP exist for the latest
+epoch only. Placing the drift or the 3.74 m step against a satellite
+rising or setting, or a new ephemeris, needs per-point satellite
+count, PDOP and an identifier of the satellite set — a change to the
+core and the export, not yet made.
+
 **Still to do:**
-- **The two clusters**, above.
+- **The two clusters**, above: a 2-hour GUI run shows one cloud
+  whose mean wanders 4.2 m; the explanation waits for per-point satellite
+  information in the trail.
 - **The two degradations:** whether the report already records when
   and which KPI, and the card only does not show it.
 - **Release:** P7 waits for pro's production access and the listing
