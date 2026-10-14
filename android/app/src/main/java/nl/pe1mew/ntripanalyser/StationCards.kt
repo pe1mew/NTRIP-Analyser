@@ -485,23 +485,31 @@ internal fun srLabel(key: String): String = stringResource(
  *
  * The distance takes the usability colours A3 judges by -- green under
  * 5 km, amber under 50, red beyond. The movement sentence is chosen by
- * what the service *is*, on the desktop's own evidence rule: a
- * reference position within 150 m of the position being sent is a
- * network answering you (`gui_events.c`, ClassifyStation), and a
- * resolved gate test outranks the guess. The same count reads as a
- * network doing its job or a base that should worry you -- never both.
+ * what the service *is*, and that is the core's to say
+ * (`station_service`, carried as the document's `service`): the gate
+ * test, the sourcetable's own classification, or a reference position
+ * on top of the position sent. The same count reads as a network doing
+ * its job or a base that should worry you -- never both, and neither
+ * while the core does not know.
+ *
+ * Until 2026-10-14 this decided for itself, with the gate test and the
+ * 150 m rule alone; Centipede's NEAR, handing over once on a tester's
+ * drive, read "a fixed base should not move" (H9).
  */
 internal data class HoSummary(
     val distM: Double,
     val bearingDeg: Double,
-    val isNetwork: Boolean,
+    /** The core's word: "fixed", "network" or "unknown". */
+    val service: String,
 ) {
     val compass: String get() = compassPoint(bearingDeg)
+    val isNetwork: Boolean get() = service == "network"
+    val isFixed: Boolean get() = service == "fixed"
 }
 
 /** Null when there is no valid reference position to summarise. */
 internal fun hoSummary(
-    stats: Stats, vrs: VrsDoc?, roverLat: Double, roverLon: Double,
+    stats: Stats, service: ServiceDoc?, roverLat: Double, roverLon: Double,
 ): HoSummary? {
     val alat = stats.arpLat ?: return null
     val alon = stats.arpLon ?: return null
@@ -510,8 +518,7 @@ internal fun hoSummary(
     return HoSummary(
         distM = distM,
         bearingDeg = geoBearingDeg(roverLat, roverLon, alat, alon),
-        // The desktop's evidence rule, and the gate test outranks it.
-        isNetwork = (vrs != null && vrs.gate == 2) || distM < 150.0,
+        service = service?.kind ?: "unknown",
     )
 }
 

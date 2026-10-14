@@ -116,6 +116,7 @@ add_library(ntrip_core STATIC
     src/core/sourcetable.c
     src/core/sourcetable_map.c
     src/core/geo.c
+    src/core/station_class.c
     src/core/vrs_check.c
     src/core/iono.c
     src/core/rinex_nav.c
@@ -303,6 +304,13 @@ add_executable(test_sourcetable test/test_sourcetable.c)
 target_link_libraries(test_sourcetable PRIVATE ntrip_core)
 add_test(NAME sourcetable COMMAND test_sourcetable)
 
+# Fixed base or network service, decided once: the GUI and the phone
+# each had their own copy until a nearest-base service handing over on a
+# tester's drive read as a fixed base moving (handover-on-the-phone H9).
+add_executable(test_station_class test/test_station_class.c)
+target_link_libraries(test_station_class PRIVATE ntrip_core)
+add_test(NAME station_class COMMAND test_station_class)
+
 # The two places text from outside crosses into a page and back: a
 # caster's sourcetable written into the mountpoint map, and clipboard
 # text read as a selection. Output is parsed back with cJSON and must
@@ -383,7 +391,8 @@ add_custom_target(test_all
             test_sv_state test_spp test_selfpos_session
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall test_failure test_sourcetable test_sourcetable_map
+            test_stall test_failure test_sourcetable test_station_class
+            test_sourcetable_map
             test_vrs test_bridge_vrs
             test_tls)
 

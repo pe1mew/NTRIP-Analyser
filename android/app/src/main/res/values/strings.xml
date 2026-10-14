@@ -69,6 +69,14 @@
     <string name="ho_stable">No hand-over: one position across the run</string>
     <string name="ho_moves_net">%1$d hand-over(s) — a network switching stations under you, which is its job</string>
     <string name="ho_moves_fixed">%1$d hand-over(s) — a fixed base should not move; corrections are unreliable</string>
+    <string name="ho_moves_unknown">%1$d hand-over(s) — whether this is a fixed base or a network service is not known yet</string>
+    <string name="ho_service_net">Network service: %1$s</string>
+    <string name="ho_service_fixed">Fixed base: %1$s</string>
+    <string name="ho_service_unknown">Not known yet: %1$s</string>
+    <string name="ho_gga_none">No position is sent to the caster.</string>
+    <string name="ho_gga_set">Sent to the caster: the set position, %1$s.</string>
+    <string name="ho_gga_live">Sent to the caster: this phone’s position, unchanged for %1$s. With the screen off it is not updated, so on the move the caster serves where the phone was.</string>
+    <string name="ho_gga_live_now">Sent to the caster: this phone’s position, as of now. With the screen off it is not updated, so on the move the caster serves where the phone was.</string>
     <string name="ho_jump">Largest jump %1$s</string>
     <string name="ho_explainer">Where the service’s reference position stands, and where it has been this run.</string>
     <string name="ho_bearing">%1$s (%2$d°)</string>

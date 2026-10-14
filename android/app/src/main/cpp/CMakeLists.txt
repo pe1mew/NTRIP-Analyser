@@ -51,6 +51,7 @@ add_library(ntrip_android SHARED
     ${REPO_ROOT}/src/core/sourcetable.c
     ${REPO_ROOT}/src/core/sourcetable_map.c
     ${REPO_ROOT}/src/core/geo.c
+    ${REPO_ROOT}/src/core/station_class.c
     ${REPO_ROOT}/src/core/vrs_check.c
     ${REPO_ROOT}/src/core/station_report.c
     ${REPO_ROOT}/src/core/iono.c

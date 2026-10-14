@@ -132,6 +132,35 @@ Desktop only, deliberately: both Play listings say the app "does not
 compute a position", and that sentence stays true until the paid
 edition gains this on purpose.
 
+### Fixed — a nearest-base service's hand-over read as a fault
+
+A tester drove from the Netherlands to Switzerland on Centipede's NEAR.
+Opening the app there sent his new position, NEAR handed over to a base
+47 km away, and the Reference position screen said, in red, *"a fixed
+base should not move; corrections are unreliable"*. NEAR is a
+nearest-base service; handing over is its job.
+
+The app decided fixed base or network service with its own copy of the
+GUI's rule — the gate test, or a reference position within 150 m of the
+rover — and never asked the sourcetable, which names NEAR as a service.
+That decision is now the core's (`station_service`), one rule for the
+phone and the GUI: the gate test, the sourcetable's classification, then
+the 150 m rule, with the evidence stated. NEAR, NEAR4 and the other
+named services now read as network services in the GUI's Stream Health
+too.
+
+The screen also says what the caster has been told — the set position,
+or the phone's and how long it has stood, with a plain statement that
+with the screen off it is not updated. That is how the tester's caster
+kept serving a Dutch base all the way to Switzerland; the app does not
+track position in the background, by design, and now says so where it
+matters. The ring label no longer crosses the ring, and the strip chart
+has a scale.
+
+Seen on the Huawei with NEAR: *Network service: sourcetable: mountpoint
+name says "NEAR"* and *Sent to the caster: the set position, 52,00000,
+6,00000.* `test_station_class`, 14 cases.
+
 ### Added — self-position in the paid Android edition
 
 The same figures on the phone, as pro's fourth analysis tab after
