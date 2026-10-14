@@ -391,6 +391,20 @@ void sr_build(const SrState *s, StationReport *out)
      * both are published and neither is presented as an accuracy. */
     out->sp_samples     = s->sp_samples;
     out->sp_last_status = s->sp_last_status;
+
+    /* What can be said yet (SrSelfPosState).  "Long enough" is the very
+     * rule the six metrics give a verdict by -- the policy's window and
+     * sample floor, `enough` above -- so the self-position stops saying
+     * "gathering" exactly when the rest of the report starts judging. */
+    if (s->sp_samples > 0)
+        out->sp_state = SR_SP_SOLVED;
+    else if (s->sp_last_status == SPP_SINGLE_FREQ)
+        out->sp_state = SR_SP_NOT_COMPUTABLE;
+    else if (enough)
+        out->sp_state = SR_SP_NOT_SOLVED;
+    else
+        out->sp_state = SR_SP_GATHERING;
+
     if (s->sp_samples > 0) {
         const double n = (double)s->sp_samples;
         const double me = s->sp_sum_e / n;
@@ -480,6 +494,16 @@ const char *sr_verdict_name(int verdict)
     case SR_DEGRADED: return "DEGRADED";
     case SR_UNSTABLE: return "UNSTABLE";
     default:          return "INSUFFICIENT EVIDENCE";
+    }
+}
+
+const char *sr_selfpos_state_key(int state)
+{
+    switch (state) {
+    case SR_SP_SOLVED:         return "solved";
+    case SR_SP_NOT_COMPUTABLE: return "not_computable";
+    case SR_SP_NOT_SOLVED:     return "not_solved";
+    default:                   return "gathering";
     }
 }
 
@@ -697,6 +721,7 @@ int sr_to_json(const StationReport *r, const SrJsonCtx *ctx,
     {
         const bool have = r->sp_samples > 0;
         o_key(&o, "selfpos_samples"); o_fmt(&o, "%d", r->sp_samples);
+        o_key(&o, "selfpos_state");   o_jstr(&o, sr_selfpos_state_key(r->sp_state));
         o_key(&o, "selfpos_status");  o_fmt(&o, "%d", r->sp_last_status);
         o_key(&o, "selfpos_status_name");
         o_jstr(&o, spp_status_text((SppStatus)r->sp_last_status));

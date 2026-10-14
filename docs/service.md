@@ -77,10 +77,11 @@ standing behind a window that ended. Watch for that as well as for
 stopped.
 
 ```json
-{"report_schema_version":3,"mountpoint":"HANESE","window_s":3600.000,
+{"report_schema_version":4,"mountpoint":"HANESE","window_s":3600.000,
  "samples":3598,"overall":1,"overall_name":"STABLE",
  "headline":"STABLE over 1.0 h","integrity_verdict":1,...,
- "selfpos_samples":3410,"selfpos_status":0,"selfpos_status_name":"solved",
+ "selfpos_samples":3410,"selfpos_state":"solved",
+ "selfpos_status":0,"selfpos_status_name":"solved",
  "selfpos_mean_e_m":1.842,"selfpos_scatter_m":0.934,...}
 ```
 
@@ -122,6 +123,22 @@ single noisiest epoch — while the median sits steadily in the low tens of
 mm/s and is what a standing base can be judged against. It is read from a
 1 mm/s histogram capped at 2 m/s, so it costs the daemon fixed memory per
 accumulator however long the window.
+
+**Version 4 added `selfpos_state`**: what can be said about the
+self-position yet. The four values are:
+
+- `solved`: at least one epoch in the window solved;
+- `gathering`: too early to say;
+- `not_computable`: a single-frequency station, known at once, because
+  waiting cannot change it;
+- `not_solved`: the window is long enough by the report's own policy
+  and nothing solved.
+
+"Long enough" is the rule the six verdicts use, so the state stops
+saying `gathering` exactly when the rest of the report starts judging.
+It was decided by each frontend before; the GUI used a fixed ten
+minutes where the report follows a loaded thresholds policy. The
+change is additive, and bumped for the same reason as version 2.
 
 **The window rolls, and it is measured in stream time.** The report
 covers between one and two `report_window_s` — the daemon keeps two

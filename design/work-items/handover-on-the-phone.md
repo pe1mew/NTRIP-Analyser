@@ -291,6 +291,72 @@ design decision. It is not planned; it is written down here so the
 next person asking finds the boundary and its reasons rather than an
 accident.
 
+### H8 — an analysis tab, not a card  *(2026-10-12)*
+
+On the author's direction, following Self-position (P7 of
+`station-self-position.md`): the H4 screen is now **pro's fifth
+analysis tab, "Reference position", after Self-position**, and the hub
+card of H3 is gone. `HandoverPanel` stays in pro's registry, drawing
+nothing, so its section of the shared report is unchanged; the tab
+draws `HandoverPanel.View`, which was the panel's detail screen, and
+the panel no longer has a `Dest.Detail` route. `HandoverCard` was
+deleted; the one line it had that the screen lacked — the largest
+jump between recorded positions — moved into the screen's summary.
+
+### H9 — a tester's drive, and what the screen said about it  *(2026-10-14)*
+
+**What a tester saw**, on Play's pro 3.8.0, driving from the
+Netherlands to Switzerland on Centipede's **NEAR**, a nearest-base
+service: *47.0 km N of this phone* and, in red, **"1 hand-over(s) — a
+fixed base should not move; corrections are unreliable"**, with the
+previous reference position some 750 km away.
+
+**What happened** is the behaviour stated under *On the road* above.
+With the screen off the phone's fix stands, so the uplink kept his
+Dutch position for the whole drive and NEAR kept serving a Dutch base.
+When he opened the app in Switzerland the new position went out and
+NEAR handed over once, to a base 47 km away. The measurement and the
+drawing were right. Two things on the screen were not:
+
+1. **The sentence.** The app chose it with its own copy of the GUI's
+   rule — the gate test, or a reference position within 150 m of the
+   rover — and neither applied, so a nearest-base service read as a
+   fixed base moving. The sourcetable, which names NEAR as a service,
+   was never asked. **Fixed in the core**: `station_service()`
+   (`src/core/station_class.{c,h}`) decides fixed base or network
+   service from the gate test, the core's sourcetable classification
+   and the 150 m rule, in that order, and says which evidence decided.
+   The bridge keeps the mountpoint's entry from the KPI 8 lookup and
+   publishes the result as the document's `service`; the GUI's Stream
+   Health calls the same function, so the two cannot disagree. The
+   GUI gains the sourcetable's name rule by it — NEAR, NEAR4 and the
+   rest now read as network services there too. A hand-over is red
+   only where the core says *fixed*; while it does not know, the
+   sentence says so.
+2. **Nothing said what the caster had been told.** The tab now reads,
+   from the bridge's new `gga` object: *Sent to the caster: the set
+   position, …*; or *this phone's position, unchanged for 3 h 12 min.
+   With the screen off it is not updated, so on the move the caster
+   serves where the phone was*; or *No position is sent to the
+   caster.* The boundary itself is unchanged — no background location
+   — it is now said where it matters.
+
+Also: the outer ring's label sits in the plot's corner on a patch of
+the page (it crossed the ring line on the tester's phone), and the
+strip chart has a scale — *max …* and *0* — with its title in a band
+of its own above the line.
+
+**Tested**: `test_station_class` (14 cases, the tester's NEAR first),
+and `test_bridge_vrs` reads `service` and `gga` from the document — a
+repeated position is not a move, a new one restarts the count.
+**Seen on the Huawei**, pro `.dev`, NEAR with the set position
+52.0, 6.0 sent while the phone sat in Apeldoorn — the tester's case in
+small: *31,0 km SE of this phone*, *Network service: sourcetable:
+mountpoint name says "NEAR"*, *Sent to the caster: the set position,
+52,00000, 6,00000.*, the ring label clear, the strip chart scaled.
+**Not seen on a device**: the network-service hand-over sentence
+itself, which needs the reference position to move during a run.
+
 ## Open, and worth an answer before H3
 
 1. **Should free's check-3 evidence quote `arp_moves`?** It is

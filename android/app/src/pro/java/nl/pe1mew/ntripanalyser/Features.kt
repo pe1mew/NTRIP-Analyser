@@ -60,6 +60,15 @@ object Features {
      */
     const val HAS_TIER2 = true
 
+    /**
+     * Self-position (P7, `station-self-position.md`): where the station's
+     * own observations place it against the position it broadcasts. The
+     * solve runs in the shared core in both editions -- this gates the
+     * screen and its run-scoped trail, never the measurement. Like tier 2
+     * it wants a watch: one epoch says nothing, a window says something.
+     */
+    const val HAS_SELFPOS = true
+
     const val MAX_MOUNTPOINTS = 16
 
     const val SOURCETABLE_SELECTABLE = true

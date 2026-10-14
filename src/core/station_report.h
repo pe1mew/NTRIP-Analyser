@@ -301,7 +301,47 @@ typedef struct {
     double   sp_speed_median_mms;
     int      sp_last_status;   /**< SppStatus of the last epoch, which
                                 *   names why a station produced nothing */
+    /**
+     * Solved, gathering, never going to, or tried and failed: a
+     * @ref SrSelfPosState. Decided here, by @ref sr_build, so every
+     * frontend says the same thing at the same moment; it was decided
+     * in the GUI until 2026-10-12, against the constant
+     * @ref SR_MIN_WINDOW_S rather than the policy's own window.
+     */
+    int      sp_state;
 } StationReport;
+
+/**
+ * @brief What can be said about a station's self-position yet.
+ *
+ * The distinction is the difference between a fact about the station
+ * and a fact about the clock. Thirty seconds into a stream nothing has
+ * solved yet, and the GUI's first version called that *not computable*:
+ * a finding about the station, from a window too short to carry one.
+ *
+ * Only `SPP_SINGLE_FREQ` is a property of the stream rather than of how
+ * long it has been watched -- a station sending one frequency will not
+ * start sending two. Everything else (no epoch, no orbits, too few
+ * satellites, a solve that did not settle) is ordinary at the start of
+ * a run, and becomes a finding only once the window is long enough, by
+ * the same rule that lets the six metrics give a verdict.
+ */
+typedef enum {
+    SR_SP_GATHERING      = 0,  /**< too early to say anything             */
+    SR_SP_SOLVED         = 1,  /**< at least one epoch in the window solved */
+    SR_SP_NOT_COMPUTABLE = 2,  /**< single frequency: it never will        */
+    SR_SP_NOT_SOLVED     = 3,  /**< long enough to have solved, and did not */
+} SrSelfPosState;
+
+/**
+ * @brief The frozen key for a self-position state, as the JSON carries it.
+ *
+ * Keys, not sentences: a frontend maps them to its own words, as the
+ * phone does with failure codes, so a translated build stays possible.
+ *
+ * @return "gathering", "solved", "not_computable" or "not_solved".
+ */
+const char *sr_selfpos_state_key(int state);
 
 /** @brief Accumulator.  Opaque in spirit; exposed so callers can stack it. */
 typedef struct {
@@ -448,8 +488,12 @@ const char *sr_metric_limit_text(const SrMetric *m, int metric_id,
  * 2 that looks for the old key finds nothing, and must be able to tell
  * that from a station whose stream carries no rates -- which is what
  * the number is for.
+ *
+ * Version 4 added `selfpos_state` (@ref sr_selfpos_state_key): what can
+ * be said about the self-position yet, decided in the core rather than
+ * by each frontend. Additive, bumped for the same reason as 2.
  */
-#define SR_JSON_SCHEMA_VERSION 3
+#define SR_JSON_SCHEMA_VERSION 4
 
 /**
  * @struct SrJsonCtx

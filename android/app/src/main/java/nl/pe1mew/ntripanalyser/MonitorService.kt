@@ -780,6 +780,9 @@ class MonitorService : Service() {
         /** @see tracks */
         val arpTrail = ArpTrail()
 
+        /** @see tracks -- the self-position plot's points (P7). */
+        val selfPos = SelfPosTrail()
+
         /**
          * The latest snapshot, as the texts an export writes out
          * (phase 2 item 4): the bridge's own JSON verbatim, and the
@@ -836,6 +839,20 @@ class MonitorService : Service() {
                             .toFloat())
                 }
             }
+            if (Features.HAS_SELFPOS) {
+                // A point per solved epoch, on the stream's clock; an
+                // epoch that did not solve adds none -- a point at the
+                // origin is what a station on its declared coordinates
+                // looks like, which an unsolvable one must not.
+                val st = doc.stats
+                val e = st.selfposE
+                val n = st.selfposN
+                val u = st.selfposU
+                val ts = st.streamTimeS
+                if (st.selfposStatus == 0 && st.selfposSats > 0 &&
+                    e != null && n != null && u != null && ts != null)
+                    selfPos.offer(ts, e, n, u)
+            }
             doc.sats.forEach { sat ->
                 val el = sat.el ?: return@forEach
                 val az = sat.az ?: return@forEach
@@ -856,6 +873,7 @@ class MonitorService : Service() {
             tracks.clear()
             elevation.clear()
             arpTrail.clear()
+            selfPos.clear()
             lastStatsJson = null
             lastStatsCsv = null
             runLat = s.latitude

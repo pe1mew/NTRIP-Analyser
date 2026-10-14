@@ -19,7 +19,7 @@ honest -- every claim here is one the app makes on screen.
 
 Capture from the Play build or a release build, never a debug one:
 since 2026-10-12 a debug build is its own app (`….pro.dev`) and its
-app bar says "NTRIP Analyser Pro (dev)", which a listing must not.
+app bar says "NTRIP Pro (dev)", which a listing must not.
 """
 import os
 import sys

@@ -38,6 +38,8 @@ edition withholds is convenience, never protection.
 | TLS to the caster *(planned)* | yes, the same day pro has it | yes — scheduled here, withheld from no one |
 | Per-satellite C/N0 bars, and C/N0 against elevation | yes | yes |
 | Reference position (ARP) | **position only** | the whole record: station ID, ITRF year, reference-versus-receiver, oscillator, ECEF |
+| Rover-to-ARP distance and hand-over history | — | yes: the Reference position analysis tab |
+| Self-position: the station's own observations against its ARP | — (the solve runs; nothing draws it) | yes: the Self-position analysis tab, figures with no verdict |
 | Message types received | — | the list of types, from the tile |
 | Configuration files (load / save) | — | yes |
 | Session history | — | *planned* |

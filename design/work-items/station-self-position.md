@@ -940,6 +940,150 @@ out to need changes in `src/core`, decision 8 was not kept.
 station over the same window. And before any of it: the sentence in
 `play-listing.md` changed on both listings, deliberately.
 
+### P7 — as built, on branch `self-position-pro`  *(2026-10-12, not yet on hardware)*
+
+**What was already there.** Decision 8 held:
+- the solve runs in the shared session layer on the phone, every epoch;
+- the bridge decodes orbits from the observation stream;
+- the snapshot and the tier-2 report reach Kotlin with every
+  `selfpos_*` key.
+
+P7 is a screen, a trail and strings:
+
+- **`SelfPosition.kt`** (main), holding `SelfPosPanel`, its card and
+  its detail screen.
+  - **The plot** follows the desktop's rules point for point: the
+    broadcast position at the centre and staying there; `spPlotRadius`
+    is `PlotRadius`; rings are labelled only once points set the
+    scale; the desktop's four colours; the newest epoch is larger;
+    the mean is a cross.
+  - **The rest of the screen**: the latest epoch below the plot,
+    labelled as a diagnostic, and **REVERSED** only when it is news.
+  - **`SelfPosTrail`** keeps a point per solved epoch, keyed on
+    `stream_time_s` as the GUI keys it, capped at the GUI's 7200. It
+    lives in `MonitorService`'s companion, cleared at run start.
+- **`Features.HAS_SELFPOS`**, false in free and true in pro, gates the
+  screen and the trail, never the solve. `SelfPosPanel` sits in pro's
+  registry after `Tier2Panel`.
+- **`tools/check_release.py`** compares `SppStatus` between `spp.h`
+  and `SelfPosition.kt`, as it does the failure codes. The release
+  checks went from 106 to 114.
+
+**One core change, and why it keeps decision 8 rather than breaking it.**
+The GUI decided *gathering / not computable / not solved* itself
+(`SelfPosState`), against the constant `SR_MIN_WINDOW_S`. The phone
+could only have matched that by copying the rule into Kotlin, which is
+a rule in a frontend, which the hard constraints forbid. So
+`sr_build` now decides it (`StationReport.sp_state`, `SrSelfPosState`)
+by the very `enough` rule the six verdicts use: the policy's window
+and sample floor. It publishes it as `selfpos_state`, report schema 4,
+and the GUI reads it. That also fixed a GUI defect the move exposed:
+with a loaded thresholds policy, the GUI said *not solved* on a
+different clock than the report judged by. `test_station_report`
+case 16 pins all four states, including the policy case.
+
+**Verified on hardware, 2026-10-12.** Pro's dev build (`….pro.dev`,
+installed beside the Play app) ran on a Huawei SNE-LX1 (Android 10)
+watching RFSEE01, beside the GUI on the same station. Both were
+captured in the same second, at 19:48:48:
+
+| | Phone | GUI |
+|---|---|---|
+| Window | 2440 epochs, run since ≈19:07 | 1845 epochs, 2009 s, since ≈19:15 |
+| Mean offset E / N / U | +0.97 / +1.69 / −3.46 m | +1.072 / +1.978 / −3.680 m |
+| Scatter | 2.939 m | 2.990 m |
+| Worst code residual | 3.702 m | 3.408 m |
+| Median apparent motion | 30.5 mm/s | 32.5 mm/s |
+| Latest epoch | 9 sats, PDOP 1.6, 2.08 m | 9 sats, PDOP 1.5, 2.084 m |
+| Rates | REVERSED | REVERSED |
+
+- **The latest epoch is the same solve on the same data.**
+- **Every window difference is the phone's eight extra minutes.**
+  The worst residual proves it: the phone showed 3.702 m at 19:14,
+  in an earlier screenshot, before the GUI's window existed.
+- **PDOP 1.6 against 1.5** is rounding at 1.55: Java rounds the
+  decimal half up, C the binary value.
+
+The Watch also ran 38 minutes with the screen off and the phone locked,
+with *0 drops*.
+
+**Changed after the first look (author, 2026-10-12):**
+- **The layout.** Fourteen lines of text first left the plot a dot.
+  The figures became a compact table, and the "ARP" label moved above
+  the axis, off the ring label.
+- **The view moved:** from a hub card and detail screen to **the last
+  analysis tab, after C/N0 vs elevation**, with no hub card. The plot
+  is square at the full screen width, the page scrolls when short, and
+  the legend draws each mark with the very function the plot uses.
+  `SelfPosPanel` stays in pro's registry, drawing nothing, to keep its
+  section in the shared report.
+- **The second look**, on the Huawei: four tabs broke their titles
+  mid-word, so pro's row scrolls (free keeps its fixed three); a trail
+  point sat inside "2.50 m", so the ring labels and "ARP" are drawn on
+  a patch of the page over the trail, with the mean and the latest
+  epoch still on top; the state line is in the body font, not
+  monospace; and the dev builds' names were shortened to
+  "NTRIP Pro (dev)" / "NTRIP (dev)" because the full name wrapped the
+  app bar. Checked on screen at 20:18: one-line tab titles, one-line
+  app bar, labels clear.
+
+**CPU and battery, measured overnight (2026-10-13/14).** The Huawei,
+off the charger for the whole run, a Watch of RFSEE01 with the screen
+off, on a **bench build** — release settings (R8, not debuggable),
+`….pro.bench`, from a local merge of this branch with the mountpoint
+map's, so the run carried Self-position, Reference position and the
+map. Read from `dumpsys batterystats` when the phone was plugged back
+in:
+
+| Measure | Value |
+|---|---|
+| On battery | 8 h 08 min, 8 h 05 min of it screen off |
+| Whole phone | 479 mAh of 3750 — **12.8 %**, about 59 mAh an hour |
+| The app, Android's estimate | 82 mAh (Wi-Fi 74, GPS 8), about 17 % of the drain |
+| The app's CPU | 9 min 50 s user + 44 s kernel = **10 min 34 s, 2.2 % of one core** |
+| Data | 53 MB in, 3.1 MB out — about 6.5 MB an hour |
+| The app's own wakelock | 0.8 s in all |
+| Phone awake | 99.9 % of the run; it never suspended |
+
+The phone stayed awake on the **Wi-Fi driver's** kernel wakelocks
+(`wifi_deeepsleep_delay_wakelock` 4 h 21 min, `wlan_sdio_rx_lock`
+3 h 37 min since the charge): a stream that delivers every second
+wakes the radio every second. That is the cost of watching a stream,
+not of the solve; the solve's share is inside the 2.2 % of a core. GPS
+ran 6 min 49 s in all, so the phone's own position did not run the
+night. The Play Store's overnight updates drew 37 mAh of Wi-Fi besides.
+**This closes the item**: an every-epoch solve costs a phone little.
+The earlier attempt, on the charger, was spoiled by Huawei's battery
+protection pausing the charge.
+
+**What the run showed** (8 h 10 min, read on the phone at 06:57):
+STATION OK, stability STABLE over 8.2 h, healthy 100.0 % of judged time,
+**2 degradations, the worst FAILED** — the card says neither when nor
+which KPI. Self-position: SOLVED, **29 416 of 29 416** epochs, mean
+offset +0.89 / +0.88 / −1.98 m, worst code residual 4.114 m, median
+motion 28.5 mm/s, REVERSED. Reference position: 9 m N of the phone,
+one position across the run.
+
+**Open before release — a self-position trail in two clusters.** The
+trail, which holds the last 7200 epochs (about two hours, so after both
+degradations), lies in **two clouds about 5–6 m apart east–west**,
+with the mean between them; the scatter over the window is **6.831 m**,
+against 0.2–3 m in every shorter run. A still antenna gives one cloud,
+so the solution jumped between two states. A change of broadcast
+ephemeris or of the satellite set is the likeliest cause, but that is
+a guess until checked. To find it: the GUI's Self-position window over
+the same hours, saved with **S** — the JSON carries every plotted point
+with its time, which places the jump, and the snapshot's satellite
+count and PDOP around it. Release waits for an explanation: a scatter
+figure that our own solver may have made is not one to publish.
+
+**Still to do:**
+- **The two clusters**, above.
+- **The two degradations:** whether the report already records when
+  and which KPI, and the card only does not show it.
+- **Release:** P7 waits for pro's production access and the listing
+  sentence (*The gate*, above).
+
 ### P8 — say so
 
 Split by the decision above.
@@ -966,6 +1110,16 @@ comparison — what the solve refuses, the reversed-rate finding, the
 schema change, and three fixes found on the way. No listing text
 changed: both Play listings still say the app "does not compute a
 position", and on Android that is still true.
+
+**Phone half, 2026-10-13, with P7:** `design/feature-matrix.md`'s
+Self-position row goes pro ⋯ → ●, and the hand-over row and both gate
+descriptions name the analysis tabs; `android/design/editions.md`
+gains rows for self-position and the hand-over view;
+`android/design/views.md` gains §4 Self-position and §5 Reference
+position; `changelog.md`'s `[Unreleased]` gains the Android entry with
+the phone-against-GUI comparison. **Still the author's, at release:**
+the listing sentence on both editions (`play-listing.md`, pending
+section) and the wiki's pro pages.
 
 ## What this will not claim
 

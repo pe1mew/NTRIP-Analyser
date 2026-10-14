@@ -114,7 +114,23 @@ internal fun runColour(v: RunVerdict): Color = when (v) {
  * one level and an enum cannot express "go back". */
 
 /** Which analysis view is showing. */
-enum class AnalysisTab { SKY, SIGNAL, ELEVATION }
+/**
+ * The analysis views, in tab order. SELFPOS and REFPOS are last and
+ * pro's only ([Features.HAS_SELFPOS], [Features.HAS_HANDOVER]);
+ * [analysisTabs] is the list an edition shows, and since the pro tabs
+ * are last every other tab keeps its ordinal as its page index in both
+ * editions.
+ */
+enum class AnalysisTab { SKY, SIGNAL, ELEVATION, SELFPOS, REFPOS }
+
+/** The tabs this edition shows, in order. */
+val analysisTabs: List<AnalysisTab> = AnalysisTab.entries.filter {
+    when (it) {
+        AnalysisTab.SELFPOS -> Features.HAS_SELFPOS
+        AnalysisTab.REFPOS -> Features.HAS_HANDOVER
+        else -> true
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -641,6 +657,13 @@ fun MainScreen() {
             // Free passes none, so its canvas draws exactly what it did.
             tracks = if (Features.HAS_TRACKS) tracks else null,
             trackRevision = trackRevision,
+            // The panel draws its own view, as it drew its detail
+            // screen; the tab only gives it a page.
+            refPos = {
+                HandoverPanel.View(
+                    HubState(runState, settings, rinexName, rinexAgeS,
+                             plotted.size - usedOrbits))
+            },
         )
         return
     }

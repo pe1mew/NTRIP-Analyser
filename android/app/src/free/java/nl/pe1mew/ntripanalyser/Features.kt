@@ -51,6 +51,10 @@ object Features {
     /** A two-minute check can never out-wait tier 2's ten-minute floor. */
     const val HAS_TIER2 = false
 
+    /** No self-position screen, and no trail kept for one. The solve
+     *  still runs in the shared core; free shows less, never different. */
+    const val HAS_SELFPOS = false
+
     const val MAX_MOUNTPOINTS = 1
 
     /**

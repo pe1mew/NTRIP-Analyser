@@ -17,7 +17,8 @@ KPIs, produce a verdict. It answers *does this station meet the basic
 KPIs for RTK service?* and then stops.
 
 **Analysis mode** is everything else — the sky view, the signal-quality
-bars, C/N0 against elevation. It answers *what is this station actually
+bars, C/N0 against elevation, and in pro the station's self-position and
+its reference position. It answers *what is this station actually
 doing?*
 
 | | Free | Pro |
@@ -45,6 +46,9 @@ satellite, positioned by azimuth and elevation.
 
 Three views, shared by both editions. The layout and the drawing are the
 same in free and pro; only *when* and *how often* they are drawn differs.
+Pro adds two more after them — §4 Self-position and §5 Reference
+position — as tabs of the same screen, so pro's tab row scrolls where
+free's three share the width.
 
 ## 1. Sky view — satellites, not sectors
 
@@ -285,6 +289,51 @@ receiver.
 
 Requires elevation per sample, so it depends on the same position source
 as the sky view.
+
+## 4. Self-position — pro only
+
+Where the station's **own** observations put it, against the position it
+broadcasts: GPS-only, dual-frequency, single-point, every epoch, from
+the core's solver (`src/core/spp.c`), the same one the GUI and the
+daemon run. The plan and the measurements are in
+[`station-self-position.md`](../../design/work-items/station-self-position.md), P7.
+
+- **Figures, no verdict**, from the core's report over the tier-2
+  window: epochs solved, mean offset E/N/U on one line, scatter about
+  the mean, worst code residual, median apparent motion. No threshold
+  for a station's own scatter has been established from evidence.
+- **The state is the core's** — solved, gathering, not computable
+  (single-frequency) or not solved — so the phone cannot disagree with
+  the GUI about which applies.
+- **The plot** is east/north about the ARP, square at the screen's full
+  width, the ARP fixed at the centre: self-centring would hide the
+  offset. Ring radius by the desktop's 1-2-5 rule. Labels sit on a patch
+  of the page over the trail; the mean and the latest epoch on top.
+- **The legend draws each mark with the plot's own function**, so it
+  does not rest on colour.
+- **The latest epoch** is one line under the plot, labelled as a
+  diagnostic; *REVERSED* appears only when the station's receiver
+  encodes its range rates backwards.
+
+The solve runs in free as well — a measurement is never gated by
+edition — but nothing draws it there.
+
+## 5. Reference position — pro only
+
+Where the service's reference position stands relative to the rover,
+and where it has been this run: the desktop's VRS monitor, redrawn. The
+rover at the centre, the ARP at its true bearing with the radius scaled
+to fit, earlier positions as faint joined dots — a hand-over reads as a
+jump — and the last five minutes of distance as a strip chart beneath.
+The summary names the distance in A3's usability colours and the
+hand-over count in what the service *is*: a network's moves are its
+job, a fixed base's are a fault. The largest jump between positions
+appears once there has been one.
+
+It was a hub card with a detail screen until 2026-10-12, and moved
+here with Self-position: both are views of a station over the run, not
+checks
+([`handover-on-the-phone.md`](../../design/work-items/handover-on-the-phone.md), H8).
 
 ## What the stream itself decides about these plots
 
