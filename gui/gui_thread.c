@@ -73,12 +73,16 @@ DWORD WINAPI WorkerGetMountpoints(LPVOID param)
 {
     AppState *state = (AppState *)param;
 
-    char *mount_table = receive_mount_table(&state->config,
-                            NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI));
+    /* Whole, or not at all: a list cut short filled the list as though
+     * it were the caster's (mountpoint-map.md, 2026-10-13). */
+    NsFailure why = NS_FAIL_NONE;
+    char *mount_table = receive_mount_table_whole(&state->config,
+                            NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI), &why, NULL);
 
-    /* Post result to UI thread: wParam=0 success, 1 error; lParam=heap string */
+    /* Post result to UI thread: wParam=0 success, 1 + NsFailure on an
+     * error, so the log can say which; lParam=heap string */
     PostMessage(state->hMain, WM_APP_MOUNT_RESULT,
-                (WPARAM)(mount_table ? 0 : 1),
+                (WPARAM)(mount_table ? 0 : 1 + (int)why),
                 (LPARAM)mount_table);
 
     return 0;
@@ -672,8 +676,12 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
         printf("[INFO] No sourcetable entry for this mountpoint; fetching...\n");
         fflush(stdout);
 
-        char *table = receive_mount_table(&state->config,
-                          NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI));
+        /* Whole, or not at all: in a list cut short this mountpoint may
+         * simply not have been reached, and "not listed" would be a
+         * finding about the transfer, not the caster. */
+        NsFailure st_why = NS_FAIL_NONE;
+        char *table = receive_mount_table_whole(&state->config,
+                          NTRIP_USER_AGENT(NTRIP_ARTEFACT_GUI), &st_why, NULL);
         if (table) {
             if (SourcetableFindMountpoint(table, state->config.MOUNTPOINT,
                                           state->sourceFormat,
@@ -696,8 +704,9 @@ DWORD WINAPI WorkerOpenStream(LPVOID param)
              * rather than throwing it away.  The UI thread frees it. */
             PostMessage(state->hMain, WM_APP_SOURCETABLE, 0, (LPARAM)table);
         } else {
-            printf("[WARN] Could not fetch sourcetable; no advertised-vs-observed "
-                   "comparison available.\n");
+            printf("[WARN] Could not fetch sourcetable (%s); no advertised-vs-observed "
+                   "comparison available.\n",
+                   st_why != NS_FAIL_NONE ? ns_failure_short(st_why) : "no list");
         }
         fflush(stdout);
     }

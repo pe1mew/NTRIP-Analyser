@@ -5,7 +5,9 @@ The mountpoint map (design/work-items/mountpoint-map.md) is drawn over
 outlines the program carries itself, so it needs no tile server, no key
 and no network for the map underneath. This turns two Natural Earth
 1:50m GeoJSON files into gui/basemap_ne50m.js, which the GUI compiles in
-as a resource and writes beside the page.
+as a resource and writes beside the page, and into the same outlines as
+android/app/src/main/assets/basemap_ne50m.bin for the phone's map
+(mountpoint-map.md, M6b) -- one run, one rounding, both files.
 
 Natural Earth is public domain: "All versions of Natural Earth raster +
 vector map data found on this website are in the public domain", and
@@ -39,9 +41,13 @@ file is stable under git and diffs show what changed.
 """
 import json
 import os
+import struct
 import sys
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "gui", "basemap_ne50m.js")
+HERE = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(HERE, "..", "gui", "basemap_ne50m.js")
+OUT_BIN = os.path.join(HERE, "..", "android", "app", "src", "main", "assets",
+                       "basemap_ne50m.bin")
 VERSION = "5.1.2"
 
 
@@ -62,6 +68,48 @@ def flat(coords):
     return out
 
 
+def milli(s):
+    """A rounded coordinate as integer thousandths: exact, because `num`
+    has already rounded it to three decimals."""
+    neg = s.startswith("-")
+    whole, _, frac = s.lstrip("-").partition(".")
+    v = int(whole) * 1000 + int((frac + "000")[:3])
+    return -v if neg else v
+
+
+def write_bin(polys, blines):
+    """The same outlines for the Android app, as an asset it reads
+    without a JSON parser: `android/app/src/main/assets/basemap_ne50m.bin`.
+
+    Little-endian throughout:
+
+        "NEBM"  u8 format (1)  u8 n + n ASCII bytes: Natural Earth release
+        u32 polygons, each:  u16 rings, each:  u32 points, then per point
+                                               i32 lon, i32 lat
+        u32 border lines, each:  u8 class  u32 points, then per point
+                                           i32 lon, i32 lat
+
+    Coordinates are the JS file's own three-decimal values, as integer
+    thousandths of a degree, so the phone and the GUI draw the same
+    outlines. Class is as in the JS: 0 international, 1 otherwise.
+    """
+    out = bytearray(b"NEBM")
+    out += struct.pack("<BB", 1, len(VERSION)) + VERSION.encode("ascii")
+    out += struct.pack("<I", len(polys))
+    for rings in polys:
+        out += struct.pack("<H", len(rings))
+        for r in rings:
+            out += struct.pack("<I", len(r) // 2)
+            out += struct.pack("<%di" % len(r), *(milli(v) for v in r))
+    out += struct.pack("<I", len(blines))
+    for cls, pts in blines:
+        out += struct.pack("<BI", cls, len(pts) // 2)
+        out += struct.pack("<%di" % len(pts), *(milli(v) for v in pts))
+    with open(OUT_BIN, "wb") as f:
+        f.write(out)
+    print("%s: %d bytes" % (os.path.normpath(OUT_BIN), len(out)))
+
+
 def main(folder):
     with open(os.path.join(folder, "ne_50m_land.geojson"), encoding="utf-8") as f:
         land = json.load(f)
@@ -77,7 +125,7 @@ def main(folder):
         "var NE_BASEMAP = {\"version\":\"%s\",\"land\":[\n" % VERSION,
     ]
 
-    polys = []
+    polys, poly_rings = [], []
     for feat in land["features"]:
         g = feat["geometry"]
         for poly in (g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]):
@@ -85,9 +133,10 @@ def main(folder):
             rings = [r for r in rings if len(r) >= 6]     # three points or more
             if rings:
                 polys.append("[" + ",".join("[" + ",".join(r) + "]" for r in rings) + "]")
+                poly_rings.append(rings)
     lines.append(",\n".join(polys) + "\n],\"borders\":[\n")
 
-    blines = []
+    blines, border_pts = [], []
     for feat in borders["features"]:
         cls = 0 if feat["properties"].get("FEATURECLA") == "International boundary (verify)" else 1
         g = feat["geometry"]
@@ -95,7 +144,9 @@ def main(folder):
             pts = flat(line)
             if len(pts) >= 4:
                 blines.append("[%d,[%s]]" % (cls, ",".join(pts)))
+                border_pts.append((cls, pts))
     lines.append(",\n".join(blines) + "\n]};\n")
+    write_bin(poly_rings, border_pts)
 
     text = "".join(lines)
     text.encode("ascii")    # fails loudly if anything non-ASCII slipped in

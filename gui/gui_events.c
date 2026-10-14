@@ -4105,10 +4105,20 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             snprintf(logmsg, sizeof(logmsg), "%d mountpoints", count);
             SendMessage(state->hStatusBar, SB_SETTEXT, 1, (LPARAM)logmsg);
         } else {
-            /* Error */
-            AppendLog(state->hEditLog,
-                "[ERROR] Failed to retrieve mountpoint list. "
-                "Check caster, port, and credentials.\r\n");
+            /* Error: wParam is 1 + the NsFailure, when there is one. */
+            char reason[256], logmsg[320];
+            if (wParam > 1 &&
+                ns_failure_text(reason, sizeof(reason), (NsFailure)(wParam - 1),
+                                state->config.NTRIP_CASTER, state->config.NTRIP_PORT,
+                                state->config.MOUNTPOINT) > 0) {
+                snprintf(logmsg, sizeof(logmsg),
+                         "[ERROR] Failed to retrieve mountpoint list: %s\r\n", reason);
+                AppendLog(state->hEditLog, logmsg);
+            } else {
+                AppendLog(state->hEditLog,
+                    "[ERROR] Failed to retrieve mountpoint list. "
+                    "Check caster, port, and credentials.\r\n");
+            }
             SendMessage(state->hStatusBar, SB_SETTEXT, 0, (LPARAM)"Error");
         }
 

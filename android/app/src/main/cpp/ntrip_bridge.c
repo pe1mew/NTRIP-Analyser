@@ -15,6 +15,8 @@
 #include "core/station_class.h"
 #include "core/station_report.h"
 #include "core/sourcetable.h"
+#include "core/sourcetable_map.h" /* kind names, script-safe quoting */
+#include "core/geo.h"
 #include "core/rtcm3x_parser.h"  /* eph decoders, ARP, output sink */
 #include "core/sky_collect.h"
 #include "core/sky_render.h"
@@ -53,8 +55,14 @@
  *
  * receive_mount_table() bounds the download at 4 MB; this bounds what
  * that can turn into in memory (~800 bytes an entry).
+ *
+ * 4096 was the same mistake again: onocoy lists over 6100 mountpoints
+ * (6123 in the M1 sample, mountpoint-map.md), so the phone's list of it
+ * silently lacked a third, found while measuring M6a (2026-10-13).
+ * 16384 is room for the largest caster measured, two and a half times
+ * over, at about 13 MB held only while the table is converted.
  */
-#define BRIDGE_MAX_ENTRIES 4096
+#define BRIDGE_MAX_ENTRIES 16384
 
 /**
  * @brief Parse a sourcetable into a right-sized array.
@@ -77,6 +85,26 @@ static SourcetableEntry *bridge_parse_table(const char *raw, int *count)
 
     *count = sourcetable_parse(raw, e, n);
     return e;
+}
+
+/**
+ * @brief A whole sourcetable, or none and why: receive_mount_table_whole,
+ *        the fetch the CLI and the GUI make, with its asking logged here
+ *        because Android drops the stderr it warns on.
+ *
+ * @param why [out] The last attempt's reason; may be NULL.
+ */
+static char *bridge_fetch_table(const NTRIP_Config *cfg, NsFailure *why)
+{
+    NsFailure w = NS_FAIL_NONE, first = NS_FAIL_NONE;
+    char *raw = receive_mount_table_whole(cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB),
+                                          &w, &first);
+    if (first != NS_FAIL_NONE)
+        BLOG("sourcetable from %s:%d %s; asked once more: %s",
+             cfg->NTRIP_CASTER, cfg->NTRIP_PORT, ns_failure_name(first),
+             raw ? "whole" : ns_failure_name(w));
+    if (why) *why = w;
+    return raw;
 }
 
 static void bridge_on_event(const NsEvent *ev, void *user);
@@ -382,11 +410,12 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
     /* What this mountpoint promises, so KPI 8 has something to compare
      * against.  One extra request at open; without it the comparison
      * reports "cannot judge" rather than a false pass. */
-    char *table = receive_mount_table(&opt.config,
-                                      NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
+    NsFailure st_why = NS_FAIL_NONE;
+    char *table = bridge_fetch_table(&opt.config, &st_why);
     if (!table) {
-        BLOG("sourcetable fetch failed for %s:%d; KPI 8 cannot judge",
-             opt.config.NTRIP_CASTER, opt.config.NTRIP_PORT);
+        BLOG("sourcetable fetch failed for %s:%d: %s; KPI 8 cannot judge",
+             opt.config.NTRIP_CASTER, opt.config.NTRIP_PORT,
+             ns_failure_name(st_why));
     }
     if (table) {
         int n = 0;
@@ -802,11 +831,102 @@ void bridge_close(NtripBridge *b)
     free(b);
 }
 
-int bridge_sourcetable_json(const char *caster, int port,
-                            const char *user, const char *password,
-                            bool tls, char *out, size_t cap)
+/** Whether @p raw holds any entry -- a refusal for want of one is final. */
+static bool bridge_has_entries(const char *raw)
 {
-    if (!out || cap < 32) return -1;
+    return raw && sourcetable_parse(raw, NULL, 0) > 0;
+}
+
+/**
+ * Append @p s as a quoted JSON string, by the core's rule. Where
+ * app_escaped() passes control characters and invalid UTF-8 through --
+ * enough for the bridge's own literals, not for a caster's text.
+ */
+static void app_quoted(char *out, size_t cap, int *pos, const char *s)
+{
+    if (*pos < 0 || (size_t)*pos >= cap) return;
+    size_t room = cap - (size_t)*pos;
+    long n = map_json_quote(s, out + *pos, room);
+    if (n < 0 || (size_t)n >= room) { *pos = -1; return; }
+    *pos += (int)n;
+}
+
+int bridge_sourcetable_to_json(const char *raw,
+                               double origin_lat, double origin_lon,
+                               char *out, size_t cap)
+{
+    if (!raw || !out || cap < 32) return -1;
+
+    /* Nothing parsed is a failure, as it always was here: an error page
+     * in place of a table parses to nothing too, and the two cannot be
+     * told apart. */
+    int n = 0;
+    SourcetableEntry *e = bridge_parse_table(raw, &n);
+    if (!e) return -1;
+    const bool origin = sourcetable_pos_usable(origin_lat, origin_lon);
+
+    int pos = 0;
+    app(out, cap, &pos, "{\"entries\":[");
+    for (int i = 0; i < n; i++) {
+        const SourcetableEntry *x = &e[i];
+        const bool usable = sourcetable_pos_usable(x->latitude, x->longitude);
+        char why[160];
+        SourcetableKind kind = sourcetable_kind(x, why, sizeof(why));
+
+        app(out, cap, &pos, "%s{\"mountpoint\":", i ? "," : "");
+        app_quoted(out, cap, &pos, x->mountpoint);
+        app(out, cap, &pos, ",\"identifier\":");
+        app_quoted(out, cap, &pos, x->identifier);
+        app(out, cap, &pos, ",\"format\":");
+        app_quoted(out, cap, &pos, x->format);
+        app(out, cap, &pos, ",\"nav_systems\":");
+        app_quoted(out, cap, &pos, x->nav_systems);
+        app(out, cap, &pos, ",\"network\":");
+        app_quoted(out, cap, &pos, x->network);
+        app(out, cap, &pos, ",\"country\":");
+        app_quoted(out, cap, &pos, x->country);
+        /* "nan" is not a JSON number; an unusable position is written
+         * as 0,0 and flagged, so nothing reads it as a place. */
+        app(out, cap, &pos,
+            ",\"lat\":%.5f,\"lon\":%.5f,\"carrier\":%d,\"nmea\":%s",
+            usable ? x->latitude : 0.0, usable ? x->longitude : 0.0,
+            x->carrier, x->nmea ? "true" : "false");
+        app(out, cap, &pos, ",\"kind\":\"%s\",\"kind_why\":",
+            sourcetable_kind_name(kind));
+        app_quoted(out, cap, &pos, why);
+        app(out, cap, &pos, ",\"usable\":%s", usable ? "true" : "false");
+        if (origin && usable) {
+            app(out, cap, &pos, ",\"distance_m\":%.1f,\"bearing_deg\":%.1f}",
+                geo_distance_m(origin_lat, origin_lon, x->latitude, x->longitude),
+                geo_bearing_deg(origin_lat, origin_lon, x->latitude, x->longitude));
+        } else {
+            app(out, cap, &pos, ",\"distance_m\":null,\"bearing_deg\":null}");
+        }
+    }
+    app(out, cap, &pos, "]}");
+
+    free(e);
+    if (pos < 0 || (size_t)pos >= cap) {   /* refused, never cut */
+        out[0] = '\0';
+        return -1;
+    }
+    return pos;
+}
+
+/* Where the document's buffer starts and how far it may grow: onocoy's
+ * table came to 1.26 MB at 4096 entries once M6a added the core's
+ * figures, past the 1 MB the JNI glue used to allocate. ~310 bytes an
+ * entry at BRIDGE_MAX_ENTRIES is about 5 MB, inside the ceiling. */
+#define BRIDGE_ST_JSON_START  (256u * 1024u)
+#define BRIDGE_ST_JSON_MAX    (32u * 1024u * 1024u)
+
+char *bridge_sourcetable_json(const char *caster, int port,
+                              const char *user, const char *password,
+                              bool tls, double origin_lat, double origin_lon,
+                              int *len, int *fail)
+{
+    if (len) *len = -1;
+    if (fail) *fail = NS_FAIL_NONE;
 
     NTRIP_Config cfg;
     memset(&cfg, 0, sizeof(cfg));
@@ -816,37 +936,42 @@ int bridge_sourcetable_json(const char *caster, int port,
     cfg.NTRIP_PORT = port;
     cfg.TLS        = tls;
 
-    char *raw = receive_mount_table(&cfg, NTRIP_USER_AGENT(NTRIP_ARTEFACT_LIB));
-    if (!raw) return -1;
-
-    int n = 0;
-    SourcetableEntry *e = bridge_parse_table(raw, &n);
-    free(raw);
-    if (!e) return -1;
-
-    int pos = 0;
-    app(out, cap, &pos, "{\"entries\":[");
-    for (int i = 0; i < n; i++) {
-        app(out, cap, &pos, "%s{\"mountpoint\":\"", i ? "," : "");
-        app_escaped(out, cap, &pos, e[i].mountpoint);
-        app(out, cap, &pos, "\",\"identifier\":\"");
-        app_escaped(out, cap, &pos, e[i].identifier);
-        app(out, cap, &pos, "\",\"format\":\"");
-        app_escaped(out, cap, &pos, e[i].format);
-        app(out, cap, &pos, "\",\"nav_systems\":\"");
-        app_escaped(out, cap, &pos, e[i].nav_systems);
-        app(out, cap, &pos, "\",\"country\":\"");
-        app_escaped(out, cap, &pos, e[i].country);
-        app(out, cap, &pos,
-            "\",\"lat\":%.5f,\"lon\":%.5f,\"carrier\":%d,\"nmea\":%s}",
-            e[i].latitude, e[i].longitude, e[i].carrier,
-            e[i].nmea ? "true" : "false");
+    /* Why, not only whether: onocoy's list failed now and then on the
+     * phone while the reason went to stderr, which Android drops, and
+     * the app said "could not reach" for every cause (2026-10-13). */
+    NsFailure why = NS_FAIL_NONE;
+    char *raw = bridge_fetch_table(&cfg, &why);
+    if (!raw) {
+        BLOG("sourcetable fetch failed for %s:%d: %s", cfg.NTRIP_CASTER, port,
+             ns_failure_name(why));
+        if (fail) *fail = why;
+        return NULL;
     }
-    app(out, cap, &pos, "]}");
+    /* A refusal with no list in it -- 401, a web page -- came back above
+     * as NULL with its reason; receive_mount_table_whole decides. */
 
-    free(e);
-    if (pos < 0 || (size_t)pos >= cap) return -1;   /* truncated */
-    return pos;
+    /* The writer refuses rather than cuts, so a refusal with a bigger
+     * buffer still to try means "too small": grow and write again from
+     * the same table, never fetch it twice. A refusal at the ceiling is
+     * a failure, as an unreachable caster is. */
+    char *out = NULL;
+    int n = -1;
+    for (size_t cap = BRIDGE_ST_JSON_START; cap <= BRIDGE_ST_JSON_MAX; cap *= 2) {
+        char *grown = (char *)realloc(out, cap);
+        if (!grown) break;
+        out = grown;
+        n = bridge_sourcetable_to_json(raw, origin_lat, origin_lon, out, cap);
+        if (n >= 0) break;
+        if (!bridge_has_entries(raw)) break;   /* nothing to grow for */
+    }
+    if (n < 0)
+        BLOG("sourcetable from %s:%d: %zu bytes received, no document "
+             "(%d entries parsed)", cfg.NTRIP_CASTER, port, strlen(raw),
+             sourcetable_parse(raw, NULL, 0));
+    free(raw);
+    if (n < 0) { free(out); return NULL; }
+    if (len) *len = n;
+    return out;
 }
 
 /* ── Sky coverage ─────────────────────────────────────────────────────

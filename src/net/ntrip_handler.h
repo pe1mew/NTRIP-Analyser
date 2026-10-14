@@ -23,6 +23,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include "core/ns_failure.h"   /* NsFailure, for receive_mount_table_ex */
 #ifndef NTRIP_HANDLER_H
 #define NTRIP_HANDLER_H
 
@@ -158,6 +159,57 @@ bool base64_encode_n(const char *input, char *output, size_t out_cap);
  * @return Pointer to the mount table string (must be freed by caller), or NULL on error.
  */
 char* receive_mount_table(const NTRIP_Config *config, const char *agent);
+
+/**
+ * @brief @ref receive_mount_table, saying why it failed.
+ *
+ * The same fetch. @p why says what happened, in the vocabulary every
+ * stream failure uses:
+ * - no connection: the transport's own reason (DNS, refused,
+ *   unreachable, timeout, TLS);
+ * - the request could not be sent, or the connection closed before a
+ *   byte arrived: @ref NS_FAIL_DROPPED;
+ * - twenty seconds of silence and nothing: @ref NS_FAIL_STALLED;
+ * - an answer: @ref ns_proto_sourcetable_answer of it -- the text is
+ *   still returned, so a caller can show what the caster said;
+ * - an answer that says yes and stops before `ENDSOURCETABLE`: part of
+ *   a list, not a list -- @ref NS_FAIL_STALLED after silence,
+ *   @ref NS_FAIL_DROPPED after a close, @ref NS_FAIL_REJECTED past the
+ *   4 MB ceiling. The part is returned; a caller that wants whole lists
+ *   only (the Android bridge) refuses it.
+ *
+ * Added because the Android app said "Could not reach the caster" for
+ * all of these while the reason went to stderr, which Android drops
+ * (mountpoint-map.md, M6c).
+ *
+ * @param why [out] @ref NsFailure; NS_FAIL_NONE for a sourcetable
+ *            answered properly. May be NULL.
+ */
+char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
+                             NsFailure *why);
+
+/**
+ * @brief A whole sourcetable, or none and why. What every frontend
+ *        that shows or uses a list calls.
+ *
+ * @ref receive_mount_table_ex, asked once more after a silence or a
+ * list cut short -- onocoy did both on 2026-10-13, and once a phone
+ * drew 12 of its ~5900 mountpoints as all there were
+ * (design/work-items/mountpoint-map.md). Then:
+ * - a list still cut short: NULL, @p why stalled or dropped;
+ * - a refusal with no list in it (401, a web page): NULL, @p why its
+ *   reason;
+ * - a whole list: the text, @p why NS_FAIL_NONE (or the status line's
+ *   complaint, when the caster sent a list all the same).
+ *
+ * @param why   [out] The last attempt's reason; may be NULL.
+ * @param first [out] The first attempt's reason when it was asked
+ *              again, NS_FAIL_NONE when once was enough; may be NULL.
+ *              For a log line, so a second asking is never invisible.
+ * @return The table, freed by the caller, or NULL.
+ */
+char* receive_mount_table_whole(const NTRIP_Config *config, const char *agent,
+                                NsFailure *why, NsFailure *first);
 
 
 

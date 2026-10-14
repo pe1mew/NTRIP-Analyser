@@ -208,7 +208,7 @@ internal fun SettingsDialog(
             hint = when {
                 entry == null ->
                     context.getString(R.string.station_lookup_failed, mp)
-                entry.lat == 0.0 && entry.lon == 0.0 ->
+                !entry.usable ->
                     context.getString(R.string.station_lookup_no_pos, mp)
                 else -> {
                     lat = show(entry.lat)
@@ -592,6 +592,64 @@ private fun NoticesDialog(onDismiss: () -> Unit) {
 }
 
 /**
+ * A caster's sourcetable, fetched and decoded off the main thread: the
+ * one loader the list and the mountpoint map share.
+ *
+ * Distance and bearing in each entry are the core's, from
+ * [originLat], [originLon]; NaN for none.
+ *
+ * Fails with a [SourcetableFailure] carrying the bridge's reason when it
+ * returned nothing, or with the decoder's exception -- and
+ * [sourcetableFailureText] words either, so the list and the map say
+ * the same thing about the same fault.
+ */
+/** A sourcetable that did not come, and why: a [Failure] code. */
+internal class SourcetableFailure(val code: Int) : Exception("sourcetable failure $code")
+
+/**
+ * What to tell the user about a sourcetable that did not come.
+ *
+ * Before 2026-10-13 every cause read *"Could not reach the caster."*,
+ * which was wrong for most of them -- a refused password, a busy caster
+ * and a dropped connection are three different things to do something
+ * about. The connection's reason uses the app's failure sentences
+ * ([failureSentence]); a caster that answered properly with no list,
+ * and a list the app could not read, have their own.
+ */
+internal fun sourcetableFailureText(
+    context: android.content.Context, e: Throwable?, settings: CasterSettings,
+): String = when {
+    e is SourcetableFailure && e.code == Failure.NONE ->
+        context.getString(R.string.sourcetable_empty)
+    e is SourcetableFailure ->
+        failureSentence(context, e.code, settings)
+            ?: context.getString(R.string.sourcetable_failed)
+    else -> context.getString(R.string.sourcetable_unreadable)
+}
+
+internal suspend fun fetchSourcetable(
+    settings: CasterSettings,
+    originLat: Double = Double.NaN,
+    originLon: Double = Double.NaN,
+): Result<List<SourceEntry>> = withContext(Dispatchers.IO) {
+    val why = IntArray(1)
+    val json = NtripBridge.sourcetable(
+        settings.caster, settings.port, settings.user,
+        settings.password, settings.tls, originLat, originLon, why,
+    )
+    if (json == null) {
+        android.util.Log.i("ntrip_android", "sourcetable: bridge returned nothing, failure ${why[0]}")
+        Result.failure(SourcetableFailure(why[0]))
+    } else {
+        runCatching { bridgeJson.decodeFromString<Sourcetable>(json).entries }
+            .onFailure {
+                android.util.Log.w("ntrip_android",
+                    "sourcetable: ${json.length} chars did not decode: ${it.message}")
+            }
+    }
+}
+
+/**
  * A caster's mountpoint list.
  *
  * Fetching blocks on the network, so it runs on Dispatchers.IO; the
@@ -612,21 +670,12 @@ internal fun SourcetableDialog(
     var entries by remember { mutableStateOf<List<SourceEntry>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(settings.caster, settings.port) {
-        val json = withContext(Dispatchers.IO) {
-            NtripBridge.sourcetable(
-                settings.caster, settings.port, settings.user,
-                settings.password, settings.tls,
-            )
-        }
-        if (json == null) {
-            error = "unreachable"
-        } else {
-            runCatching { bridgeJson.decodeFromString<Sourcetable>(json) }
-                .onSuccess { entries = it.entries }
-                .onFailure { error = it.message }
-        }
+        fetchSourcetable(settings)
+            .onSuccess { entries = it }
+            .onFailure { error = sourcetableFailureText(context, it, settings) }
     }
 
     AlertDialog(
@@ -636,7 +685,7 @@ internal fun SourcetableDialog(
             Column {
                 when {
                     error != null -> Text(
-                        stringResource(R.string.sourcetable_failed),
+                        error.orEmpty(),
                         color = MaterialTheme.colorScheme.error,
                     )
                     entries == null -> Row(verticalAlignment = Alignment.CenterVertically) {

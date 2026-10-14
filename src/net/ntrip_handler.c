@@ -5,6 +5,7 @@
 #include "core/nmea_parser.h"
 #include "core/rtcm3x_parser.h"
 #include "core/version.h"
+#include "core/sourcetable.h"   /* receive_mount_table_whole: is there a list? */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -173,6 +174,12 @@ static void dechunk_in_place(char *buf, size_t *len)
 }
 
 char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
+    return receive_mount_table_ex(config, agent, NULL);
+}
+
+char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
+                             NsFailure *why) {
+    if (why) *why = NS_FAIL_NONE;
     if (!config) {
         fprintf(stderr, "[ERROR] Config pointer is NULL.\n");
         return NULL; // -1
@@ -199,6 +206,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
             fprintf(stderr, "TLS failed: %s\n", ns_failure_short(fail));
         else
             fprintf(stderr, "Connection failed\n");
+        if (why) *why = fail != NS_FAIL_NONE ? fail : NS_FAIL_UNREACHABLE;
         return NULL; // -4
     }
 
@@ -236,6 +244,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
     if (ns_transport_send(t, request, (int)strlen(request)) <= 0) {
         fprintf(stderr, "[ERROR] Failed to send mountpoint list request\n");
         ns_transport_close(t);
+        if (why) *why = NS_FAIL_DROPPED;
         return NULL; // -5
     }
 
@@ -255,6 +264,8 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
      * text, where a straddle cannot hide. */
     int received;
     int quiet = 0;
+    bool ended = false;      /* ENDSOURCETABLE seen: the list is whole */
+    bool too_big = false;
     for (;;) {
         received = ns_transport_recv(t, (unsigned char *)buffer,
                                      (int)sizeof(buffer) - 1, 10000);
@@ -276,6 +287,7 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
                     "[WARN] Sourcetable exceeded %zu bytes; truncating. "
                     "A caster sending more than this is not serving a "
                     "mountpoint list.\n", MOUNT_TABLE_MAX);
+            too_big = true;
             break;
         }
         mount_table_size += received;
@@ -292,8 +304,29 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
          * be hundreds of kilobytes and this runs per read. */
         size_t from = old_size > 14 ? old_size - 14 : 0;
         if (strstr(mount_table + from, "ENDSOURCETABLE")) {
+            ended = true;
             break;
         }
+    }
+
+    /* Why, for a caller that asks: nothing at all is a connection closed
+     * (a read failed) or one left silent (twenty seconds of nothing);
+     * anything is the caster's answer, read from its status line before
+     * the body is touched. The text is returned either way, as before.
+     *
+     * An answer that says yes and stops before ENDSOURCETABLE is not a
+     * list but part of one: onocoy went silent mid-transfer, and the
+     * phone drew 12 of its ~5900 mountpoints as though that were all
+     * (2026-10-13). Six casters checked that day -- onocoy, Centipede,
+     * Kadaster, RTK2go, EUREF-IP, GEODNET -- all end a whole table with
+     * the line, as NTRIP requires. */
+    if (why) {
+        if (!mount_table)
+            *why = received < 0 ? NS_FAIL_DROPPED : NS_FAIL_STALLED;
+        else if ((*why = ns_proto_sourcetable_answer(mount_table)) == NS_FAIL_NONE
+                 && !ended)
+            *why = too_big ? NS_FAIL_REJECTED
+                 : received < 0 ? NS_FAIL_DROPPED : NS_FAIL_STALLED;
     }
 
     if (mount_table) {
@@ -303,6 +336,40 @@ char* receive_mount_table(const NTRIP_Config *config, const char *agent) {
 
     ns_transport_close(t);
     return mount_table; // 0 (success)
+}
+
+/* Part of a list: an answer that stopped before ENDSOURCETABLE. */
+static bool mount_table_cut_short(const char *raw, NsFailure w)
+{
+    return raw && (w == NS_FAIL_STALLED || w == NS_FAIL_DROPPED);
+}
+
+char* receive_mount_table_whole(const NTRIP_Config *config, const char *agent,
+                                NsFailure *why, NsFailure *first) {
+    NsFailure w = NS_FAIL_NONE;
+    if (first) *first = NS_FAIL_NONE;
+
+    char *raw = receive_mount_table_ex(config, agent, &w);
+    if ((!raw && w == NS_FAIL_STALLED) || mount_table_cut_short(raw, w)) {
+        fprintf(stderr, "[WARN] Sourcetable %s after %zu bytes; asking once more.\n",
+                ns_failure_name(w), raw ? strlen(raw) : (size_t)0);
+        if (first) *first = w;
+        free(raw);
+        raw = receive_mount_table_ex(config, agent, &w);
+    }
+
+    /* A list still cut short is refused: shown, it would say a caster
+     * has 12 mountpoints, and a check would call a mountpoint missing
+     * that was only not reached. An answer that refuses -- a 401, a web
+     * page -- and carries no list is refused with its own reason. One
+     * that carries a list is believed, whatever its status line. */
+    if (mount_table_cut_short(raw, w) ||
+        (raw && w != NS_FAIL_NONE && sourcetable_parse(raw, NULL, 0) <= 0)) {
+        free(raw);
+        raw = NULL;
+    }
+    if (why) *why = w;
+    return raw;
 }
 
 void extract_satellites(const unsigned char *data, int len, int msg_type, SatStatsSummary *summary) {

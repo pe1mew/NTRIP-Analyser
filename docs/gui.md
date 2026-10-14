@@ -198,7 +198,7 @@ What the markers mean, and what they do not:
 | Marker | Kind | How the sourcetable says so |
 |---|---|---|
 | Filled blue dot | Fixed base | Its solution field says single base |
-| Hollow orange ring | Network service | VRS, MAC, NEAR, FKP, IMAX or SSR in its details, network field or mountpoint name |
+| Hollow orange ring | Network service | VRS, MAC, NEAR, NRBY, FKP, IMAX or SSR in its details, network field or mountpoint name |
 | Small violet dot | Product, no station | It advertises only ephemerides, corrections and the like — nothing a station sends |
 | Grey dot, dotted edge | Unknown | The entry does not say. Includes entries whose solution field says *network* without naming a service: casters use that for products and for physical stations alike |
 

@@ -80,6 +80,44 @@ clipboard API, not when it refused it. In a browser that refused
 now share one routine that tries both ways of copying and says when
 neither worked.
 
+### Added — every mountpoint on a map (Android, both editions)
+
+**Map mountpoints…** beside **Browse mountpoints…** on the hub: the
+whole sourcetable on one screen, zoomed and panned, centred on the
+phone. Tap a mountpoint for what it is — kind and why, distance and
+bearing, whether it wants a GGA. Pro selects it there, as from the
+list; free is told what pro adds.
+
+**Drawn, not fetched.** An azimuthal equidistant map about the phone,
+in which a place's distance and bearing from the centre are true
+everywhere, so each mountpoint is placed by the core's own figures —
+the same ones the GUI's map shows — over Natural Earth's land and
+borders carried in the app (320 KB of the APK, measured). Nothing is
+fetched but the sourcetable, so the app's data-safety answer is
+unchanged. On the Huawei against onocoy: 5922 drawn and 4 without a
+usable position counted; NLDGELARN1 (Arnhem) placed 24.9 km at 185°
+where the core says 25.0 km at 185°.
+
+**Found on the way, and fixed for every frontend:**
+
+- **onocoy goes silent** when asked for its list, at the start or
+  part-way. Part-way, twenty seconds of silence was taken as the end:
+  the phone drew 12 of ~5900 mountpoints as though that were all. A
+  list that stops before `ENDSOURCETABLE` is now asked for once more
+  and never shown as whole — on the phone, in the CLI and in the GUI.
+  Eight openings on the Huawei: seven whole, one refused after both
+  askings stalled, the second after 302 400 bytes.
+- **"Could not reach the caster."** was the phone's answer to every
+  failure. The app, the CLI and the GUI now say which: no answer, a
+  refused password, a closed connection, silence.
+- **The phone's list of onocoy lacked about a third**: the bridge read
+  at most 4096 entries. Now 16384.
+- **A control character in a mountpoint name**, or a latitude written
+  `nan`, made the phone's list unreadable. The list now crosses with
+  the core's escaping.
+- **onocoy's `NRBY_*` services were called fixed bases.** `NRBY` joins
+  the network keywords, in the GUI and on the phone.
+
 ### Added — self-position: where the station's own data puts it
 
 The station broadcasts where it is, in 1005/1006. This works out where

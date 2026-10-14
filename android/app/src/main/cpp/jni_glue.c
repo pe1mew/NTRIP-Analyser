@@ -151,32 +151,46 @@ JNI_FN(nativeClose)(JNIEnv *env, jobject thiz, jlong handle)
     bridge_close((NtripBridge *)(intptr_t)handle);
 }
 
-JNIEXPORT jstring JNICALL
+/* Bytes, not a jstring: NewStringUTF takes *modified* UTF-8 by the JNI
+ * specification, and a caster's text is ordinary UTF-8 -- a four-byte
+ * character in a mountpoint name is outside what that call accepts.
+ * The app decodes the bytes as UTF-8 itself. */
+JNIEXPORT jbyteArray JNICALL
 JNI_FN(nativeSourcetable)(JNIEnv *env, jobject thiz,
                           jstring caster, jint port,
-                          jstring user, jstring password, jboolean tls)
+                          jstring user, jstring password, jboolean tls,
+                          jdouble originLat, jdouble originLon,
+                          jintArray failOut)
 {
     (void)thiz;
     const char *c_caster = str_in(env, caster);
     const char *c_user   = str_in(env, user);
     const char *c_pass   = str_in(env, password);
 
-    /* A national caster's table runs to tens of kilobytes. */
-    /* A 1200-mountpoint caster serialises to roughly 150 kB, and the
-     * builder refuses rather than truncates, which the app reports as
-     * an unreachable caster. Transient, freed below. */
-    const size_t cap = 1048576;
-    char *buf = (char *)malloc(cap);
-    jstring outv = NULL;
-
-    if (buf) {
-        int n = bridge_sourcetable_json(c_caster ? c_caster : "", (int)port,
+    /* The bridge sizes the document itself: a fixed 1 MB here refused
+     * onocoy's 1.26 MB once each entry carried the core's figures
+     * (M6a), which the app would have shown as an unreachable caster. */
+    int n = -1;
+    int fail = 0;
+    char *buf = bridge_sourcetable_json(c_caster ? c_caster : "", (int)port,
                                         c_user ? c_user : "",
                                         c_pass ? c_pass : "",
-                                        tls == JNI_TRUE, buf, cap);
-        if (n >= 0) outv = (*env)->NewStringUTF(env, buf);
-        free(buf);
+                                        tls == JNI_TRUE,
+                                        (double)originLat, (double)originLon,
+                                        &n, &fail);
+    /* Why it failed, for the app's own words (Failure.kt). */
+    if (failOut && (*env)->GetArrayLength(env, failOut) > 0) {
+        jint code = (jint)fail;
+        (*env)->SetIntArrayRegion(env, failOut, 0, 1, &code);
     }
+    jbyteArray outv = NULL;
+    if (buf && n >= 0) {
+        outv = (*env)->NewByteArray(env, (jsize)n);
+        if (outv)
+            (*env)->SetByteArrayRegion(env, outv, 0, (jsize)n,
+                                       (const jbyte *)buf);
+    }
+    free(buf);
 
     str_free(env, caster, c_caster);
     str_free(env, user, c_user);

@@ -872,8 +872,13 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
      * KPI has something to compare against.  Without it that KPI can
      * only report "cannot judge", and the run never reaches a verdict. */
     {
-        char *table = receive_mount_table(config,
-                                          NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI));
+        /* Whole, or not at all: in a list cut short the mountpoint may
+         * simply not have been reached, and KPI 8 would be judged on
+         * what was missing from the transfer, not from the caster. */
+        NsFailure why = NS_FAIL_NONE;
+        char *table = receive_mount_table_whole(config,
+                                          NTRIP_USER_AGENT(NTRIP_ARTEFACT_CLI),
+                                          &why, NULL);
         if (table) {
             int n = sourcetable_parse(table, NULL, 0);
             SourcetableEntry *e = (n > 0)
@@ -910,7 +915,8 @@ int cli_check(const NTRIP_Config *config, bool vrs_mode)
             }
             free(table);
         } else {
-            fprintf(stderr, "[CHECK] No sourcetable; KPI 8 cannot be judged\n");
+            fprintf(stderr, "[CHECK] No sourcetable (%s); KPI 8 cannot be judged\n",
+                    why != NS_FAIL_NONE ? ns_failure_short(why) : "no list");
         }
     }
 

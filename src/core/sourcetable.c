@@ -199,9 +199,12 @@ unsigned sourcetable_navsys_mask(const char *navsys)
 }
 
 /* Network-service keywords as they appear in the format-details and
- * network fields. */
+ * network fields, and (rule 2 of sourcetable_kind) in a mountpoint's
+ * name. NRBY is onocoy's: NRBY_ADV, NRBY_B12 and NRBY_B15 are
+ * nearest-base services, which their solution field calls single bases
+ * (sourcetable fetched 2026-10-13; mountpoint-map.md). */
 static const char *const k_network_keywords[] = {
-    "VRS", "MAC", "NEAR", "FKP", "IMAX", "SSR",
+    "VRS", "MAC", "NEAR", "NRBY", "FKP", "IMAX", "SSR",
 };
 
 /**

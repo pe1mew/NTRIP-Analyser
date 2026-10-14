@@ -607,6 +607,38 @@ fun MainScreen() {
         }
     }
 
+    // Taking a mountpoint from the sourcetable, by its list row or on
+    // the map: one path, so neither can set more or less than the other.
+    // The entry answers more than which mountpoint: whether it wants a
+    // GGA uplink at all, and where it is. Taking both is what makes
+    // "test as if standing at the station" the default rather than a
+    // position the user has to find and type.
+    val useEntry: (SourceEntry) -> Unit = { e ->
+        store = Settings.save(context, settings.copy(
+            mountpoint = e.mountpoint,
+            sendGga = e.nmea,
+            // The core's rule for a position, not 0,0 alone: a
+            // latitude of 400 is no place either (M6a).
+            latitude = if (e.usable) e.lat else settings.latitude,
+            longitude = if (e.usable) e.lon else settings.longitude,
+        ))
+    }
+
+    if (nav.current == Dest.MountMap) {
+        MountMapScreen(
+            settings = settings,
+            // Free sees the map and cannot take from it, as with the
+            // list: the information free, the workflow paid (D4).
+            onSelect = if (Features.SOURCETABLE_SELECTABLE) { e ->
+                useEntry(e)
+                nav.pop()
+            } else null,
+            onBack = { nav.pop() },
+            menu = menuActions,
+        )
+        return
+    }
+
     if (nav.current == Dest.Analysis) {
         AnalysisScreen(
             doc = liveDoc,
@@ -704,19 +736,7 @@ fun MainScreen() {
             settings = settings,
             onDismiss = { showSourcetable = false },
             onPick = { e ->
-                // The entry answers more than which mountpoint: whether
-                // it wants a GGA uplink at all, and where it is. Taking
-                // both is what makes "test as if standing at the
-                // station" the default rather than a position the user
-                // has to find and type.
-                store = Settings.save(context, settings.copy(
-                    mountpoint = e.mountpoint,
-                    sendGga = e.nmea,
-                    latitude = if (e.lat != 0.0 || e.lon != 0.0) e.lat
-                               else settings.latitude,
-                    longitude = if (e.lat != 0.0 || e.lon != 0.0) e.lon
-                                else settings.longitude,
-                ))
+                useEntry(e)
                 showSourcetable = false
             },
         )

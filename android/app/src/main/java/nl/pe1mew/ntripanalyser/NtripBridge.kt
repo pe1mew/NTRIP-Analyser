@@ -165,11 +165,22 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
          * **Blocking** - opens a connection and waits for the caster, so
          * call it off the main thread. Returns null when the caster
          * cannot be reached.
+         *
+         * Distance and bearing in the result are measured from
+         * [originLat], [originLon] by the core; leave them NaN for none.
+         * The bytes are decoded here, as UTF-8 -- see `jni_glue.c` for
+         * why they are not a jstring.
          */
         fun sourcetable(
             caster: String, port: Int, user: String, password: String,
             tls: Boolean = false,
-        ): String? = nativeSourcetable(caster, port, user, password, tls)
+            originLat: Double = Double.NaN, originLon: Double = Double.NaN,
+            /** Set to the [Failure] code when null is returned. */
+            failure: IntArray? = null,
+        ): String? =
+            nativeSourcetable(caster, port, user, password, tls, originLat, originLon,
+                              failure ?: IntArray(1))
+                ?.toString(Charsets.UTF_8)
 
         /** Open a session replaying a captured `.rtcm3` file. */
         fun openFile(path: String, watch: Boolean = false): NtripBridge? {
@@ -214,8 +225,9 @@ class NtripBridge private constructor(private var handle: Long) : AutoCloseable 
         @JvmStatic private external fun nativeOpenFile(path: String, watch: Boolean): Long
         @JvmStatic private external fun nativeSourcetable(
             caster: String, port: Int, user: String, password: String,
-            tls: Boolean,
-        ): String?
+            tls: Boolean, originLat: Double, originLon: Double,
+            failOut: IntArray,
+        ): ByteArray?
         @JvmStatic private external fun nativePump(h: Long, timeoutMs: Int, nowS: Double): Int
         @JvmStatic private external fun nativeSnapshotJson(h: Long): String?
         @JvmStatic private external fun nativeStatsCsv(h: Long): String?

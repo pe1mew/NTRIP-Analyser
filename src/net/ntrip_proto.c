@@ -239,3 +239,27 @@ bool ns_proto_parse_response(const char *header, NsHandshake *out)
     out->valid = true;
     return true;
 }
+
+NsFailure ns_proto_sourcetable_answer(const char *reply)
+{
+    if (!reply || !*reply) return NS_FAIL_DROPPED;
+
+    /* NTRIP 1 answers the list with a status line of its own. */
+    if (strncasecmp_local(reply, "SOURCETABLE", 11) == 0) {
+        const char *p = reply + 11;
+        while (*p == ' ') p++;
+        return atoi(p) == 200 ? NS_FAIL_NONE : NS_FAIL_REJECTED;
+    }
+
+    NsHandshake hs;
+    if (!ns_proto_parse_response(reply, &hs)) return NS_FAIL_NOT_NTRIP;
+    switch (hs.status) {
+        case 200:
+            return stristr_local(hs.content_type, "text/html")
+                ? NS_FAIL_NOT_NTRIP : NS_FAIL_NONE;
+        case 401: return NS_FAIL_AUTH;
+        case 409:
+        case 503: return NS_FAIL_BUSY;
+        default:  return NS_FAIL_REJECTED;
+    }
+}

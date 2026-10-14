@@ -56,6 +56,36 @@ contains.
 
 ==========================================
 
+Natural Earth 5.1.2 -- public domain
+
+Made with Natural Earth. Free vector and
+raster map data @ naturalearthdata.com.
+
+The land and border outlines under the
+Windows GUI's map pages and the Android
+app's mountpoint map are Natural Earth
+1:50m land and admin-0 boundary lines,
+carried as gui/basemap_ne50m.js and as the
+app's basemap_ne50m.bin, both written by
+tools/make_basemap.py, which records
+exactly what was taken and how.
+
+Natural Earth's primary authors are Tom
+Patterson and Nathaniel Vaughn Kelso. All
+Natural Earth data is in the public
+domain; no permission is needed and
+crediting the authors is unnecessary. It
+is credited here, and on the maps, all the
+same. The authors provide it as a public
+service and are not responsible for
+problems relating to its accuracy, content
+or design, or how it is used.
+
+Terms of use: https://www.naturalearthdata
+.com/about/terms-of-use/
+
+==========================================
+
 The following are used by the Android
 application and are licensed under the
 Apache License, Version 2.0.

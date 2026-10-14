@@ -341,6 +341,19 @@ if(NOT WIN32)
 endif()
 add_test(NAME bridge_vrs COMMAND test_bridge_vrs)
 
+# The sourcetable as the app receives it: the core's kind, usable flag,
+# distance and bearing per entry, and a document no caster's text can
+# make unreadable -- parsed back with cJSON as the app parses it
+# (mountpoint-map M6a).
+add_executable(test_bridge_sourcetable test/test_bridge_sourcetable.c
+               android/app/src/main/cpp/ntrip_bridge.c)
+target_include_directories(test_bridge_sourcetable PRIVATE android/app/src/main/cpp)
+target_link_libraries(test_bridge_sourcetable PRIVATE ntrip_session cjson)
+if(NOT WIN32)
+    target_link_libraries(test_bridge_sourcetable PRIVATE Threads::Threads)
+endif()
+add_test(NAME bridge_sourcetable COMMAND test_bridge_sourcetable)
+
 # Tier 2's three load-bearing decisions -- "not enough evidence" as a
 # verdict, live-only metrics absent rather than zero, and windows in
 # stream time so a replay reproduces exactly. Each would erode quietly
@@ -393,7 +406,7 @@ add_custom_target(test_all
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
             test_stall test_failure test_sourcetable test_station_class
             test_sourcetable_map
-            test_vrs test_bridge_vrs
+            test_vrs test_bridge_vrs test_bridge_sourcetable
             test_tls)
 
 # ── Windows GUI ───────────────────────────────────────────────────────

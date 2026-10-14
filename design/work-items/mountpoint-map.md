@@ -3,9 +3,9 @@
 **Asked for** by the author (2026-10-11): show all of a caster's
 mountpoints on a map in the Windows GUI, and optionally in Android pro.
 
-**Status:** plan only. Nothing is built. The decisions in
-[§ Decisions](#decisions-open-until-the-author-confirms) are open until
-the author confirms them.
+**Status:** M1–M5 (desktop) built and on `main`, 2026-10-12. D3 and D4
+decided by the author 2026-10-13, changing M6 into a zoomable map on
+the phone (see "D3 and D4 — decided"). M6 not started.
 
 ## What it answers
 
@@ -119,6 +119,40 @@ but not be able to tap it, just as its sourcetable list cannot be
 tapped. The author asked for pro only. The plan builds it behind a
 `Features.HAS_MOUNT_MAP` flag, so either answer costs one line. **The
 author's word decides it.**
+
+### D3 and D4 — decided  *(author, 2026-10-13)*
+
+**D3: the plot, with Natural Earth under it.** Of three options put to
+the author — the bare polar plot, the polar plot over Natural Earth,
+and share-as-GeoJSON only — the second. The outlines are the GUI's
+own: Natural Earth 1:50m, public domain, carried in the app, so the
+app still fetches nothing and the data-safety answer is unchanged. The
+objection to osmdroid and a WebView was to *fetching* tiles; this
+fetches none.
+
+**What it costs, measured:** `gui/basemap_ne50m.js` is 1 184 613 bytes
+and **437 424 compressed** (zlib level 6, which is what an APK's
+asset compression is), against 13.4 MB for each debug APK today:
+about 3 %. 1:110m was not measured; at this cost it is not needed.
+
+**D4: free sees the map and cannot select from it**, as with its
+sourcetable list — the information free, the workflow paid
+(`editions.md`).
+
+**The author's shape for it:**
+
+- On the hub, *Browse mountpoints…* takes half the width, and a new
+  *Map mountpoints…* sits beside it on the same row.
+- *Map mountpoints…* opens a **full-screen map** that can be zoomed and
+  panned, and closed.
+- Tapping a mountpoint shows its information in a **balloon**, in both
+  editions.
+- In pro the balloon has a **Select mountpoint** button.
+- In free the balloon carries a brief line saying what pro adds.
+
+So the gate is the one the list already has,
+`SOURCETABLE_SELECTABLE`; no `HAS_MOUNT_MAP` flag is needed, since both
+editions show the map.
 
 **D5 — Distance on a sphere, no baseline verdict.** Distance and bearing
 are great-circle figures (haversine, mean Earth radius), as the GUI's
@@ -750,7 +784,280 @@ M1–M5 can be merged as one branch to `main`.
 `docs/licences.md` and `THIRD-PARTY-NOTICES.txt` were done in M3 and
 M3b.
 
-### M6 — Android pro: the bearing-and-distance plot (D3, optional)
+### M6 — Android, both editions: the map  *(replanned 2026-10-13)*
+
+Replaces the plan below it, which predates D3 and D4. Built on a
+branch; it ships after pro is in production, the same gate as P7.
+
+**M6a — the bridge says what each entry is.** Kotlin computes none of
+it. `bridge_sourcetable_json` gains, per entry, from the core:
+`kind` and `kind_why` (`sourcetable_kind`), `usable`
+(`sourcetable_pos_usable`), and `distance_m` / `bearing_deg`
+(`geo.c`) from an origin passed in — the phone's position in pro, the
+set position otherwise. `sourcetable_map.c` and `geo.c` are already in
+the Android build. The JSON writing is split from the network fetch
+(`bridge_sourcetable_to_json(raw, origin, …)`), so it is tested
+offline in `test/` with the M1 hostile names, which the fetch never
+allowed.
+
+**M6a — as built  *(2026-10-13)*.** `bridge_sourcetable_to_json(raw,
+origin, out, cap)` writes the document; `bridge_sourcetable_json` now
+fetches, then grows its own buffer from 256 KB to at most 32 MB,
+writing again from the same table, and returns it allocated. Each
+entry gains `network`, `kind`, `kind_why`, `usable`, `distance_m`,
+`bearing_deg`; `SourceEntry` decodes them. The app's two places that
+took a position from an entry (*From station*, and picking from the
+list) now ask `usable` instead of testing for 0,0 themselves.
+`test_bridge_sourcetable`, the 24th test: every field, a hand-worked
+distance, three ways to have no origin, three positions that are no
+place, hostile text parsed back with cJSON, and every buffer size from
+32 bytes to one short refused, never cut.
+
+**Found while building it, all fixed here:**
+
+- **The bridge escaped only `"`, `\` and newline**, and wrote the
+  position with `%f`. A control character in a name, or a latitude of
+  `nan`, gave the app a document it could not decode — shown as an
+  unreachable caster. Strings now go through the core's
+  `map_json_quote`; an unusable position is written 0,0 and flagged.
+- **`NewStringUTF` takes modified UTF-8** (JNI specification), which a
+  caster's four-byte character is not. The document now crosses as
+  bytes and Kotlin decodes it as UTF-8.
+- **A fixed 1 MB in the JNI glue would have refused onocoy** once each
+  entry carried the core's figures: measured at 1.26 MB for 4096
+  entries. Hence the bridge sizing its own output.
+- **The bridge stopped at 4096 entries**, so the phone's list of onocoy
+  (over 6100) silently lacked about a third. The ceiling is now 16384.
+
+**Measured through the bridge's own fetch**, compiled on the desktop
+against live casters, origin RFSEE01:
+
+| Caster | Entries | Document | Fixed / network / product | Unusable |
+|---|---|---|---|---|
+| onocoy | 5930 (4096 before) | 1 827 843 bytes | 5929 / 0 / 1 (`EPHEMERIS`) | 4 |
+| Centipede | 1298 | 392 914 bytes | 1296 / 2 (`NEAR`, `NEAR4`) / 0 | 0 |
+| Kadaster | 61 | 19 156 bytes | 58 / 0 / 3 (`BCEP00KAD0`, `RTCM3EPH`, `RTCM3EPH2`) | 0 |
+
+The kinds agree with M1's. Nearest to RFSEE01: Kadaster `APEL0` 1.6 km
+at 264°, Centipede `NLDAL` 21.7 km at 101°.
+
+**On the phone** (Huawei, pro `.dev` beside the Play app, after the
+dev-package commit was cherry-picked onto this branch, 2026-10-13):
+
+| Caster | List shows | Desktop fetch, same hour |
+|---|---|---|
+| rfsee.net | 2 of 2 | — |
+| Centipede | 1295 of 1295 | 1298 |
+| onocoy | **5933 of 5933** (4096 at most before) | 5932 |
+
+Tables change by the minute, so the counts differ by a few. Picking a
+row from onocoy's list (NRBY_ADV, by an accidental tap) set the
+mountpoint, its GGA flag and its position, through `usable`.
+
+**Seen once and not again:** one opening of onocoy's list said *Could
+not reach the caster*, a minute after it had loaded; three later
+attempts, phone and desktop, succeeded. The cause is unknown — the
+bridge logs nothing on this path, and the app shows the same words
+whether the fetch failed or the decode did. Worth a log line and
+separate wording if it recurs.
+
+**M6b — the outlines as an asset.** `tools/make_basemap.py` also
+writes `android/app/src/main/assets/basemap_ne50m.bin`: the same
+polygons and border classes from the same pinned v5.1.2 input,
+coordinates as 32-bit integers in thousandths of a degree — the
+rounding the JS already has. Byte-identical on a second run. Credit in
+the app's Notices (`make_notices.py`, which already reads the version)
+and on the map itself.
+
+**M6b — as built  *(2026-10-13)*.** `tools/make_basemap.py` writes
+both files in one run from the same rounded values; the binary's layout
+is in its docstring (`NEBM`, format 1, the release, then polygons of
+rings and classed border lines, coordinates as little-endian 32-bit
+thousandths of a degree).
+
+- **Inputs** confirmed as pinned: 1 636 166 and 760 189 bytes.
+- **`gui/basemap_ne50m.js` unchanged**, byte for byte, by the rewrite.
+- **`basemap_ne50m.bin`: 653 930 bytes**, identical on a second run
+  (SHA-256 `24761e2d…4e06fd`). 1421 polygons, 393 border lines,
+  80 427 points.
+- **Checked independently:** a separate reader decoded the binary and
+  compared every coordinate with the JS file's, parsed as decimals: all
+  equal, no trailing bytes.
+- **In the APKs**, both editions: stored compressed, **319 544 bytes**,
+  against 13.18 MB per debug APK — about 2.4 %, below the 3 % the D3
+  estimate gave from the JS file.
+- **Credit:** `make_notices.py` now puts the Natural Earth section in
+  the app's Notices as well as `THIRD-PARTY-NOTICES.txt`;
+  `docs/licences.md` and the readme's licence table name the asset.
+  On the map itself it comes with M6c.
+
+**M6c — the screen.** A destination of its own (`Dest.MountMap`),
+full screen, Back closes it.
+
+- **Projection: azimuthal equidistant about the origin.** Distance
+  and bearing from the centre are then true everywhere on the screen,
+  so the plot's rings mean what they say, which a Mercator map's would
+  not. Outlines further out are distorted, and get worse with distance.
+  That is the projection's cost, and it is stated on the screen.
+- **Rings** by the self-position plot's 1-2-5 rule, in km. **North
+  up.** **Pinch to zoom, drag to pan**, and a control that returns to
+  the origin.
+- **Marks:** the kind by colour **and** shape (fixed, network,
+  product, unknown), as the GUI's legend. Entries with no usable
+  position are counted on screen, never drawn.
+- **No origin.** When no usable position is set, the map centres on
+  the entries and draws no rings, and says why.
+- **Tap:** the nearest mark within a finger's reach opens a balloon
+  with the mountpoint, identifier, format, NavSys, kind with its
+  reason, and distance and bearing. In pro, **Select mountpoint** does
+  exactly what tapping the list row does: one path. In free, a line
+  saying pro selects from here.
+- **Loading:** the same fetch the list makes, shared rather than
+  copied.
+
+**M6c and M6d — as built  *(2026-10-13)*.** `MountMap.kt` (the
+screen, `Dest.MountMap`), `Basemap.kt` (the asset's reader and the
+projection), `fetchSourcetable()` in `Dialogs.kt` (the loader the list
+and the map share), `useEntry` in `MainActivity.kt` (one path for a
+list row and the map's *Select*), and `BrowsePanel` drawing *Browse
+mountpoints…* and *Map mountpoints…* half a row each, in the run
+verbs' 12 dp shape (author, 2026-10-13).
+
+- **The centre** is fixed when the map opens: the phone's display
+  position where it has a fix, the set position otherwise, and the
+  header says which. Whether the core accepted it is read from the
+  core's own answer: a distance on every usable entry, or on none.
+- **Marks** are placed by the core's distance along the core's bearing.
+  Outlines go through `Aeqd` on the core's sphere; `EARTH_RADIUS_M` is
+  `GEO_EARTH_RADIUS_M` (comment in both; not yet checked mechanically).
+- **Outlines** render to an image off the main thread 150 ms after the
+  view rests, and are moved and scaled in between.
+
+**On the Huawei, onocoy, pro `.dev`:**
+
+- **5922 drawn, 4 counted** as without a usable position; centred on
+  the phone; the first view reaches about 60 km, rings at 20 km.
+- **NLDGELARN1 (Arnhem)**: balloon *25,0 km S (185°) of the centre*,
+  drawn 247 px from the centre at 185° with the 20 km ring at 198 px —
+  24.9 km. Arnhem lies about 25 km south of Apeldoorn.
+- **The Dutch-German border** drawn south-east, where it is.
+- **Frames while panning**, `dumpsys gfxinfo`, debug build:
+
+  | Version | Median | 90th | Janky |
+  |---|---|---|---|
+  | outlines drawn live each frame | 81 ms | 117 ms | 100 % |
+  | outlines as an image | 73 ms | 117 ms | 100 % |
+  | view no longer read in composition (empty map) | 7 ms | 10 ms | 2.4 % |
+  | and 5900 marks reading the view once, not per mark | **24 ms** | 57 ms | 98 % |
+
+  A rendered image costs 15–30 ms, off the main thread. Still not
+  smooth at 5900 marks; a debug build runs Compose unoptimised, and a
+  release build cannot be installed beside the Play app to measure.
+
+**Faults found by looking, fixed:** the canvas painted rings over the
+header and the key (now clipped); four legend entries ran off the edge
+(now wrapping); the view was framed on an empty table before the
+entries arrived and never re-framed; *Browse mountpoints…* cut to
+*Browse* at half width (now two lines).
+
+**Not yet seen on a device:** pinch zoom (adb cannot pinch); *Select*
+from the map in pro; free's balloon with the pro line; the no-origin
+view; *Recentre* after moving.
+
+**Found, not fixed here:**
+
+- **onocoy's sourcetable fetch fails on the phone now and then**: four
+  times in about twenty fetches, each a minute or so after a good one;
+  the desktop fetched it five times five seconds apart without a
+  failure. *The reason now reaches the app (2026-10-13):*
+  `receive_mount_table_ex()` reports it in the `NsFailure` vocabulary
+  (`ns_proto_sourcetable_answer()` reads a caster's answer to the
+  request, tested in `test_failure`), the bridge logs it and hands the
+  code to the app, and the list and the map say it in the app's own
+  failure sentences.
+
+  **What it is:** twelve openings of the map about a minute apart on
+  the Huawei, 20:21–20:33: **8 loaded** (5901–5925 entries), **4
+  failed, all `stalled`** — *Connected, but nothing is arriving.*;
+  bridge log `sourcetable fetch failed for clients.onocoy.com:2101:
+  stalled`. onocoy accepted the connection and the request, then sent
+  nothing for the fetch's twenty seconds. Not DNS, not refused, not
+  TLS, not a reset.
+
+  **Not the phone's alone, and not only at the start** (the same
+  evening, 21:29–21:52). With a retry in place, one opening on the phone
+  drew **12 of ~5900** mountpoints as though that were the list: onocoy
+  went silent part-way, and twenty seconds of silence was taken as the
+  end. From the desktop, curl then got 1315 entries with no
+  `ENDSOURCETABLE`, then 9, then none — where the five desktop fetches
+  earlier had all been whole. So onocoy stalls for any client at times,
+  at the start or part-way; why has not been established.
+
+  **Fixed:** a table that says yes and stops before `ENDSOURCETABLE`
+  is now reported as `stalled` (silence) or `dropped` (closed) by
+  `receive_mount_table_ex()`, with the part still returned, so the
+  CLI, GUI and daemon behave as before. The bridge asks once more after
+  a silence or a list cut short, and refuses a list still cut short
+  with its reason; KPI 8's lookup at run start goes the same way, so a
+  mountpoint is never called missing for not having been reached.
+  Every whole table from the six casters checked — onocoy (saved
+  earlier that day), Centipede, Kadaster, RTK2go, EUREF-IP, GEODNET —
+  ends with the line, as NTRIP requires; a caster that omitted it would
+  now be refused. Through the bridge from the desktop, six fetches ten
+  seconds apart: five whole (5894–5907 entries, one after about ninety
+  seconds — a second asking), one refused as `dropped` after both
+  askings were cut short; **no partial list**. `test_bridge_vrs` serves
+  a cut table once (asked again, the whole one used), twice (refused
+  as `dropped`) and not at all. **On the phone**, eight openings
+  21:54–22:05: seven whole (5901–5912 entries), one refused — the log
+  shows the first asking *stalled (0 bytes)*, the second *stalled
+  (302400 bytes)*, about a sixth of the list, and the app said
+  *Connected, but nothing is arriving.* rather than drawing it. No
+  partial list.
+
+  **The CLI and the GUI the same way** (author, the same evening): the
+  asking-again and the refusal moved from the bridge into
+  `receive_mount_table_whole()` in `src/net`, which the bridge, `-m`/`-r`
+  and `--check`'s KPI 8 lookup in the CLI, and the GUI's Get Mountpoints
+  and its stream-open lookup all call. A failure is now said in the
+  core's words (`ns_failure_text`): the CLI with a wrong port printed
+  *Failed to retrieve mountpoint list: caster.centipede.fr:1 did not
+  answer. The service may be down, or a firewall may be dropping it.*
+  where it said only *Failed to retrieve mountpoint list.* Live, `-r`:
+  Centipede 1295 entries, onocoy six fetches whole (5912–5918); onocoy
+  did not stall in that window, so the second asking was not seen live
+  there — `test_bridge_vrs` drives it through the bridge, which now
+  calls the same function. `receive_mount_table()` stays, as the
+  plain fetch; nothing calls it any more.
+- **onocoy's `NRBY_*` entries were classed as fixed bases.** *Fixed
+  the same day* (author's decision): `NRBY` joined the network
+  keywords in `src/core/sourcetable.c`, so the GUI and the phone both
+  call them network services. The raw records, fetched 2026-10-13:
+  `STR;NRBY_ADV;GLOBAL;RTCM 3;;2;;onocoy;INT;;;1;0;…` — no format
+  details, **no position**, country `INT`, `nmea` 1, solution 0. *An
+  earlier note here said `NRBY_ADV` sat at a nominal 52, 6: wrong.
+  That was the app's default set position, kept because the entry had
+  no usable position to give.* They are not drawn on the map either
+  way; the kind shows in the list, the GUI and the balloon. Through the
+  bridge, onocoy now has 3 network (the three `NRBY_*`), 1 product
+  (`EPHEMERIS`), 5916 fixed, and those 4 are its 4 unusable positions;
+  Centipede (2 network) and Kadaster (3 product) are unchanged.
+
+**M6d — the hub row.** `BrowsePanel` draws the two buttons, half width
+each, on one row.
+
+**Verify on a device**, against real casters:
+
+- a station known to lie north-east of the phone is drawn north-east,
+  at the distance the balloon gives;
+- Kadaster's Caribbean entries appear across the Atlantic, at their
+  distance;
+- onocoy's 6123 entries pan and zoom smoothly on the Huawei, measured
+  in frame time, not judged by eye;
+- in pro, Select fills the mountpoint as the list does; in free the
+  balloon shows the line and nothing is selected.
+
+### M6 as first planned  *(superseded by the above)*
 
 *Optional, as asked. It starts only after the author confirms D3 and D4,
 and after pro is in production (the same gate as self-position P7).*
@@ -775,7 +1082,8 @@ and after pro is in production (the same gate as self-position P7).*
 
 ### M7 — Android: share as GeoJSON (optional, D3 second route)
 
-Only if M6 has shipped and the author wants it. `Share.kt` already
+Not chosen for D3 (2026-10-13); kept as an option. Only if M6 has
+shipped and the author wants it. `Share.kt` already
 shares files. First find out on a device which installed map apps open
 the file, and record that here. Only then decide whether to build it.
 
@@ -787,6 +1095,32 @@ the file, and record that here. Only then decide whether to build it.
 - the feature matrix;
 - the Play listing, **only if** the listing describes the feature. The
   free listing's sentence about picking positions on a map stays true.
+
+**M8 as built (2026-10-13).**
+
+- **`android/design/views.md`**: *The mountpoint map — a picker, not an
+  analysis view*, at the end of the file (the P7 branch numbers new
+  sections after §3, so a section here would collide on merge).
+- **`android/design/editions.md`**: a *Mountpoint map* row in the
+  split, and a paragraph under *the map is somebody else's* on how a
+  drawn map with carried outlines keeps to all three of its reasons.
+- **`design/feature-matrix.md`**: the *Mountpoint map* row goes free
+  ○ → ◐, pro ⋯ → ●; the `SOURCETABLE_SELECTABLE` gate names *Select
+  mountpoint*.
+- **`changelog.md`**: an `[Unreleased]` entry with the measurements,
+  and the fixes found on the way.
+- **The Play listing: unchanged.** It mentions the sourcetable browser
+  and positions picked on a map, both still true, and does not
+  describe a mountpoint map. Whether a listing line or a store
+  screenshot should show it is the author's call.
+
+**GUI checked by the author** after the fixes of that evening: *Get
+Mountpoints* on onocoy gave 5906 and 5904 mountpoints; on port 2102,
+*Failed to retrieve mountpoint list: clients.onocoy.com:2102 did not
+answer. The service may be down, or a firewall may be dropping it.*
+
+**Still not seen on a device:** pinch zoom, *Select mountpoint* from the
+map, free's balloon, the no-origin view.
 
 ## What this will not claim
 
