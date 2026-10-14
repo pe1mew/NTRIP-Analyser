@@ -1027,10 +1027,60 @@ with *0 drops*.
   app bar. Checked on screen at 20:18: one-line tab titles, one-line
   app bar, labels clear.
 
+**CPU and battery, measured overnight (2026-10-13/14).** The Huawei,
+off the charger for the whole run, a Watch of RFSEE01 with the screen
+off, on a **bench build** — release settings (R8, not debuggable),
+`….pro.bench`, from a local merge of this branch with the mountpoint
+map's, so the run carried Self-position, Reference position and the
+map. Read from `dumpsys batterystats` when the phone was plugged back
+in:
+
+| Measure | Value |
+|---|---|
+| On battery | 8 h 08 min, 8 h 05 min of it screen off |
+| Whole phone | 479 mAh of 3750 — **12.8 %**, about 59 mAh an hour |
+| The app, Android's estimate | 82 mAh (Wi-Fi 74, GPS 8), about 17 % of the drain |
+| The app's CPU | 9 min 50 s user + 44 s kernel = **10 min 34 s, 2.2 % of one core** |
+| Data | 53 MB in, 3.1 MB out — about 6.5 MB an hour |
+| The app's own wakelock | 0.8 s in all |
+| Phone awake | 99.9 % of the run; it never suspended |
+
+The phone stayed awake on the **Wi-Fi driver's** kernel wakelocks
+(`wifi_deeepsleep_delay_wakelock` 4 h 21 min, `wlan_sdio_rx_lock`
+3 h 37 min since the charge): a stream that delivers every second
+wakes the radio every second. That is the cost of watching a stream,
+not of the solve; the solve's share is inside the 2.2 % of a core. GPS
+ran 6 min 49 s in all, so the phone's own position did not run the
+night. The Play Store's overnight updates drew 37 mAh of Wi-Fi besides.
+**This closes the item**: an every-epoch solve costs a phone little.
+The earlier attempt, on the charger, was spoiled by Huawei's battery
+protection pausing the charge.
+
+**What the run showed** (8 h 10 min, read on the phone at 06:57):
+STATION OK, stability STABLE over 8.2 h, healthy 100.0 % of judged time,
+**2 degradations, the worst FAILED** — the card says neither when nor
+which KPI. Self-position: SOLVED, **29 416 of 29 416** epochs, mean
+offset +0.89 / +0.88 / −1.98 m, worst code residual 4.114 m, median
+motion 28.5 mm/s, REVERSED. Reference position: 9 m N of the phone,
+one position across the run.
+
+**Open before release — a self-position trail in two clusters.** The
+trail, which holds the last 7200 epochs (about two hours, so after both
+degradations), lies in **two clouds about 5–6 m apart east–west**,
+with the mean between them; the scatter over the window is **6.831 m**,
+against 0.2–3 m in every shorter run. A still antenna gives one cloud,
+so the solution jumped between two states. A change of broadcast
+ephemeris or of the satellite set is the likeliest cause, but that is
+a guess until checked. To find it: the GUI's Self-position window over
+the same hours, saved with **S** — the JSON carries every plotted point
+with its time, which places the jump, and the snapshot's satellite
+count and PDOP around it. Release waits for an explanation: a scatter
+figure that our own solver may have made is not one to publish.
+
 **Still to do:**
-- **CPU and battery:** over a Watch run of hours with the screen off,
-  since the solve runs every epoch and that has not been measured on a
-  phone.
+- **The two clusters**, above.
+- **The two degradations:** whether the report already records when
+  and which KPI, and the card only does not show it.
 - **Release:** P7 waits for pro's production access and the listing
   sentence (*The gate*, above).
 
