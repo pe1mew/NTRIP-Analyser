@@ -33,7 +33,7 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 118 entries, 64 resolved in code or procedure |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 126 entries, 69 resolved in code or procedure |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
@@ -43,7 +43,7 @@
 | `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§17 are the check, the stability window, threshold loading, self-position and the mountpoint map, as built |
-| `design/work-items/mountpoint-map.md` | The mountpoint map, map tiles, the location picker, or sourcetable classification | M1–M5 as built with every measurement: 8471 sourcetable records behind the kinds, why there is no default tile source, five faults found by opening the page. M6–M8 (Android pro) open |
+| `design/work-items/mountpoint-map.md` | The mountpoint map, map tiles, the location picker, or sourcetable classification | M1–M5 as built with every measurement: 8471 sourcetable records behind the kinds, why there is no default tile source, five faults found by opening the page. M6–M8 (the phone, both editions) as built, with frame times and onocoy's stalls |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
@@ -54,6 +54,31 @@
 | `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Twelve published pages; the app links into them, so a claim here is a claim in the product |
 
 ## Current State
+
+<!-- 2026-10-13 -->
+
+- **Two draft PRs, both green, wait for pro's production access**:
+  pe1mew/NTRIP-Analyser#9 (`self-position-pro`: P7, Self-position and
+  Reference position as pro's last two analysis tabs, debug builds as
+  `….dev`) and pe1mew/NTRIP-Analyser#10 (`mountmap-android`: M6–M8, the
+  mountpoint map in both editions, select in pro). Merging both
+  conflicts on the dev names; keep #9's. `bench-all` is a local merge
+  of the two, for measuring only.
+  <!-- verify: git cat-file -e origin/self-position-pro:android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt -->
+- **Every frontend takes whole sourcetables only, and says why not**
+  (`receive_mount_table_whole`, `src/net`): asked once more after a
+  silence or a list cut short before `ENDSOURCETABLE`; onocoy did both,
+  and once drew 12 of ~5900 mountpoints as all. `NRBY` is a network
+  keyword. Plan: `design/work-items/mountpoint-map.md`, M6c.
+  <!-- verify: grep -q "receive_mount_table_whole" src/net/ntrip_handler.h && grep -q '"NRBY"' src/core/sourcetable.c -->
+- **Measure on a bench build** (`assembleProBench`, `….pro.bench`):
+  release settings, debug key, beside the Play app. Panning 5900 marks:
+  median 24 ms debug, 16 ms bench. Overnight Watch on bench, 8 h 08 min
+  unplugged: phone 479 mAh (12.8 %), app 10 min 34 s CPU (2.2 % of a
+  core), never suspended — Wi-Fi kernel wakelocks, not the app's.
+  **Open:** the self-position trail split into two clusters ~5–6 m
+  apart in the last two hours (scatter 6.8 m); not yet explained.
+  <!-- verify: grep -q 'create("bench")' android/app/build.gradle.kts -->
 
 <!-- 2026-10-12 -->
 
@@ -66,9 +91,7 @@
   way: sourcetable classification moved into the core (measured on
   8471 records), the GUI's ARP cross-check stopped using a 0.01°
   position, and a stream no longer inherits the previous station's
-  ARP. **M6–M8** (a drawn plot in Android pro) are optional and wait
-  for pro's production and decisions D3/D4. Plan:
-  `design/work-items/mountpoint-map.md`.
+  ARP. M6–M8 for the phone: see 2026-10-13.
   <!-- verify: test -f gui/gui_mountmap.c && test -f src/core/sourcetable_map.c && grep -q "Mountpoint map" design/feature-matrix.md -->
 
 <!-- 2026-10-10 -->
@@ -133,27 +156,11 @@
   comes next. The rollout record with every deviation and live find is
   `design/work-items/tls-rollout.md`.
   <!-- verify: git rev-parse v3.8.0 -->
-- **Pro's Play entry was prepared** (2026-08-26): born paid, package
-  bound, listing, graphics, declarations and the
-  `FOREGROUND_SERVICE_DATA_SYNC` demonstration video in; price chosen
-  on evidence (there is no paid NTRIP market on Play). The internal
-  track proved the Play-signed artefact runs on hardware
-  (`installerPackageName=com.android.vending`, 30800). *Superseded by
-  the 2026-09-17 entry above: the price block turned out to be regions,
-  not the payments profile.*
 - **Phase 2's earlier five**: VRS check, hand-over, statistics export
   <!-- verify: grep -c "done 2026-08" design/work-items/tier2-on-the-phone.md -->
   and tier 2 shipped pro-gated in one day each, every plan in
   `design/work-items/*-on-the-phone.md` recording what its steps
   actually did.
-- **3.7.3 released** (2026-08-25, free to Play + GitHub with both
-  <!-- verify: grep -q "## .3.7.3." changelog.md -->
-  platforms' assets): the run-flow corrections from tier 2's first
-  field use -- the hub owns every run verb with a tier hint, the
-  analysis screen starts and stops nothing (author's one-place rule),
-  the banner counts the stability evidence floor, a second start
-  cannot break a running measurement -- plus the sky-header source
-  fix. 3.7.2 (same day) shipped GH#2/GH#3; both issues closed.
 - **The issue tracker is live**: #1 is a PR; issues start at #2.
   Backlog items carry `[GH#n]` tags (`design/todo.md`).
 - **check_release.py is at 106 checks with release artefacts present** (fewer report when no artefact exists to judge); the gate-table guard has
@@ -166,70 +173,7 @@
   loopback socket with a synthetic clock, and
   `test_bridge_sourcetable.c`, the sourcetable document the app decodes.
 
-<!-- 2026-08-23 -->
-
-- **v3.7.1 released** (2026-08-23) to Play and to GitHub, both platforms'
-  <!-- verify: grep -q '^## .3.7.1.' changelog.md -->
-  assets attached. It fixes the sky view's legend being drawn behind the
-  navigation buttons on a phone with three-button navigation -- **a fault
-  whose fix was already inside the v3.7.0 tag**. What reached Play was a
-  bundle built four and a half hours earlier: the Android release is
-  built by two commands, one for the APK and one for the bundle, and only
-  the first was re-run. `tools/check_release.py` now compares every
-  artefact under `android/app/build/outputs` with the sources it came from and
-  with this tree's version, and is at **79 checks**; the runbook builds
-  APKs and bundles in one command. Expect those four checks to be red
-  between an edit and a rebuild -- that is what they are for.
-  <!-- verify: grep -q 'def check_artefacts' tools/check_release.py -->
-- **The analysis plots belong to the run, not to the screen** (2026-08-23).
-  <!-- verify: grep -q 'val tracks = TrackAccumulator()' android/app/src/main/java/nl/pe1mew/ntripanalyser/MonitorService.kt -->
-  Both accumulators live in `MonitorService`'s companion, cleared at run
-  start and fed where the document is published. Before this a rotation
-  reset them and a stopped activity fed them nothing at all, so a
-  nine-hour capture held the minutes its screen happened to be on.
-  Satellites only the handset can place are still fed by the UI -- one
-  satellite, one source. Measured: 45 samples/s off screen, unchanged
-  across a rotation.
-- **Satellite tracks (pro)**: trails on the sky plot, a point a minute,
-  <!-- verify: grep -q 'HAS_TRACKS' android/app/src/pro/java/nl/pe1mew/ntripanalyser/Features.kt -->
-  a **day** per satellite, arcs broken at a five-minute gap and at the
-  azimuth wrap, drawn thinner than the markers and built once a document
-  rather than once a frame. Confirmed on hardware at 40 minutes.
-  Unreleased: **pro does not go to Play until the last feature lands.**
-- **The Watch card says when the stream dropped** (2026-08-23): the app
-  <!-- verify: grep -q 'watch_reconnects' android/app/src/main/res/values/strings.xml -->
-  has always reconnected by itself (1 s doubling to 60 s, both editions,
-  set in `ntrip_bridge.c`) and never said so. Read the count *with* the
-  degradations line: degradations with reconnects is a link that dropped,
-  without is a station that faltered.
-
-<!-- 2026-08-22 -->
-
-- **v3.7.0 released** (2026-08-22): the Android app is drawn in one
-  <!-- verify: grep -q '^## .3.7.0.' changelog.md -->
-  template, and a stream that will not open says which thing is wrong.
-  The frame is `design/guiV3spec.md`, built to `design/guiV3rollout.md`,
-  from the author's own review in `design/work-items/guiReview/`. One app
-  bar with **no title parameter**, one overflow menu, an analysis bar
-  pinned to the hub, a mark on every touchable row drawn from the panel
-  contract, and six fixed bands on the analysis screens.
-  **Twelve failure codes** classified once in `src/core/ns_failure.c` --
-  wrong address versus wrong port, wrong password versus wrong
-  mountpoint -- carried in the snapshot, said by all four frontends, and
-  in the app leading to the field at fault. `err_open`, the one sentence
-  that stood for every fault, is gone. Thirteen tests; `check_release.py`
-  is at 70 checks, up from 51.
-- **Both editions' Play screenshots were re-taken for v3** (2026-08-22),
-  and again for 3.8.0 on 2026-08-25 (`pro-to-play.md` S2). Whether
-  free's *live* listing carries the 3.8.0 set is a console fact nobody
-  has read back.
-  <!-- verify: manual — the images are what they are; a checksum proves nothing about what they show -->
-  They are taken from runs that pass, and `tools/make_store_shots.py` now
-  refuses to write when a redaction box has drifted off the line it
-  hides. It had drifted: the first framing exposed the caster address
-  and the station's ARP.
-
-Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md).
+Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md), [2026-08-21 to 08-26](sessions-2026-08-21-to-08-26.md).
 
 ## Recently Promoted
 

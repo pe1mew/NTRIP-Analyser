@@ -707,7 +707,7 @@ Scheduled after production because it is a release of **both** editions.
 
 ---
 
-### 2.6 Every mountpoint on a map — **Desktop shipped; Android open (optional)**
+### 2.6 Every mountpoint on a map — **Desktop shipped; Android built, unreleased**
 
 Plan: [`design/work-items/mountpoint-map.md`](work-items/mountpoint-map.md) (2026-10-11).
 
@@ -734,9 +734,13 @@ Along the way:
 - **The location picker** stopped showing CARTO watermarks; the user
   may now supply their own tile key.
 
-**Open:** M6–M8, the Android pro bearing-and-distance plot. It is
-optional, and waits for pro to reach production and the author's word
-on decisions D3 and D4.
+**Android, built 2026-10-13** (M6–M8, pe1mew/NTRIP-Analyser#10, draft):
+D3 and D4 decided by the author — a zoomable map in **both** editions,
+drawn about the phone over Natural Earth carried in the app, selectable
+in pro only. Released with pro's production. Found on the way and
+fixed for every frontend: sourcetable lists cut short by a silent
+caster are asked for again and never shown as whole, a failed fetch
+says why, and `NRBY` is a network keyword.
 
 ## 3. Tier 3 — Flagship, high effort
 
