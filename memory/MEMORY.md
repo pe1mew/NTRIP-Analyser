@@ -57,14 +57,14 @@
 
 <!-- 2026-10-13 -->
 
-- **Two draft PRs, both green, wait for pro's production access**:
-  pe1mew/NTRIP-Analyser#9 (`self-position-pro`: P7, Self-position and
-  Reference position as pro's last two analysis tabs, debug builds as
-  `….dev`) and pe1mew/NTRIP-Analyser#10 (`mountmap-android`: M6–M8, the
-  mountpoint map in both editions, select in pro). Merging both
-  conflicts on the dev names; keep #9's. `bench-all` is a local merge
-  of the two, for measuring only.
-  <!-- verify: git cat-file -e origin/self-position-pro:android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt -->
+- **P7 and the mountpoint map meet on one branch** (2026-10-14):
+  pe1mew/NTRIP-Analyser#11 (3.8.1) and #9 (`self-position-pro`: P7,
+  Self-position and Reference position as pro's last two analysis
+  tabs, debug builds as `….dev`) are merged into main;
+  `mountmap-android` (#10: M6–M8, the map in both editions, select in
+  pro) carries main and is the last. Neither P7 nor the map is in a
+  released build yet. The local `bench-all` merge is superseded.
+  <!-- verify: test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt -->
 - **Every frontend takes whole sourcetables only, and says why not**
   (`receive_mount_table_whole`, `src/net`): asked once more after a
   silence or a list cut short before `ENDSOURCETABLE`; onocoy did both,
