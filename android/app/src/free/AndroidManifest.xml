@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Free-edition additions to src/main's manifest.
+
+  The one activity pro may start here (GH#5): it hands the saved
+  connection over only after checking the caller and asking the user
+  (ShareConnectionsActivity). Exported because another app starts it;
+  the checks inside are what keep it closed.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".ShareConnectionsActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/handover_title">
+            <intent-filter>
+                <action android:name="nl.pe1mew.ntripanalyser.action.SHARE_CONNECTIONS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

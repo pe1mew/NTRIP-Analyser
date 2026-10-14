@@ -785,6 +785,7 @@ internal fun AppMenu(
     onImportRinex: () -> Unit,
     onLoadConfig: () -> Unit,
     onSaveConfig: () -> Unit,
+    onImportFromFree: () -> Unit = {},
     onExportStats: () -> Unit = {},
     exportReady: Boolean = false,
     onAbout: () -> Unit,
@@ -810,7 +811,13 @@ internal fun AppMenu(
                 text = { Text(stringResource(R.string.menu_save_config)) },
                 onClick = onSaveConfig,
             )
-
+            // Pro picks up where free left off (GH#5). Always offered:
+            // what happens when free is absent is a sentence, not a
+            // missing row.
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.menu_import_free)) },
+                onClick = onImportFromFree,
+            )
         }
         // The file the run's numbers become. Greyed rather than hidden
         // until there is a snapshot to write -- a row that vanishes is

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pro-edition additions to src/main's manifest.
+
+  Android 11 hides other apps unless they are declared. Pro asks free
+  for its saved connection (GH#5), so it declares the one action free
+  answers: by action rather than by package name, so a dev or bench
+  build, whose free is `….free.dev` or `….free.bench`, needs no
+  manifest of its own.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <intent>
+            <action android:name="nl.pe1mew.ntripanalyser.action.SHARE_CONNECTIONS" />
+        </intent>
+    </queries>
+</manifest>

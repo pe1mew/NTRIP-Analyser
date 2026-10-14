@@ -415,17 +415,48 @@ Known costs, accepted: two uploads and two sets of store metadata for
 every release, split reviews and install counts, and no upgrade
 discount — a free user pays full price for pro.
 
-### Upgrade path — manual, and small
+### Upgrade path — pro picks up where free left off
 
-Upgrading is installing a second app and typing the caster and
-mountpoint again. That is the whole of it, because the free edition
-holds exactly one mountpoint and **cannot read or write configuration
-files** — those are a pro capability by design, so there is no file to
-carry across in the first place.
+Upgrading is installing a second app. Pro's menu then offers **Import
+from NTRIP Analyser…**, and free, asked, hands over its saved
+connection — password included — once the user agrees (GH#5, built
+2026-10-14). **The entitlement is unchanged:** the import checks no
+purchase, because anyone running pro has already paid for it, and the
+installed APK is still the whole of the licence.
 
-An earlier draft of this section assumed the config file would bridge the
-two editions. It cannot, and the friction is a minute of typing rather
-than a lost setup.
+Why it is a handshake and not something quieter. Free keeps its
+connection in `EncryptedSharedPreferences` under its own Keystore key,
+so nothing can read it unless free hands it over, and the two apps
+carry **different Play app signing keys** (read from both
+Play-installed APKs, GH#5), so a `signature`-level permission cannot
+join them. Free's consent screen is therefore **the security
+control**, not a courtesy:
+
+- the caller must have started free *for a result* — there is no one to
+  answer, and no name to check, otherwise;
+- it must be the other edition by package name (keeping the build
+  type's suffix, so `….pro.dev` pairs with `….free.dev`) **and by
+  signer**: a release build pins the other edition's Play certificate;
+  a dev or bench build accepts only the key it was itself signed with;
+- the user must press **Share**, on a screen that names the caster,
+  mountpoint and user and says the password goes with it; touches are
+  dropped while another window covers it.
+
+Pro checks free the same way before asking. The connection travels in
+the result, in the project's one exchange format, and never touches a
+file; pro merges it by the rule that loads a configuration file.
+
+`Handover.kt` holds the contract and the signer check;
+`ShareConnectionsActivity.kt` is the consent screen. It lives in
+`src/main` because an edition carries no code of its own, and only
+free's manifest declares it. Pro's manifest declares the action in
+`<queries>`, without which Android 11 would hide free from it.
+
+An earlier draft of this section said upgrading meant typing the
+connection again, because free cannot write a configuration file. It
+still cannot: a plain-text file of passwords on shared storage would be
+the less private route (`docs/jsonConfigs.md`), and this one never
+writes one.
 
 ### Launch scope for the first paid release
 

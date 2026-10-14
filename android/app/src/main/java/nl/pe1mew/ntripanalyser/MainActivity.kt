@@ -1,6 +1,8 @@
 package nl.pe1mew.ntripanalyser
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -64,7 +66,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun AppTheme(content: @Composable () -> Unit) {
+internal fun AppTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkThemeSafe()
 
     // Whose bars are these? Android 16 draws the app behind the status
@@ -192,6 +194,50 @@ fun MainScreen() {
                     context.getString(
                         R.string.config_loaded_n,
                         r.added + r.updated, r.store.current.mountpoint)
+            }
+        }
+    }
+
+    // Pro picks up where free left off (GH#5, Handover): free checks
+    // this app, asks the user, and answers with its connection in the
+    // same format a config file uses, merged by the same rule.
+    val fromFree = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { res ->
+        val data = res.data
+        val text = data?.getStringExtra(Handover.EXTRA_CONNECTIONS)
+        notice = when {
+            res.resultCode == Activity.RESULT_OK && text != null -> {
+                val incoming = ConfigFile.parseConnections(text)
+                if (incoming.isNullOrEmpty()) {
+                    context.getString(R.string.handover_unreadable)
+                } else {
+                    val r = Settings.mergeConnections(context, incoming)
+                    store = r.store
+                    context.getString(R.string.handover_taken,
+                        r.added + r.updated, r.store.current.mountpoint)
+                }
+            }
+            else -> when (data?.getStringExtra(Handover.EXTRA_REFUSED)) {
+                Handover.REFUSED_BY_USER -> context.getString(R.string.handover_declined)
+                Handover.REFUSED_CALLER -> context.getString(R.string.handover_not_recognised)
+                Handover.REFUSED_NOTHING -> context.getString(R.string.handover_free_empty)
+                else -> context.getString(R.string.handover_closed)
+            }
+        }
+    }
+    val askFree: () -> Unit = {
+        when (Handover.findPeer(context)) {
+            Handover.Peer.ABSENT ->
+                notice = context.getString(R.string.handover_free_absent)
+            Handover.Peer.FOREIGN ->
+                notice = context.getString(R.string.handover_free_foreign)
+            Handover.Peer.GENUINE -> try {
+                fromFree.launch(Intent(Handover.ACTION)
+                    .setPackage(Handover.peerPackage(context.packageName)))
+            } catch (e: ActivityNotFoundException) {
+                // Installed and genuine, but from before it could answer.
+                notice = context.getString(R.string.handover_free_old)
             }
         }
     }
@@ -354,6 +400,7 @@ fun MainScreen() {
             importRinex = { pickRinex.launch(arrayOf("*/*")) },
             loadConfig = { pickConfig.launch(arrayOf("application/json", "*/*")) },
             saveConfig = { saveConfig.launch("config.json") },
+            importFromFree = askFree,
             exportStats = { showExport = true },
             exportReady = { MonitorService.lastStatsJson != null },
             about = { showAbout = true },

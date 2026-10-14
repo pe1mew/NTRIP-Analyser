@@ -202,6 +202,33 @@
     <string name="menu_settings">Caster settings…</string>
     <string name="menu_load_config">Load configuration…</string>
     <string name="menu_save_config">Save configuration…</string>
+    <!-- Pro asking free for its saved connection (GH#5, Handover). Shown
+         by pro only; free's side of the exchange has its own strings. -->
+    <string name="menu_import_free">Import from NTRIP Analyser…</string>
+    <string name="handover_taken">Took %1$d connection(s) from NTRIP Analyser; using %2$s.</string>
+    <string name="handover_unreadable">NTRIP Analyser answered, but not with a connection this app can read.</string>
+    <string name="handover_declined">Nothing imported: you chose not to share in NTRIP Analyser.</string>
+    <string name="handover_not_recognised">NTRIP Analyser did not recognise this copy of Pro and shared nothing.</string>
+    <string name="handover_free_empty">NTRIP Analyser has no saved connection to share.</string>
+    <string name="handover_closed">Nothing imported.</string>
+    <string name="handover_free_absent">NTRIP Analyser (the free edition) is not installed on this phone, so there is nothing to import.</string>
+    <string name="handover_free_foreign">An app named like NTRIP Analyser is installed, but it is not signed as the real one, so nothing was asked of it.</string>
+    <string name="handover_free_old">NTRIP Analyser is installed but too old to share its connection. Update it from Google Play and try again.</string>
+    <!-- Free's side: the consent screen (ShareConnectionsActivity), which
+         only free's manifest declares. It is the only thing between the
+         stored password and the app asking, so it says plainly what goes
+         and where. -->
+    <string name="handover_title">Share with NTRIP Analyser Pro?</string>
+    <string name="handover_asks">NTRIP Analyser Pro asks for the connection saved here:</string>
+    <string name="handover_as_user">as %1$s</string>
+    <string name="handover_what_goes">Its password goes with it. It passes from this app to Pro on this phone and is not sent anywhere else. This app keeps its copy.</string>
+    <string name="handover_share">Share</string>
+    <string name="handover_decline">Don\'t share</string>
+    <string name="handover_refused_title">Nothing shared</string>
+    <string name="handover_refused_body">The app asking (%1$s) is not a copy of NTRIP Analyser Pro this app recognises, so it gets nothing.</string>
+    <string name="handover_unknown_caller">it did not say who it is</string>
+    <string name="handover_nothing">There is no saved connection to share yet. Set one up here first, or enter it in Pro.</string>
+    <string name="handover_close">Close</string>
     <string name="menu_about">About and help</string>
     <string name="config_load_failed">That file could not be read as a configuration.</string>
     <string name="config_save_failed">Nothing to save: no connection is complete.</string>

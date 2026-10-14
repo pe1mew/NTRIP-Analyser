@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — pro picks up where free left off (Android, both editions)
+
+Buying pro no longer means typing the caster again. Pro's menu offers
+**Import from NTRIP Analyser…**; the free edition opens, names the
+caster, mountpoint and user it would hand over, says the password goes
+with it, and does nothing until you press **Share**. The connection
+passes between the two apps in memory and is merged as a loaded
+configuration file would be; no file is written.
+
+Free's consent screen is the security control: the two apps carry
+different Play signing keys, so nothing at the system level joins them.
+Before asking you, free checks that the app asking is pro by name and
+by signer, and pro checks free the same way. Both editions need this
+release for it to work; with an older free, pro says so.
+
+Verified on a Samsung S23 with both editions' development builds: free
+with nothing saved, a caller that is not pro (refused), *Don't share*,
+and *Share*, after which pro's check against rfsee.net passed
+*Connected and producing*. GH#5.
+
 ### Added — every mountpoint on a map (Windows GUI)
 
 **View → Mountpoint map** opens the loaded sourcetable in your browser:

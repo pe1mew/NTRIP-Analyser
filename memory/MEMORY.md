@@ -120,9 +120,11 @@
 - **Pro is public on Google Play** (2026-10-14): production access
   granted that day, 3.8.0 -- the build the testers ran -- accepted and
   published; the store page answered HTTP 200 with €5.99 and 3.8.0.
-  **3.8.1** (H9 only, branch `release-3.8.1`, PR #11) is on the open
-  track, in review; promote it to production when nothing comes back
-  wrong, then tag `v3.8.1`. Pre-registration declined (S5).
+  **3.8.1** (H9 only, branch `release-3.8.1`, PR #11) was accepted on
+  the open track 2026-10-14; promote it to production when nothing
+  comes back wrong, then tag `v3.8.1` on `release-3.8.1`'s tip
+  (`a598a91`), not on main, which carries unreleased P7 and the map.
+  Pre-registration declined (S5).
   <!-- verify-net: test "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -A Mozilla/5.0 'https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.pro&hl=en')" = 200 -->
   The closed test that got it there (track live 2026-09-09, release
   3.8.0 accepted). Price €5.00 base, **€5,99 in NL**, saved once *Rest van de
@@ -140,13 +142,15 @@
   that day at 16:17** — a decision by email, usually within seven days.
   The answers are kept in step S5 of `design/work-items/pro-to-play.md`.
   <!-- verify: manual — the Play Console is the only source for track state -->
-- **GH#5 decided: pro picks up where free left off, by consent**
-  (2026-09-13). Free's and pro's Play app signing certificates differ
-  (read from both Play-installed APKs), so a signature-permission
-  import is impossible; a consent handshake in free is chosen, built
-  after both editions reach production. Options and rationale are on
-  the issue; backlog item 2.5.
-  <!-- verify: grep -q 'GH#5' design/todo.md -->
+- **GH#5 built, unreleased: pro picks up where free left off, by
+  consent** (decided 2026-09-13, built 2026-10-14). The Play signing
+  certificates differ, so free's consent screen is the security
+  control; each side checks the other's package and signer (Play pin in
+  release, own key in dev/bench). Verified with both dev builds on the
+  S23; the release pins can only be checked once both editions ship it
+  from Play. Backlog item 2.5; `android/design/editions.md`, *Upgrade
+  path*.
+  <!-- verify: grep -q 'object Handover' android/app/src/main/java/nl/pe1mew/ntripanalyser/Handover.kt && grep -q 'ShareConnectionsActivity' android/app/src/free/AndroidManifest.xml -->
 
 <!-- 2026-08-25 -->
 

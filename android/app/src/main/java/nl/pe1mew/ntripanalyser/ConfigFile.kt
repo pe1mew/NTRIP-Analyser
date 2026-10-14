@@ -73,7 +73,14 @@ data class ConfigFile(
                 context.contentResolver.openInputStream(uri)!!
                     .use { it.readBytes().decodeToString() }
             }.getOrNull() ?: return null
+            return parseConnections(text)
+        }
 
+        /**
+         * The same, from text already in hand: what free hands pro
+         * ([Handover]) is this format too, so there is still one.
+         */
+        fun parseConnections(text: String): List<CasterSettings>? {
             runCatching { json.decodeFromString<MonitordConfig>(text) }
                 .getOrNull()
                 ?.takeIf { it.mountpoints.isNotEmpty() }
@@ -99,20 +106,26 @@ data class ConfigFile(
         fun saveConnections(
             context: Context, uri: Uri, store: ProfileStore,
         ): Boolean {
+            val text = encodeConnections(store) ?: return false
+            return runCatching {
+                context.contentResolver.openOutputStream(uri, "wt")!!.use { out ->
+                    out.write(text.toByteArray())
+                }
+                true
+            }.getOrDefault(false)
+        }
+
+        /**
+         * Every complete connection as the exchange format's text, or
+         * null when there is none worth writing.
+         */
+        fun encodeConnections(store: ProfileStore): String? {
             val doc = MonitordConfig(
                 mountpoints = store.profiles.filter { it.isComplete }
                     .map { MonitordMountpoint.from(it) },
             )
-            if (doc.mountpoints.isEmpty()) return false
-            return runCatching {
-                context.contentResolver.openOutputStream(uri, "wt")!!.use { out ->
-                    out.write(
-                        json.encodeToString(MonitordConfig.serializer(), doc)
-                            .toByteArray()
-                    )
-                }
-                true
-            }.getOrDefault(false)
+            if (doc.mountpoints.isEmpty()) return null
+            return json.encodeToString(MonitordConfig.serializer(), doc)
         }
 
     }

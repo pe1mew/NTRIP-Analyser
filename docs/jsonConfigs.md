@@ -71,7 +71,10 @@ like a password file, because it is one:
 - **On Android**, what the app *stores* is separate from what it
   *exports*: saved connections live encrypted in the app's private
   storage, and writing a file makes a plain-text copy, at which point
-  the warnings above apply again.
+  the warnings above apply again. **Moving from the free edition to
+  pro writes no file:** pro's *Import from NTRIP Analyser…* asks free,
+  free asks you, and the connection passes between the two apps in
+  memory, in this same format.
 
 Casters issue per-user registrations, so a leaked password is one
 account's problem rather than a network's — but it is still an account
@@ -124,8 +127,8 @@ caster by DNS, prints what it would use, and exits.
 | **CLI** (`ntrip-analyser`) | the **first** entry; says so when there are more | `-g` writes a template of one |
 | **Windows GUI** | the **first** entry; the log names how many were ignored | *Save Configuration* writes the one it is driving |
 | **`ntrip-monitord`** | **every** entry, monitored simultaneously | — |
-| **Android, pro edition** | **every** entry, merged into its saved connections | *Save configuration* writes them all |
-| **Android, free edition** | the **first** entry — it saves one connection | — |
+| **Android, pro edition** | **every** entry, merged into its saved connections; also from the free edition, by *Import from NTRIP Analyser…* | *Save configuration* writes them all |
+| **Android, free edition** | — it keeps the one connection typed into it, and reads no files | — ; hands that connection to pro when asked, and you agree |
 
 The analysers examine one stream at a time, so they take the first
 entry and **say so**:

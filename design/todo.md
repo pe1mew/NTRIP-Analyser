@@ -688,7 +688,7 @@ Still open here: item 3 above, plus two assertions the design lists that need fr
 first — station-ID sanity via 1007/1033, and the two-position shift test that proves a VRS is
 genuinely dynamic.
 
-### 2.5 Pro picks up where free left off — **Open**, after both editions reach production `[GH#5]`
+### 2.5 Pro picks up where free left off — **Built 2026-10-14, unreleased** `[GH#5]`
 
 A user who buys pro should not retype the caster they already set up in free. There is no route
 today: free's profiles live in its own `EncryptedSharedPreferences` under its own Keystore key,
@@ -704,6 +704,17 @@ consent screen is the security control, not a courtesy. Pro also needs a `<queri
 free. The full option list with the reason each was taken or not is on the issue.
 
 Scheduled after production because it is a release of **both** editions.
+
+**Built 2026-10-14**, both editions in production since that day:
+`Handover.kt` (contract, signer check), `ShareConnectionsActivity.kt`
+(free's consent screen, declared only in free's manifest), pro's
+*Import from NTRIP Analyser…*. Verified on the S23 with both dev builds:
+free with nothing saved, a caller that is not pro (refused), *Don't
+share*, and *Share* — after which pro's check against rfsee.net passed
+KPI 1, so the password arrived intact. **Not verifiable before release:**
+the release signer pins and pro's message for a Play free too old to
+answer, which only Play-installed copies of both can exercise. Design:
+`android/design/editions.md`, *Upgrade path*.
 
 ---
 
