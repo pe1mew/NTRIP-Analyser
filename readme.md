@@ -17,7 +17,7 @@ antenna or siting problem for what it is.
 | | |
 |---|---|
 | **NTRIP Analyser** | free. The full eight-check verdict, the analysis views, and the sourcetable browser, for one caster at a time. |
-| **NTRIP Analyser Pro** | *in closed testing.* Adds watch mode for hours-long measurement, the stability report, the network-RTK check, the reference-position watch, satellite tracks, statistics export, live position for network mountpoints, saved connections, and an ephemeris side-stream for a complete sky. |
+| **NTRIP Analyser Pro** | paid, €5.99. Adds watch mode for hours-long measurement, the stability report, the network-RTK check, the reference-position watch, satellite tracks, statistics export, live position for network mountpoints, saved connections, and an ephemeris side-stream for a complete sky. |
 
 <table>
 <tr>
@@ -49,22 +49,17 @@ disagrees with a station you know is the most useful bug report this
 project can receive, because every threshold behind it is a judgement
 rather than a fact ([which ones, and how well founded](https://pe1mew.github.io/NTRIP-Analyser/thresholds.html)).
 
-### NTRIP Analyser Pro: testers wanted, and it costs nothing
+### NTRIP Analyser Pro is on Google Play too
 
-Pro is finished and released — TLS was the last thing it was waiting
-for — and it now has to serve the same fortnight the free edition
-served: **twelve testers, opted in and staying opted in for fourteen
-continuous days**, before a personal developer account may ask for
-production access. That rule counts **per app**, so free's testers do
-not carry across. Joining is, quite literally, the thing standing
-between pro and the store.
+<a href="https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.pro"><img alt="Get NTRIP Analyser Pro on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80"></a>
 
-**Testing it is free.** Pro is a paid app, but testers are added as
-license testers and install it without being charged.
+**Thank you, pro testers.** Pro had to serve the same fortnight the
+free edition served — twelve testers, opted in for fourteen continuous
+days — because Google counts that rule per app. You did, and pro has
+been public since 2026-10-14.
 
-**→ [Join the pro test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.pro)**
-— or [open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues)
-asking to be added, and we will add you.
+Newer builds go to the store listing's open test first; joining it is
+an opt-in on the listing, and for a paid app it means owning pro.
 
 What pro adds over free is measurement over time rather than a
 different measurement: watch mode for runs lasting hours, the

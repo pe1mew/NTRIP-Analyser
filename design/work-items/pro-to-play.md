@@ -458,7 +458,7 @@ mechanism ("build excitement and awareness", Google's page), which
 up to 90 days; the page does not say whether it works for a paid app
 or one with testers.
 
-### S6 — say so
+### S6 — say so  *(done 2026-10-14 — store page HTTP 200, €5.99, 3.8.0)*
 
 The readme's edition table gains pro's Play link; the wiki Pro page's
 "where to get it"; `release-to-play.md`'s status table closes its pro
