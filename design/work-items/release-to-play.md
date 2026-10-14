@@ -121,11 +121,11 @@ the privacy policy; 4 onwards are sequential.
 | 7 | Wiki (free) | free launch | **done** 2026-08-14 → twelve pages published |
 | 8 | Wiki (pro) | pro launch | **done** 2026-08-14 → same wiki, Pro section |
 | 9 | Play closed testing: 12 testers × 14 days | free on Play | **served**; **production access granted 2026-09-16**. The first production release (30800) was rejected the same day for missing reviewer credentials — the 2026-08-14 login-wall problem, recurring; fixed with a reviewer account on the author's caster ([pro-to-play.md](pro-to-play.md) S5 has the procedure) and resubmitted the same day. **Published** (submission 16); the [public store page](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free) answered HTTP 200 on 2026-09-19. The closed track stays open for early builds |
-| 9b | **Pro on Play** | — | **startable 2026-08-25** — the hold expired with TLS; the plan is [pro-to-play.md](pro-to-play.md): paid listing, license-tester fortnight, price at listing time |
+| 9b | **Pro on Play** | — | **done** → fortnight served (twelve testers since 2026-09-28), production access granted 2026-10-14, 3.8.0 accepted and **published** the same day: the [public store page](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.pro) answered HTTP 200 with €5.99 and version 3.8.0. 3.8.1 (one fix) is on the open track for promotion; the plan was [pro-to-play.md](pro-to-play.md) |
 | 10 | Samsung Galaxy Store rules study | phase 11 | not started — nothing known blocks free |
 | 11 | Free on the Samsung Galaxy Store | — | blocked by 10 |
 | 12 | Free from a self-hosted F-Droid repository | — | **decided** 2026-08-14; not built |
-| 13 | Pro beyond Play: Samsung sale feasibility, and whether pro belongs in a self-hosted repo at all | pro elsewhere | **startable** — it waited for free to be out, and free is public (2026-09-19); what pro's own Play fortnight teaches is its best input |
+| 13 | Pro beyond Play: Samsung sale feasibility, and whether pro belongs in a self-hosted repo at all | pro elsewhere | **startable** — it waited for free to be out, and free is public (2026-09-19). Pro's fortnight taught: a paid app's closed test works through licence testers (orders booked at €0,00); the reviewer login wall recurs per listing and needs a dedicated, watched account; the paid flag is fixed at creation; and a price saved only once the countries Google cannot sell in were out of both the price table and the tracks. Any other store should be expected to raise its own version of each |
 
 ---
 

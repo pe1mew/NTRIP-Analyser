@@ -309,6 +309,41 @@ declared coordinates.
   caster sent. It now shows a dash for positions that cannot be used:
   0,0, out of range, or not a number.
 
+## [3.8.1] - unreleased (the paid Android edition only)
+
+An update to pro alone, released to Play's open track beside 3.8.0 in
+production and promoted when nothing comes back wrong. Free and the
+desktop programs stay at 3.8.0; the entries under [Unreleased] above go
+out with the next full release. The build carries the core changes
+listed there, which the app does not show.
+
+### Fixed — a nearest-base service's hand-over read as a fault
+
+A tester drove from the Netherlands to Switzerland on Centipede's NEAR.
+Opening the app there sent his new position, NEAR handed over to a base
+47 km away, and the Reference position screen said, in red, *"a fixed
+base should not move; corrections are unreliable"*. NEAR is a
+nearest-base service; handing over is its job.
+
+The app decided fixed base or network service with its own copy of the
+GUI's rule — the gate test, or a reference position within 150 m of the
+rover — and never asked the sourcetable, which names NEAR as a service.
+That decision is now the core's (`station_service`), one rule for the
+phone and the GUI: the gate test, the sourcetable's classification, then
+the 150 m rule, with the evidence stated. The hub card and the screen
+both use it; red is kept for a fixed base the core says moved.
+
+The screen also says what the caster has been told — the set position,
+or the phone's and how long it has stood, with a plain statement that
+with the screen off it is not updated. That is how the tester's caster
+kept serving a Dutch base all the way to Switzerland; the app does not
+track position in the background, by design, and now says so where it
+matters. The ring label no longer crosses the ring, and the strip chart
+has a scale.
+
+`test_station_class`, 14 cases, the tester's NEAR first;
+`test_bridge_vrs` reads the new `service` and `gga` from the document.
+
 ## [3.8.0] - 2026-08-25
 
 The release where the paid edition ships whole, and the reason it

@@ -26,6 +26,8 @@
 #include "core/config.h"
 #include "core/geo.h"
 #include "core/sourcetable_map.h"
+#include "core/station_class.h"
+#include "core/vrs_check.h"      /* VRS_GATE_UNTESTED */
 #include "core/version.h"
 #include "gui_mountmap.h"
 #include "cJSON.h"
@@ -523,54 +525,47 @@ static void HistorySample(AppState *state, double now)
  */
 static void ClassifyStation(AppState *state)
 {
-    /* 1. Sourcetable keywords -- the core's list and the core's
-     *    whole-word rule, so the mountpoint map reads them the same way.
-     *    Only the keywords: the STR solution field is not used here
-     *    (design/work-items/mountpoint-map.md, M1). */
-    const char *kw = sourcetable_network_keyword(state->sourceDetails);
-    if (!kw) kw = sourcetable_network_keyword(state->sourceNetwork);
-    if (kw) {
-        state->stationType = STATION_VRS;
-        snprintf(state->stationWhy, sizeof(state->stationWhy),
-                 "sourcetable names \"%s\"", kw);
-        return;
+    /* The core decides (station_service, 2026-10-14): the same rule the
+     * phone uses, so a station is a network service in both or in
+     * neither. It adds what this copy lacked: the sourcetable's own
+     * classification, so a nearest-base service named NEAR is a network
+     * service even with its base kilometres away.
+     *
+     * The entry is the loaded table's, at full precision; a typed
+     * mountpoint with only the auto-fetched details falls back to those
+     * and the network field, which is what this rule read before. */
+    const SourcetableEntry *e = NULL;
+    SourcetableEntry typed;
+    for (int i = 0; i < state->stCount && state->stEntries; i++) {
+        if (strcmp(state->stEntries[i].mountpoint, state->config.MOUNTPOINT) == 0) {
+            e = &state->stEntries[i];
+            break;
+        }
+    }
+    if (!e) {
+        memset(&typed, 0, sizeof(typed));
+        /* A name longer than an entry holds matches no entry either. */
+        snprintf(typed.mountpoint, sizeof(typed.mountpoint), "%.*s",
+                 (int)sizeof(typed.mountpoint) - 1, state->config.MOUNTPOINT);
+        snprintf(typed.format_details, sizeof(typed.format_details), "%s", state->sourceDetails);
+        snprintf(typed.network, sizeof(typed.network), "%s", state->sourceNetwork);
+        typed.solution = -1;
+        e = &typed;
     }
 
-    /* 2. Behavioural: does the reference point sit on the rover? */
     bool   arp_valid = false;
     double arp_lat = 0.0, arp_lon = 0.0;
     rtcm_get_station_arp(&arp_valid, NULL, NULL, NULL, &arp_lat, &arp_lon, NULL);
 
-    if (!arp_valid) {
-        state->stationType = STATION_UNKNOWN;
-        snprintf(state->stationWhy, sizeof(state->stationWhy),
-                 "no RTCM 1005/1006 received yet");
-        return;
-    }
-
-    double gga_lat = state->ggaCurrentLat;
-    double gga_lon = state->ggaCurrentLon;
-    if (gga_lat != 0.0 || gga_lon != 0.0) {
-        double d_m = geo_distance_m(arp_lat, arp_lon, gga_lat, gga_lon);
-        /* 150 m: comfortably above VRS placement error, far below the
-         * separation to any real base worth analysing.  A physical base
-         * this close to the rover is possible, so the reason string always
-         * states the evidence rather than asserting the verdict. */
-        if (d_m < 150.0) {
-            state->stationType = STATION_VRS;
-            snprintf(state->stationWhy, sizeof(state->stationWhy),
-                     "reference point sits %.0f m from the GGA being sent", d_m);
-            return;
-        }
-    }
-
-    state->stationType = STATION_FIXED;
-    if (state->vrsArpHistCount > 1)
-        snprintf(state->stationWhy, sizeof(state->stationWhy),
-                 "reference point is independent of the rover position");
-    else
-        snprintf(state->stationWhy, sizeof(state->stationWhy),
-                 "reference point unchanged for the whole session");
+    /* No gate result here: this classifier never used the check window's
+     * gate test, and 0,0 is the GGA "not sent", as before. */
+    StationService s = station_service(e, VRS_GATE_UNTESTED,
+                                       arp_valid, arp_lat, arp_lon,
+                                       true, state->ggaCurrentLat, state->ggaCurrentLon,
+                                       state->stationWhy, sizeof(state->stationWhy));
+    state->stationType = (s == STATION_SERVICE_NETWORK) ? STATION_VRS
+                       : (s == STATION_SERVICE_FIXED)   ? STATION_FIXED
+                       :                                  STATION_UNKNOWN;
 }
 
 /**

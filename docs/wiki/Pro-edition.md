@@ -14,21 +14,17 @@ These pages cover only what is different.
 
 ## Where to get it
 
-Pro is in **closed testing** on Google Play. A personal developer
-account must run a closed test with **twelve testers who stay opted in
-for fourteen continuous days** before it may request production
-access, and that rule counts per app — the free edition serving it
-does not exempt this one.
+Pro is on [Google Play](https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.pro)
+as a paid app (€5.99 in the Netherlands). It was published on
+2026-10-14, after twelve testers stayed opted in to its closed test for
+fourteen days — thank you.
 
-**Testers are not charged.** Pro is a paid app, but testers are added
-as licence testers and install it without paying.
+Newer builds go to an **open test** first, which you can join from the
+store listing. For a paid app that means owning pro; feedback you send
+from the test reaches the author privately.
 
-[Join the test](https://play.google.com/apps/testing/nl.pe1mew.ntripanalyser.pro),
-or [open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues)
-asking to be added.
-
-What helps most during the test is the same thing that helps most
-after it: a station where the verdict looks wrong. The thresholds
+What helps most is a station where the verdict looks wrong —
+[open an issue](https://github.com/pe1mew/NTRIP-Analyser/issues). The thresholds
 behind every verdict are judgements rather than facts, and a station
 you know well is the best evidence against one.
 
