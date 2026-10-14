@@ -256,6 +256,24 @@ int main(void)
     check(strstr(doc, "\"gate_started\":false") != NULL,
           "the gate has not started by itself on a junk-frame loopback");
 
+    /* What the mountpoint is, and what the caster is told (H9). Junk
+     * frames carry no 1005/1006, and TEST's entry names no service, so
+     * the core cannot tell yet -- and says why. The GGA object carries
+     * the position sent and how long it has stood: one position, set at
+     * open, standing since the first pump. */
+    check(strstr(doc, "\"service\":{\"class\":\"unknown\",\"why\":\"no reference position") != NULL,
+          "with no reference position the service is unknown, and says why");
+    check(strstr(doc, "\"gga\":{\"lat\":52.000000,\"lon\":5.000000,\"unchanged_s\":60}") != NULL,
+          "the position sent, unchanged for the 60 s since the first pump");
+    bridge_set_position(b, 52.0, 5.0);
+    pump_json(b, 61.0);
+    check(strstr(doc, "\"unchanged_s\":60") != NULL,
+          "handing the same fix over again is not a move");
+    bridge_set_position(b, 52.1, 5.0);
+    pump_json(b, 61.0);
+    check(strstr(doc, "\"gga\":{\"lat\":52.100000,\"lon\":5.000000,\"unchanged_s\":0}") != NULL,
+          "a new position restarts the count");
+
     /* The gate: entered explicitly -- the tapped-button way in -- and
      * answered by the caster closing the stream. */
     bridge_vrs_gate(b, 61.0);
@@ -269,6 +287,8 @@ int main(void)
           "the drop after GGA stopped classifies the service as gated");
     check(strstr(doc, "\"failed\":false") != NULL,
           "nothing failed on the way");
+    check(strstr(doc, "\"service\":{\"class\":\"network\",\"why\":\"the stream stopped when the GGA did") != NULL,
+          "and the gate's answer makes it a network service in the document");
     bridge_close(b);
 
     /* ── The same caster, a normal run: no vrs object at all ─────── */
@@ -280,6 +300,8 @@ int main(void)
         int n = pump_json(b, 1.0);
         check(n > 0 && strstr(doc, "\"vrs\"") == NULL,
               "a normal run's document carries no vrs object");
+        check(strstr(doc, "\"gga\"") == NULL && strstr(doc, "\"service\":{") != NULL,
+              "with no GGA sent there is no gga object, and still a service");
 
         /* The statistics export speaks the daemon's dialect or it does
          * not ship: the first line must be the core's own header, byte

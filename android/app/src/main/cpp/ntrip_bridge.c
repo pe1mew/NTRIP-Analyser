@@ -12,6 +12,7 @@
 #include "session/ntrip_session.h"
 #include "core/kpi.h"
 #include "core/vrs_check.h"
+#include "core/station_class.h"
 #include "core/station_report.h"
 #include "core/sourcetable.h"
 #include "core/rtcm3x_parser.h"  /* eph decoders, ARP, output sink */
@@ -172,6 +173,17 @@ struct NtripBridge {
     bool      gga_on;
     double    gga_lat, gga_lon;
     double    gga_last_s;      /**< when one was last accepted by the socket */
+    /** When the position sent last changed. With the screen off the
+     *  phone's fix is not updated, so the caster keeps being told where
+     *  the phone was; a tester drove from the Netherlands to Switzerland
+     *  that way and saw the hand-over only when he looked (H9). */
+    double    gga_moved_s;
+    double    now_s;           /**< the caller's clock at the last pump */
+
+    /** The mountpoint's own sourcetable entry, found for KPI 8, kept for
+     *  station_service(); have_st_entry false when it was not found. */
+    SourcetableEntry st_entry;
+    bool      have_st_entry;
 
     /* The network-RTK assertions, judged beside the eight checks. The
      * engine owns the verdicts; this side owns the workflow, and it is
@@ -352,6 +364,7 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
      * so waiting a full interval would cost the run its first ten
      * seconds of stream. */
     b->gga_last_s = -1e9;
+    b->gga_moved_s = -1.0;     /* set at the first pump, when the clock is known */
 
     snprintf(b->mountpoint, sizeof(b->mountpoint), "%s",
              mountpoint ? mountpoint : "");
@@ -391,6 +404,8 @@ NtripBridge *bridge_open(const char *caster, int port, const char *mountpoint,
                 ns_set_advertised_gnss(b->sess,
                     sourcetable_navsys_mask(e[i].nav_systems));
                 found = true;
+                b->st_entry = e[i];
+                b->have_st_entry = true;
                 BLOG("%s found in the sourcetable: %d advertised types",
                      opt.config.MOUNTPOINT, nt);
                 break;
@@ -435,6 +450,9 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
     }
 
     int r = ns_pump(b->sess, timeout_ms);
+
+    b->now_s = now_s;
+    if (b->gga_moved_s < 0.0) b->gga_moved_s = now_s;   /* the run's first position */
 
     /* The clock only advances on a sentence the socket accepted, so a
      * run that spends its first minute reconnecting still uplinks the
@@ -497,6 +515,9 @@ void bridge_vrs_gate(NtripBridge *b, double now_s)
 void bridge_set_position(NtripBridge *b, double lat, double lon)
 {
     if (!b) return;
+    /* A changed position, not a repeated one: the caller hands the same
+     * fix over and over while the screen is off. */
+    if (lat != b->gga_lat || lon != b->gga_lon) b->gga_moved_s = b->now_s;
     b->gga_lat = lat;
     b->gga_lon = lon;
 }
@@ -602,6 +623,36 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
             app(out, cap, &pos, "\"}");
         }
         app(out, cap, &pos, "]}");
+    }
+
+    /* What the mountpoint is -- fixed base or network service -- by the
+     * core's rule (station_service), from the sourcetable entry, the gate
+     * test and where the reference position sits against the position
+     * sent. Decides how a hand-over reads; the reason states the
+     * evidence. */
+    {
+        const NsStatsSnapshot *st = ns_stats(b->sess);
+        char why[160];
+        StationService svc = station_service(
+            b->have_st_entry ? &b->st_entry : NULL,
+            b->vrs_mode ? b->vrep.gate : VRS_GATE_UNTESTED,
+            st->arp_valid, st->arp_lat, st->arp_lon,
+            b->gga_on, b->gga_lat, b->gga_lon, why, sizeof(why));
+        app(out, cap, &pos, ",\"service\":{\"class\":\"%s\",\"why\":\"",
+            station_service_name(svc));
+        app_escaped(out, cap, &pos, why);
+        app(out, cap, &pos, "\"}");
+    }
+
+    /* What the caster is told: the position in the GGA, and how long
+     * since it last changed. With the screen off the phone's fix stands,
+     * so on a drive the caster keeps serving where the phone was -- the
+     * stated boundary of handover-on-the-phone.md, now said on screen. */
+    if (b->gga_on) {
+        app(out, cap, &pos,
+            ",\"gga\":{\"lat\":%.6f,\"lon\":%.6f,\"unchanged_s\":%.0f}",
+            b->gga_lat, b->gga_lon,
+            b->gga_moved_s >= 0.0 ? b->now_s - b->gga_moved_s : 0.0);
     }
 
     /* Tier 2, as the daemon publishes it: sr_to_json verbatim, flat

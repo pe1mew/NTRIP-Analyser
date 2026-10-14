@@ -299,7 +299,11 @@ object HandoverPanel : Panel {
         val fix = MonitorService.displayPosition ?: MonitorService.livePosition
         HandoverDetail(
             stats = stats,
-            vrs = state.doc?.vrs,
+            service = state.doc?.service,
+            gga = state.doc?.gga,
+            // The uplink carries the phone's fix only where live GGA is
+            // on and consented; otherwise the set position (MainActivity).
+            ggaIsPhone = MonitorService.livePosition != null,
             roverLat = fix?.lat ?: state.settings.latitude,
             roverLon = fix?.lon ?: state.settings.longitude,
             mountpoint = state.settings.mountpoint,
@@ -318,7 +322,7 @@ object HandoverPanel : Panel {
         val fix = MonitorService.displayPosition ?: MonitorService.livePosition
         HandoverCard(
             stats = stats,
-            vrs = state.doc?.vrs,
+            service = state.doc?.service,
             roverLat = fix?.lat ?: state.settings.latitude,
             roverLon = fix?.lon ?: state.settings.longitude,
             roverIsFix = fix != null,
