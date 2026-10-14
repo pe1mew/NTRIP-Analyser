@@ -162,7 +162,7 @@
   fix. 3.7.2 (same day) shipped GH#2/GH#3; both issues closed.
 - **The issue tracker is live**: #1 is a PR; issues start at #2.
   Backlog items carry `[GH#n]` tags (`design/todo.md`).
-- **check_release.py is at 106 checks with release artefacts present** (fewer report when no artefact exists to judge); the gate-table guard has
+- **check_release.py is at 114 checks with release artefacts present** (fewer report when no artefact exists to judge; 106 until P7 added the SppStatus comparison, 2026-10-12); the gate-table guard has
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.

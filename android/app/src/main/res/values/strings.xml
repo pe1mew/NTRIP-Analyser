@@ -88,6 +88,34 @@
     <string name="ho_legend_arp">reference position</string>
     <string name="ho_legend_hist">where it was</string>
     <string name="ho_chart">last five minutes</string>
+    <!-- Self-position (P7). Figures, never a verdict; the state is the
+         core's (report schema 4), these are only its words. -->
+    <string name="sp_no_run">Start a check or watch a station: this view shows where its own observations place it.</string>
+    <string name="sp_state_solved">SOLVED — no verdict</string>
+    <string name="sp_state_gathering">GATHERING</string>
+    <string name="sp_state_not_computable">NOT COMPUTABLE</string>
+    <string name="sp_state_not_solved">NOT SOLVED</string>
+    <string name="sp_no_verdict">No threshold for a station’s own scatter has been established from evidence, so these are figures, not a judgement.</string>
+    <string name="sp_why_single_freq">A single-frequency station: its own position cannot be computed, and waiting will not change that.</string>
+    <string name="sp_why_no_eph">Waiting for orbits: the station’s stream or the ephemeris stream supplies them.</string>
+    <string name="sp_why_too_few">Waiting for four usable GPS satellites on two frequencies.</string>
+    <string name="sp_why_diverged">The solution did not settle.</string>
+    <string name="sp_why_first_epoch">Waiting for the first observation epoch to solve.</string>
+    <string name="sp_explainer">The station’s own GPS observations against the position it broadcasts (ARP), from broadcast orbits. The offset is mostly this solution’s bias; the scatter is what measures the station; a still base reads tens of mm/s.</string>
+    <string name="sp_f_epochs">Epochs solved</string>
+    <string name="sp_v_of">%1$d of %2$d</string>
+    <string name="sp_f_offset">Mean offset E/N/U</string>
+    <string name="sp_f_scatter">Scatter about the mean</string>
+    <string name="sp_f_rms">Worst code residual</string>
+    <string name="sp_f_motion">Median apparent motion</string>
+    <string name="sp_v_no_rates">no rates in stream</string>
+    <string name="sp_latest_line">latest %1$d sats · PDOP %2$s · %3$s</string>
+    <string name="sp_reversed">Range rates REVERSED by this station’s receiver</string>
+    <string name="sp_plot_empty">no epoch has solved yet</string>
+    <string name="sp_legend_epochs">epochs</string>
+    <string name="sp_legend_latest">latest</string>
+    <string name="sp_legend_mean">mean</string>
+    <string name="sp_legend_arp">ARP</string>
     <string name="action_again">Run again</string>
     <string name="action_stop">Stop</string>
     <string name="action_browse">Browse mountpoints…</string>
@@ -119,6 +147,7 @@
     <string name="view_sky">Sky view</string>
     <string name="view_bars">Signal quality</string>
     <string name="view_elev">C/N0 vs elevation</string>
+    <string name="view_selfpos">Self-position</string>
     <string name="sky_header">%1$d of %2$d satellites shown · %3$s</string>
     <string name="sky_source_age">%1$s, %2$s old</string>
     <string name="sky_missing">%1$d without a position from %2$s — measured, but not placeable</string>

@@ -180,19 +180,17 @@ typedef enum {
 
 static SpState SelfPosState(const AppState *state)
 {
-    const StationReport *r = &state->reportOut;
-
-    if (state->reportHave && r->sp_samples > 0) return SP_SOLVED;
-
-    /* A single-frequency stream is told apart at once: waiting longer
-     * cannot change it, and saying "gathering" would be a promise. */
-    if (state->reportHave && r->sp_last_status == SPP_SINGLE_FREQ)
-        return SP_NOT_COMPUTABLE;
-
-    if (state->reportHave && r->window_s >= SR_MIN_WINDOW_S)
-        return SP_NOT_SOLVED;
-
-    return SP_GATHERING;
+    /* Decided in the core (StationReport.sp_state, sr_build) since
+     * 2026-10-12, so the phone says the same thing at the same moment.
+     * Decided here before that, against the constant SR_MIN_WINDOW_S
+     * where the report applies the loaded policy's own window. */
+    if (!state->reportHave) return SP_GATHERING;
+    switch (state->reportOut.sp_state) {
+    case SR_SP_SOLVED:         return SP_SOLVED;
+    case SR_SP_NOT_COMPUTABLE: return SP_NOT_COMPUTABLE;
+    case SR_SP_NOT_SOLVED:     return SP_NOT_SOLVED;
+    default:                   return SP_GATHERING;
+    }
 }
 
 /**

@@ -276,26 +276,21 @@ object VrsPanel : Panel {
  * Rover-to-ARP distance and the hand-over history (phase 2 item 3,
  * `design/work-items/handover-on-the-phone.md`). Pro's registry only.
  *
- * The first panel with a screen of its own: the card drills into the
- * polar plot and the strip chart, through the detail contract the
- * shell has carried unused since P1.2.
+ * No card since 2026-10-12: the polar plot and the strip chart are
+ * pro's last analysis tab (author's direction, following
+ * Self-position), and the panel stays in the registry for its section
+ * of the shared report. The tab draws [View], which was this panel's
+ * detail screen.
  */
 object HandoverPanel : Panel {
     override val key = "handover"
 
-    override fun destination(): Dest = Dest.Detail(key)
-
-    /** The mark only over a card that is actually drawn. */
-    override fun affordance(state: HubState): Affordance {
-        val stats = state.doc?.stats
-        return if (stats != null && stats.arpValid &&
-                   stats.arpLat != null && stats.arpLon != null)
-            Affordance.FORWARD else Affordance.NONE
-    }
-
+    /** The analysis tab's content. */
     @Composable
-    override fun Detail(state: HubState, actions: HubActions) {
+    fun View(state: HubState) {
         val stats = state.doc?.stats ?: return
+        // The rover end: the phone wherever it has a fix (display only,
+        // it never leaves the device), the set position otherwise.
         val fix = MonitorService.displayPosition ?: MonitorService.livePosition
         HandoverDetail(
             stats = stats,
@@ -308,27 +303,12 @@ object HandoverPanel : Panel {
             roverLon = fix?.lon ?: state.settings.longitude,
             mountpoint = state.settings.mountpoint,
             roverIsFix = fix != null,
+            worstJumpM = worstJump(),
         )
     }
 
     @Composable
-    override fun detailTitle(): String = stringResource(R.string.ho_title)
-
-    @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        val stats = state.doc?.stats ?: return
-        // The rover end: the phone wherever it has a fix (display only,
-        // it never leaves the device), the set position otherwise.
-        val fix = MonitorService.displayPosition ?: MonitorService.livePosition
-        HandoverCard(
-            stats = stats,
-            service = state.doc?.service,
-            roverLat = fix?.lat ?: state.settings.latitude,
-            roverLon = fix?.lon ?: state.settings.longitude,
-            roverIsFix = fix != null,
-            moves = stats.arpMoves,
-            worstJumpM = worstJump(),
-        )
     }
 
     /** The largest step between successive recorded positions. */

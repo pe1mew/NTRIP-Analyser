@@ -607,6 +607,24 @@ def check_failure_codes():
         check(name == c_order[i] and int(value) == i,
            "%s is %d in both C and Kotlin" % (name, i))
 
+    # SppStatus crosses the same way, as numbers the phone names in its
+    # own words (SelfPosition.kt, P7). Reorder the C enum and the phone
+    # would say "waiting for orbits" about a station that has them.
+    sh = read("src", "core", "spp.h")
+    sbody = sh[sh.index("typedef enum {"):sh.index("} SppStatus;")]
+    spp_c = re.findall(r"\b(SPP_\w+)", sbody)
+    sp_kt = read("android", "app", "src", "main", "java", "nl", "pe1mew",
+                 "ntripanalyser", "SelfPosition.kt")
+    spp_kt = re.findall(r"const val (SPP_\w+)\s*=\s*(\d+)", sp_kt)
+    check(len(spp_kt) == len(spp_c),
+          "the app declares every SppStatus (C has %d, Kotlin %d)"
+          % (len(spp_c), len(spp_kt)))
+    for i, (name, value) in enumerate(spp_kt):
+        if i >= len(spp_c):
+            break
+        check(name == spp_c[i] and int(value) == i,
+              "%s is %d in both C and Kotlin" % (name, i))
+
     # The sentences are the same in both editions because they live in
     # main/. A flavour that redefined one would give free and pro
     # different words for the same fault.
