@@ -84,18 +84,11 @@ Either works; the project is plain Gradle with no IDE-specific files.
 
    That file is machine-specific and git-ignored; never commit it.
 
-4. **Generate the Gradle wrapper once.** `gradle/wrapper/gradle-wrapper.properties`
-   is committed, but `gradlew` and its `.jar` are not — a binary in the
-   repository that nobody here can build or verify is worse than a
-   documented one-liner. Opening the project in Android Studio creates
-   them automatically. From the command line, with any Gradle 8.x
-   installed, run once in `android/`:
-
-   ```bash
-   gradle wrapper
-   ```
-
-   After that `./gradlew` works and Gradle itself is self-updating.
+4. **The Gradle wrapper is committed** (`gradlew`, `gradlew.bat` and
+   `gradle/wrapper/`), so nothing needs installing: the first
+   `./gradlew` downloads the Gradle version
+   `gradle/wrapper/gradle-wrapper.properties` names — 9.8.1, which
+   AGP 9 requires — and CI builds the same way.
 
 Two traps worth knowing, both hit during this setup:
 

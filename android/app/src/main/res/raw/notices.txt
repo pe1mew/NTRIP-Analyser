@@ -105,7 +105,7 @@ AndroidX Security Crypto (with Google
   Tink)
   1.0.0
 Kotlin standard library
-  2.0.21
+  2.2.10
 
 Licensed under the Apache License, Version
 2.0 (the "License"); you may not use these

@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
@@ -147,6 +146,10 @@ android {
             // time in the release build alone, and that is better met on a
             // bench than in the field.
             isMinifyEnabled = true
+            // Under AGP 9 this is R8's optimised resource shrinking: resources
+            // are part of the reference graph, and one only unused code
+            // reaches goes with that code. 8.12-8.13 needed
+            // android.r8.optimizedResourceShrinking=true for it (GH#12).
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -173,8 +176,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    kotlinOptions { jvmTarget = "17" }
 
     buildFeatures {
         compose = true
@@ -223,7 +224,7 @@ if (!haveKeystore) {
  * Resources are exempt on purpose: the launcher icon and the app name
  * are what an edition is *allowed* to differ in.
  */
-val checkEditionParity by tasks.registering {
+val checkEditionParity = tasks.register("checkEditionParity") {
     group = "verification"
     description = "Fails if an edition carries code of its own."
 

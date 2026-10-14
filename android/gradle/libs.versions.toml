@@ -1,6 +1,8 @@
 [versions]
-agp = "8.13.2"
-kotlin = "2.0.21"
+agp = "9.4.1"
+# AGP 9 compiles Kotlin itself and depends on KGP 2.2.10; the Compose
+# and serialization compiler plugins must be the same version.
+kotlin = "2.2.10"
 coreKtx = "1.15.0"
 lifecycle = "2.8.7"
 activityCompose = "1.9.3"
@@ -21,6 +23,5 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

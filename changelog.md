@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed — the Android app is built with AGP 9 (both editions)
+
+The Play Console recommended R8's optimised resource shrinking and the
+Android Gradle plugin 9 for pro 3.8.0. Both are done: AGP 9.4.1 on
+Gradle 9.8.1, with Kotlin 2.2.10 compiled by the plugin itself, and
+resources now shrunk together with the code. The paid edition's code
+is 102 KB smaller uncompressed than 3.8.1's toolchain made it (2,461,764
+to 2,359,340 bytes of dex) and its resource table 6 KB smaller; the
+native library, which is most of the download, is unchanged. Walked
+screen by screen on a Samsung S23 with no crash. GH#12.
+
 ### Added — pro picks up where free left off (Android, both editions)
 
 Buying pro no longer means typing the caster again. Pro's menu offers
