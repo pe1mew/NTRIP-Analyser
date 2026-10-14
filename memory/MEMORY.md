@@ -33,7 +33,7 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 129 entries, 89 resolved in code or procedure (triaged 2026-10-14: each retirement names its evidence) |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 132 entries, 90 resolved in code or procedure (triaged 2026-10-14: each retirement names its evidence) |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
@@ -55,16 +55,21 @@
 
 ## Current State
 
-<!-- 2026-10-13 -->
+<!-- 2026-10-14 -->
 
-- **P7 and the mountpoint map meet on one branch** (2026-10-14):
-  pe1mew/NTRIP-Analyser#11 (3.8.1) and #9 (`self-position-pro`: P7,
-  Self-position and Reference position as pro's last two analysis
-  tabs, debug builds as `….dev`) are merged into main;
-  `mountmap-android` (#10: M6–M8, the map in both editions, select in
-  pro) carries main and is the last. Neither P7 nor the map is in a
-  released build yet. The local `bench-all` merge is superseded.
-  <!-- verify: test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt -->
+- **Main carries the next pro release, unreleased** (2026-10-14): PRs
+  #9 (P7 self-position, Reference position tab), #10 (mountpoint map,
+  M6–M8) and #11 (3.8.1) merged; GH#5 (pro imports free's connection
+  by consent; refused during a run; keeps pro's ephemeris stream and
+  live GGA); GH#13 (each self-position point carries `sats`, `pdop`,
+  `sv_mask`, `eph_id`; export v2; PDOP now of the satellites used);
+  the watch's per-drop record (`KpiDrop`, `test_kpi_watch`); a cured
+  failure cleared on reconnect; AGP 9.4.1 / Gradle 9.8.1 (GH#12). All
+  verified on the S23 and the Huawei. **P7's release waits on** the
+  two-cluster finding (an overnight S export can now place a jump;
+  the first 15 min showed a 2.05 m step exactly at PRN 10 joining)
+  and the listing sentence "does not compute a position".
+  <!-- verify: test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt && grep -q "KpiDrop" src/core/kpi.h && grep -q 'agp = "9.' android/gradle/libs.versions.toml -->
 - **Every frontend takes whole sourcetables only, and says why not**
   (`receive_mount_table_whole`, `src/net`): asked once more after a
   silence or a list cut short before `ENDSOURCETABLE`; onocoy did both,

@@ -665,7 +665,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the commit message lived in the conversation, not in the command. That is the third face of the promoted rule *a command carries all its context in itself*.
 **Fix**: since then every commit is handed over as `git -C <checkout> commit -F <file>`, with the message written to the scratchpad first; it has worked four times. The claimed commit was checked (`git log`, worktrees, every branch) before anything was started on it, which is what caught this.
 
-### A blind tap script walked out of the app (2026-10-13) [x2]
+### A blind tap script walked out of the app (2026-10-13) [x3]
+**Recurrence 2026-10-14 (Huawei)**: after `adb install -r` the first `am start` was ignored, the launcher's app drawer had focus, and the swipes meant for the hub scrolled the drawer. Relaunch until `mCurrentFocus` names the app, then act.
 **Recurrence 2026-10-14**: reading before each tap was not enough. A Back press meant to close a dialog that had already closed left the app, and the swipe that followed scrolled the launcher's store front; another Back landed on the S23's launcher. Check the focused window (`dumpsys window | grep mCurrentFocus`) before every Back and every swipe, not only before taps. And the reader itself (`uiautomator dump` parsed with a regex) died on a node without `content-desc`; read attributes as optional.
 **Problem**: a script meant to open the phone's mountpoint map ten times reported "nothing after 30 s" every time. The phone was on the launcher's app drawer, and the dev app's active connection and one connection's mountpoint had changed meanwhile.
 **Root cause**: on the Huawei the first tap after the app comes to the front is often ignored; the map never opened, and the script's Back -- meant to leave the map -- left the app. Nine more rounds tapped blind coordinates on the home screen. Separately, a button's position was parsed with a regex that took a stray digit from the node before it, so a tap meant for *Select mountpoint* landed on the map.
@@ -720,6 +721,21 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Problem**: twice in one afternoon a CI check found no run for the new commit.
 **Root cause**: the commit was made but the push had not happened; the author's tooling and the message disagreed.
 **Fix**: before reading CI, `git fetch` and compare `origin/main` with the local commit; say "not pushed yet" rather than report an older run.
+
+### The phone locked between the steps of a test (2026-10-14) [x4]
+**Problem**: four times in one afternoon a step on the S23 or the Huawei found the lock screen (`NotificationShade` or the clock in the dump) instead of the app, and waited for the author.
+**Root cause**: the screen timeout is shorter than the gap between steps that wait on a build, a watch or the author.
+**Fix**: read `mCurrentFocus` before each step and ask for an unlock instead of acting on the lock screen; a longer timeout during a session is the author's setting to change.
+
+### A corrupted NDK download failed CI on a docs-only commit (2026-10-14)
+**Problem**: "Both editions" failed on a commit that changed two Markdown files: "Error reading Zip content from a SeekableByteChannel" in *Install the pinned NDK*, before Gradle ran.
+**Root cause**: a truncated download on the runner; nothing in the repository.
+**Fix**: `gh run rerun <id> --failed` passed. Read the failing step before the code; if it recurs, cache the NDK in `ci.yml`.
+
+### A merge of a subset erased what only the superset holds (2026-10-14) [RESOLVED]
+**Problem**: importing free's connection into pro blanked pro's ephemeris stream; self-position on a station that sends no orbits sat at "waiting for orbits".
+**Root cause**: the merge replaced a matching connection outright, and free's empty ephemeris fields meant "I cannot hold this", not "remove it".
+**Fix**: `mergeConnections(fromFree = true)` keeps the fields free cannot hold. A merge from a narrower source must say which fields it owns.
 
 ## Promoted
 

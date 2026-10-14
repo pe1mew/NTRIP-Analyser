@@ -144,6 +144,7 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/java/.../Shell.kt` | The frame every screen is drawn in: four bar slots, the overflow menu, the analysis bar. **No title parameter**, so no screen can disagree about the app's name |
 | `android/app/src/main/java/.../Failure.kt` | `NsFailure` in the app's own words, and which field each fault points at. Numbers checked against the C enum by `tools/check_release.py` |
 | `android/app/src/main/java/.../{Panel,HubPanels}.kt` | The panel contract and the ten panels that implement it. A panel owns its card, its detail screen and its slice of the shared report |
+| `android/app/src/main/java/.../{Handover,ShareConnectionsActivity}.kt` | Pro picks up free's connection (GH#5): the contract and the signer check; free's consent screen, **the security control** — declared only in free's manifest |
 | `android/app/src/main/java/.../Navigation.kt` | `Dest` and the hand-rolled `NavStack`. No `navigation-compose` |
 | `android/app/src/{free,pro}/.../Registry.kt` | **The list is the layout** — what an edition shows, in order, hub and report alike |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
