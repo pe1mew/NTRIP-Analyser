@@ -435,6 +435,18 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     out_json_num(&o, sp ? s->selfpos_pdop : NS_UNSET, 2);
     out_str(&o, ",");
     out_key(&o, "selfpos_sats"); out_fmt(&o, "%d", sp ? s->selfpos_sats : 0);
+    /* Which satellites and which ephemerides, so a trail can tell a
+     * step at a satellite rising or setting, or at a new ephemeris,
+     * from one without either.  Numbers, null when nothing solved: a
+     * mask of 0 would claim a solution from no satellites. */
+    out_str(&o, ",");
+    out_key(&o, "selfpos_sv_mask");
+    if (sp) out_fmt(&o, "%lu", (unsigned long)s->selfpos_sv_mask);
+    else    out_str(&o, "null");
+    out_str(&o, ",");
+    out_key(&o, "selfpos_eph_id");
+    if (sp) out_fmt(&o, "%lu", (unsigned long)s->selfpos_eph_id);
+    else    out_str(&o, "null");
 
     /* The velocity is a second, independent absence: a stream can place
      * the antenna and still carry no phase-range rates to move it with
@@ -478,7 +490,7 @@ int ns_stats_to_json(const NsStatsSnapshot *s, char *out, size_t cap)
     "selfpos_status,selfpos_e_m,selfpos_n_m,selfpos_u_m," \
     "selfpos_code_rms_m,selfpos_pdop,selfpos_sats," \
     "selfpos_speed_mms,selfpos_drift_ms,selfpos_rate_rms_ms," \
-    "selfpos_rate_sign"
+    "selfpos_rate_sign,selfpos_sv_mask,selfpos_eph_id"
 
 int ns_stats_csv_header(char *out, size_t cap)
 {
@@ -597,6 +609,11 @@ int ns_stats_to_csv_row(const NsStatsSnapshot *s, char *out, size_t cap)
     out_csv_num(&o, spv ? s->selfpos_rate_rms_ms : NS_UNSET, 4);
     out_ch(&o, ',');
     out_fmt(&o, "%d", spv ? s->selfpos_rate_sign : 0);
+    /* Appended last, after the velocity, for the column readers above. */
+    out_ch(&o, ',');
+    if (sp) out_fmt(&o, "%lu", (unsigned long)s->selfpos_sv_mask);
+    out_ch(&o, ',');
+    if (sp) out_fmt(&o, "%lu", (unsigned long)s->selfpos_eph_id);
 
     return (int)o.len;
 }

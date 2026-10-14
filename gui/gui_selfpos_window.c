@@ -96,6 +96,10 @@ void SelfPosOnStats(AppState *state, const NsStatsSnapshot *s)
         p.e      = (float)s->selfpos_e;
         p.n      = (float)s->selfpos_n;
         p.u      = (float)s->selfpos_u;
+        p.pdop    = (float)s->selfpos_pdop;
+        p.sats    = s->selfpos_sats;
+        p.sv_mask = s->selfpos_sv_mask;
+        p.eph_id  = s->selfpos_eph_id;
 
         /* Written whole, then published: a painter that reads `count`
          * first can only see slots that are complete. */
@@ -801,8 +805,13 @@ static void json_embed(FILE *f, int need, char *buf)
  *   rather than in a second dialect invented for an export;
  * - the **snapshot** -- the latest epoch, the same record File > Export
  *   Statistics writes;
- * - the **points** behind the plot, in time order, as `[t, e, n, u]`,
- *   so the cloud can be re-plotted or analysed without the image.
+ * - the **points** behind the plot, in time order, as `[t, e, n, u,
+ *   sats, pdop, sv_mask, eph_id]` and named by `points_columns`, so the
+ *   cloud can be re-plotted or analysed without the image, and a step in
+ *   it placed against a change of satellites or of ephemeris.
+ *
+ * Version 2 added the last four columns (GH#13). The first four are
+ * unchanged, so a version 1 reader that indexes them still reads them.
  *
  * @return true when the whole file was written.
  */
@@ -845,14 +854,19 @@ static bool WriteSelfPosCompanion(AppState *state, const char *png,
         if (lt) strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S", lt);
     }
 
-    fputs("{\"selfpos_export_version\":1", f);
+    fputs("{\"selfpos_export_version\":2", f);
     fputs(",\"image\":", f);      json_str(f, base);
     fputs(",\"caster\":", f);     json_str(f, state->config.NTRIP_CASTER);
     fputs(",\"mountpoint\":", f); json_str(f, state->config.MOUNTPOINT);
     fputs(",\"exported_local\":", f); json_str(f, when);
     fputs(",\"points_frame\":", f);
     json_str(f, "metres east, north and up from the ARP the station "
-                "broadcasts; t is stream seconds since the plot began");
+                "broadcasts; t is stream seconds since the plot began; "
+                "sv_mask has bit (PRN - 1) set for each GPS satellite "
+                "used; eph_id identifies their ephemerides and is "
+                "meaningful only as equal or not");
+    fputs(",\"points_columns\":[\"t\",\"e\",\"n\",\"u\",\"sats\",\"pdop\","
+          "\"sv_mask\",\"eph_id\"]", f);
     fputs(",\"report\":", f);   json_embed(f, rep  ? rep_n  : -1, rep);
     fputs(",\"snapshot\":", f); json_embed(f, snap ? snap_n : -1, snap);
 
@@ -865,8 +879,10 @@ static bool WriteSelfPosCompanion(AppState *state, const char *png,
     fputs(",\"points\":[", f);
     for (int i = 0; i < count; i++) {
         const SelfPosPoint *p = &r->pts[(start + i) % SELFPOS_CAP];
-        fprintf(f, "%s[%.1f,%.3f,%.3f,%.3f]", i ? "," : "",
-                (double)p->ts_rel, (double)p->e, (double)p->n, (double)p->u);
+        fprintf(f, "%s[%.1f,%.3f,%.3f,%.3f,%d,%.2f,%lu,%lu]", i ? "," : "",
+                (double)p->ts_rel, (double)p->e, (double)p->n, (double)p->u,
+                p->sats, (double)p->pdop,
+                (unsigned long)p->sv_mask, (unsigned long)p->eph_id);
     }
     fputs("]}\n", f);
 

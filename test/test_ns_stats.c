@@ -433,6 +433,8 @@ int main(void)
         q.selfpos_u           = 2.001;
         q.selfpos_code_rms_m  = 1.75;
         q.selfpos_pdop        = 1.8;
+        q.selfpos_sv_mask     = 0x00000F0Fu;
+        q.selfpos_eph_id      = 12345u;
         q.selfpos_has_vel     = true;
         q.selfpos_speed_mms   = 7.0;
         q.selfpos_rate_rms_ms = 0.0031;
@@ -447,6 +449,9 @@ int main(void)
         check(strstr(json, "\"selfpos_pdop\":null") != NULL &&
               strstr(json, "\"selfpos_sats\":0") != NULL,
               "no geometry either, for a solution that does not exist");
+        check(strstr(json, "\"selfpos_sv_mask\":null") != NULL &&
+              strstr(json, "\"selfpos_eph_id\":null") != NULL,
+              "nor a satellite set, stale values left behind included");
         check(strstr(json, "\"selfpos_speed_mms\":null") != NULL,
               "nor a speed, which a zero would read as a still antenna");
         check(strstr(json, "\"selfpos_rate_rms_ms\":null") != NULL,
@@ -469,6 +474,8 @@ int main(void)
         v.selfpos_u           = 2.001;
         v.selfpos_code_rms_m  = 1.75;
         v.selfpos_pdop        = 1.8;
+        v.selfpos_sv_mask     = 0x80000001u;   /* PRN 1 and PRN 32 */
+        v.selfpos_eph_id      = 4294967295u;   /* the widest it can be */
         v.selfpos_has_vel     = true;
         v.selfpos_speed_mms   = 3.25;
         v.selfpos_drift_ms    = -0.0042;
@@ -482,6 +489,10 @@ int main(void)
               "and a negative offset keeps its sign");
         check(strstr(json, "\"selfpos_sats\":11") != NULL,
               "the satellite count is a count, not a decimal");
+        check(strstr(json, "\"selfpos_sv_mask\":2147483649") != NULL,
+              "the mask keeps PRN 32's bit: unsigned, not wrapped negative");
+        check(strstr(json, "\"selfpos_eph_id\":4294967295") != NULL,
+              "the identifier is printed whole");
         check(strstr(json, "\"selfpos_speed_mms\":3.25") != NULL &&
               strstr(json, "\"selfpos_rate_rms_ms\":0.0031") != NULL,
               "the velocity and what it was measured to travel together");

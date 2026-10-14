@@ -33,6 +33,8 @@ typedef struct {
     bool   has_rate;    /**< false on MSM4, MSM6 and the legacy messages */
     int    gnss_id;
     int    prn;
+    int    iode;        /**< the ephemeris it was placed with ... */
+    double toe;         /**< ... and that ephemeris's reference time */
 } SppSat;
 
 /**
@@ -227,6 +229,8 @@ static int collect(const NsObsEpoch *obs, int week, double tow_s,
                            : 0.0;
         sats[n].gnss_id = a->gnss_id;
         sats[n].prn     = a->prn;
+        sats[n].iode    = eph->iode_iodnav;
+        sats[n].toe     = eph->toe;
         n++;
     }
     return n;
@@ -268,6 +272,7 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
      * clock error, one pass recovers to metres and two to millimetres. */
     int n = 0, used = 0;
     double resid[SPP_MAX_SATS];
+    bool in_use[SPP_MAX_SATS];   /* which of sats[] the last iteration fitted */
     for (int pass = 0; pass < 2; pass++) {
     n = collect(obs, week, tow_s, (pass == 0) ? 0.0 : x[3],
                 out, sats, SPP_MAX_SATS);
@@ -301,6 +306,7 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
         out->n_low_elev = 0;
 
         for (int i = 0; i < n; i++) {
+            in_use[i] = false;
             double d[3] = { sats[i].pos[0] - x[0],
                             sats[i].pos[1] - x[1],
                             sats[i].pos[2] - x[2] };
@@ -329,6 +335,7 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
                 rhs[r] += u[r] * v;
             }
             resid[used] = v;
+            in_use[i] = true;
             used++;
         }
 
@@ -361,9 +368,13 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
     for (int i = 0; i < used; i++) ss += resid[i] * resid[i];
     out->code_rms_m = sqrt(ss / (double)used);
 
-    /* PDOP from the inverse of the normal matrix at the solution. */
+    /* PDOP from the inverse of the normal matrix at the solution, over
+     * the satellites the fit used.  Until 2026-10-14 this summed every
+     * satellite collected, the ones under the elevation mask included,
+     * so it described a better geometry than the one solved. */
     double N[4][4] = {{0}};
     for (int i = 0; i < n; i++) {
+        if (!in_use[i]) continue;
         double d[3] = { sats[i].pos[0] - x[0],
                         sats[i].pos[1] - x[1],
                         sats[i].pos[2] - x[2] };
@@ -387,6 +398,28 @@ SppStatus spp_solve(const NsObsEpoch *obs, int week, double tow_s,
     out->pos[0] = x[0]; out->pos[1] = x[1]; out->pos[2] = x[2];
     out->clock_bias_m = x[3];
     out->n_used = used;
+
+    /* Which satellites, and which of their ephemerides.  Visited in PRN
+     * order so the identifier does not depend on the order the frames
+     * arrived in; FNV-1a, because it only has to change when the set
+     * does and is a dozen lines nobody has to trust. */
+    out->sv_mask = 0;
+    uint32_t h = 2166136261u;
+    for (int prn = 1; prn <= 32; prn++) {
+        for (int i = 0; i < n; i++) {
+            if (!in_use[i] || sats[i].prn != prn) continue;
+            out->sv_mask |= 1u << (prn - 1);
+            const uint32_t words[3] = { (uint32_t)prn, (uint32_t)sats[i].iode,
+                                        (uint32_t)(int32_t)sats[i].toe };
+            for (int w = 0; w < 3; w++)
+                for (int b = 0; b < 4; b++) {
+                    h ^= (words[w] >> (8 * b)) & 0xFFu;
+                    h *= 16777619u;
+                }
+            break;
+        }
+    }
+    out->eph_id = h;
     out->n_rejected += out->n_no_eph + out->n_single_freq + out->n_low_elev;
 
     if (ref_ecef) {

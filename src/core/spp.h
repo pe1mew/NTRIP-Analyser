@@ -41,6 +41,7 @@
 #define SPP_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "core/ns_obs.h"
 
@@ -64,8 +65,25 @@ typedef struct {
     double    enu[3];        /**< east, north, up against the reference */
     double    clock_bias_m;  /**< receiver clock offset, metres */
     double    code_rms_m;    /**< RMS of the post-fit residuals */
-    double    pdop;          /**< position dilution of precision */
+    double    pdop;          /**< position dilution of precision, over
+                                  the satellites in the final solution */
     int       n_used;        /**< satellites in the final solution */
+    /**
+     * The GPS satellites in the final solution: bit (PRN − 1) set for
+     * each. With @ref eph_id it lets a trail say why it stepped: a
+     * changed mask is a satellite rising, setting or rejected; the same
+     * mask with a changed @ref eph_id is a new broadcast ephemeris.
+     * 0 when nothing solved.
+     */
+    uint32_t  sv_mask;
+    /**
+     * Which broadcast ephemerides placed those satellites: FNV-1a over
+     * (PRN, IODE, toe) of each, in PRN order. An identifier, not a
+     * quantity -- equal values mean the same ephemeris set, and nothing
+     * else about the number means anything. Undefined when nothing
+     * solved.
+     */
+    uint32_t  eph_id;
     int       n_rejected;    /**< satellites dropped, with reasons counted
                                   below */
     int       n_no_eph;      /**< dropped: no ephemeris */

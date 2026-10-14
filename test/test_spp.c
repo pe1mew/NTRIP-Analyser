@@ -104,11 +104,12 @@ static void add_sat(NsObsEpoch *ep, int prn, double range_m)
 }
 
 /**
- * @brief Build the epoch a receiver at @p rx would have measured.
- * @return Satellites written above the mask.
+ * @brief Build the epoch a receiver at @p rx would have measured, from
+ *        every satellite above @p min_el_deg.
+ * @return Satellites written.
  */
-static int build_epoch(NsObsEpoch *ep, const double rx[3], double bias_m,
-                       int *prns, int max_prns)
+static int build_epoch_el(NsObsEpoch *ep, const double rx[3], double bias_m,
+                          int *prns, int max_prns, double min_el_deg)
 {
     double lat, lon, alt;
     ecef_to_geodetic(rx[0], rx[1], rx[2], 0.0, &lat, &lon, &alt);
@@ -139,7 +140,7 @@ static int build_epoch(NsObsEpoch *ep, const double rx[3], double bias_m,
         double az, el;
         azel_from_ecef(rx[0], rx[1], rx[2], st.pos[0], st.pos[1], st.pos[2],
                        &az, &el);
-        if (el < 15.0) continue;      /* clear of the solver's 10 deg mask */
+        if (el < min_el_deg) continue;
 
         /* Exactly the model spp.c inverts. */
         const double p_if = rho - C_M_S * st.clock_s
@@ -149,6 +150,13 @@ static int build_epoch(NsObsEpoch *ep, const double rx[3], double bias_m,
         n++;
     }
     return n;
+}
+
+/** @brief The usual epoch: 15 degrees, clear of the solver's 10 degree mask. */
+static int build_epoch(NsObsEpoch *ep, const double rx[3], double bias_m,
+                       int *prns, int max_prns)
+{
+    return build_epoch_el(ep, rx, bias_m, prns, max_prns, 15.0);
 }
 
 /** @brief The closure test: known point in, known point out. */
@@ -614,10 +622,109 @@ static void case_gps_only(void)
     CHECK(d < 1.0e-3, "position unmoved by the other systems: %.4f m", d);
 }
 
+/** @brief The bit mask a list of GPS PRNs should give. */
+static uint32_t mask_of(const int *prns, int n)
+{
+    uint32_t m = 0;
+    for (int i = 0; i < n; i++) m |= 1u << (prns[i] - 1);
+    return m;
+}
+
+/**
+ * @brief The solution says which satellites and which ephemerides it
+ *        used (GH#13), and its PDOP is theirs.
+ *
+ * A trail that steps must be placeable against a satellite rising or
+ * setting, or a new ephemeris; these are the two fields that do it.
+ */
+static void case_says_which_satellites(void)
+{
+    sv_eph_init();
+    for (int k = 0; k < 10; k++) {
+        SvEphemeris e = eph_at(k + 1, 0.2 * k, 0.6 * k);
+        sv_eph_store(&e);
+    }
+
+    double rx[3];
+    geodetic_to_ecef(52.0, 6.0, 50.0, &rx[0], &rx[1], &rx[2]);
+    NsObsEpoch ep;
+    int prns[16];
+    const int n = build_epoch(&ep, rx, 0.0, prns, 16);
+    CHECK(n >= 4, "need four satellites, built %d", n);
+    if (n < 4) return;
+
+    SppSolution a, b;
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &a) == SPP_OK, "first solve");
+    CHECK(a.sv_mask == mask_of(prns, n),
+          "mask 0x%08lx, expected 0x%08lx", (unsigned long)a.sv_mask,
+          (unsigned long)mask_of(prns, n));
+
+    /* The same epoch twice is the same identifier: it names a set, so
+     * nothing else may enter it. */
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &b) == SPP_OK, "second solve");
+    CHECK(a.eph_id == b.eph_id, "the same set gave two identifiers");
+
+    /* A new ephemeris for one satellite, same orbit, new IODE: the
+     * position does not move, the mask does not change, and the
+     * identifier must. */
+    SvEphemeris e = eph_at(prns[0], 0.2 * (prns[0] - 1), 0.6 * (prns[0] - 1));
+    e.iode_iodnav = 77;
+    sv_eph_store(&e);
+    CHECK(spp_solve(&ep, WEEK, TOW, rx, &b) == SPP_OK, "solve after the upload");
+    const double d = sqrt((a.pos[0]-b.pos[0])*(a.pos[0]-b.pos[0])
+                        + (a.pos[1]-b.pos[1])*(a.pos[1]-b.pos[1])
+                        + (a.pos[2]-b.pos[2])*(a.pos[2]-b.pos[2]));
+    CHECK(d < 1.0e-6, "same orbit, position moved %.6f m", d);
+    CHECK(b.sv_mask == a.sv_mask, "a new ephemeris changed the mask");
+    CHECK(b.eph_id != a.eph_id, "a new IODE left the identifier unchanged");
+    printf("which: mask 0x%08lx, eph_id %08lx then %08lx\n",
+           (unsigned long)a.sv_mask, (unsigned long)a.eph_id,
+           (unsigned long)b.eph_id);
+
+    /* A satellite under the 10 degree mask is in the epoch but not in
+     * the solution: not in the mask, and not in the PDOP. Found by
+     * moving the receiver until the constellation offers one. */
+    sv_eph_init();
+    for (int k = 0; k < 10; k++) {
+        SvEphemeris ek = eph_at(k + 1, 0.2 * k, 0.6 * k);
+        sv_eph_store(&ek);
+    }
+    bool found = false;
+    for (int lon = 6; lon < 366 && !found; lon += 15) {
+        for (int lat = -60; lat <= 60 && !found; lat += 20) {
+            double r[3];
+            geodetic_to_ecef(lat, lon, 50.0, &r[0], &r[1], &r[2]);
+            NsObsEpoch all, clear;
+            int p_all[16], p_clear[16];
+            const int na = build_epoch_el(&all,   r, 0.0, p_all,   16, 0.0);
+            const int nc = build_epoch_el(&clear, r, 0.0, p_clear, 16, 10.0);
+            if (nc < 4 || na == nc) continue;
+            found = true;
+
+            SppSolution sa, sc;
+            CHECK(spp_solve(&all,   WEEK, TOW, r, &sa) == SPP_OK, "solve with low");
+            CHECK(spp_solve(&clear, WEEK, TOW, r, &sc) == SPP_OK, "solve without");
+            printf("mask: at %d,%d %d of %d above 10 deg, PDOP %.4f and %.4f\n",
+                   lat, lon, nc, na, sa.pdop, sc.pdop);
+            CHECK(sa.n_used == nc, "used %d, %d are above the mask",
+                  sa.n_used, nc);
+            CHECK(sa.sv_mask == mask_of(p_clear, nc),
+                  "a satellite under the mask is in the mask");
+            CHECK(fabs(sa.pdop - sc.pdop) < 1.0e-9,
+                  "PDOP %.6f counts a satellite the solve did not use "
+                  "(%.6f without it)", sa.pdop, sc.pdop);
+            CHECK(sa.eph_id == sc.eph_id,
+                  "a satellite under the mask entered the identifier");
+        }
+    }
+    CHECK(found, "no geometry tried put a satellite between 0 and 10 deg");
+}
+
 int main(void)
 {
     printf("== single-point solve ==\n");
     case_recovers_the_truth();
+    case_says_which_satellites();
     case_gps_only();
     case_converges_from_nothing();
     case_survives_a_bad_receiver_clock();

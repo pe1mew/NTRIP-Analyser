@@ -170,6 +170,29 @@ Desktop only, deliberately: both Play listings say the app "does not
 compute a position", and that sentence stays true until the paid
 edition gains this on purpose.
 
+### Added — each self-position point says what it was solved from
+
+A self-position trail that steps could not say why: a point carried
+its time and offsets and nothing else. Each solved epoch now also
+records how many satellites it used, their PDOP, **which** GPS
+satellites (`selfpos_sv_mask`, bit PRN − 1) and an identifier of the
+broadcast ephemerides that placed them (`selfpos_eph_id`). A step where
+the mask changes is a satellite rising, setting or rejected; one where
+only the identifier changes is a new ephemeris; one with neither came
+from the measurements. In the service's snapshot and CSV (appended
+last), and in the GUI's **S** export, now version 2, whose points read
+`[t, e, n, u, sats, pdop, sv_mask, eph_id]`, named by `points_columns`.
+GH#13; for the two-cluster trail in
+`design/work-items/station-self-position.md`.
+
+### Fixed — PDOP counted satellites the solve did not use
+
+The self-position PDOP was computed over every satellite collected,
+those under the 10° elevation mask included, so it described a better
+geometry than the one solved: on a test geometry with two satellites
+under the mask, 2.59 where the solve's own was 4.81. It is now the
+satellites used. `test_spp` pins it, and fails on the old code.
+
 ### Fixed — a nearest-base service read as a fixed base in the GUI
 
 Fixed base or network service is now the core's decision

@@ -48,6 +48,18 @@ coordinates. The same keys are appended to the CSV row, where an
 unsolved epoch writes empty cells: a spreadsheet plots a blank as a gap
 and a zero as a reading.
 
+**`selfpos_sv_mask` and `selfpos_eph_id` say what the epoch was solved
+from**, so a step in a logged series can be placed. The mask has bit
+(PRN − 1) set for each GPS satellite used; `selfpos_eph_id` identifies
+the broadcast ephemerides that placed them and means nothing beyond
+*equal or not*. A step where the mask changes is a satellite rising,
+setting or rejected; a step where only the identifier changes is a new
+ephemeris; a step with neither came from the measurements. Both are
+appended last to the CSV row, and `selfpos_pdop` is now the geometry of
+the satellites actually used; until 2026-10-14 it also counted
+satellites under the 10° mask, and read better than the geometry
+solved.
+
 **`selfpos_rate_sign` is worth an alert of its own.** It is `1` when
 the station's phase-range rates follow RTCM 10403.3, `0` when it could
 not be decided (four satellites or fewer with rates, or no velocity),

@@ -256,6 +256,10 @@ typedef struct {
     double   selfpos_code_rms_m;  /**< post-fit code residual RMS        */
     double   selfpos_pdop;        /**< geometry of the epoch solved      */
     int      selfpos_sats;        /**< satellites in the solution        */
+    uint32_t selfpos_sv_mask;     /**< which: bit (PRN − 1), GPS --
+                                   *   SppSolution::sv_mask              */
+    uint32_t selfpos_eph_id;      /**< with which ephemerides --
+                                   *   SppSolution::eph_id               */
     bool     selfpos_has_vel;     /**< false where the stream has no
                                    *   phase rates: MSM4, MSM6, legacy   */
     double   selfpos_speed_mms;   /**< speed, millimetres per second     */

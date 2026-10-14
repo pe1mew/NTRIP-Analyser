@@ -1110,10 +1110,28 @@ rising or setting, or a new ephemeris, needs per-point satellite
 count, PDOP and an identifier of the satellite set — a change to the
 core and the export, not yet made.
 
+**Now made (GH#13, 2026-10-14):** every solved epoch carries
+`selfpos_sv_mask` (bit PRN − 1) and `selfpos_eph_id` (the ephemerides
+used), and the **S** export, version 2, writes each point as `[t, e,
+n, u, sats, pdop, sv_mask, eph_id]`. Making it found that the PDOP had
+counted satellites under the 10° mask, reading better than the geometry
+solved; it no longer does. First live export, RFSEE01, 945 s, 875
+points (`20261014150727_SelfPosition.json`): every point's `sats`
+equals its mask's bit count; 9–11 satellites, PDOP 1.35–1.74. **The
+largest step in the trail, 2.05 m, is the epoch PRN 10 entered the
+solution**; every other step is 0.78 m or less with no change of
+satellites. A new ephemeris for the same satellites (t = 709 s) moved
+it 0.09 m, PRN 19 joining (t = 828 s) 0.31 m. One step in a quarter of
+an hour is no explanation of two clouds over a night, but it is the
+first evidence that a change of satellite set, not of ephemeris,
+moves this solution by metres. The next overnight run can say whether
+the clusters' boundary is one.
+
 **Still to do:**
 - **The two clusters**, above: a 2-hour GUI run shows one cloud
-  whose mean wanders 4.2 m; the explanation waits for per-point satellite
-  information in the trail.
+  whose mean wanders 4.2 m. The trail now carries the satellite set
+  per point (GH#13); an overnight run exported with **S** can place
+  the clusters' boundary against it.
 - **The two degradations:** whether the report already records when
   and which KPI, and the card only does not show it.
 - **Release:** P7 waits for pro's production access and the listing

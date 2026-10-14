@@ -252,10 +252,21 @@ typedef struct {
  */
 #define SELFPOS_CAP  7200
 
-/** @brief One solved epoch, as the plot needs it. */
+/**
+ * @brief One solved epoch, as the plot needs it, and what it was solved
+ *        from.
+ *
+ * The plot draws only the offsets. The rest goes into the **S** export,
+ * so a step in the trail can be placed against a satellite rising or
+ * setting or a new ephemeris (GH#13).
+ */
 typedef struct {
-    float ts_rel;   /**< stream seconds since the plot was reset */
-    float e, n, u;  /**< metres from the station's stated reference */
+    float    ts_rel;   /**< stream seconds since the plot was reset */
+    float    e, n, u;  /**< metres from the station's stated reference */
+    float    pdop;     /**< of the satellites used */
+    int      sats;     /**< satellites used */
+    uint32_t sv_mask;  /**< which: bit (PRN − 1), GPS */
+    uint32_t eph_id;   /**< with which ephemerides; an identifier only */
 } SelfPosPoint;
 
 /** @brief Ring of solved epochs, plus what paces it. */

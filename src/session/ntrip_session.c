@@ -651,8 +651,10 @@ static void selfpos_solve(NtripSession *s)
     const SppStatus st = spp_solve(&s->obs, 0, s->obs.tow_gps_ms / 1000.0,
                                    refp, &sol);
 
-    s->stats.selfpos_status = (int)st;
-    s->stats.selfpos_sats   = sol.n_used;
+    s->stats.selfpos_status   = (int)st;
+    s->stats.selfpos_sats     = sol.n_used;
+    s->stats.selfpos_sv_mask  = (st == SPP_OK) ? sol.sv_mask : 0;
+    s->stats.selfpos_eph_id   = (st == SPP_OK) ? sol.eph_id  : 0;
 
     if (st != SPP_OK) {
         /* Leave the numbers unset: an epoch that did not solve must not

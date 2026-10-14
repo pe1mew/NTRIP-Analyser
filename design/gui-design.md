@@ -1150,15 +1150,23 @@ The companion carries the numbers behind the picture, through core's
 own serialisers rather than a format invented for an export:
 
 ```json
-{"selfpos_export_version":1,
+{"selfpos_export_version":2,
  "image":"20261010120530_SelfPosition.png",
  "caster":"rfsee.net","mountpoint":"RFSEE01",
  "exported_local":"2026-10-10 12:05:33",
  "points_frame":"metres east, north and up from the ARP ...",
+ "points_columns":["t","e","n","u","sats","pdop","sv_mask","eph_id"],
  "report":   { ...sr_to_json, as the daemon publishes it... },
  "snapshot": { ...ns_stats_to_json, as Export Statistics writes it... },
- "points":   [[0.0,-3.052,-3.334,-4.963], ...]}
+ "points":   [[0.0,-3.052,-3.334,-4.963,9,1.52,963,4053640702], ...]}
 ```
+
+**Version 2** (GH#13) added the last four columns: what each point was
+solved from — satellites used, their PDOP, which GPS satellites (bit
+PRN − 1) and an identifier of their ephemerides — so a step in the
+trail can be placed against a satellite rising or setting or a new
+ephemeris. The first four columns are unchanged, so a version 1 reader
+that indexes them still reads them.
 
 Both serialisers are asked for their size first, so the file cannot be
 cut short by a buffer. The image is named by base name only, so the
