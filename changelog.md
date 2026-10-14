@@ -277,7 +277,10 @@ from the measurements. In the service's snapshot and CSV (appended
 last), and in the GUI's **S** export, now version 2, whose points read
 `[t, e, n, u, sats, pdop, sv_mask, eph_id]`, named by `points_columns`.
 GH#13; for the two-cluster trail in
-`design/work-items/station-self-position.md`.
+`design/work-items/station-self-position.md`. The GUI's trail now holds
+**twelve hours** rather than two, so an overnight run's export covers
+the night and not only its last two hours (drawing all 43 200 points
+measured 46 ms, once a second while the window is open).
 
 ### Fixed — PDOP counted satellites the solve did not use
 

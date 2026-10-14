@@ -240,8 +240,12 @@ typedef struct {
 /**
  * @brief Points of a self-position plot, and nothing else.
  *
- * Two hours at one epoch a second — longer than any window the report
- * judges on — at 16 bytes a point: 115 KB.
+ * Twelve hours at one epoch a second, at 32 bytes a point: 1.4 MB, on
+ * the heap with the rest of @ref AppState. Two hours until 2026-10-14,
+ * which is longer than any window the report judges on but shorter than
+ * a night: an overnight run's **S** export held only its last two hours,
+ * and the jump it was meant to place could lie outside them (P7's
+ * two-cluster finding).
  *
  * This is a **drawing** buffer. Every figure the Self-position window
  * states comes from @ref StationReport, which core accumulates; what is
@@ -250,7 +254,7 @@ typedef struct {
  * same reason the history ring does: a plot cannot be rebuilt from a
  * repaint.
  */
-#define SELFPOS_CAP  7200
+#define SELFPOS_CAP  43200
 
 /**
  * @brief One solved epoch, as the plot needs it, and what it was solved

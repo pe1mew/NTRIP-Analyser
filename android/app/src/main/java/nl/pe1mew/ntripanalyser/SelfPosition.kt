@@ -79,7 +79,7 @@ import kotlin.math.sqrt
  *
  * A point per solved epoch, keyed by the stream's own clock so a
  * document republished for the same epoch is not plotted twice -- the
- * desktop's rule. Capped as the desktop caps it: 7200 points, two hours
+ * desktop's rule. Capped at 7200 points, two hours
  * at one epoch a second, the newest kept. Run-scoped and owned by
  * `MonitorService`'s companion, because a record of a run outlives the
  * screen that draws it.
@@ -127,7 +127,9 @@ class SelfPosTrail {
     }
 
     companion object {
-        /** The desktop's `SELFPOS_CAP`. */
+        /** Two hours. The desktop's `SELFPOS_CAP` was this until it went to
+         *  twelve (2026-10-14) for overnight S exports; the phone exports no
+         *  trail, and draws only what it keeps. */
         const val CAP = 7200
     }
 }
