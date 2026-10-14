@@ -33,7 +33,7 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 126 entries, 69 resolved in code or procedure |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 129 entries, 89 resolved in code or procedure (triaged 2026-10-14: each retirement names its evidence) |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |

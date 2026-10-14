@@ -80,7 +80,8 @@
 **Fix**: Count, allocate, parse — and log what the fetch did, because the C side's stderr goes nowhere on Android and "cannot judge" with no way to ask why is not a diagnosis.
 **Lesson**: A fixed cap on data from a third party is a silent truncation waiting for a bigger third party. Count first.
 
-### A property of the station looked like a defect in the app (2026-08-13) [x2]
+### A property of the station looked like a defect in the app (2026-08-13) [x2] [RESOLVED]
+**Retired 2026-10-14**: 1 dB cells in both renderers (`Views.kt`, `gui/gui_state.h` "One whole decibel per cell"); `checkEditionParity` fails the build if an edition grows code of its own.
 **Problem**: The C/N0-versus-elevation plot showed horizontal white lines in the free edition and none in pro, which read as the two editions diverging.
 **Root cause**: The stations differed, not the editions. MSM4 carries C/N0 in whole dB-Hz, so half-decibel plot cells could fill only every second row; the pro station was MSM7 at a sixteenth of a decibel and filled them all.
 **Fix**: Bin at the coarsest resolution any stream delivers (1 dB), and document the per-format resolution in `android/design/views.md`.
@@ -97,7 +98,8 @@
 **Root cause**: Each worktree has its own index. The work was staged in `.claude/worktrees/<name>`; `git commit` was run in the main repository, where the only dirty file was a stray edit.
 **Fix**: Commit from inside the worktree that holds the work, then fast-forward `main` onto its branch.
 
-### Heredocs corrupt C string literals (2026-08-12) [x5]
+### Heredocs corrupt C string literals (2026-08-12) [x5] [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints: no `sed -i`; a python edit script never travels through a heredoc — written to the scratchpad and run.
 **Problem**: `\n` inside a heredoc-fed script arrives as a real newline, producing C source that no longer compiles.
 **Fix**: Use file-editing tools for anything containing escapes, or write the script to a file first.
 *Four more on 2026-08-22*, in one session and all the same shape: a `printf` in `cli_stream.c` that would not compile, and three error messages in `make_store_shots.py` broken identically. Each cost a build. The reliable dodge when a heredoc must be used is `chr(92) + 'n'`, which no shell can eat -- but the answer above was available every time, and this very entry could not be edited until it was applied.
@@ -106,7 +108,8 @@
 **Problem**: Resizing `SHOT.png` into `shot.png` destroyed the original; later reads returned the resized copy.
 **Fix**: Distinct names, not distinct case.
 
-### JAVA_HOME is Adoptium, not Microsoft (2026-08-12)
+### JAVA_HOME is Adoptium, not Microsoft (2026-08-12) [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` names the Adoptium path in its prerequisites table and its Common Problems row.
 **Problem**: Gradle: "JAVA_HOME is set to an invalid directory".
 **Fix**: `C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot`, as a Windows path — Gradle rejects the POSIX form. Also on this machine: the only host C compiler is CodeBlocks' MinGW.
 
@@ -115,12 +118,10 @@
 **Root cause**: The first attempt crashed *after* writing the broken file and before restoring. The next script read that file as its baseline and saved it as `.bak` — the backup captured the break.
 **Fix**: Take the baseline from `git`, not from the working file, and assert the restored text differs from the broken one. A restore that cannot fail is not a restore.
 
-### A file rewritten with newline='
-' doubled every carriage return (2026-08-14)
-**Problem**: 2014 lines of `MainActivity.kt` ended `
-`; subsequent edits stopped matching anything.
-**Root cause**: The script converted LF to CRLF *and* opened the file with `newline='
-'`, which converts again on write.
+### A file rewritten with newline='\r\n' doubled every carriage return (2026-08-14) [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints, "read and write with `newline=''` and convert once". This entry's own `\r\n` had been turned into real line breaks, splitting the heading; repaired the same day.
+**Problem**: 2014 lines of `MainActivity.kt` ended `\r\r\n`; subsequent edits stopped matching anything.
+**Root cause**: The script converted LF to CRLF *and* opened the file with `newline='\r\n'`, which converts again on write.
 **Fix**: Open with `newline=''` on both sides and do the conversion once, explicitly. Better: use the file-editing tools, which get this right.
 
 ### Keystrokes went to whichever window had focus (2026-08-14)
@@ -128,12 +129,14 @@
 **Root cause**: SendKeys is delivered to the focused window, and `AppActivate` does not reliably win focus on a busy desktop.
 **Fix**: Drive a Win32 app by messages to its own handles — `WM_SETTEXT` to the control id, `WM_COMMAND` with the menu id. It reaches that window and nothing else, and needs no focus.
 
-### A link can be correct while its destination does not exist (2026-08-14)
+### A link can be correct while its destination does not exist (2026-08-14) [RESOLVED]
+**Retired 2026-10-14**: `tools/check_release.py` checks every wiki link names a page in `docs/wiki/`.
 **Problem**: The app's new orbit badge opened the repository front page instead of the wiki page it names.
 **Root cause**: GitHub creates the wiki *repository* when the first page is saved in the browser; enabling the wiki in Settings does not. Every link into an unborn wiki redirects.
 **Fix**: `tools/publish_wiki.sh`, and a check that every in-app wiki link names a page that exists in `docs/wiki/`. The check cannot prove it was pushed — only the fetch can.
 
-### GLONASS has no week, so a day-old orbit passed as an hour old (2026-08-14)
+### GLONASS has no week, so a day-old orbit passed as an hour old (2026-08-14) [RESOLVED]
+**Retired 2026-10-14**: `sv_ephemeris.c` judges age on `toe_utc`, pinned by `test/test_eph_validity.c`.
 **Problem**: A ten-hour-old navigation file reported "newest orbit 58 min old", and a satellite could have been placed from a day-stale orbit.
 **Root cause**: GLONASS `toe` is Moscow **seconds of day**. Every age and every validity test wraps at 86400 s, so yesterday's record lands a few hours behind now.
 **Fix**: `SvEphemeris.toe_utc`, an absolute date, filled wherever one is known — any file carries a calendar datetime. Live streams keep the wrap; their records are seconds old. `test/test_eph_validity.c` pins both halves.
@@ -143,19 +146,22 @@
 **Root cause**: Fetched responses are cached for fifteen minutes per URL. The build was fine; the reader was stale.
 **Fix**: Add a distinct query string when re-checking a page you have just fetched. Also: `pages/builds/latest` lags behind the deployment — the site is the evidence, not the API.
 
-### The constraint against scripted rewrites, broken an hour after writing it (2026-08-14) [x3]
+### The constraint against scripted rewrites, broken an hour after writing it (2026-08-14) [x3] [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints now carry the mechanism (heredoc ban, Write-then-run). Not encoded: "assert every substitution found its target".
 **Problem**: A heredoc-fed script wrote `"
 "` into `tools/verify_memory.py` as a literal newline, splitting a statement across two lines. Two other edits in the same script matched nothing and said nothing.
 **Root cause**: The same escape-mangling promoted to a hard constraint that morning — and `.replace()` without an assertion, which cannot fail out loud.
 **Fix**: Edit tools for anything with escapes; every scripted substitution asserts its target was found. A constraint is not learned until the next mistake is a different one.
 
-### A navigation gesture eaten by an overscroll animation (2026-08-14)
+### A navigation gesture eaten by an overscroll animation (2026-08-14) [RESOLVED]
+**Retired 2026-10-14, obsolete**: the leave-gesture is gone and the pager keeps the platform's overscroll (`AnalysisScreen.kt`); no `LocalOverscrollConfiguration` remains in `android/app/src`.
 **Problem**: On the S23, dragging right from the sky view no longer left the Analysis screen. The same build did it on the Android 10 handset.
 **Root cause**: The screen reads what the pager *cannot* consume as "leave". From Android 12 the stretch overscroll consumes that leftover to animate with it, so `onPostScroll` saw nothing. The older glow effect only draws, which is why the gesture had always worked where it was tested.
 **Fix**: `LocalOverscrollConfiguration provides null` around the pager — the stretch is worth less than the gesture. A nested-scroll parent only sees what every child declines to take.
 **Lesson**: A gesture built on leftover deltas is a gesture built on what nobody else wanted, and that changes by platform version. Test navigation gestures on the newest Android available, not the oldest.
 
-### An edition looked broken because its install was an hour old (2026-08-14) [x3]
+### An edition looked broken because its install was an hour old (2026-08-14) [x3] [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` has the `dumpsys package … lastUpdateTime` step and the GUI binary-timestamp row. The VPS install is still advice only.
 *Recurred 2026-08-16 on the VPS: the tree was rebuilt to 3.4.0 and the binary in `/usr/local/bin` was still 3.3.0, because the build and the install were two commands and only the first was run. Not an Android property — any deployed artefact.*
 
 *Recurred 2026-08-18 without any install being involved: after bumping to 3.5.0, `cmake --build build --target test_all` passed 12/12 while `bin/ntrip-analyser --version` still printed **3.4.0** — that target does not build the CLI, so the binary beside the tests was the previous one. Green tests are evidence about the targets that were built, and say nothing about an artefact that was not. Build the default target before believing a version.*
@@ -236,7 +242,8 @@
 **Root cause**: `SignalBars`' own documentation said `liveValues` was "true when the bars show this epoch (pro), false ... (free)". The call site passes `runState.running` and has never consulted `Features`. The comment described a split that never existed, and the design table was written from the comment rather than the code.
 **Fix**: Corrected at the source, with the correction stated so it is not re-derived. **A claim in a comment is a claim**: check it against the call site before promoting it into a design document — three of four "drifts" found in one review traced back to documents copying each other.
 
-### A schema field nobody fills (2026-08-16) [x3]
+### A schema field nobody fills (2026-08-16) [x3] [RESOLVED]
+**Retired 2026-10-14**: `tools/check_release.py` "no new snapshot field is left unfilled", with the known gaps listed by name.
 **Problem**: `NsStatsSnapshot.latency_s` is declared, documented, serialised into the daemon's JSON and the CSV export, and displayed on the Android station tile. Nothing computes it. Every consumer has published "not measured" since the schema was written.
 **Root cause**: The field was added with the schema, in anticipation of code that never arrived. The ARP fields did exactly the same thing earlier — the daemon published `arp_valid:false` for every station until the KPI engine's first live run tripped over it.
 **Fix**: Not yet; tracked as phases 0 and 1 of `design/work-items/measurement-tiers.md`. The lesson is the pattern, not the field: **a declared-but-unfilled field is worse than a missing one, because it looks like an answer.**
@@ -288,7 +295,8 @@
 **Root cause**: `adb shell` allocates a PTY, which translates `LF` to `CRLF`. Every `0x0A` in the image gained a `0x0D`. Nothing reports this: `cat` succeeds, the file arrives, only its content is wrong.
 **Fix**: `adb exec-out` for anything that is not text. Same family as the path-rewriting entry above — **the shell between you and the device edits what passes through it**, in both directions.
 
-### A recording contains only what it draws (2026-08-20)
+### A recording contains only what it draws (2026-08-20) [RESOLVED]
+**Retired 2026-10-14**: `AnalysisScreen.kt` draws the surface first inside `plotLayer.record {}`.
 **Problem**: The plot shared from the analysis screen came out on a transparent background — fine in a gallery, invisible ink on a white page.
 **Root cause**: `rememberGraphicsLayer().record {}` captures the subtree it wraps. The surface behind that subtree is painted by the `Scaffold`, outside the layer, so every pixel the plot did not draw stayed clear. The screen looked right the whole time; only the export was wrong.
 **Fix**: `drawRect(surface)` inside `record {}`, before `drawContent()`. **A subtree capture is not a screenshot** — it has no background unless the recorded subtree paints one, and the on-screen appearance cannot tell you whether it does.
@@ -308,7 +316,8 @@
 **Root cause**: `android/app/src/main/cpp/CMakeLists.txt` keeps its own list of the shared C sources. This project's promoted pattern says *where two build systems describe one source set, CI must run both*; the Android NDK build is a **third**, over the same `src/`, and "every target builds" from the desktop tree says nothing about it.
 **Fix**: the file was added to the NDK list in P5.1, where the same linker error appeared locally -- and in P6.1 the class was closed rather than remembered. `tools/check_release.py` now compares the two source lists and fails naming the file and the list it is missing from; deliberate omissions are declared there with their reason. Falsified by deleting the entry again, which reproduces the CI failure in a second instead of in a run.
 
-### A layout that reports less than it was asked for is centred (2026-08-22)
+### A layout that reports less than it was asked for is centred (2026-08-22) [RESOLVED]
+**Retired 2026-10-14**: `MainActivity.kt` `.fillMaxWidth()` with its reason, and `Panel.kt` `coerceAtLeast(constraints.minHeight)`.
 **Problem**: The station screen drew its cards floating in the middle: a band of empty space under the title, and as much again above the analysis bar. Only on a hub with few cards, and only on a screen taller than its content -- so the phone with the smaller window never showed it.
 **Root cause**: `StationHub` is a custom `Layout` inside `Modifier.fillMaxSize().verticalScroll(...)`. In that order the scroll hands the layout a **minimum height of the whole viewport**, and the layout reported the height of its content instead. Compose centres a child that comes back smaller than the minimum it was given, which is why the slack appeared *above* the content as well as below.
 **Fix**: three attempts, and only the third was the cause. `.coerceAtLeast(constraints.minHeight)` stopped the *centring* but left the hub draggable inside its own slack -- the author reported the fault again, correctly. `fillMaxWidth()` in place of `fillMaxSize()` removed the viewport-sized minimum, so the hub is as tall as its content. And the margins moved *inside* the scroll, because outside it they are a frame the content can never fill: a strip of nothing under the app bar and another above the pinned bar, on every screen, for ever.
@@ -350,7 +359,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: judging a rendered string by reading its source. Nothing in the file says how wide it is.
 **Fix**: shortened to the shape of the line above it and measured from the accessibility tree -- 48 px, one line, the same height as a KPI row's evidence. Text is a rendered artefact like any other; measure it where it lands.
 
-### A pause that lives in prose is not a checklist (2026-08-25) [x2]
+### A pause that lives in prose is not a checklist (2026-08-25) [x2] [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` release sequence: "Hand the release commands over only when everything they name…".
 **Problem**: two releases running (3.7.2, 3.7.3), the author pasted my release command list top to bottom and hit `no matches found` at the upload -- the desktop packaging step lived in a sentence ("tell me *tagged* and I'll package") between the commands, and sentences do not execute.
 **Root cause**: handing over commands whose prerequisites do not yet exist, with the gap marked only in prose. The runbook's own order was correct both times; the handoff format was the bug.
 **Fix**: release commands are handed over only when everything they name already exists on disk. Promoted below.
@@ -385,12 +395,14 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: NDK debug builds compile C at -O0, and TLS is the first heavy math the debug APK ever ran.
 **Fix**: `CMAKE_C_FLAGS_DEBUG += -O2` in the NDK CMakeLists -- the C core is debugged on the desktop through the suite, never through a debug APK. Cost an afternoon of misdiagnosis first.
 
-### Gradle cannot see this repo's C sources (2026-08-25) [x3 in one day]
+### Gradle cannot see this repo's C sources (2026-08-25) [x3 in one day] [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` Common Problems: `gradlew clean`, then build with `--no-build-cache`.
 **Problem**: three rounds of "the fix didn't work" on the phone -- each time the installed .so predated the edit.
 **Root cause**: the NDK sources live outside the Gradle project (`${REPO_ROOT}/src`), and both the externalNativeBuild task's up-to-date check and the build cache are blind to them: deleting `.cxx` alone re-served the stale build from cache.
 **Fix**: `gradlew clean` + `--no-build-cache` whenever a `src/` or `lib/` C file changed. Promoted to the runbook's Common Problems.
 
-### The Bash tool's heredocs halve backslashes (2026-08-25) [x4 in one day]
+### The Bash tool's heredocs halve backslashes (2026-08-25) [x4 in one day] [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints name the mechanism and the cure (Write to the scratchpad, run the file).
 **Problem**: python edit scripts fed through `python - <<'EOF'` heredocs failed asserts on anchors that plainly existed -- and once *matched the wrong thing*: `'\0'` reached Python as a literal NUL byte.
 **Root cause**: the tool layer processes backslash escapes in the command text before the shell sees it, even inside quoted heredocs; every `\` arrives halved. Recurrence of the promoted scripted-edit gotcha by a brand-new mechanism.
 **Fix**: any edit script with a backslash in it is written to the scratchpad with the Write tool (verbatim by contract) and run as a file. Promoted table incremented; the CLAUDE.md constraint now names the mechanism.
@@ -420,7 +432,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the band was an impression, not a search. Nothing had been looked up; the phrase "comparison set" implied evidence that did not exist. The project has a verified-claims discipline for *state* ("shipped", "16 tests") and none for *recommendations*, which decay the same way and cost more.
 **Fix**: the author asked for the real table, the search found there is **no paid NTRIP app market on Play at all** (clients free because they sell hardware; the nearest analogue, NtripChecker, free with 10,000+ installs; the next rung $100-300 survey suites), and the price became €5 on evidence. Promoted below: cite the basis or say plainly there isn't one.
 
-### A release build cannot replace a debug build in place (2026-08-26)
+### A release build cannot replace a debug build in place (2026-08-26) [RESOLVED]
+**Retired 2026-10-14**: debug builds are `….dev` and bench builds `….bench` (`app/build.gradle.kts`), so neither ever replaces the Play app.
 **Problem**: `install -r` of pro's release APK over the Huawei's leftover debug build failed with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; the only route is uninstall, which wipes saved connections and credentials on a phone that holds the author's real data.
 **Root cause**: different signing keys. A debug build left on a test phone is not a neutral state -- it is a one-way door that costs data to leave.
 **Fix**: asked before uninstalling, then rebuilt the RFSEE01 profile from `bin/config.json` and **proved the retyped password by running a check** rather than asserting it. Rule: after a debugging session, put the release build back the same day, while its settings are still cheap to restore.
@@ -476,7 +489,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the gate is one file further on, `AppMenu` in `Dialogs.kt`, `if (Features.IS_PRO)` around both config rows. `Shell.kt`'s own comment names it (*"AppMenu in Dialogs.kt, which gates the configuration rows on the edition"*); the agent read the comment and not the gate.
 **Fix**: a capability claim about an edition is settled where the row is *drawn*, not where its action is *wired*. Grep `Features.` at the composable that renders the control before saying an edition has it.
 
-### MSYS_NO_PATHCONV fixes the device path and breaks the local one (2026-09-13)
+### MSYS_NO_PATHCONV fixes the device path and breaks the local one (2026-09-13) [x2]
+**Recurrence 2026-10-14**: `uiautomator dump /sdcard/ui.xml` from Git Bash wrote to `/Files/Git/sdcard/ui.xml` on the phone, and the pull then found nothing. Same cure, set inside the helper script so no call can forget it.
 **Problem**: pulling both editions' APKs for the signing-certificate check, `adb pull /data/app/...` first failed because Git Bash rewrote the device path; with `MSYS_NO_PATHCONV=1` it failed again because the *local* destination `/c/Users/...` now reached `adb.exe` unconverted. Then `apksigner` given the same `/c/` path printed nothing at all -- its error swallowed by the `grep` it was piped into, which read as "no certificate lines".
 **Root cause**: the variable switches conversion off for every argument, and Windows tools cannot resolve MSYS paths. A filter after a failing tool turns an error into an empty match.
 **Fix**: with `MSYS_NO_PATHCONV=1`, pass local paths in Windows form (`C:/Users/...`). Run a tool unfiltered once before trusting a filtered empty result.
@@ -491,7 +505,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: worktrees are pooled; nothing about the session's own state changes when one is reassigned.
 **Fix**: before any edit, check `git rev-parse --abbrev-ref HEAD` and the log of the tree being edited. Here every edit went to the main checkout, confirmed on `main` each time.
 
-### Checking the claims dirtied the tree (2026-09-17)
+### Checking the claims dirtied the tree (2026-09-17) [RESOLVED]
+**Retired 2026-10-14**: `.gitattributes` pins both notices files to `text eol=lf`.
 **Problem**: `/curate` ran `tools/verify_memory.py`; afterwards `notices.txt` and `THIRD-PARTY-NOTICES.txt` showed as modified, though nobody had edited them and `git diff` was empty.
 **Root cause**: one claim's verify command runs `check_release.py`, which regenerates the notices to compare them. The generator writes LF; this checkout has `core.autocrlf=true`; and unlike `ns_ca_bundle.c`, neither notices file has a `.gitattributes` rule. Same content, different bytes, a dirty status. The 2026-08-25 entry's fix (`GENERATED_SOURCES`) cured the staleness face of this, not the line-ending face.
 **Fix**: both generated notices now carry `text eol=lf` in `.gitattributes` (2026-09-17), as the CA bundle already did, so the generator's bytes and the checkout's agree.
@@ -501,7 +516,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the advice optimised for the reviewer's convenience and was written for a private reader, into a public file.
 **Fix**: rate limiting stays on, set loose; the account gets an unguessable name, a long random password and access to the review mountpoints only; all three documents reworded. Before writing operational detail into this repository, ask what it tells an attacker -- the repo is public, and "how our accounts are configured" is part of the attack surface even with no secret in it.
 
-### CI died in a third-party action's default, not in our code (2026-09-17)
+### CI died in a third-party action's default, not in our code (2026-09-17) [RESOLVED]
+**Retired 2026-10-14**: `.github/workflows/ci.yml` asks `setup-android@v4` for `platform-tools` only.
 **Problem**: the curate commit's CI failed in *Both editions* before any build step: `android-actions/setup-android@v3` ran `sdkmanager tools` and got "Failed to find package 'tools'". The scheduled run three days earlier had passed.
 **Root cause**: the runner image moved to cmdline-tools 16.0, which no longer carries the legacy `tools` package, and the action's `packages` input defaults to `'tools platform-tools'` (read from its own `action.yml`). A default nobody wrote down broke on a change nobody made here.
 **Fix**: `packages: platform-tools` in `ci.yml`. When CI fails on a commit that touched no code, read which step failed before reading the commit.
@@ -521,7 +537,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the harness, not the propagator. RTKLIB's `eph_t` stores toe twice -- an absolute `gtime_t` and `toes` in seconds of week -- and the longitude-of-node term reads `toes`. The harness set only the first, so RTKLIB dropped `-omge * toe` and rotated its *own* orbit by 25 radians. With `toes` set: 0.0000 m.
 **Fix**: the shape of the disagreement was the clue, and is the lesson. The clock agreed, and a rotation about Z preserves both `|r|` and `r.v` -- so the pattern said "rotated frame", not "wrong orbit". **Read what the shape of a disagreement rules out before deciding which side is wrong**: a comparison tool is code too, and it is the code that was written five minutes ago.
 
-### A politely written test defended nothing (2026-10-09)
+### A politely written test defended nothing (2026-10-09) [RESOLVED]
+**Retired 2026-10-14**: `test/test_station_report.c` now sets `has_vel = false` beside a stale `speed_mms = 7.0`, so the flag is what the test proves.
 **Problem**: P5's falsification removed the `has_vel` gate from the report's velocity accumulation -- the gate that stops a stream carrying no phase-range rates from publishing a speed -- and the case named "but a stream without rates reports no speed" stayed green. The check had passed every run since it was written, and was protecting nothing.
 **Root cause**: the test built its snapshot the way a well-behaved session does. `has_vel = false` was set and `selfpos_speed_mms` was left at its `NS_UNSET` initialiser, so the comparison rejected the sample on the sentinel and never consulted the flag. The test proved that *the caller blanks the field*, which is the caller's manners, not the report's defence.
 **Fix**: make the input hostile. The snapshot now carries 7 mm/s *beside* `has_vel = false` -- a number it has no right to -- and the gate is the only thing that can stop it; the falsification then reddens the case by name. **A test must feed the input the defence exists for, not the input a cooperating caller would send** -- the same shape as P4's too-uniform ephemerides, one layer up: there the inputs were identical where they should have differed, here the input was correct where it should have been wrong.
@@ -648,7 +665,8 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the commit message lived in the conversation, not in the command. That is the third face of the promoted rule *a command carries all its context in itself*.
 **Fix**: since then every commit is handed over as `git -C <checkout> commit -F <file>`, with the message written to the scratchpad first; it has worked four times. The claimed commit was checked (`git log`, worktrees, every branch) before anything was started on it, which is what caught this.
 
-### A blind tap script walked out of the app (2026-10-13)
+### A blind tap script walked out of the app (2026-10-13) [x2]
+**Recurrence 2026-10-14**: reading before each tap was not enough. A Back press meant to close a dialog that had already closed left the app, and the swipe that followed scrolled the launcher's store front; another Back landed on the S23's launcher. Check the focused window (`dumpsys window | grep mCurrentFocus`) before every Back and every swipe, not only before taps. And the reader itself (`uiautomator dump` parsed with a regex) died on a node without `content-desc`; read attributes as optional.
 **Problem**: a script meant to open the phone's mountpoint map ten times reported "nothing after 30 s" every time. The phone was on the launcher's app drawer, and the dev app's active connection and one connection's mountpoint had changed meanwhile.
 **Root cause**: on the Huawei the first tap after the app comes to the front is often ignored; the map never opened, and the script's Back -- meant to leave the map -- left the app. Nine more rounds tapped blind coordinates on the home screen. Separately, a button's position was parsed with a regex that took a stray digit from the node before it, so a tap meant for *Select mountpoint* landed on the map.
 **Fix**: every round now brings the app to the front (`am start`), reads the screen (`uiautomator dump`) before each tap, taps an element by its own `bounds`, retries a tap that did not open what it should, and presses Back only from a screen it has confirmed. Bounds are parsed with an anchored `sed` on `bounds="[x1,y1][x2,y2]"`. The changed connections were reported to the author, not repaired: whether a tap or the author made them could not be told.
@@ -682,6 +700,26 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Problem**: panning the map ran at a median 73 ms a frame even with its outlines pre-rendered.
 **Root cause**: the view's scale and pan were keys of a `LaunchedEffect`, so every gesture step recomposed the screen; the marker loop then read those states twice per mark, 5900 times.
 **Fix**: the view is watched through `snapshotFlow` and read once per frame in the draw; empty-map panning went to 7 ms. Read state where it is used -- the draw phase -- and once.
+
+### A toolchain move left the old Gradle daemon holding lint's cache (2026-10-14) [RESOLVED]
+**Problem**: after AGP 8.11 → 8.13 and again 8.13 → 9.4, `lintVitalAnalyzeProRelease` failed with "being used by another process" on a jar in `lint-cache`; `clean` failed the same way.
+**Root cause**: a daemon of the previous Gradle version still had the file open, and the new wrapper's `--stop` reaches only daemons of its own version.
+**Fix**: stop it with that version's own `gradle --stop` (from `~/.gradle/wrapper/dists`). In `docs/RUNBOOK.md`'s toolchain note.
+
+### PowerShell split a Gradle property at its dots (2026-10-14)
+**Problem**: `gradlew bundleProRelease -Pandroid.r8.optimizedResourceShrinking=false` failed: "Task '.r8.optimizedResourceShrinking=false' not found".
+**Root cause**: PowerShell parses an unquoted `-P…` argument with dots in it, and handed Gradle only part of it.
+**Fix**: quote it: `'-Pandroid.r8.optimizedResourceShrinking=false'`.
+
+### An XML comment may not contain `--` (2026-10-14)
+**Problem**: a new `AndroidManifest.xml` failed the manifest merger with "Error parsing", and nothing more.
+**Root cause**: its header comment used ` -- ` as a dash; `--` is illegal inside an XML comment.
+**Fix**: a colon instead. Write XML comments without double hyphens; the house style's ` -- ` belongs in code comments only.
+
+### "Committed and pushed" while origin had not moved (2026-10-14) [x2]
+**Problem**: twice in one afternoon a CI check found no run for the new commit.
+**Root cause**: the commit was made but the push had not happened; the author's tooling and the message disagreed.
+**Fix**: before reading CI, `git fetch` and compare `origin/main` with the local commit; say "not pushed yet" rather than report an older run.
 
 ## Promoted
 
