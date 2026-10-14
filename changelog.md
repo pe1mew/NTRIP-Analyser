@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added — the mountpoint list sorts by distance or by name (Android, both editions)
+
+*Browse mountpoints…* listed a caster's entries in the caster's own
+order with no distances at all: it never told the core where to measure
+from. It now measures from where the map does — this phone's fix, else
+the set position, and says which — shows each entry's distance and
+bearing, and sorts **Nearest** first, **A–Z** or **Z–A**, on what the
+filter leaves. Entries with no usable position read so and come last.
+On a Huawei against onocoy's 5948 entries: nearest first from 70 m N,
+the NRBY services and ephemeris products last; A–Z from ABWARUNOO1,
+Z–A from ZZZZZZZZZ4; the order kept on reopening. GH#14.
+
+### Fixed — stations without a position sorted as the nearest (Windows GUI)
+
+The mountpoint list's numeric columns compared with `atof`, which reads
+the dash shown for an unusable position — or an empty cell — as 0, so
+sorting by distance put stations with no position at the top. A cell
+that is not a number now sorts after every number in both directions;
+the message-statistics list follows the same rule.
+
 ### Added — the watch says when health was lost, for how long, and why (paid Android edition)
 
 An 8-hour watch ended "2 degradations, the worst FAILED" and could say

@@ -661,6 +661,27 @@ internal suspend fun fetchSourcetable(
  * workflow of picking among many mountpoints is what the paid edition
  * sells (android/design/editions.md).
  */
+/** The browser's orders (GH#14). Presentation only: nothing here is measured. */
+internal enum class SourceSort { NEAREST, AZ, ZA }
+
+/** The last order chosen, for as long as the app runs. */
+private var lastSourceSort = SourceSort.NEAREST
+
+/**
+ * The entries in [sort]'s order. Nearest first sorts on the core's
+ * distance, and an entry with none -- no position, or one that cannot
+ * be used -- goes after every entry that has one, in the caster's
+ * order, never as a distance of nought.
+ */
+internal fun sortSources(entries: List<SourceEntry>, sort: SourceSort): List<SourceEntry> =
+    when (sort) {
+        SourceSort.NEAREST -> entries.sortedWith(
+            compareBy<SourceEntry> { it.distanceM == null }.thenBy { it.distanceM ?: 0.0 })
+        SourceSort.AZ -> entries.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.mountpoint })
+        SourceSort.ZA -> entries.sortedWith(
+            compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.mountpoint })
+    }
+
 @Composable
 internal fun SourcetableDialog(
     settings: CasterSettings,
@@ -670,10 +691,20 @@ internal fun SourcetableDialog(
     var entries by remember { mutableStateOf<List<SourceEntry>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf(lastSourceSort) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    // Measured from where the map measures: the phone where it has a fix
+    // (display only, it never leaves the device), the set position
+    // otherwise -- so "nearest first" and the distances printed beside it
+    // agree with each other and with the map (GH#14).
+    val origin = remember {
+        MonitorService.displayPosition?.let { Triple(it.lat, it.lon, true) }
+            ?: Triple(settings.latitude, settings.longitude, false)
+    }
+
     LaunchedEffect(settings.caster, settings.port) {
-        fetchSourcetable(settings)
+        fetchSourcetable(settings, origin.first, origin.second)
             .onSuccess { entries = it }
             .onFailure { error = sourcetableFailureText(context, it, settings) }
     }
@@ -695,10 +726,13 @@ internal fun SourcetableDialog(
                     }
                     else -> {
                         val all = entries.orEmpty()
-                        val shown = if (filter.isBlank()) all else all.filter {
+                        val filtered = if (filter.isBlank()) all else all.filter {
                             it.mountpoint.contains(filter, true) ||
                                 it.identifier.contains(filter, true)
                         }
+                        // Sorted after filtering, so the order applies to
+                        // what is left.
+                        val shown = remember(filtered, sort) { sortSources(filtered, sort) }
                         OutlinedTextField(
                             filter, { filter = it },
                             label = { Text(stringResource(R.string.sourcetable_filter)) },
@@ -706,6 +740,26 @@ internal fun SourcetableDialog(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            for ((s, label) in listOf(
+                                SourceSort.NEAREST to R.string.sourcetable_sort_near,
+                                SourceSort.AZ to R.string.sourcetable_sort_az,
+                                SourceSort.ZA to R.string.sourcetable_sort_za,
+                            )) {
+                                FilterChip(
+                                    selected = sort == s,
+                                    onClick = { sort = s; lastSourceSort = s },
+                                    label = { Text(stringResource(label)) },
+                                )
+                            }
+                        }
+                        Text(
+                            stringResource(
+                                if (origin.third) R.string.sourcetable_from_fix
+                                else R.string.sourcetable_from_set),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Text(
                             stringResource(R.string.sourcetable_count, shown.size, all.size),
                             style = MaterialTheme.typography.bodySmall,
@@ -763,6 +817,15 @@ private fun SourceRow(e: SourceEntry, onPick: (SourceEntry) -> Unit) {
             listOf(e.identifier, e.format, e.navSystems)
                 .filter { it.isNotBlank() }
                 .joinToString("  ·  "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // The core's distance and bearing, the figures "nearest first"
+        // sorts on; an entry with no usable position says so.
+        Text(
+            e.distanceM?.let { d ->
+                distanceText(d) + (e.bearingDeg?.let { " " + compassPoint(it) } ?: "")
+            } ?: stringResource(R.string.sourcetable_no_position),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

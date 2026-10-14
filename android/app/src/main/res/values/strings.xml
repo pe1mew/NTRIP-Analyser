@@ -249,6 +249,14 @@
     <string name="sourcetable_unreadable">The caster’s mountpoint list could not be read.</string>
     <string name="sourcetable_filter">Filter</string>
     <string name="sourcetable_count">Showing %1$d of %2$d mountpoints</string>
+    <!-- The browser's orders and where its distances are from (GH#14);
+         the same origin as the map's. -->
+    <string name="sourcetable_sort_near">Nearest</string>
+    <string name="sourcetable_sort_az">A–Z</string>
+    <string name="sourcetable_sort_za">Z–A</string>
+    <string name="sourcetable_from_fix">Distances from this phone.</string>
+    <string name="sourcetable_from_set">Distances from the set position.</string>
+    <string name="sourcetable_no_position">no usable position</string>
     <string name="sourcetable_readonly">Type the mountpoint into settings to use it.</string>
     <string name="sourcetable_gga">GGA</string>
 

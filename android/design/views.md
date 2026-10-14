@@ -401,6 +401,18 @@ cannot tell that from a fact.
   all, which removes the largest piece of setup from the free flow. On a
   station that broadcasts its own orbits it needs no file either.
 
+## The mountpoint list — sorted by the core's distance
+
+*Browse mountpoints…* measures from the map's centre — the phone where
+it has a fix, the set position otherwise, and it says which — so each
+row carries the core's distance and bearing and the list sorts on them
+(GH#14): **Nearest** first by default, or **A–Z** / **Z–A** by name,
+applied to what the filter leaves, remembered while the app runs. An
+entry with no usable position reads "no usable position" and goes
+**after** every one that has one, never as a distance of nought; on
+onocoy those are the NRBY services and the ephemeris products. Both
+editions: the order is presentation, not measurement.
+
 ## The mountpoint map — a picker, not an analysis view
 
 Every mountpoint of the caster on one screen, opened from *Map

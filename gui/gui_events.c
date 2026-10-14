@@ -181,8 +181,17 @@ static int CALLBACK LvCompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamS
     int result;
 
     if (g_sortNumeric) {
-        double v1 = atof(buf1);
-        double v2 = atof(buf2);
+        /* A cell that is not a number -- the dash for a position that
+         * cannot be used, or nothing at all -- goes after every number
+         * in BOTH directions. atof() read it as 0, so the mountpoint
+         * list's distance column put stations without a position at the
+         * top as the nearest (GH#14). */
+        char *end1, *end2;
+        double v1 = strtod(buf1, &end1);
+        double v2 = strtod(buf2, &end2);
+        const bool n1 = (end1 != buf1), n2 = (end2 != buf2);
+        if (n1 != n2) return n1 ? -1 : 1;    /* the direction does not apply */
+        if (!n1)      return 0;
         if (v1 < v2)      result = -1;
         else if (v1 > v2) result =  1;
         else               result =  0;
