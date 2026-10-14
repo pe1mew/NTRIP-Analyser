@@ -111,6 +111,32 @@ A bench build is not debuggable, so `run-as` does not reach its files,
 and its `Log.d` lines are kept (R8 does not strip logging here). Never
 upload one: it carries the debug key and an id that is not the store's.
 
+**Driving the phone from a script: read the focus before every
+action** (promoted 2026-10-14, after three occurrences). A tap, a Back
+and a swipe each act on whatever window is in front, and that is often
+not the app:
+
+- Before **every** tap, Back or swipe — not only taps — read
+  `adb shell dumpsys window | grep mCurrentFocus`. A Back meant for a
+  dialog that had already closed left the app; the swipe after it
+  scrolled the launcher, and once Google Play's store front.
+- **After `adb install -r`, relaunch until the focus names the app.**
+  The Huawei ignores the first `am start` after an install, and the
+  launcher's app drawer takes the next gestures.
+- **A lock screen is not the app.** `NotificationShade` in the focus,
+  or a clock in the dump, means stop and ask the person holding the
+  phone to unlock it; it happened four times in one afternoon.
+- **Tap an element by its own `bounds`** from a fresh `uiautomator
+  dump`, never by coordinates from an earlier screen, and read node
+  attributes as optional — a node without `content-desc` killed a
+  parser that assumed one.
+- **From Git Bash, set `MSYS_NO_PATHCONV=1` inside the helper**, not
+  per call: `uiautomator dump /sdcard/ui.xml` otherwise writes to
+  `/Files/Git/sdcard/` on the phone.
+
+Gotcha log: *A blind tap script walked out of the app* [x3], *MSYS_NO_PATHCONV
+fixes the device path* [x2], *The phone locked between the steps of a test*.
+
 **Comparing the editions: same build, same mountpoint.** Install both
 from one invocation, and point them at the *same* caster before
 concluding anything. An apparent edition difference is usually neither:

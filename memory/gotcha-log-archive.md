@@ -1,0 +1,353 @@
+# Gotcha Log — archive
+
+Resolved entries dated before 2026-10, moved here from
+[gotcha-log.md](gotcha-log.md) on 2026-10-14 under the framework's
+archive rule (agent-ready-projects v1.49.2, #178): moved, never
+summarised. Open entries, this month's entries and the Promoted table
+stay in the log. Grep both files for a mechanism.
+
+### JNI symbols existed under a name nothing looks up (2026-08-11) [RESOLVED]
+**Problem**: Every native call threw `UnsatisfiedLinkError` although the symbols were present in `libntrip_android.so`.
+**Root cause**: The externals are declared in a Kotlin `companion object`, but `@JvmStatic` promotes them to static methods on the *enclosing* class, and the JVM resolves the symbol from where the method ends up. They existed under the `$Companion` name; nothing looked there.
+**Fix**: `JNI_FN(name)` expands to `Java_..._NtripBridge_##name`. Confirming symbols exist proves nothing here — only a native call that does not throw does.
+
+### A correct run that never reached the screen (2026-08-11) [RESOLVED]
+**Problem**: The phone sat at READY while a run completed normally.
+**Root cause**: `ns_stats_to_json()` emits `null` for anything unmeasured, so "no ARP yet" is not reported as "a station at 0N 0E". The Kotlin model declared those doubles non-nullable, decoding threw, and a decode failure publishes nothing — the screen kept its previous state with no error anywhere.
+**Fix**: Nullable in the model. A snapshot field that can be absent must be modelled as absent.
+
+### GLONASS: one satellite out of 279 (2026-08-12) [RESOLVED]
+**Problem**: A daily RINEX navigation file yielded one GLONASS satellite.
+**Root cause**: RINEX 3.05 gives GLONASS a fourth orbit line that 3.04 did not. The loader consumed a fixed three; the leftover line was taken for an unknown system, and the four-line "resync" skip then ate the next record, so the reader never came back into phase.
+**Fix**: Read by structure, not by counting lines per system — epoch lines name their system in column 1, continuations start with spaces. `test/test_rinex_nav.c` pins it with two 3.05 records back to back, which is what turns one misread into a cascade.
+
+### Fresh orbits reported as "no orbits at all" (2026-08-12) [RESOLVED]
+**Problem**: The app said the sky view could place nothing, over a cache of 139 orbits.
+**Root cause**: Ephemeris age took the entry with the highest week and `toe` across systems whose week numbers share no origin. It picked a NavIC record with a reference epoch 7.4 h in the *future* and returned a negative age, which the UI rendered as "none".
+**Fix**: Smallest per-satellite age, computed in each system's own frame; an epoch ahead of now counts as fresh. GLONASS `toe` is Moscow seconds-of-day, not seconds-of-week.
+
+### The sky view fell back to phone GNSS for 30 s of every run (2026-08-12) [RESOLVED]
+**Problem**: A new run showed a handful of satellites, then jumped to the full constellation — it looked like the orbit cache was being cleared.
+**Root cause**: Nothing clears the cache. Placement needs the *station's* position, which arrives only with the first 1005/1006 — up to 30 s on a station that sends one every 30 s.
+**Fix**: The bridge remembers the last broadcast position per mountpoint for the process lifetime, for placement only: `have_arp_info` stays false, so KPI 3 still waits for a real message.
+
+### KPI 8 failed healthy stations, three times (2026-08-12) [RESOLVED] [x3]
+**Problem**: Advertised-versus-actual reported failures on stations that were fine — judged at 20 s, then on rate-less types, then on a constellation advertised but not visible.
+**Root cause**: Three wrong assumptions: that 20 s is enough evidence; that every advertised type carries a rate; and that advertising QZSS in Europe is a fault rather than ordinary.
+**Fix**: A 30 s floor, a 600 s grace for rate-less types, and judging only the direction that misleads — streaming something never advertised. Constellations are compared against the sourcetable's NavSys field, never the 1005/1006 bits.
+
+### A bounded test that could never end (2026-08-12) [RESOLVED]
+**Problem**: The GUI station check ran indefinitely on a mountpoint the caster does not list.
+**Root cause**: With no sourcetable entry KPI 8 stays PENDING — rightly, since "could not check" is not a pass — and a pending KPI holds the roll-up at RUNNING, which never settles.
+**Fix**: The 300 s ceiling the CLI already applied, plus a header naming which of three ways a run ended.
+
+### Config load named the wrong mountpoint (2026-08-13) [RESOLVED]
+**Problem**: "Loaded configuration for " with an empty name.
+**Root cause**: Once settings became derived from a profile store, the message still read the value captured before the store updated.
+**Fix**: Name what was just loaded, from the new value.
+
+### A network mountpoint could not be checked at all (2026-08-13) [RESOLVED]
+**Problem**: `--check` on `caster.centipede.fr/NEAR` reported "connected but no data arriving" and FAILED, while `curl` with an `Ntrip-GGA` header streamed 15 kB in ten seconds.
+**Root cause**: `--check` set `opt.send_gga = false` and only `--check-vrs` drove the uplink, so a service that answers nothing until it knows where the rover is was never told.
+**Fix**: The mountpoint decides, from the sourcetable NMEA flag the check already parses for KPI 8. The GUI was never affected — it uplinks by default — and Android follows the same flag.
+
+### A mountpoint 816 entries into a sourcetable did not exist (2026-08-13) [RESOLVED]
+**Problem**: On Android, KPI 8 said "no sourcetable entry to compare against" for a mountpoint that plainly existed, and the run never settled.
+**Root cause**: The bridge parsed a fixed 512 entries; Centipede publishes 1217 and lists `NEAR` at 816. The CLI had always counted first and allocated to fit.
+**Fix**: Count, allocate, parse — and log what the fetch did, because the C side's stderr goes nowhere on Android and "cannot judge" with no way to ask why is not a diagnosis.
+**Lesson**: A fixed cap on data from a third party is a silent truncation waiting for a bigger third party. Count first.
+
+### A property of the station looked like a defect in the app (2026-08-13) [x2] [RESOLVED]
+**Retired 2026-10-14**: 1 dB cells in both renderers (`Views.kt`, `gui/gui_state.h` "One whole decibel per cell"); `checkEditionParity` fails the build if an edition grows code of its own.
+**Problem**: The C/N0-versus-elevation plot showed horizontal white lines in the free edition and none in pro, which read as the two editions diverging.
+**Root cause**: The stations differed, not the editions. MSM4 carries C/N0 in whole dB-Hz, so half-decibel plot cells could fill only every second row; the pro station was MSM7 at a sixteenth of a decibel and filled them all.
+**Fix**: Bin at the coarsest resolution any stream delivers (1 dB), and document the per-format resolution in `android/design/views.md`.
+**Lesson**: Before suspecting the app, point both editions at the *same* mountpoint. `checkEditionParity` now fails the build if an edition acquires code of its own, so a real divergence cannot hide behind this.
+**Recurrence 2026-08-14**: the same striping in the Windows GUI, same cause, same 1 dB cure. A data property shows up in every renderer, so fixing one frontend leaves the others wrong.
+
+### An IME invented characters in a mountpoint (2026-08-13) [RESOLVED]
+**Problem**: Typing `APEL0` on the handset saved `APEL0. `; the caster then reported no such mountpoint.
+**Root cause**: EMUI's keyboard commits a full stop and a space on focus loss. The caster field had been given a URI keyboard for exactly this; the mountpoint, username and password fields had not.
+**Fix**: The same `KeyboardType.Uri` on all of them. `trim()` cannot help -- it removes a space, not a character the user never typed.
+
+### A commit landed in the wrong worktree's index (2026-08-13) [RESOLVED]
+**Problem**: A commit carrying a 28-file message contained one whitespace change to `changelog.md`.
+**Root cause**: Each worktree has its own index. The work was staged in `.claude/worktrees/<name>`; `git commit` was run in the main repository, where the only dirty file was a stray edit.
+**Fix**: Commit from inside the worktree that holds the work, then fast-forward `main` onto its branch.
+
+### Heredocs corrupt C string literals (2026-08-12) [x5] [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints: no `sed -i`; a python edit script never travels through a heredoc — written to the scratchpad and run.
+**Problem**: `\n` inside a heredoc-fed script arrives as a real newline, producing C source that no longer compiles.
+**Fix**: Use file-editing tools for anything containing escapes, or write the script to a file first.
+*Four more on 2026-08-22*, in one session and all the same shape: a `printf` in `cli_stream.c` that would not compile, and three error messages in `make_store_shots.py` broken identically. Each cost a build. The reliable dodge when a heredoc must be used is `chr(92) + 'n'`, which no shell can eat -- but the answer above was available every time, and this very entry could not be edited until it was applied.
+
+### JAVA_HOME is Adoptium, not Microsoft (2026-08-12) [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` names the Adoptium path in its prerequisites table and its Common Problems row.
+**Problem**: Gradle: "JAVA_HOME is set to an invalid directory".
+**Fix**: `C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot`, as a Windows path — Gradle rejects the POSIX form. Also on this machine: the only host C compiler is CodeBlocks' MinGW.
+
+### A file rewritten with newline='\r\n' doubled every carriage return (2026-08-14) [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints, "read and write with `newline=''` and convert once". This entry's own `\r\n` had been turned into real line breaks, splitting the heading; repaired the same day.
+**Problem**: 2014 lines of `MainActivity.kt` ended `\r\r\n`; subsequent edits stopped matching anything.
+**Root cause**: The script converted LF to CRLF *and* opened the file with `newline='\r\n'`, which converts again on write.
+**Fix**: Open with `newline=''` on both sides and do the conversion once, explicitly. Better: use the file-editing tools, which get this right.
+
+### A link can be correct while its destination does not exist (2026-08-14) [RESOLVED]
+**Retired 2026-10-14**: `tools/check_release.py` checks every wiki link names a page in `docs/wiki/`.
+**Problem**: The app's new orbit badge opened the repository front page instead of the wiki page it names.
+**Root cause**: GitHub creates the wiki *repository* when the first page is saved in the browser; enabling the wiki in Settings does not. Every link into an unborn wiki redirects.
+**Fix**: `tools/publish_wiki.sh`, and a check that every in-app wiki link names a page that exists in `docs/wiki/`. The check cannot prove it was pushed — only the fetch can.
+
+### GLONASS has no week, so a day-old orbit passed as an hour old (2026-08-14) [RESOLVED]
+**Retired 2026-10-14**: `sv_ephemeris.c` judges age on `toe_utc`, pinned by `test/test_eph_validity.c`.
+**Problem**: A ten-hour-old navigation file reported "newest orbit 58 min old", and a satellite could have been placed from a day-stale orbit.
+**Root cause**: GLONASS `toe` is Moscow **seconds of day**. Every age and every validity test wraps at 86400 s, so yesterday's record lands a few hours behind now.
+**Fix**: `SvEphemeris.toe_utc`, an absolute date, filled wherever one is known — any file carries a calendar datetime. Live streams keep the wrap; their records are seconds old. `test/test_eph_validity.c` pins both halves.
+
+### The constraint against scripted rewrites, broken an hour after writing it (2026-08-14) [x3] [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints now carry the mechanism (heredoc ban, Write-then-run). Not encoded: "assert every substitution found its target".
+**Problem**: A heredoc-fed script wrote `"
+"` into `tools/verify_memory.py` as a literal newline, splitting a statement across two lines. Two other edits in the same script matched nothing and said nothing.
+**Root cause**: The same escape-mangling promoted to a hard constraint that morning — and `.replace()` without an assertion, which cannot fail out loud.
+**Fix**: Edit tools for anything with escapes; every scripted substitution asserts its target was found. A constraint is not learned until the next mistake is a different one.
+
+### A navigation gesture eaten by an overscroll animation (2026-08-14) [RESOLVED]
+**Retired 2026-10-14, obsolete**: the leave-gesture is gone and the pager keeps the platform's overscroll (`AnalysisScreen.kt`); no `LocalOverscrollConfiguration` remains in `android/app/src`.
+**Problem**: On the S23, dragging right from the sky view no longer left the Analysis screen. The same build did it on the Android 10 handset.
+**Root cause**: The screen reads what the pager *cannot* consume as "leave". From Android 12 the stretch overscroll consumes that leftover to animate with it, so `onPostScroll` saw nothing. The older glow effect only draws, which is why the gesture had always worked where it was tested.
+**Fix**: `LocalOverscrollConfiguration provides null` around the pager — the stretch is worth less than the gesture. A nested-scroll parent only sees what every child declines to take.
+**Lesson**: A gesture built on leftover deltas is a gesture built on what nobody else wanted, and that changes by platform version. Test navigation gestures on the newest Android available, not the oldest.
+
+### An edition looked broken because its install was an hour old (2026-08-14) [x3] [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` has the `dumpsys package … lastUpdateTime` step and the GUI binary-timestamp row. The VPS install is still advice only.
+*Recurred 2026-08-16 on the VPS: the tree was rebuilt to 3.4.0 and the binary in `/usr/local/bin` was still 3.3.0, because the build and the install were two commands and only the first was run. Not an Android property — any deployed artefact.*
+
+*Recurred 2026-08-18 without any install being involved: after bumping to 3.5.0, `cmake --build build --target test_all` passed 12/12 while `bin/ntrip-analyser --version` still printed **3.4.0** — that target does not build the CLI, so the binary beside the tests was the previous one. Green tests are evidence about the targets that were built, and say nothing about an artefact that was not. Build the default target before believing a version.*
+
+**Problem**: Two defects fixed in free were reported as still present in pro — the same two, on the same handset.
+**Root cause**: Both fixes live in shared `src/main`; pro had them in source the moment they were written. The APK on the phone was built at 16:26 and the fix at 17:45.
+**Fix**: Compare install timestamps before reading code — `adb shell dumpsys package <id> | grep lastUpdateTime`.
+**Lesson**: One codebase and two editions means the *installs* diverge even when the code cannot. `checkEditionParity` guarantees shared code; nothing guarantees the phone has the newer build.
+
+### The Gradle wrapper could not be executed anywhere but Windows (2026-08-14) [RESOLVED]
+**Problem**: CI failed with `./gradlew: Permission denied`.
+**Root cause**: The wrapper was committed from Windows, where git does not track the executable bit, so its mode was 100644.
+**Fix**: `git update-index --chmod=+x android/gradlew`, not a `chmod` step in the workflow, which would have hidden it from every other clone.
+**Lesson**: CI's first value is being a machine that is not yours. Every Linux and macOS clone had this defect for months and nothing said so.
+
+### NDK 27 did not align the library to 16 KB pages (2026-08-14) [RESOLVED]
+**Problem**: Play has required 16 KB page support since November 2025 for anything targeting Android 15+. `llvm-readelf` showed the shipping `.so` with LOAD segments at `0x1000`.
+**Root cause**: The alignment was assumed to come free with a recent NDK. It did not, in this configuration.
+**Fix**: `-Wl,-z,max-page-size=16384` in the native CMakeLists, verified in the bundle rather than in an intermediate.
+**Lesson**: A toolchain's reputation is not evidence. Read the artefact.
+
+### A measurement that could not see what it was measuring (2026-08-15) [RESOLVED]
+**Problem**: Before turning `-Wall -Wextra` on in CI, the tree was measured at **one** warning. The first CI run found **six**.
+**Root cause**: `gcc -fsyntax-only` was used for speed. The truncation diagnostics (`-Wstringop-truncation`, `-Wformat-truncation`) come from the optimiser's value-range propagation and appear only from `-O2`, so that mode can never report them. A first attempt also passed `-std=c99` where the build uses `gnu99`, which hid `M_PI` and aborted a file early.
+**Fix**: Compile the way the build compiles — same standard, same optimisation — or publish no number. Promoted to the project file.
+
+### snprintf silenced nothing; it renamed the warning (2026-08-15) [RESOLVED]
+**Problem**: `strncpy` truncation warnings were "fixed" with `snprintf(dst, sizeof dst, "%s", src)`. The next run reported the same lines under `-Wformat-truncation`.
+**Root cause**: Both forms leave the bound for the optimiser to infer, so gcc still sees a possible truncation — only the diagnostic's name changed.
+**Fix**: State the bound in the call: `snprintf(dst, sizeof dst, "%.*s", (int)sizeof(dst) - 1, src)`. Silent, and always NUL-terminated unlike `strncpy`.
+
+### A stale CMake cache packaged the previous version (2026-08-15) [RESOLVED]
+**Problem**: After bumping `version.h` to 3.4.0, `cmake --build build --target release` printed *"Packaging 3.3.0 for windows-x64"*.
+**Root cause**: The version is read with `file(READ)` at configure time, and CMake was never told the build depends on that file — so an existing build directory kept the old cache. Only the release tag check noticed; **untagged, it would have produced 3.3.0-named assets from a 3.4.0 tree in silence.** CI never sees this because CI always configures from scratch.
+**Fix**: `CMAKE_CONFIGURE_DEPENDS` on `src/core/version.h`. Where two build systems can disagree, the one that is *incremental* is the one that lies.
+
+### A hand-written source list drifted until a second build system was run (2026-08-15) [RESOLVED]
+**Problem**: `make -C service` failed to link — undefined reference to `get_gnss_id_from_rtcm` — on its first CI run. It had been broken for some time.
+**Root cause**: `service/Makefile` lists its sources by hand and never gained `src/net/ntrip_handler.c`. CMake keeps its own list and built the daemon happily, so the failure was invisible to everyone except a packager or a VPS deployment.
+**Fix**: Wildcard the shared directories (`src/core`, `src/net`, `src/session` are shared *by definition*; anything platform-specific lives elsewhere). **If two build systems describe the same sources, CI must run both** — the gap the GUI's `build-gui.bat` had until it was retired outright on 2026-08-25 (TLS L2), leaving `CMakeLists.txt` as the only desktop list.
+
+### A tag on a tree whose bump was never committed (2026-08-15) [x2] [RESOLVED]
+*Recurred 2026-08-18, identically, with `v3.5.0`: same staged-not-committed bump, same failed run, same message with the numbers changed. It had been marked `[RESOLVED]` three days earlier — wrongly, because the recorded fix was **advice** ("check `git show <tag>:version.h` first"), and advice is not a mechanism. What actually works is already in place and worked twice: `CheckReleaseTag.cmake` failed the run before anything was published. Retiring an entry needs a change to the code or the procedure, not a resolution to be careful.*
+
+**Problem**: `v3.4.0` was tagged and pushed; the release workflow failed at packaging with "tag v3.4.0, version.h 3.3.0".
+**Root cause**: The version bump was *staged*, not committed, so the tag landed on the previous commit. Staged changes look identical to committed ones in an editor and in `git status --short`'s left column.
+**Fix**: `git show <tag>:src/core/version.h` before trusting a tag. The guard worked exactly as designed and cost one failed run instead of a mislabelled release — this is what `cmake/CheckReleaseTag.cmake` is for.
+
+### The constraint against scripted edits, broken a fourth time (2026-08-16) [RESOLVED] [x4]
+**Problem**: A `sed -i` meant to *find* a table row in `memory/gotcha-log.md` replaced it with the letter `X`, deleting a promoted pattern.
+**Root cause**: The command was written as a substitution to test a match, with a throwaway replacement, and `-i` wrote it. Reaching for `sed` at all was the error: `CLAUDE.md` forbids it, this file's own Promoted table records three previous instances, and both were read earlier the same day.
+**Fix**: Repaired with the editing tools. The lesson is not "be careful with sed" — it is that a constraint carried only in a document is obeyed until the moment convenience argues otherwise. **Use Grep to search and Edit to change; `sed -i` has no legitimate use in this repository.**
+
+### systemd discarded stderr because stdout was silenced (2026-08-16) [RESOLVED]
+**Problem**: A six-hour unattended capture ran perfectly and reported nothing — no frame count, no byte count, no reconnect count in the journal.
+**Root cause**: The `systemd-run` recipe set `StandardOutput=null` to keep the message-type stream out of the journal. `StandardError=` defaults to **`inherit`**, which means *whatever StandardOutput is* — so stderr, where the summary and every error go, was discarded with it.
+**Fix**: `--property=StandardError=journal` alongside it; the two belong together. Silencing one stream in systemd silences the other unless you say otherwise.
+
+### A doc comment invented an edition difference (2026-08-16) [RESOLVED]
+**Problem**: `android/design/editions.md` listed per-satellite C/N0 as absent in free and *planned* for pro. Both editions have drawn those bars all along.
+**Root cause**: `SignalBars`' own documentation said `liveValues` was "true when the bars show this epoch (pro), false ... (free)". The call site passes `runState.running` and has never consulted `Features`. The comment described a split that never existed, and the design table was written from the comment rather than the code.
+**Fix**: Corrected at the source, with the correction stated so it is not re-derived. **A claim in a comment is a claim**: check it against the call site before promoting it into a design document — three of four "drifts" found in one review traced back to documents copying each other.
+
+### A schema field nobody fills (2026-08-16) [x3] [RESOLVED]
+**Retired 2026-10-14**: `tools/check_release.py` "no new snapshot field is left unfilled", with the known gaps listed by name.
+**Problem**: `NsStatsSnapshot.latency_s` is declared, documented, serialised into the daemon's JSON and the CSV export, and displayed on the Android station tile. Nothing computes it. Every consumer has published "not measured" since the schema was written.
+**Root cause**: The field was added with the schema, in anticipation of code that never arrived. The ARP fields did exactly the same thing earlier — the daemon published `arp_valid:false` for every station until the KPI engine's first live run tripped over it.
+**Fix**: Not yet; tracked as phases 0 and 1 of `design/work-items/measurement-tiers.md`. The lesson is the pattern, not the field: **a declared-but-unfilled field is worse than a missing one, because it looks like an answer.**
+
+*Third occurrence found the same day: `sourcetable_offset_m`, declared and serialised to JSON and CSV, never computed — while the GUI performs that very comparison in its own code, leaving the shared field empty. Two coordinate faults (3.3 km, then 25 km) passed all eight KPIs because of it. A promoted pattern that keeps recurring means the promotion has not taken: the next occurrence should be prevented mechanically, not remembered — a check that every `NsStatsSnapshot` field is written somewhere outside `ns_stats_init` would have found all three.*
+
+### systemd-run reports a launch, not a life (2026-08-16) [RESOLVED]
+**Problem**: A six-hour capture was started on the VPS, printed `Running as unit: ntrip-capture.service`, and had already exited — after 7 ms.
+**Root cause**: `systemd-run` reports that it handed the job to systemd, which says nothing about whether the process survived. The installed binary was an older build that rejected `--capture` outright.
+**Fix**: `systemctl status <unit>` immediately after starting; `Active: active (running)` is the only confirmation that counts. The artefact, not the launcher's promise. (Noted and unexplained: the unit recorded `status=7`, which no exit code in that older build accounts for.)
+
+### `install /dev/stdin` writes nothing (2026-08-16) [RESOLVED]
+**Problem**: `sudo install -m 600 /dev/stdin /etc/ntrip/rfsee.json` with a pasted heredoc produced no file, quietly enough that the next command's failure was the first sign.
+**Root cause**: `install` stats its source and will not copy a terminal or a pipe.
+**Fix**: `sudo tee <path> > /dev/null <<'EOF'` to write a root-owned file from a heredoc, then `chmod`. Create the directory in the same command, or the move that follows fails on a path that was never made.
+
+### A link that works in the repository and 404s on the website (2026-08-16) [RESOLVED]
+**Problem**: `docs/licences.md` linked `../LICENSE`. Fine when browsing GitHub, a 404 for every visitor to the published site — verified: `https://pe1mew.github.io/LICENSE` does not exist.
+**Root cause**: GitHub Pages serves `docs/` **as the site root**, so a relative link out of that folder points above the root. Nineteen such links had accumulated across eight files, most of them long before this session.
+**Fix**: Absolute `https://github.com/pe1mew/NTRIP-Analyser/blob/main/…` for anything outside `docs/`; relative for anything inside it, where `jekyll-relative-links` rewrites `x.md` to `x.html` and both views work. `tools/check_release.py` now fails on `](../` in any `docs/*.md`.
+
+### One session per account made a healthy station read as broken (2026-08-16) [RESOLVED]
+**Problem**: Two consecutive `--check` runs on HANESE reported FAILED after 15 s and then 10 frames. A minute later the same station gave 45 of 45 epochs and a clean 90 s pass.
+**Root cause**: The caster allows one session per account, and `--check` opens *two* connections — a sourcetable fetch, then the stream. Runs in quick succession evict one another.
+**Fix**: Leave a gap between checks on a single-session caster. The report also misattributed this — KPI 1 said "connected but no data arriving" while KPI 2 counted 102 decoded frames — fixed 2026-08-17 (phase 4 of `design/work-items/cli-track.md`): KPI 1 now says `Data arrived for N s, then the stream stopped`, and the Troubleshooting page names the eviction as the first cause to rule out.
+
+### A theme built for a landing page clipped the documentation (2026-08-16) [RESOLVED]
+**Problem**: Architecture diagrams on the published site were cut off mid-line.
+**Root cause**: `jekyll-theme-minimal` gives content a **500 px** column — right for a project page with three paragraphs, far too narrow for ninety-column diagrams and wide tables.
+**Fix**: `docs/assets/css/style.scss` widens the column to 1080 px above 960 px viewport and leaves the theme's mobile behaviour alone. Verified by measuring `scrollWidth` against `clientWidth` per element rather than by eye: seven `<pre>` blocks, none clipped.
+
+### A GUI log window that had never worked when the program is started normally (2026-08-18) [RESOLVED]
+**Problem**: Checking a change in the GUI's Log tab, nothing from the worker appeared at all — not the capture lines under test, not the untouched handshake lines. Only the UI thread's own lines and the ephemeris worker's showed.
+**Root cause**: Started from Explorer the process has no console, so `stdout` has no descriptor: `_fileno` returns negative, every `_dup2` in the redirect fails silently, and the pipe is created and pumped for the whole session with nothing ever written into it. Every previous check of that window had been launched from a shell — including mine — where the streams already have a descriptor.
+**Fix**: Attach the streams to `NUL` before redirecting. **Verify a GUI from the launcher its users use**; a terminal-launched Win32 GUI is a different program in every respect that touches stdio.
+
+### Making a channel work exposes what it was hiding (2026-08-18) [RESOLVED]
+**Problem**: With the log pipe finally carrying text, the window filled with one run-on line of message-type numbers, burying every event.
+**Root cause**: Two faults that had been latent behind the dead pipe. The pipe is text-mode at *both* ends, so the write side's `\n`→`\r\n` is folded straight back by the read side and an EDIT control — which breaks only on CR LF — renders a whole session as one line. And a per-frame type trace plus a `Sent GGA` every few seconds had never been seen by anyone.
+**Fix**: Expand at the single point pipe text enters the control; delete the traces. **A dead channel hides every bug downstream of it** — expect a queue of them when it starts working, and budget for that rather than treating them as new regressions.
+
+### A recording contains only what it draws (2026-08-20) [RESOLVED]
+**Retired 2026-10-14**: `AnalysisScreen.kt` draws the surface first inside `plotLayer.record {}`.
+**Problem**: The plot shared from the analysis screen came out on a transparent background — fine in a gallery, invisible ink on a white page.
+**Root cause**: `rememberGraphicsLayer().record {}` captures the subtree it wraps. The surface behind that subtree is painted by the `Scaffold`, outside the layer, so every pixel the plot did not draw stayed clear. The screen looked right the whole time; only the export was wrong.
+**Fix**: `drawRect(surface)` inside `record {}`, before `drawContent()`. **A subtree capture is not a screenshot** — it has no background unless the recorded subtree paints one, and the on-screen appearance cannot tell you whether it does.
+
+### A third build system, and only one of them was checked (2026-08-22) [RESOLVED]
+**Problem**: P4.3 added `src/core/ns_failure.c` to `CMakeLists.txt`, and every desktop target built. CI went red on **Android** — `ld.lld: error: undefined symbol: ns_failure_text` — and stayed red for two commits, because the next step's verification was also desktop-only.
+**Root cause**: `android/app/src/main/cpp/CMakeLists.txt` keeps its own list of the shared C sources. This project's promoted pattern says *where two build systems describe one source set, CI must run both*; the Android NDK build is a **third**, over the same `src/`, and "every target builds" from the desktop tree says nothing about it.
+**Fix**: the file was added to the NDK list in P5.1, where the same linker error appeared locally -- and in P6.1 the class was closed rather than remembered. `tools/check_release.py` now compares the two source lists and fails naming the file and the list it is missing from; deliberate omissions are declared there with their reason. Falsified by deleting the entry again, which reproduces the CI failure in a second instead of in a run.
+
+### A layout that reports less than it was asked for is centred (2026-08-22) [RESOLVED]
+**Retired 2026-10-14**: `MainActivity.kt` `.fillMaxWidth()` with its reason, and `Panel.kt` `coerceAtLeast(constraints.minHeight)`.
+**Problem**: The station screen drew its cards floating in the middle: a band of empty space under the title, and as much again above the analysis bar. Only on a hub with few cards, and only on a screen taller than its content -- so the phone with the smaller window never showed it.
+**Root cause**: `StationHub` is a custom `Layout` inside `Modifier.fillMaxSize().verticalScroll(...)`. In that order the scroll hands the layout a **minimum height of the whole viewport**, and the layout reported the height of its content instead. Compose centres a child that comes back smaller than the minimum it was given, which is why the slack appeared *above* the content as well as below.
+**Fix**: three attempts, and only the third was the cause. `.coerceAtLeast(constraints.minHeight)` stopped the *centring* but left the hub draggable inside its own slack -- the author reported the fault again, correctly. `fillMaxWidth()` in place of `fillMaxSize()` removed the viewport-sized minimum, so the hub is as tall as its content. And the margins moved *inside* the scroll, because outside it they are a frame the content can never fill: a strip of nothing under the app bar and another above the pinned bar, on every screen, for ever.
+
+Found by probe rather than by reading: a background colour showed the empty band was outside the hub, `onGloballyPositioned` put the hub's top at 711 px where its padding said 338, and logging the children's heights gave 860 px of content in a 1700 px viewport -- the difference, halved, was the band. **When a layout is placed somewhere unexpected, ask it where it is** rather than deducing it from the modifier chain. And when a fix is reported as not working, believe the report: twice here the symptom was still there because only part of the cause had gone.
+
+### A redaction that moved off the thing it hid (2026-08-22) [RESOLVED]
+**Problem**: `make_store_shots.py` frames captures for the Play listing and paints over two things: the caster's real address and the station's ARP to six decimals. Re-run against GUI v3 captures, it painted `ntrip.example.com:2101` into the gap *above* the connection tile -- leaving the real host readable below it -- and `52,xxxxxx, 5,xxxxxx` across the constellation legend, leaving the real coordinates untouched one line up. Both files were written to `docs/images/store/pro/`, bound for a public listing.
+**Root cause**: the boxes are fixed pixel positions, measured against the v2 layout. The file's own comment warned about exactly this -- *"Re-measure if the layout changes; a box that has drifted paints over the wrong line"* -- and a warning in a comment is obeyed until the day nobody reads it.
+**Fix**: boxes re-measured for v3, and the class closed rather than re-warned. The tool now refuses to write when a box does not cover **grey ink**: there must be text under it, and it must not be coloured. A first attempt only checked for *ink* and passed happily with the box sitting on the legend -- the legend is ink. Both conditions were needed, and the second is the one that catches a drift onto a neighbouring line. Every box is checked before the first file is written, because a half-updated directory is the state most likely to be uploaded unnoticed. Falsified by restoring the v2 box: the run stops, names the box and the capture, and leaves the existing screenshots alone.
+
+### Play got a binary the tag never contained (2026-08-23) [RESOLVED]
+**Problem**: free 3.7.0, installed from Play on an S23, drew the sky view's coordinate line and constellation legend behind the system's navigation buttons -- the exact fault fixed and verified before the release was tagged.
+**Root cause**: the Android release is built by two commands, `assembleFreeRelease` for the APK and `bundleFreeRelease` for the bundle Play takes. After the fix landed, "rebuild the assets" rebuilt the APKs (17:27) and not the bundle (12:43, four commits earlier). The tag contained the fix, the GitHub APK contained the fix, and the artefact a thousand people install did not. Nothing compared the file with the source it claimed to come from -- the ninth instance of *what is installed is not what was built*, and the first where the mismatch reached users.
+**Fix**: `tools/check_release.py` gained two comparisons per artefact under `app/build/outputs`: it must be newer than every source it is built from, and its packaged manifest must declare this tree's version. Falsified by dating the bundle back to 12:43, which fails the check by name. The runbook now builds APKs and bundles in one command and says why they may not be built apart. Released as 3.7.1.
+
+### Nine hours of capture, ten minutes of record (2026-08-23) [RESOLVED]
+**Problem**: an overnight watch drew trails a few minutes long and a C/N0 scatter of 25 412 samples, where nine hours at forty satellites a second is over a million. Rotating the phone reset both plots to zero.
+**Root cause**: both accumulators were `remember { }` inside the composition that draws them, while the run lives in the service's companion. A rotation destroyed them and the run-start effect then cleared them; worse, the document is collected with `collectAsStateWithLifecycle`, so with the activity stopped **no document reached the UI at all** and nothing accumulated. The plots were honest about far less than the run.
+**Fix**: the record belongs to the run. Both accumulators moved to `MonitorService`'s companion, cleared at run start rather than at composition re-entry, fed where the document is published; satellites only the handset can place are still fed by the UI, which is the only side that has its fixes. Measured on hardware: 45 samples/s off screen against nothing before, and unchanged across a rotation. The C/N0 scatter had carried this since it was written and tracks inherited it by copying the precedent -- **a wrong precedent spreads by being followed**.
+
+### A pause that lives in prose is not a checklist (2026-08-25) [x2] [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` release sequence: "Hand the release commands over only when everything they name…".
+**Problem**: two releases running (3.7.2, 3.7.3), the author pasted my release command list top to bottom and hit `no matches found` at the upload -- the desktop packaging step lived in a sentence ("tell me *tagged* and I'll package") between the commands, and sentences do not execute.
+**Root cause**: handing over commands whose prerequisites do not yet exist, with the gap marked only in prose. The runbook's own order was correct both times; the handoff format was the bug.
+**Fix**: release commands are handed over only when everything they name already exists on disk. Promoted below.
+
+### The provenance flag outlived nothing; the cache outlived the run (2026-08-25) [RESOLVED]
+**Problem**: the sky header credited a day-old navigation file for placements the ephemeris stream had made minutes earlier.
+**Root cause**: source attribution by a per-run flag (`usedEphStream`, reset in `startRun`) over a cache that lives with the process. The flag's own doc comment stated the right rule and the reset defeated it. Family: the matrix's "a stale file used to read as a full cache", in the other direction.
+**Fix**: the reset is deleted; a flag's lifetime must match the thing it describes. Reproduced against the fix in the author's exact scenario.
+
+### A hidden button is a promise; a guarded door is a wall (2026-08-25) [RESOLVED]
+**Problem**: starting a network-RTK check over a running test spawned a second worker and broke the measurement (author-reproduced).
+**Root cause**: the UI hides run verbs while running, but `startRun`'s guard was a silent `worker != null` -- and the field survives thread death, so it could both let a race through and wedge shut after a crash.
+**Fix**: `worker?.isAlive` with a logged refusal at the single door every run passes through. The service is not exported, so the door is only reachable from inside the app; the author's route retried green.
+
+### The run is a copy of the settings, and the copy forgot a field (2026-08-25) [RESOLVED]
+**Problem**: the app's first TLS run went out in plain text to port 443; Azure's gateway answered the plaintext with its own 400 page and the run failed as REJECTED while the checkbox sat ticked.
+**Root cause**: settings travel to MonitorService by Intent extras, and `tls` had no extra -- the rebuilt CasterSettings defaulted it false. Third face of the flag-lifetime family: a field the copy forgets is a field the run silently does without.
+**Fix**: EXTRA_TLS / EXTRA_EPH_TLS ride the Intent, with the lesson in a comment at the unpack site. Found by BLOG-instrumenting the bridge (`tls=0`).
+
+### mbedTLS's entropy accumulator never returned on EMUI (2026-08-25) [RESOLVED]
+**Problem**: `mbedtls_ctr_drbg_seed` blocked forever on the Huawei -- every TLS connect wedged before its first byte of I/O.
+**Root cause**: mbedTLS's own entropy gathering (`mbedtls_entropy_func`) hangs on this EMUI 10 handset; mechanism unidentified, behaviour reproducible.
+**Fix**: the DRBG seeds from the OS RNG directly (`/dev/urandom`, `BCryptGenRandom` on Windows) -- the OS pool is the root of trust either way, and the accumulator added nothing but the hang.
+
+### -O0 crypto reads as a hang (2026-08-25) [RESOLVED]
+**Problem**: after the entropy fix, handshakes still "wedged" -- in truth they took over a minute: unoptimized mbedTLS bignum on the 2019 Kirin.
+**Root cause**: NDK debug builds compile C at -O0, and TLS is the first heavy math the debug APK ever ran.
+**Fix**: `CMAKE_C_FLAGS_DEBUG += -O2` in the NDK CMakeLists -- the C core is debugged on the desktop through the suite, never through a debug APK. Cost an afternoon of misdiagnosis first.
+
+### Gradle cannot see this repo's C sources (2026-08-25) [x3 in one day] [RESOLVED]
+**Retired 2026-10-14**: `docs/RUNBOOK.md` Common Problems: `gradlew clean`, then build with `--no-build-cache`.
+**Problem**: three rounds of "the fix didn't work" on the phone -- each time the installed .so predated the edit.
+**Root cause**: the NDK sources live outside the Gradle project (`${REPO_ROOT}/src`), and both the externalNativeBuild task's up-to-date check and the build cache are blind to them: deleting `.cxx` alone re-served the stale build from cache.
+**Fix**: `gradlew clean` + `--no-build-cache` whenever a `src/` or `lib/` C file changed. Promoted to the runbook's Common Problems.
+
+### The Bash tool's heredocs halve backslashes (2026-08-25) [x4 in one day] [RESOLVED]
+**Retired 2026-10-14**: `CLAUDE.md` Hard Constraints name the mechanism and the cure (Write to the scratchpad, run the file).
+**Problem**: python edit scripts fed through `python - <<'EOF'` heredocs failed asserts on anchors that plainly existed -- and once *matched the wrong thing*: `'\0'` reached Python as a literal NUL byte.
+**Root cause**: the tool layer processes backslash escapes in the command text before the shell sees it, even inside quoted heredocs; every `\` arrives halved. Recurrence of the promoted scripted-edit gotcha by a brand-new mechanism.
+**Fix**: any edit script with a backslash in it is written to the scratchpad with the Write tool (verbatim by contract) and run as a file. Promoted table incremented; the CLAUDE.md constraint now names the mechanism.
+
+### git's EOL conversion rewrote a checksummed vendored file (2026-08-25) [RESOLVED]
+**Problem**: the regenerate-and-diff check went red on the CA bundle after the branch merge; the regenerated array had grown by 2,950 bytes and `cacert.pem` no longer matched curl's published SHA-256.
+**Root cause**: text autocrlf converted the vendored PEM at checkout -- so the embedded trust store would differ between a Windows and a Linux checkout, and the provenance checksum was unverifiable on one of them.
+**Fix**: `.gitattributes`: `cacert.pem -text` (upstream's exact bytes are the point), the generated array `eol=lf`; bytes restored from the index, sha256 matches curl again. Rule: a vendored file whose checksum is part of its provenance is binary to git, whatever it contains.
+
+### A check that rewrites what another check reads (2026-08-25) [RESOLVED]
+**Problem**: the first full release-check run on the 3.8.0 artefacts cried stale at bundles built one minute earlier.
+**Root cause**: `check_generated` rewrites `ns_ca_bundle.c` to prove it matches the PEM -- same content, fresh mtime -- and the artefact-staleness check downstream reads mtimes. The notices.txt disease, second member.
+**Fix**: `ns_ca_bundle.c` joined the GENERATED_SOURCES carve-out. Any future generated-and-committed source starts life in that set.
+
+### SIGPIPE: the platform-specific death only CI could see (2026-08-25) [RESOLVED]
+**Problem**: the TLS suite passed 16/16 on Windows and died of SIGPIPE on Linux -- twice, on the L5 and L6 pushes.
+**Root cause**: TLS made writes to peer-closed sockets routine (close_notify at teardown, records to refusing casters); POSIX's default for those is process death, and Windows has no such signal to raise, so no local run could show it.
+**Fix**: every transport send carries MSG_NOSIGNAL (which also retired the same latent exposure under every plain-text send the daemon ever made); the test ignores the signal for its server thread. The branch plan's draft-PR-for-CI rule caught it before the merge -- the discipline paying for itself.
+
+### A parsed field nobody consumed (2026-08-25) [RESOLVED]
+**Problem**: the first live TLS check scored frame integrity 79.6% -- Kadaster's 443 wraps NTRIP 2 in `Transfer-Encoding: chunked`, and the chunk-size lines were costing one frame in five its CRC.
+**Root cause**: `ns_proto` had parsed `handshake.chunked` since the field existed and the GUI displayed it; nothing ever decoded the framing. A parsed-but-unconsumed field is a decision postponed until a live wire forces it.
+**Fix**: the session de-chunks (gated on the handshake), the sourcetable fetch de-chunks in place, and the loopback caster serves chunked with boundaries cut mid-frame -- falsified by gating the decoder off, which reproduced the live corruption exactly.
+
+### A release build cannot replace a debug build in place (2026-08-26) [RESOLVED]
+**Retired 2026-10-14**: debug builds are `….dev` and bench builds `….bench` (`app/build.gradle.kts`), so neither ever replaces the Play app.
+**Problem**: `install -r` of pro's release APK over the Huawei's leftover debug build failed with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; the only route is uninstall, which wipes saved connections and credentials on a phone that holds the author's real data.
+**Root cause**: different signing keys. A debug build left on a test phone is not a neutral state -- it is a one-way door that costs data to leave.
+**Fix**: asked before uninstalling, then rebuilt the RFSEE01 profile from `bin/config.json` and **proved the retyped password by running a check** rather than asserting it. Rule: after a debugging session, put the release build back the same day, while its settings are still cheap to restore.
+
+### A layout that depends on a string must measure the string (2026-08-26) [RESOLVED]
+**Problem**: pro's Play feature graphic read "NTRIP Analyser P" -- title and tagline both ran off the 1024x500 canvas. Caught by the author's eye at upload, not by any check.
+**Root cause**: `make_feature_graphic.py` chose font sizes as fractions of the canvas height, sized against free's shorter title, and never measured the text it drew. Its own docstring promised "everything sits inside a wide safe area".
+**Fix**: fit the text to the available width and **assert** both lines fit before saving. Free's graphic and the social preview regenerated byte-identical, which is the fitter proving it shrinks only what overflows.
+
+### A verify command that only works on a desk (2026-08-26) [RESOLVED]
+**Problem**: CI was red for two days, on two pushes, and neither of us looked. The failing check was `git rev-parse v3.8.0`, the evidence behind "3.8.0 released" in the memory index.
+**Root cause**: the claim was true and the checker's environment was not -- `actions/checkout` fetches no tags by default, so the tag existed on the remote, resolved on every desk, and was invisible to the runner. A guard that fails on a good tree is the exact failure mode this project already has a comment about.
+**Fix**: both checkouts that run `verify_memory.py` now use `fetch-depth: 0`. Rule for a new verify command: it has to pass **in CI**, not only where it was written -- and after adding one, watch the run it first appears in.
+
+### Checking the claims dirtied the tree (2026-09-17) [RESOLVED]
+**Retired 2026-10-14**: `.gitattributes` pins both notices files to `text eol=lf`.
+**Problem**: `/curate` ran `tools/verify_memory.py`; afterwards `notices.txt` and `THIRD-PARTY-NOTICES.txt` showed as modified, though nobody had edited them and `git diff` was empty.
+**Root cause**: one claim's verify command runs `check_release.py`, which regenerates the notices to compare them. The generator writes LF; this checkout has `core.autocrlf=true`; and unlike `ns_ca_bundle.c`, neither notices file has a `.gitattributes` rule. Same content, different bytes, a dirty status. The 2026-08-25 entry's fix (`GENERATED_SOURCES`) cured the staleness face of this, not the line-ending face.
+**Fix**: both generated notices now carry `text eol=lf` in `.gitattributes` (2026-09-17), as the CA bundle already did, so the generator's bytes and the checkout's agree.
+
+### CI died in a third-party action's default, not in our code (2026-09-17) [RESOLVED]
+**Retired 2026-10-14**: `.github/workflows/ci.yml` asks `setup-android@v4` for `platform-tools` only.
+**Problem**: the curate commit's CI failed in *Both editions* before any build step: `android-actions/setup-android@v3` ran `sdkmanager tools` and got "Failed to find package 'tools'". The scheduled run three days earlier had passed.
+**Root cause**: the runner image moved to cmdline-tools 16.0, which no longer carries the legacy `tools` package, and the action's `packages` input defaults to `'tools platform-tools'` (read from its own `action.yml`). A default nobody wrote down broke on a change nobody made here.
+**Fix**: `packages: platform-tools` in `ci.yml`. When CI fails on a commit that touched no code, read which step failed before reading the commit.
+

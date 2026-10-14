@@ -75,6 +75,9 @@ FILES = [
     "CLAUDE.md",
     os.path.join("memory", "MEMORY.md"),
     os.path.join("memory", "gotcha-log.md"),
+    # Moved out of MEMORY.md's Active Decisions to keep the index under
+    # its budget (2026-10-14); its claims are still current, so still run.
+    os.path.join("memory", "self-position-decisions.md"),
 ]
 
 VERIFY = re.compile(r"<!--\s*verify(-net)?:\s*(.*?)-->", re.S)

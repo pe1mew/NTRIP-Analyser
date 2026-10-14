@@ -33,7 +33,8 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix archive; 132 entries, 90 resolved in code or procedure (triaged 2026-10-14: each retirement names its evidence) |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix: 69 entries here (41 open, 28 resolved this month) and 62 older resolved ones in `memory/gotcha-log-archive.md` — grep both. Triaged 2026-10-14; each retirement names its evidence |
+| `memory/self-position-decisions.md` | Touching the self-position solve or its views | Six decisions behind it: GPS only, epoch closure, reversed rates; still verified |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
@@ -60,8 +61,11 @@
 - **Main carries the next pro release, unreleased** (2026-10-14): PRs
   #9 (P7 self-position, Reference position tab), #10 (mountpoint map,
   M6–M8) and #11 (3.8.1) merged; GH#5 (pro imports free's connection
-  by consent; refused during a run; keeps pro's ephemeris stream and
-  live GGA); GH#13 (each self-position point carries `sats`, `pdop`,
+  by consent — free's consent screen is the security control, each
+  side checks the other's package and signer, Play pin in release; the
+  pins can only be checked once both editions ship it from Play;
+  refused during a run; keeps pro's ephemeris stream and live GGA;
+  todo 2.5, `android/design/editions.md` *Upgrade path*); GH#13 (each self-position point carries `sats`, `pdop`,
   `sv_mask`, `eph_id`; export v2; PDOP now of the satellites used);
   the watch's per-drop record (`KpiDrop`, `test_kpi_watch`); a cured
   failure cleared on reconnect; AGP 9.4.1 / Gradle 9.8.1 (GH#12). All
@@ -69,7 +73,7 @@
   two-cluster finding (an overnight S export can now place a jump;
   the first 15 min showed a 2.05 m step exactly at PRN 10 joining)
   and the listing sentence "does not compute a position".
-  <!-- verify: test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt && grep -q "KpiDrop" src/core/kpi.h && grep -q 'agp = "9.' android/gradle/libs.versions.toml -->
+  <!-- verify: test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt && grep -q "KpiDrop" src/core/kpi.h && grep -q 'agp = "9.' android/gradle/libs.versions.toml && grep -q 'object Handover' android/app/src/main/java/nl/pe1mew/ntripanalyser/Handover.kt && grep -q 'ShareConnectionsActivity' android/app/src/free/AndroidManifest.xml -->
 - **Every frontend takes whole sourcetables only, and says why not**
   (`receive_mount_table_whole`, `src/net`): asked once more after a
   silence or a list cut short before `ENDSOURCETABLE`; onocoy did both,
@@ -132,31 +136,11 @@
   (`a598a91`), not on main, which carries unreleased P7 and the map.
   Pre-registration declined (S5).
   <!-- verify-net: test "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -A Mozilla/5.0 'https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.pro&hl=en')" = 200 -->
-  The closed test that got it there (track live 2026-09-09, release
-  3.8.0 accepted). Price €5.00 base, **€5,99 in NL**, saved once *Rest van de
-  wereld*, China, Cuba, Iran and Soedan were out of the price table
-  *and* the tracks. The app was paid all along -- a support reply said
-  otherwise. Licence testing verified from both ends: a tester's
-  checkout read "Dit is een testbestelling", the order booked €0,00.
-  Fourteen testers on lists `Free` and `Pro`, ticked on both pages;
-  the Dutch invitation (what a tester sees, and not to press
-  *Teruggave starten*) is going out individually. Reviewer credentials
-  are already entered for pro's production review (rotated to a
-  dedicated account 2026-09-19, watched daily). **The fortnight has
-  twelve testers opted in since 2026-09-28**; the console cleared all
-  three conditions on 2026-10-12 and **production access was requested
-  that day at 16:17** — a decision by email, usually within seven days.
-  The answers are kept in step S5 of `design/work-items/pro-to-play.md`.
+  Price €5.00 base, **€5,99 in NL**. The closed test that got it
+  there — licence testers, the price table, the reviewer account
+  (dedicated, watched daily) — is recorded step by step in
+  `design/work-items/pro-to-play.md` S3–S5.
   <!-- verify: manual — the Play Console is the only source for track state -->
-- **GH#5 built, unreleased: pro picks up where free left off, by
-  consent** (decided 2026-09-13, built 2026-10-14). The Play signing
-  certificates differ, so free's consent screen is the security
-  control; each side checks the other's package and signer (Play pin in
-  release, own key in dev/bench). Verified with both dev builds on the
-  S23; the release pins can only be checked once both editions ship it
-  from Play. Backlog item 2.5; `android/design/editions.md`, *Upgrade
-  path*.
-  <!-- verify: grep -q 'object Handover' android/app/src/main/java/nl/pe1mew/ntripanalyser/Handover.kt && grep -q 'ShareConnectionsActivity' android/app/src/free/AndroidManifest.xml -->
 
 <!-- 2026-08-25 -->
 
@@ -196,14 +180,6 @@ Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md), [2026-08-
 <!-- Format: "if [situation], then [what to do] — promoted from gotcha-log YYYY-MM-DD"
      Retire an entry as soon as it appears in its destination. -->
 
-- If a **script must rewrite a file**, read and write with `newline=''` and
-  convert line endings once — never let the script re-encode what it wrote
-  (escapes 2026-08-12, doubled carriage returns 2026-08-14) —
-  promoted from gotcha-log 2026-08-14 to `CLAUDE.md` hard constraints.
-- If a **rendering fault comes from the data's own resolution**, fix every
-  frontend, not the one it was reported in (Android 2026-08-13, GUI
-  2026-08-14) — promoted from gotcha-log 2026-08-14 to Active Decisions
-  above.
 - If you are about to **report a count from a build** — warnings, tests,
   symbols — produce it the way the build produces it: same standard, same
   optimisation (`-fsyntax-only` is blind to the truncation warnings;
@@ -285,23 +261,6 @@ Supplementing CLAUDE.md's list with paths found during work:
 
 ## Active Decisions
 
-- **Self-position works in all three desktop frontends**, verified
-  against live stations and an independent solver (2026-10-10; branch
-  `self-position`, PR #8). APEL00NLD0 in the GUI: 83 epochs, offset
-  E −3.5 / N +3.7 / U +3.0 m, **scatter 0.231 m**, worst residual
-  2.26 m, 9 satellites at PDOP 1.3. RTKLIB's `rnx2rtkp` on RFSEE01 with
-  the same ephemerides: E +0.06 / N +1.13 / U +8.27 m, scatter 0.449 m.
-  The GUI and the daemon side by side for 43 min on one stream:
-  scatter 2.17 m and **2.18 m**, median motion 32.5 mm/s in both — so
-  differing scatter between runs is the station's hour, not a frontend.
-  **Eight defects stood between the closure test passing and this**,
-  every one found on a live station and none visible to the suite at
-  the time: the solve never called; six constellations under one clock
-  unknown; an epoch destroyed by a split constellation; the epoch dated
-  on BeiDou time; a station whose DF393 never clears; RFSEE01's
-  reversed rates; and the daemon and the CLI ignoring orbits a station
-  broadcasts itself.
-  <!-- verify: grep -q "selfpos_solve(s)" src/session/ntrip_session.c && grep -q "test_selfpos_session" CMakeLists.txt -->
 - **A claim about what a frontend does is tested on that frontend
   before it is written** — in the feature matrix, a doc, or a brief for
   another session. The matrix said the daemon "solved stations
@@ -346,56 +305,6 @@ Supplementing CLAUDE.md's list with paths found during work:
   attribution as HTML — a hostile mountpoint name ran script on hover
   until it did (2026-10-12). Test a page with a hostile sourcetable and
   a `window.pwned` canary; reading the code missed it.
-- **RFSEE01's receiver sends the phase-range rate with the sign
-  reversed** (2026-10-10) — every satellite the exact negative of what
-  its orbit predicts. The solver now fits both conventions and keeps
-  the one that fits; the snapshot reports `selfpos_rate_sign` −1 and
-  the window shows `REVERSED`. Five or more rates decide it; four
-  cannot, and claim nothing. **A field defined by a standard is still a
-  claim made by somebody's firmware** — where the data can say which way
-  round it is, ask the data.
-  <!-- verify: grep -q "rate_sign" src/core/spp.h && grep -q "case_reversed_rates" test/test_spp.c -->
-- **An observation epoch is complete when DF393 clears *or* when the
-  next one demonstrably begins** — whichever comes first, compared
-  **within one system** because the epoch fields are not comparable
-  across them (2026-10-10, `src/session/ntrip_session.c`). Three live
-  stations in two days broke three different assumptions: a
-  constellation split across two frames, a bundle closed by BeiDou (on
-  BDT, 14 s behind GPS), and a station whose DF393 stopped clearing
-  entirely when NavIC dropped out of view. **A stream's shape is a
-  property of the sky that hour, not of the station** — anything
-  waiting for a particular frame needs a way to proceed without it.
-  <!-- verify: grep -q "sys_epoch" src/session/ntrip_session.c && grep -q "DF393 never clears" test/test_selfpos_session.c -->
-- **The single-point solve is GPS only** (2026-10-09), because each
-  constellation needs a clock unknown of its own — the argument the
-  module had already written down for GLONASS and applied to GLONASS
-  alone. Admitting all six under one unknown put a real station 1.8 km
-  out, with 2.6 km residuals and **829 m/s** of apparent motion on a
-  concrete pillar. Two lessons worth more than the fix: **when a refusal rests
-  on a general principle, ask which other cases that principle covers**,
-  and **a closure test cannot discover that the world has more clocks
-  than the model** — `test_spp` built its measurements from the same
-  single-clock model it inverted, against one synthetic constellation.
-  <!-- verify: grep -q "gnss_id != 1" src/core/spp.c && grep -q "case_gps_only" test/test_spp.c -->
-- **A test that starts below the wiring cannot see the wiring.** The
-  self-position solve was defined and never called for two whole steps
-  of its plan — the call site discarded the `obs_feed()` return value
-  that says an epoch closed — under a suite of nineteen green tests
-  that each began *below* `ntrip_session`: the solver with its own
-  epoch, the report with its own snapshots, the serialisers with
-  theirs. Every surface handled "nothing solved" correctly, so the
-  absence looked like a property of the station. Found by connecting a
-  real one. `test/test_selfpos_session.c` now replays RTCM through
-  `ns_open_file()` and asks only whether a closed epoch reaches the
-  solve. **When a feature spans layers, one test must cross all of
-  them.**
-- **`-Wall` is on our targets as of 2026-10-09** — the build until then
-  passed `-O3 -DNDEBUG -std=gnu99` and nothing else, so a static
-  function nobody called drew no warning and "the build is
-  warning-free" was measured with an instrument that asks nothing.
-  Check what the build asks before quoting it:
-  `grep C_FLAGS build/CMakeFiles/<target>.dir/flags.make`.
-  <!-- verify: grep -q -- "-Wall" CMakeLists.txt -->
 - **A screen may only say what its evidence supports, and "not yet" is
   evidence of nothing.** Four times a window has stated a finding about
   a station that only described how long it had been watched: "fewest
@@ -551,9 +460,8 @@ Supplementing CLAUDE.md's list with paths found during work:
   gives a blank hub, a release-signed build upgrades in place where a
   debug build demands an uninstall -- and where only a destructive route
   exists, hand it to the author (2026-08-22).
-- **Pro went to Play once the last feature was in** (decided
-  2026-08-22, **lifted 2026-08-25** when TLS shipped). From 3.8.0 both
-  editions share a release: one tag, one version code, two bundles.
+- **Editions share a release by default** (one tag, one version code,
+  two bundles), but a fix may go to one: 3.8.1 was pro only.
 - **Store reviewers get a real credential set on our own caster.** The
   app has no accounts, but Play's automation reads the Caster dialog's
   password field as a login wall, and a release-note hint for a human

@@ -2,7 +2,7 @@
 stack: C99 (core, CLI, Win32 GUI, UNIX daemon), Kotlin/Compose + NDK (Android), CMake + Gradle
 status: Production (desktop, v3.8.0) · Android on Play — free in production, pro in closed testing
 repo: github.com/pe1mew/NTRIP-Analyser
-framework: agent-ready-projects v1.25.0
+framework: agent-ready-projects v1.49.2
 ---
 
 # NTRIP-Analyser
@@ -39,9 +39,9 @@ because people will point it at real stations and believe what it says.
 | Any Windows GUI work | `design/gui-design.md` — §13 station check, §14 stability, §15 thresholds, §16 self-position, §17 mountpoint map, all as built |
 | Any Android work | `android/design/editions.md` (free/pro split, payment, profiles, GGA sources) and `android/design/views.md` (what each view is for) |
 | Reading or writing configuration files | `docs/jsonConfigs.md` — one format everywhere, passwords in the clear |
-| Stuck, or something behaves impossibly | `memory/gotcha-log.md` — problem→root cause→fix archive |
+| Stuck, or something behaves impossibly | `memory/gotcha-log.md` — problem→root cause→fix, open and recent — and `memory/gotcha-log-archive.md`, older resolved ones; grep both |
 | Writing or moving documentation comments | `memory/doxygen-in-headers-only.md` |
-| Ending a session | Run `/curate` — review the gotcha log, promote patterns, update the memory index. It runs `python tools/verify_memory.py`, which re-checks every claim in this file and the index against the repository |
+| Ending a session | Run `/curate` — review the gotcha log, promote patterns, update the memory index. **This project's claim runner is `python tools/verify_memory.py`**, standing in for the skill's `verify-runner.sh`: it reads this file, the index, the gotcha log and `memory/self-position-decisions.md`, and runs `verify-net:` claims too (`--offline` skips them) |
 | Monthly, or after major restructuring | Run `/audit-context` — duplication, wrong-layer placement, broken references |
 
 <!-- "Active work" section deliberately absent: this tool has auto-memory,
