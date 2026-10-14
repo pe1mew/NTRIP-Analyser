@@ -24,7 +24,9 @@ The mountpoint list's numeric columns compared with `atof`, which reads
 the dash shown for an unusable position — or an empty cell — as 0, so
 sorting by distance put stations with no position at the top. A cell
 that is not a number now sorts after every number in both directions;
-the message-statistics list follows the same rule.
+the message-statistics list follows the same rule. Confirmed in the
+running GUI against onocoy's list: the stations without a position
+stay last whichever way the distance column is sorted.
 
 ### Added — the watch says when health was lost, for how long, and why (paid Android edition)
 
