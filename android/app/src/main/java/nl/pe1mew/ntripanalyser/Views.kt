@@ -745,13 +745,15 @@ class TrackAccumulator {
 @Composable
 internal fun HandoverDetail(
     stats: Stats,
-    vrs: VrsDoc?,
+    service: ServiceDoc?,
+    gga: GgaDoc?,
+    ggaIsPhone: Boolean,
     roverLat: Double,
     roverLon: Double,
     mountpoint: String,
     roverIsFix: Boolean,
 ) {
-    val sum = hoSummary(stats, vrs, roverLat, roverLon)
+    val sum = hoSummary(stats, service, roverLat, roverLon)
     val trail = MonitorService.arpTrail
     // Read so a dot recorded between documents still redraws us; the
     // 1 Hz document is the usual trigger.
@@ -780,11 +782,42 @@ internal fun HandoverDetail(
                 when {
                     moves == 0 -> stringResource(R.string.ho_stable)
                     sum.isNetwork -> stringResource(R.string.ho_moves_net, moves)
-                    else -> stringResource(R.string.ho_moves_fixed, moves)
+                    sum.isFixed -> stringResource(R.string.ho_moves_fixed, moves)
+                    else -> stringResource(R.string.ho_moves_unknown, moves)
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (moves > 0 && !sum.isNetwork)
+                // Red only where the core says a fixed base moved.
+                color = if (moves > 0 && sum.isFixed)
                     MaterialTheme.colorScheme.error else faint,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            // Which it is, and the evidence: the core's words (H9).
+            service?.let { s ->
+                Text(
+                    stringResource(when (s.kind) {
+                        "network" -> R.string.ho_service_net
+                        "fixed" -> R.string.ho_service_fixed
+                        else -> R.string.ho_service_unknown
+                    }, s.why),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = faint,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+            // What the caster has been told. A hand-over that happens
+            // when the screen comes back on is the phone catching up, not
+            // the station changing -- said here rather than left for the
+            // user to work out (H9; the boundary itself is unchanged).
+            Text(
+                when {
+                    gga == null -> stringResource(R.string.ho_gga_none)
+                    !ggaIsPhone -> stringResource(R.string.ho_gga_set,
+                        "%.5f, %.5f".format(gga.lat, gga.lon))
+                    gga.unchangedS < 60.0 -> stringResource(R.string.ho_gga_live_now)
+                    else -> stringResource(R.string.ho_gga_live, dur(gga.unchangedS))
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = faint,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         },
@@ -858,6 +891,7 @@ private fun HandoverPolar(
         distanceText(polarScaleM(trail, stats, roverLat, roverLon)))
     val labelStyle = MaterialTheme.typography.bodySmall
     val measurer = rememberTextMeasurer()
+    val page = MaterialTheme.colorScheme.surface
 
     Canvas(modifier) {
         val cx = size.width / 2f
@@ -900,10 +934,13 @@ private fun HandoverPolar(
         // The rover, centre of its own world.
         drawCircle(HO_ROVER, 10f, Offset(cx, cy))
 
-        drawText(
-            measurer, ringLabel, Offset(cx + 8f, cy - radius + 6f),
-            style = labelStyle.copy(color = faint),
-        )
+        // In the corner, which the circle never reaches, on a patch of
+        // the page: drawn at the ring's top it crossed the ring line on a
+        // tester's phone (2026-10-14).
+        val t = measurer.measure(ringLabel, labelStyle.copy(color = faint))
+        drawRect(page, Offset(0f, 0f),
+                 androidx.compose.ui.geometry.Size(t.size.width + 8f, t.size.height + 4f))
+        drawText(t, topLeft = Offset(4f, 2f))
     }
 }
 
@@ -932,19 +969,33 @@ private fun DistanceStrip(trail: ArpTrail, modifier: Modifier) {
     Canvas(modifier) {
         val km = trail.distances()
         drawRect(faint.copy(alpha = 0.08f))
-        drawText(measurer, label, Offset(6f, 2f),
-                 style = labelStyle.copy(color = faint))
+        val style = labelStyle.copy(color = faint)
+        val title = measurer.measure(label, style)
+        drawText(title, topLeft = Offset(6f, 2f))
         if (km.size < 2) return@Canvas
 
         var maxKm = 0.001f
         for (v in km) if (!v.isNaN() && v > maxKm) maxKm = v
+
+        // A scale, so the line can be read: the top of the plot is the
+        // largest distance in view, the bottom zero. Without it a
+        // tester's 750 km to 47 km step showed as a shape with no size
+        // (2026-10-14). Title and scale share a band of their own above
+        // the line, so neither sits on it.
+        val top = measurer.measure("max " + distanceText(maxKm * 1000.0), style)
+        drawText(top, topLeft = Offset(size.width - top.size.width - 6f, 2f))
+        val bottom = measurer.measure("0", style)
+        drawText(bottom, topLeft = Offset(size.width - bottom.size.width - 6f,
+                                          size.height - bottom.size.height - 2f))
+        val plotTop = title.size.height + 6f
+        val plotH = size.height - plotTop - 2f
 
         val stepX = size.width / (ArpTrail.RING_N - 1).toFloat()
         var prev: Offset? = null
         km.forEachIndexed { i, v ->
             if (v.isNaN()) { prev = null; return@forEachIndexed }
             val x = size.width - (km.size - 1 - i) * stepX
-            val y = size.height * (1f - (v / maxKm) * 0.9f)
+            val y = plotTop + plotH * (1f - v / maxKm)
             val here = Offset(x, y)
             prev?.let { drawLine(HO_ARP, it, here, strokeWidth = 2.5f) }
             prev = here

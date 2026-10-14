@@ -435,7 +435,30 @@ one: 3.8.0 is what fourteen days of testing validated, and `main` has
 since gained only desktop and core changes the app does not use. P7
 and M6–M8 then go out as an ordinary update, reviewed like any other.
 
-### S6 — say so
+**Granted 2026-10-14. The author's decision that day:** 3.8.0 to
+production as planned, and **3.8.1 on the open track beside it** — not
+instead of it. 3.8.1 is 3.8.0 plus one fix only (H9 of
+`handover-on-the-phone.md`): a tester's drive on Centipede's NEAR showed
+3.8.0 calling a nearest-base service's hand-over "a fixed base should
+not move; corrections are unreliable". Promoted when nothing comes back
+wrong.
+
+What the open track is, from Google's own help page (read 2026-10-14):
+**"Testers must purchase paid apps when participating in open or closed
+tests"** — licence testers excepted, which is why the closed testers
+paid nothing; feedback goes privately and "won't affect your app's
+public rating"; with a production version, users opt in from the store
+listing. For a paid app it is a public release with a private feedback
+channel, used here for the one thing it is honestly for: more phones
+and casters before a version is called final.
+
+**Pre-registration was considered and declined**: a launch-marketing
+mechanism ("build excitement and awareness", Google's page), which
+`CLAUDE.md` rules off-target, that would have held production back for
+up to 90 days; the page does not say whether it works for a paid app
+or one with testers.
+
+### S6 — say so  *(done 2026-10-14 — store page HTTP 200, €5.99, 3.8.0)*
 
 The readme's edition table gains pro's Play link; the wiki Pro page's
 "where to get it"; `release-to-play.md`'s status table closes its pro

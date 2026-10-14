@@ -347,6 +347,30 @@ data class BridgeDocument(
     val sats: List<SatEntry> = emptyList(),
     val eph: EphState = EphState(),
     val arp: ArpInfo? = null,
+    val service: ServiceDoc? = null,
+    val gga: GgaDoc? = null,
+)
+
+/**
+ * Fixed base or network service, as the core decides it
+ * (`station_service`, H9): `fixed`, `network` or `unknown`, and the
+ * evidence that decided. The app never decides this itself.
+ */
+@Serializable
+data class ServiceDoc(
+    @SerialName("class") val kind: String = "unknown",
+    val why: String = "",
+)
+
+/**
+ * The position the caster is told, and how long it has stood. Absent
+ * when no GGA is sent.
+ */
+@Serializable
+data class GgaDoc(
+    val lat: Double = 0.0,
+    val lon: Double = 0.0,
+    @SerialName("unchanged_s") val unchangedS: Double = 0.0,
 )
 
 /** Tolerant by policy: an added C field must never crash the phone. */

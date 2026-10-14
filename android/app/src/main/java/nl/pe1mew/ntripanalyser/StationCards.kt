@@ -490,18 +490,31 @@ internal fun srLabel(key: String): String = stringResource(
         else -> R.string.sr_title
     })
 
-/** What both the card and the detail screen say about the ARP. */
+/**
+ * What both the card and the detail screen say about the ARP.
+ *
+ * Fixed base or network service is the core's to say
+ * (`station_service`, carried as the document's `service`): the gate
+ * test, the sourcetable's own classification, or a reference position
+ * on top of the position sent. Until 3.8.1 this decided for itself, with
+ * the gate test and the 150 m rule alone, and Centipede's NEAR, handing
+ * over once on a tester's drive, read "a fixed base should not move"
+ * (handover-on-the-phone.md, H9).
+ */
 internal data class HoSummary(
     val distM: Double,
     val bearingDeg: Double,
-    val isNetwork: Boolean,
+    /** The core's word: "fixed", "network" or "unknown". */
+    val service: String,
 ) {
     val compass: String get() = compassPoint(bearingDeg)
+    val isNetwork: Boolean get() = service == "network"
+    val isFixed: Boolean get() = service == "fixed"
 }
 
 /** Null when there is no valid reference position to summarise. */
 internal fun hoSummary(
-    stats: Stats, vrs: VrsDoc?, roverLat: Double, roverLon: Double,
+    stats: Stats, service: ServiceDoc?, roverLat: Double, roverLon: Double,
 ): HoSummary? {
     val alat = stats.arpLat ?: return null
     val alon = stats.arpLon ?: return null
@@ -510,8 +523,7 @@ internal fun hoSummary(
     return HoSummary(
         distM = distM,
         bearingDeg = geoBearingDeg(roverLat, roverLon, alat, alon),
-        // The desktop's evidence rule, and the gate test outranks it.
-        isNetwork = (vrs != null && vrs.gate == 2) || distM < 150.0,
+        service = service?.kind ?: "unknown",
     )
 }
 
@@ -524,18 +536,17 @@ internal fun hoDistColour(distM: Double) = when {
 @Composable
 internal fun HandoverCard(
     stats: Stats,
-    vrs: VrsDoc?,
+    service: ServiceDoc?,
     roverLat: Double,
     roverLon: Double,
     roverIsFix: Boolean,
     moves: Int,
     worstJumpM: Double?,
 ) {
-    val sum = hoSummary(stats, vrs, roverLat, roverLon) ?: return
+    val sum = hoSummary(stats, service, roverLat, roverLon) ?: return
     val distM = sum.distM
     val bearing = sum.compass
     val distColour = hoDistColour(distM)
-    val isNetwork = sum.isNetwork
 
     // A plain card, deliberately not a FoldableCard: this row *leads*
     // somewhere, and a row cannot honestly carry both the fold mark and
@@ -561,12 +572,14 @@ internal fun HandoverCard(
             Text(
                 when {
                     moves == 0 -> stringResource(R.string.ho_stable)
-                    isNetwork -> stringResource(R.string.ho_moves_net, moves)
-                    else -> stringResource(R.string.ho_moves_fixed, moves)
+                    sum.isNetwork -> stringResource(R.string.ho_moves_net, moves)
+                    sum.isFixed -> stringResource(R.string.ho_moves_fixed, moves)
+                    else -> stringResource(R.string.ho_moves_unknown, moves)
                 },
                 style = MaterialTheme.typography.bodySmall,
+                // Red only where the core says a fixed base moved.
                 color =
-                    if (moves > 0 && !isNetwork) MaterialTheme.colorScheme.error
+                    if (moves > 0 && sum.isFixed) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (moves > 0 && worstJumpM != null) {

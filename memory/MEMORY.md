@@ -94,8 +94,15 @@
   the closed track stays open for early builds. A daily check on the
   author's server keeps the reviewer login honest (`docs/RUNBOOK.md`).
   <!-- verify-net: test "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -A Mozilla/5.0 'https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.free&hl=en')" = 200 -->
-- **Pro is in closed testing** (track live 2026-09-09, release 3.8.0
-  accepted). Price €5.00 base, **€5,99 in NL**, saved once *Rest van de
+- **Pro is public on Google Play** (2026-10-14): production access
+  granted that day, 3.8.0 -- the build the testers ran -- accepted and
+  published; the store page answered HTTP 200 with €5.99 and 3.8.0.
+  **3.8.1** (H9 only, branch `release-3.8.1`, PR #11) is on the open
+  track, in review; promote it to production when nothing comes back
+  wrong, then tag `v3.8.1`. Pre-registration declined (S5).
+  <!-- verify-net: test "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -A Mozilla/5.0 'https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.pro&hl=en')" = 200 -->
+  The closed test that got it there (track live 2026-09-09, release
+  3.8.0 accepted). Price €5.00 base, **€5,99 in NL**, saved once *Rest van de
   wereld*, China, Cuba, Iran and Soedan were out of the price table
   *and* the tracks. The app was paid all along -- a support reply said
   otherwise. Licence testing verified from both ends: a tester's
@@ -109,7 +116,6 @@
   three conditions on 2026-10-12 and **production access was requested
   that day at 16:17** — a decision by email, usually within seven days.
   The answers are kept in step S5 of `design/work-items/pro-to-play.md`.
-  On approval, promote the closed track's 3.8.0 rather than a new build.
   <!-- verify: manual — the Play Console is the only source for track state -->
 - **GH#5 decided: pro picks up where free left off, by consent**
   (2026-09-13). Free's and pro's Play app signing certificates differ
@@ -160,8 +166,8 @@
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.
-- **Twenty-three C tests**, including the desktop-built bridge harness
-  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 23 -->
+- **Twenty-four C tests**, including the desktop-built bridge harness
+  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 24 -->
   (`test_bridge_vrs.c`) that drives the phone's own plumbing over a
   loopback socket with a synthetic clock.
 

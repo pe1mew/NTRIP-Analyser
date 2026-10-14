@@ -127,6 +127,16 @@ android {
     }
 
     buildTypes {
+        // A debug build is its own app: `….pro.dev` / `….free.dev`, named
+        // "(dev)" by src/{free,pro}Debug/res. It installs beside the Play
+        // build instead of colliding with it -- the two are signed with
+        // different keys, so an install over the Play app is refused, and
+        // the only way past that is an uninstall that takes the user's
+        // saved connections with it (2026-10-12, the Huawei test phone,
+        // both editions from Play). Release builds keep the store's ids.
+        debug {
+            applicationIdSuffix = ".dev"
+        }
         release {
             signingConfig = signingConfigs.findByName("release")
                 ?: signingConfigs.getByName("debug")
@@ -142,6 +152,20 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+        // The release build to measure, beside the Play app: R8, shrinking
+        // and no debugger, exactly as release, but its own id (`….bench`,
+        // named "(bench)" by src/{free,pro}Bench/res) and the debug key, so
+        // it installs on a test phone without the release key or an
+        // uninstall. A debug build runs Compose unoptimised, and the map's
+        // frame times were measured on one and could not be told apart
+        // from that (2026-10-13). Never uploaded: the store refuses a
+        // debug-signed bundle, and its id is not the store's.
+        create("bench") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".bench"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
         }
     }
 
