@@ -211,6 +211,7 @@
     <string name="handover_not_recognised">NTRIP Analyser did not recognise this copy of Pro and shared nothing.</string>
     <string name="handover_free_empty">NTRIP Analyser has no saved connection to share.</string>
     <string name="handover_closed">Nothing imported.</string>
+    <string name="handover_busy">Stop the run first: importing changes the connection it is using.</string>
     <string name="handover_free_absent">NTRIP Analyser (the free edition) is not installed on this phone, so there is nothing to import.</string>
     <string name="handover_free_foreign">An app named like NTRIP Analyser is installed, but it is not signed as the real one, so nothing was asked of it.</string>
     <string name="handover_free_old">NTRIP Analyser is installed but too old to share its connection. Update it from Google Play and try again.</string>

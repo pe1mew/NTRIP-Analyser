@@ -449,7 +449,11 @@ one difference: a connection pro already holds keeps what free cannot
 hold — its ephemeris stream and the handset's live-GGA choice — because
 free's blank there means "I have no such field", not "remove it". The
 first build replaced the connection outright and blanked the ephemeris
-stream (S23, 2026-10-14).
+stream (S23, 2026-10-14). **Not during a run:** an import makes the
+connection it brings the active one, and a run in progress would carry
+on with the old one under a tile naming the new (seen on the Huawei
+the same day), so the menu row answers "Stop the run first" — the rule
+that already makes the settings read-only during a run.
 
 `Handover.kt` holds the contract and the signer check;
 `ShareConnectionsActivity.kt` is the consent screen. It lives in

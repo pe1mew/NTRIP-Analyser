@@ -226,7 +226,15 @@ fun MainScreen() {
             }
         }
     }
-    val askFree: () -> Unit = {
+    val askFree: () -> Unit = askFree@{
+        // Not while a run is going: an import switches the active
+        // connection, and the run would carry on with the old one under
+        // a tile naming the new (Huawei, 2026-10-14). The same rule that
+        // makes the settings read-only during a run.
+        if (MonitorService.state.value.running) {
+            notice = context.getString(R.string.handover_busy)
+            return@askFree
+        }
         when (Handover.findPeer(context)) {
             Handover.Peer.ABSENT ->
                 notice = context.getString(R.string.handover_free_absent)

@@ -43,6 +43,9 @@ no orbits then sat at *"waiting for orbits"* in self-position. Those
 are now kept; what free does hold — user, password, position, TLS —
 still wins. Verified on the S23: the ephemeris stream survived an
 import, and self-position on RFSEE01 solved 65 of 65 epochs from it.
+An import is also refused while a run is going — it switches the
+active connection, and the run would have carried on with the old one
+under a tile naming the new — with *"Stop the run first"*.
 
 ### Changed — the Android app is built with AGP 9 (both editions)
 
