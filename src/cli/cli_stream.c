@@ -352,11 +352,16 @@ void cli_report_print(const SrState *sr)
     if (r.sp_samples > 0) {
         printf("\nSelf-position (no threshold yet -- figures only), "
                "%d epoch(s) solved\n", r.sp_samples);
-        /* The offset is mostly the single-frequency solution's own
-         * bias, so it is labelled as an offset and never as an error. */
+        /* Offset and scatter both carry this solve's own errors --
+         * satellite code biases it does not correct, metres of them as
+         * the satellite set changes -- so the offset is labelled as an
+         * offset and the scatter as an upper bound, never as the
+         * station's (station-self-position.md, 2026-10-15). */
         printf("    offset from reference   E %+.3f  N %+.3f  U %+.3f m\n",
                r.sp_mean_enu[0], r.sp_mean_enu[1], r.sp_mean_enu[2]);
-        printf("    scatter about that      %.3f m\n", r.sp_scatter_m);
+        printf("    scatter about that      %.3f m  (an upper bound: includes\n"
+               "                            satellite code biases this solve does\n"
+               "                            not correct)\n", r.sp_scatter_m);
         printf("    worst code residual     %.3f m RMS\n", r.sp_rms_worst);
         if (r.sp_speed_median_mms != NS_UNSET)
             printf("    median apparent motion  %.1f mm/s\n",

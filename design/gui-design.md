@@ -1012,7 +1012,8 @@ Three refusals, each a decision:
   the one thing a station nobody can place must not appear to be doing.
 - **The offset is labelled an offset, never an error or an accuracy.**
   Metres of it are the broadcast-ephemeris code solution's own bias.
-  The scatter beside it is the half that measures something.
+  The scatter beside it is labelled an upper bound: it carries satellite
+  code biases the solve does not correct (2026-10-15).
 
 ### 16.3 Where the state lives
 

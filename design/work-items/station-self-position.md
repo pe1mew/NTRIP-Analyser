@@ -429,7 +429,9 @@ whose station solved nothing.
 *The mean is published beside the scatter because they measure
 different things.* The offset is mostly the solution's own bias, metres
 of it, and says nothing about the station; the scatter about that mean
-is the half that measures something. Computed as
+was meant as the half that measures something — **corrected
+2026-10-15**: it carries uncorrected satellite code biases too, so it
+is an upper bound (*The bias comparison*, below). Computed as
 `sqrt(E[|x|²] − |E[x]|²)` and clamped at zero, since the difference of
 two sums can go a hair negative when the scatter is far smaller than
 the offset.
@@ -1162,11 +1164,78 @@ same hours with the same ephemerides: the same jumps at the same set
 changes put it in the data, different ones put it here. Until then the
 scatter figure has a mechanism but not a verdict on whose error it is.
 
+#### The bias comparison, 2026-10-15 — mostly ours
+
+**RTKLIB could not referee.** RFSEE01 streams GPS L1 C/A with **L5**
+(C5Q) for most satellites and L2 P(Y) (C2W) for few — in the first
+69 epochs only G19 had C2W; G01, G03, G04, G06, G09, G11 and G28 had
+C1C + C5Q; G17 and G31 L1 alone. RTKLIB 2.4.3's single-point iono-free
+mode uses L1/L2 only, found 5 usable satellites and stopped ("lack of
+valid sats ns=5"); its single-frequency mode would solve, but with a
+different ionosphere it would jump at set changes for reasons of its
+own.
+
+**What that exposed in this solver.** `collect()` takes the two widest
+carriers a satellite has — L1 C/A with L5 for most here — and pairs
+them with a broadcast clock that is defined for the L1/L2 P(Y)
+iono-free combination. It applies no inter-signal correction: TGD is
+decoded and printed, not stored. Each satellite's range is then off by
+its own code biases, which the iono-free combination amplifies to
+metres, and the solution moves whenever the set changes.
+
+**Tested with an independent product.** CAS's daily multi-GNSS DCBs
+(`CAS1OPSRAP_20262830000_01D_01D_DCB.BIA.gz`, fetched by the author
+from CDDIS): GPS C1C−C1W and C1W−C2W for 32 satellites, C1C−C5Q for
+21. The correction to an iono-free range, with α, β the usual factors
+and d₁ = C1C−C1W, d₁₂ = C1W−C2W, d₁₅ = C1C−C5Q, against the clock's
+own C1W/C2W combination (β₁₂·d₁₂): L1 C/A + L5, α₁₅d₁ − β₁₅(d₁ − d₁₅)
+− β₁₂d₁₂; L1 C/A + L2 P(Y), α₁₂d₁. G03 comes to +8.8 ns (+2.6 m), G01
+to −9.7 ns (−2.9 m).
+
+A scratch copy of `spp.c` subtracted them; a harness replayed a 3-hour
+capture of RFSEE01 (06:15–09:15 GPST, 10 783 epochs) through the
+session with each BCEP00KAD0 ephemeris loaded where RTKLIB would switch
+to it; both runs on the same bytes:
+
+| | 10° mask, without | with biases | 15° mask, without | with biases |
+|---|---|---|---|---|
+| mean offset E / N / U (m) | −1.80 / +2.05 / +0.33 | **−0.26 / −0.02 / −0.06** | −1.38 / +3.80 / −1.42 | **−0.16 / +0.49 / −0.11** |
+| 3-D scatter (m) | 2.70 | 3.00 | 5.56 | **3.67** |
+| horizontal scatter (m) | 1.72 | 1.63 | 2.61 | **1.91** |
+| median step at a set change (m) | 1.31 | **0.56** | 2.18 | **1.23** |
+| set means apart, horiz. / up (m) | 1.17 / 0.95 | 1.00 / 2.13 | 2.33 / 4.69 | **1.37 / 2.52** |
+
+At 15°, where fewer satellites make each one's bias weigh more, every
+one of the eight largest set-change steps shrank (5.42→2.95,
+3.69→1.47, 3.21→0.59, 3.06→1.58, 2.46→1.23, 2.18→1.24, 2.18→0.20,
+1.49→0.82 m); steps with nothing changed stayed at a median 0.02 m.
+At 10° the biases still put the mean within 0.3 m of the ARP and
+halved the median step, but the largest outliers were G19 flapping on
+the mask three times in three seconds with 8–9 satellites, which no
+bias touches.
+
+**Reading.** The per-set offsets, the jumps and the metres of mean
+offset are largely **this solver's**: an uncorrected code bias per
+satellite. What remains with the biases applied — steps near 1.2 m,
+sets 1.4 m apart — is the floor of broadcast orbits and clocks, not
+another fault. Not done in the harness: the few satellites on L1/L2C
+(C2X — G07, G29, G31) were corrected as if C2W; 58 satellite-epochs had
+no bias in the file.
+
+**Decision (author, 2026-10-15): ship P7 with the limitation stated.**
+Applying biases needs a product the phone and the daemon cannot fetch;
+an SSR stream's code biases (RTCM 1059) or preferring L1/L2 P(Y) where
+a station sends it are the later routes. Until then every frontend says
+the same: the offset is this solution's own error, and the **scatter is
+an upper bound** — it carries satellite code biases the solve does not
+correct — not the station's scatter. The apparent motion is untouched:
+it comes from phase-range rates, which code biases do not move.
+
 **Still to do:**
-- **The two clusters**, above: **explained as satellite sets** by the
-  overnight run of 2026-10-14/15 — each set sits at its own offset and
-  the jumps fall on set changes. Open: whether those offsets are the
-  data's or this solver's, decided by `rnx2rtkp` over the same hours.
+- **The two clusters: closed 2026-10-15.** Satellite sets, each at its
+  own offset — largely this solver's uncorrected satellite code biases
+  (*The bias comparison*, above). Shipped with the limitation stated;
+  correcting them (SSR 1059, or L1/L2 P(Y) where sent) is later work.
 - **The two degradations: answered 2026-10-14 — nothing recorded
   them.** The watch accumulator (`KpiWatch`, `src/core/kpi.c`) kept a
   count, the worst verdict and the time of the *last* drop, and no

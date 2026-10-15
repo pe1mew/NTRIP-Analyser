@@ -229,8 +229,10 @@ station's own position has not been established from any measurement
 of a real station, and a threshold invented to fill the column would be
 worse than none. **Read the offset as an offset**: metres of it are the
 broadcast-ephemeris solution's own bias and say nothing about the
-antenna. The scatter is the half that measures something, and the
-apparent motion is what would reveal an antenna that moved — a base
+antenna. The scatter is an **upper bound** on the station's own: the
+solve does not correct satellite code biases, and those move it by
+metres as satellites rise and set (measured below). The apparent motion
+is what would reveal an antenna that moved — a base
 standing still reads tens of mm/s from broadcast orbits, which is why
 the median is reported and not the maximum, which one noisy epoch
 decides.
@@ -242,6 +244,21 @@ apparent motion **32 mm/s**. Checked against an independent solver:
 RTKLIB's `rnx2rtkp` on 150 s of RFSEE01 with the same ephemerides gave
 E +0.06 / N +1.13 / U +8.27 m and a scatter of 0.45 m — the same order
 from both, as a single-point solve should be.
+
+**What it does not correct, measured.** Over hours, RFSEE01's solution
+jumps when a satellite rises or sets: overnight, 74 % of the steps over
+1.5 m fell on a change of satellite set, and each set held an offset of
+its own, 3.6 m apart. The cause is largely this solver: it forms the
+iono-free combination from L1 C/A with L5 (or L2) against a broadcast
+clock defined for L1/L2 P(Y), and applies no satellite code bias.
+Replaying 3 hours of RFSEE01 with CAS's published biases subtracted put
+the mean offset within 0.5 m of the broadcast position on every axis
+(from E −1.38 / N +3.80 / U −1.42 m at a 15° mask), cut the 3-D scatter
+from 5.56 to 3.67 m and the median jump at a set change from 2.18 to
+1.23 m. Those biases cannot be fetched by the phone or the service, so
+the solve stays as it is and **every frontend now calls the scatter an
+upper bound** on the station's own. The apparent motion, from
+phase-range rates, is not affected.
 
 **What it refuses.** A single-frequency station cannot be solved and
 says so — the ionosphere must be removed from the measurement before a

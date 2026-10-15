@@ -122,7 +122,9 @@ purely additive, so a reader written against version 1 keeps working; the
 bump exists so that a document *without* these keys can be told from one
 whose station solved nothing. `selfpos_mean_*_m` is an *offset* from the
 reference position, mostly the solution's own bias, and must not be read
-as an accuracy; `selfpos_scatter_m` is the part that measures something.
+as an accuracy; `selfpos_scatter_m` is an **upper bound** on the
+station's own scatter, because it carries satellite code biases the
+solve does not correct — metres, as the satellite set changes.
 
 **Version 3 replaced `selfpos_speed_max_mms` with
 `selfpos_speed_median_mms`**, and this one is **not** additive: a reader

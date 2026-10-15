@@ -303,11 +303,15 @@ static void RefreshRows(HWND hwnd, AppState *state)
         SetRow(hLv, row++, "Mean offset north", v, "");
         snprintf(v, sizeof(v), "%+.3f m", r->sp_mean_enu[2]);
         SetRow(hLv, row++, "Mean offset up", v,
-               "mostly this solution's own bias, not a moved antenna");
+               "this solution's own errors, not a moved antenna");
 
+        /* An upper bound, not the station's scatter: satellite code
+         * biases the solve does not correct move it by metres as the
+         * satellite set changes (station-self-position.md, the bias
+         * comparison of 2026-10-15). */
         snprintf(v, sizeof(v), "%.3f m", r->sp_scatter_m);
         SetRow(hLv, row++, "Scatter about the mean", v,
-               "3-D RMS -- the half of it that measures something");
+               "3-D RMS; an upper bound, not the station's alone");
 
         snprintf(v, sizeof(v), "%.3f m", r->sp_rms_worst);
         SetRow(hLv, row++, "Worst code residual", v,

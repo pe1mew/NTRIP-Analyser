@@ -385,10 +385,12 @@ void sr_build(const SrState *s, StationReport *out)
      * own evidence count, so a window too short for a verdict can still
      * say honestly how many epochs solved and why the rest did not.
      *
-     * The mean offset is mostly the single-frequency solution's own
-     * bias, which is metres and says nothing about the station.  The
-     * scatter about that mean is the half that measures something, so
-     * both are published and neither is presented as an accuracy. */
+     * The mean offset is mostly the solution's own error, which is
+     * metres and says nothing about the station.  The scatter about
+     * that mean carries the same satellite code biases as the set of
+     * satellites changes, so it is an upper bound on the station's own
+     * (station-self-position.md, 2026-10-15).  Both are published and
+     * neither is presented as an accuracy. */
     out->sp_samples     = s->sp_samples;
     out->sp_last_status = s->sp_last_status;
 

@@ -101,7 +101,7 @@
     <string name="sp_why_too_few">Waiting for four usable GPS satellites on two frequencies.</string>
     <string name="sp_why_diverged">The solution did not settle.</string>
     <string name="sp_why_first_epoch">Waiting for the first observation epoch to solve.</string>
-    <string name="sp_explainer">The station’s own GPS observations against the position it broadcasts (ARP), from broadcast orbits. The offset is mostly this solution’s bias; the scatter is what measures the station; a still base reads tens of mm/s.</string>
+    <string name="sp_explainer">The station’s own GPS observations against the position it broadcasts (ARP), from broadcast orbits. Offset and scatter both include this solution’s own errors: satellite code biases it does not correct move it by metres as satellites rise and set, so the scatter is an upper bound on the station’s, not a measure of it. A still base reads tens of mm/s.</string>
     <string name="sp_f_epochs">Epochs solved</string>
     <string name="sp_v_of">%1$d of %2$d</string>
     <string name="sp_f_offset">Mean offset E/N/U</string>

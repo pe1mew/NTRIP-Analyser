@@ -281,8 +281,11 @@ typedef struct {
                                 *   Signed, so it has no sentinel --
                                 *   @ref sp_samples is what says whether
                                 *   it means anything at all             */
-    double   sp_scatter_m;     /**< RMS distance from that mean, which is
-                                *   the half that measures something;
+    double   sp_scatter_m;     /**< RMS distance from that mean: an upper
+                                *   bound on the station's own, since it
+                                *   carries satellite code biases the
+                                *   solve does not correct (metres, as
+                                *   the satellite set changes);
                                 *   NS_UNSET when nothing solved         */
     double   sp_rms_worst;     /**< worst code residual RMS in the window;
                                 *   NS_UNSET when nothing solved         */

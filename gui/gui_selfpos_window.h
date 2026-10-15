@@ -20,8 +20,10 @@
  * - **One epoch means nothing here.** The offset is a
  *   broadcast-ephemeris solution's own error — metre-level by
  *   construction, and it says nothing about the antenna. The scatter
- *   over a run is the half that measures something, which is why the
- *   window is mostly a plot of the run rather than a reading.
+ *   over a run is the better figure but still an upper bound -- it
+ *   carries satellite code biases the solve does not correct -- which
+ *   is why the window is mostly a plot of the run rather than a
+ *   reading.
  * - **A single-frequency station says *not computable*, with the
  *   reason.** An empty window with no explanation is the failure this
  *   project keeps writing down; the header carries `SppStatus`'s own

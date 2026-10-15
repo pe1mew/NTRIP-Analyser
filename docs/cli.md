@@ -243,8 +243,11 @@ unknown per system.
 
 Read the offset as an offset. Most of it is the dual-frequency code
 solution's own bias — metres of it — and it says nothing about the
-station. The *scatter* is the half that measures something, and the
-apparent motion is the figure that would reveal an antenna that moved.
+station. The *scatter* is printed as an **upper bound**: it carries
+satellite code biases the solve does not correct, which move the
+solution by metres as satellites rise and set, so the station's own
+scatter is smaller. The apparent motion is the figure that would reveal
+an antenna that moved.
 
 **Some receivers send the phase-range rate backwards** — every
 satellite the negative of what its orbit predicts. The solver works out
