@@ -33,9 +33,19 @@ WORK="${TMPDIR:-/tmp}/ntrip-wiki"
 
 [ -d "$SRC" ] || { echo "no $SRC"; exit 1; }
 
-if [ -d "$WORK/.git" ]; then
-    git -C "$WORK" fetch --quiet origin
-    git -C "$WORK" reset --quiet --hard origin/HEAD
+# Reuse the working copy only if git says it is one. A folder that merely
+# contains .git is not: a clone interrupted on 2026-09-02 left .git with
+# nothing but hooks/, every run after that died on "not a git repository"
+# before copying a page, and the wiki went six weeks unpublished. Exactly
+# ".git" also rules out a repository in some parent folder answering for
+# this one.
+if [ "$(git -C "$WORK" rev-parse --git-dir 2>/dev/null)" = ".git" ]; then
+    git -C "$WORK" fetch --quiet origin &&
+    git -C "$WORK" reset --quiet --hard origin/HEAD || {
+        echo "Could not update the wiki copy in $WORK."
+        echo "Delete that folder and run this again to clone afresh."
+        exit 1
+    }
 else
     rm -rf "$WORK"
     git clone --quiet "$REPO" "$WORK" || {

@@ -5,6 +5,11 @@ service/munin/ntrip_monitor  text eol=lf
 service/Makefile             text eol=lf
 service/*.service            text eol=lf
 service/*.sysusers           text eol=lf
+# Shell scripts run from Git Bash on Windows too, and bash stops on a
+# CR at the end of a line. All are LF today; with core.autocrlf=true and
+# no rule, a fresh Windows checkout would have written them CRLF.
+*.sh                         text eol=lf
+android/gradlew              text eol=lf
 
 # The vendored CA bundle must keep the exact bytes curl published --
 # its SHA-256 is verified against curl's own sum, and the embedded

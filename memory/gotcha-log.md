@@ -391,6 +391,11 @@ framework v1.49.2's archive rule). Grep both for a mechanism.
 **Root cause**: the merge replaced a matching connection outright, and free's empty ephemeris fields meant "I cannot hold this", not "remove it".
 **Fix**: `mergeConnections(fromFree = true)` keeps the fields free cannot hold. A merge from a narrower source must say which fields it owns.
 
+### The wiki went six weeks unpublished behind a broken clone (2026-10-15) [RESOLVED]
+**Problem**: `tools/publish_wiki.sh` failed with "fatal: not a git repository" and copied nothing; the live wiki was still the 25 August version, so the Pro page said "closed testing" a day after pro reached Play. The CI "pages deployment" kept passing, which is the project website, not the wiki.
+**Root cause**: an interrupted clone on 2026-09-02 left `$TMPDIR/ntrip-wiki/.git` holding only `hooks/`; the script reused any folder with a `.git` in it, and git refused that one.
+**Fix**: the script reuses its copy only when `git -C "$WORK" rev-parse --git-dir` prints exactly `.git`, and stops with a message when a fetch fails. A published page is checked by fetching it — the wiki's `_history` date — not by any build status.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
