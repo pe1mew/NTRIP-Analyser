@@ -1127,11 +1127,46 @@ first evidence that a change of satellite set, not of ephemeris,
 moves this solution by metres. The next overnight run can say whether
 the clusters' boundary is one.
 
+**The overnight run, 2026-10-14/15** (`20261015080752_SelfPosition.json`,
+RFSEE01, GUI with the twelve-hour trail): 11.7 h, 39 064 points, STABLE,
+no reconnects; scatter 6.325 m, the same order as the phone's 6.831 m.
+**The clusters are satellite sets.**
+
+| Between consecutive epochs | n | median step | max | > 1 m |
+|---|---|---|---|---|
+| the satellite set changed | 75 (0.19 %) | 1.07 m | 4.86 m | 41 |
+| only the ephemeris changed | 44 | 0.074 m | 0.20 m | 0 |
+| nothing changed | 38 938 | 0.019 m | 1.99 m | 38 |
+
+- 74 % of the 31 horizontal steps over 1.5 m fall on a set change; the
+  largest are a satellite setting or rising — PRN 15 setting 4.86 m
+  (9.8 m in 3-D) at 5.8 h, PRN 3 rising 4.83 m at 7.3 h, PRN 25 setting
+  3.87 m at 2.3 h.
+- **A new ephemeris is ruled out**: 44 of them, none moved the solution
+  more than 0.20 m.
+- **Each set holds a place of its own.** For the twelve sets held 20
+  minutes or more, the spread within a set averages 1.10 m and the set
+  means lie 3.59 m apart: from 6.5 h to 9 h one family (PRN 1, 2, 3, 8,
+  10, 14, 22, 27, 32) sits at E −3.1 m, the sets before and after at
+  E +2 to +5 m. The cloud is a mosaic of per-set offsets, joined by
+  slow drift inside each set.
+
+**What it does not settle: why each set has an offset of its own.**
+Per-satellite errors — broadcast orbit and clock, multipath, the noise
+the iono-free combination amplifies — seen through a changing geometry
+would do this, and that is ordinary for a broadcast-ephemeris single
+point solution. A satellite-specific error in *this* solver would do
+exactly the same; one unexamined candidate is a code bias term the solve
+does not apply. The decisive test is RTKLIB's `rnx2rtkp` over these
+same hours with the same ephemerides: the same jumps at the same set
+changes put it in the data, different ones put it here. Until then the
+scatter figure has a mechanism but not a verdict on whose error it is.
+
 **Still to do:**
-- **The two clusters**, above: a 2-hour GUI run shows one cloud
-  whose mean wanders 4.2 m. The trail now carries the satellite set
-  per point (GH#13); an overnight run exported with **S** can place
-  the clusters' boundary against it.
+- **The two clusters**, above: **explained as satellite sets** by the
+  overnight run of 2026-10-14/15 — each set sits at its own offset and
+  the jumps fall on set changes. Open: whether those offsets are the
+  data's or this solver's, decided by `rnx2rtkp` over the same hours.
 - **The two degradations: answered 2026-10-14 — nothing recorded
   them.** The watch accumulator (`KpiWatch`, `src/core/kpi.c`) kept a
   count, the worst verdict and the time of the *last* drop, and no
