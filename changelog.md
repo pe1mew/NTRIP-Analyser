@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-10-15
+
+Both Android editions, the Windows GUI, the CLI and the monitoring
+service. The headline items:
+
+- **Self-position** — where a station's own observations put it — in
+  the GUI, the CLI's report, the service's documents and pro's analysis
+  tabs; the scatter labelled an upper bound, with the measurement.
+- **Every mountpoint on a map**, in the GUI and both Android editions;
+  the phone's list now shows distances and sorts nearest first.
+- **Pro picks up where free left off**: free hands over its saved
+  connection, with your consent, to pro on the same phone.
+- **The watch records each drop** out of STATION OK: when, how long and
+  which checks.
+- Fixed base or network service decided once in the core (3.8.1's fix,
+  now everywhere), a cured fault no longer shown, and every frontend
+  refusing a sourcetable cut short.
+- The Android app is built with AGP 9.
+
 ### Added — the mountpoint list sorts by distance or by name (Android, both editions)
 
 *Browse mountpoints…* listed a caster's entries in the caster's own
@@ -495,12 +514,11 @@ declared coordinates.
   caster sent. It now shows a dash for positions that cannot be used:
   0,0, out of range, or not a number.
 
-## [3.8.1] - unreleased (the paid Android edition only)
+## [3.8.1] - 2026-10-14 (the paid Android edition only, Play's open track)
 
 An update to pro alone, released to Play's open track beside 3.8.0 in
-production and promoted when nothing comes back wrong. Free and the
-desktop programs stay at 3.8.0; the entries under [Unreleased] above go
-out with the next full release. The build carries the core changes
+production. Free and the desktop programs stayed at 3.8.0; the entries
+under [3.9.0] above went out with the next full release. The build carries the core changes
 listed there, which the app does not show.
 
 ### Fixed — a nearest-base service's hand-over read as a fault
