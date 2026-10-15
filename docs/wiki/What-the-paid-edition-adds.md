@@ -13,6 +13,9 @@ the free edition deliberately does not do at all.
 | The eight checks, the verdict, the analysis views | yes | yes |
 | Saved connections | one | several, switched from the main screen |
 | Choosing a mountpoint from the sourcetable | read the list, type the name | tap it, and its position and settings come with it |
+| The mountpoint list sorted by distance or name, and the mountpoint map | yes — read them | yes — and select from either |
+| Self-position — where the station's own observations put it | — | yes |
+| Taking over the free edition's connection | — | yes, with your consent in the free edition |
 | Watch mode — keep measuring for hours, with availability and degradation counts | — | yes |
 | Network-RTK check — five assertions and a gate test for VRS services | — | yes |
 | Rover-to-ARP distance and hand-over history | — | yes |

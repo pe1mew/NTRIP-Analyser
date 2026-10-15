@@ -77,19 +77,25 @@ wrong instrument here.
 ## Watching the reference position (Pro)
 
 The check above answers *what kind of service is this* in three
-minutes. The **Reference position** card answers *what is it doing to
+minutes. The **Reference position** tab — the last of the
+[analysis views](The-analysis-views) — answers *what is it doing to
 you over time*: how far the service's reference position is from where
 you stand, in the same green/amber/red bands assertion A3 judges by,
 and how often it has **moved**.
 
-Tap the card for the full picture, laid out like the analysis views:
-a plot with the rover at the centre and the reference position at its
-true bearing and distance, the history as dots — **a hand-over reads
-as a jump in the dots** — and the last five minutes of distance as a
-chart, where a drift and a jump look nothing alike.
+It is laid out like the other analysis views: a plot with the rover at
+the centre and the reference position at its true bearing and
+distance, the history as dots — **a hand-over reads as a jump in the
+dots** — and the last five minutes of distance as a chart, where a
+drift and a jump look nothing alike. The largest jump between positions
+appears once there has been one.
 
-What movement *means* depends on what the service is, and the app
-words it accordingly:
+What movement *means* depends on what the service is. The tab says
+which it is and why: the gate test above where it ran, otherwise what
+the caster's own sourcetable calls the mountpoint, otherwise whether
+the reference position sits on top of the position you are sending.
+Until one of those has spoken it says *not known yet*, rather than
+guessing. Then the app words the movement accordingly:
 
 - On a **network service**, the reference position follows you and
   hands you between stations: *"a network switching stations under
@@ -135,6 +141,14 @@ which is which is knowing what you measured:
   ([why](Live-position)). Screen off, the last fix stands: the
   distance stops tracking you — and so does the live position being
   sent, which is the same rule.
+
+The tab says what the caster has been told — *the set position*, or
+*this phone's position* and how long it has stood still. That line is
+the one to read after a drive: a tester who crossed from the
+Netherlands into Switzerland with the screen off found the caster still
+serving a Dutch base, because the last position it had been told was
+Dutch. When he opened the app the new position went out and the
+service handed over once — to a network, which is its job.
 
 So for a drive that is *about* hand-overs: **screen on, mounted, and
 [live reporting](Live-position) agreed.** With those three, the

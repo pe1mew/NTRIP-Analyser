@@ -14,9 +14,12 @@ Tap the connection tile on the main screen and fill in:
 
 Not sure of the mountpoint name? Fill in the caster and port, save, then
 tap **Browse mountpoints…**. The list is the caster's own sourcetable:
-every stream it publishes, its format, its constellations, and whether
-it expects a position from you. Free shows the list so you can read it;
-type the name you want into the mountpoint field.
+every stream it publishes, its format, its constellations, whether it
+expects a position from you, and how far away it is — sorted nearest
+first, or by name. **Map mountpoints…** beside it shows the same
+mountpoints on a map around you; see [The mountpoint map](Mountpoint-map).
+Free shows the list and the map so you can read them; type the name you
+want into the mountpoint field.
 
 ### Whose caster is it?
 

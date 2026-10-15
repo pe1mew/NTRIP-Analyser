@@ -14,6 +14,11 @@ views, chosen by the tabs at the top or by swiping between them;
 In the free edition these show **what the station check captured**, held
 after the run ends.
 
+Pro adds two more tabs after these three: **[Self-position](Self-position)**
+— where the station's own observations put it — and **Reference
+position** — where a service's reference position stands relative to
+you, and where it has been ([Network-RTK check](Network-RTK-check#watching-the-reference-position-pro)).
+
 ---
 
 ## Sky view

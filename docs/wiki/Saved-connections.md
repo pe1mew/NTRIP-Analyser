@@ -14,6 +14,26 @@ to remove it, **Add connection** for a new one.
 Give them names you will recognise later — the tile shows the name if
 there is one, and the mountpoint if there is not.
 
+## Moving from the free edition
+
+Already set up in the free edition? **⋮ → Import from NTRIP
+Analyser…** asks it for its saved connection. The free edition opens,
+names the caster, mountpoint and user it would hand over, says that the
+password goes with it, and does nothing until you press **Share**. The
+connection passes between the two apps on this phone and is not written
+to any file.
+
+- Both apps must be the genuine editions: each checks the other's
+  identity before anything is shared, and refuses an app that only
+  carries the name.
+- A connection pro already has is updated, keeping what only pro can
+  hold — its ephemeris stream and the choice to report this phone's
+  position. Anything else is added.
+- Not during a run: an import switches the current connection, so it
+  waits until the run is stopped.
+- The free edition must be a version that knows how to answer; an
+  older one is reported as too old.
+
 ## The configuration file
 
 **⋮ → Load configuration** and **Save configuration** read and write the

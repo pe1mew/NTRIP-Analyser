@@ -20,6 +20,7 @@ A run takes about ninety seconds and ends in one of three words:
 ## Where to start
 
 - **[Getting started](Getting-started)** — your first run, in about five minutes
+- **[The mountpoint map](Mountpoint-map)** — which base is near you, and which way
 - **[The eight checks](The-eight-checks)** — what each one means, and what to do when it is not green
 - **[The analysis views](The-analysis-views)** — sky, signal quality, and the antenna curve
 - **[Troubleshooting](Troubleshooting)** — the messages you are most likely to meet

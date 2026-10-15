@@ -28,6 +28,12 @@ settings with the cursor already in the field the fault points at.
 | The caster closed the connection. | It worked, then the caster hung up | Often the caster's end; see the section below on streams that stop |
 | Connected, but nothing is arriving. | The socket is open and silent | See *"Data arrived for N s, then the stream stopped"* below |
 
+**The mountpoint list and the map use these same sentences** when the
+caster's list does not come. A list that stops before its end is asked
+for once more, and is never shown as though it were all the caster
+has. When the stream recovers, the message goes: a fault that has been
+cured is no longer shown under the verdict.
+
 Two distinctions are worth knowing, because no app can guess them for
 you:
 

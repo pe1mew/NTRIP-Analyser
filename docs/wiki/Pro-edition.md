@@ -33,8 +33,9 @@ you know well is the best evidence against one.
 | **[Watch mode](Watch-mode)** | Keep measuring for hours: availability, streaks, degradations |
 | **[Stability report](Watch-mode#the-stability-report)** | Six metrics over stream time with their own verdicts — has this station *been* fit |
 | **[Network-RTK check](Network-RTK-check)** | Five assertions and a gate test for VRS and network services, where the eight checks alone mislead |
-| **[Reference position](Network-RTK-check#watching-the-reference-position-pro)** | Live rover-to-ARP distance, and the hand-over history that shows a network switching stations under you |
-| **[Saved connections](Saved-connections)** | Up to sixteen casters, and the shared configuration file |
+| **[Reference position](Network-RTK-check#watching-the-reference-position-pro)** | Live rover-to-ARP distance, and the hand-over history that shows a network switching stations under you — an analysis tab |
+| **[Self-position](Self-position)** | Where the station's own observations put it, against the position it broadcasts — an analysis tab |
+| **[Saved connections](Saved-connections)** | Up to sixteen casters, the shared configuration file, and the import of your free edition's connection |
 | **[Reporting where you are](Live-position)** | Sending this phone's position to a network mountpoint |
 | **[Orbits and the ephemeris stream](Orbits-and-the-ephemeris-stream)** | A complete sky view on a station that broadcasts no orbits |
 
@@ -48,9 +49,10 @@ you know well is the best evidence against one.
   settled result).
 
 - **Pick a mountpoint from the sourcetable.** Tap an entry in *Browse
-  mountpoints…* and it becomes the connection — with its published
-  position and its NMEA setting, so a network mountpoint is configured
-  correctly without typing anything.
+  mountpoints…*, or **Select mountpoint** in a balloon on the
+  [mountpoint map](Mountpoint-map), and it becomes the connection — with
+  its published position and its NMEA setting, so a network mountpoint
+  is configured correctly without typing anything.
 - **Per-message-type statistics.** Expanding check 4 lists every type
   the station sends, how many epochs arrived and the interval between
   them.

@@ -63,12 +63,18 @@ It appears on the main screen once a watch is running.
 | **Healthy 99.4% of judged time** | The share of time the verdict was OK. "Judged" excludes the opening seconds before there was enough evidence to judge at all |
 | **Current healthy streak 42 min (best 2 h 15 m)** | How long it has been clean, and the best it managed |
 | **3 degradation(s); worst FAILED** | How many times it left OK, and how bad it got |
+| **At 3 h 12 m: FAILED for 6 s. KPI 4 failed** | Each drop, newest first: when in the watch, how bad and for how long, and which checks were failing, warning or restarting. The last eight are kept in detail |
 | **No degradation yet; worst OK** | Nothing has gone wrong so far |
 | **2 reconnects — the stream dropped and came back** | The connection was lost and re-made. Shown only when it happened |
 
 **A degradation is the event, not the duration.** Three short drops and
-one long one both read as degradations; the streak lines are what
-separate them.
+one long one both read as degradations; the streak lines and each
+drop's own line are what separate them. A drop names its checks by
+number, as the main screen numbers them: *KPI 1, 5 failed* after a
+dropped connection is the stream and the satellites that went with it;
+*restarting* means a check went back to waiting for evidence. Each
+check is named once, at the worst it reached. The shared report carries
+the same lines.
 
 **Read the reconnect line together with the degradation line.** Three
 degradations *with* reconnects is a link that dropped — a tunnel, a cell
