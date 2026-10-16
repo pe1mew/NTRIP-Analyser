@@ -45,14 +45,19 @@ Kept outside the description's own section on purpose:
 Play's 4000-character limit, and a note there was counted as listing
 text (4181 characters, CI, 2026-10-12).
 
-**Decided 2026-10-12 (author):** with the first Android release from
-`main`, or before it, never after, the sentence *"It does not steer a
-rover and it does not compute a position."* becomes *"It does not steer
-a rover or survey a coordinate."* on **both** listings. From that
-release pro exports the station's self-position (`selfpos_*`), and pro
-adds a bullet once P7 ships. The text in the next section is what is
-live; change it there when the console changes. Reasoning:
+**Decided 2026-10-12, reversed 2026-10-15 (author):** the sentence
+*"It does not steer a rover and it does not compute a position."*
+stays, on both listings. The app computes nothing a user would survey
+with; everything it shows is provided by others, the self-position
+figures included -- they are the station's own observations against
+the station's own broadcast position. The 2026-10-12 reasoning is in
 `design/work-items/station-self-position.md`, "The gate".
+
+**Pending since 3.9.0:** pro gains a Self-position bullet, both
+listings name the mountpoint map and the hand-over from free, and free
+loses the closed-test text it still carried on 2026-10-16 ("First
+closed test of NTRIP Analyser."). The text in the next section is what
+is live; change it there when the console changes.
 
 ## Full description
 

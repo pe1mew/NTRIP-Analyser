@@ -24,3 +24,8 @@ src/session/ns_ca_bundle.c   text eol=lf
 # as modified after every claim check, with an empty diff (2026-09-17).
 android/app/src/main/res/raw/notices.txt  text eol=lf
 packaging/THIRD-PARTY-NOTICES.txt         text eol=lf
+
+# Shipped as a release asset from both platforms: the Windows build's
+# SHA256SUMS hashed a CRLF copy while the release carried the Linux
+# one's LF bytes, so the published sum never matched (3.8.0, 3.9.0).
+bin/exampleConfig.json                    text eol=lf
