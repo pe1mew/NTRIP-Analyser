@@ -472,6 +472,12 @@ the new account on the caster, put it in App-toegang on both apps,
 test it, and only then remove the old one — and never while a review
 is in progress.
 
+**Release notes are per edition, per language.** Before sending either
+release for review, open each one's *Release notes* box and confirm a
+block for every listing language (`<en-GB>`, `<nl-NL>`). 3.9.0 went live
+with pro's notes in both and free's in neither (2026-10-15); Play
+publishes an empty *What's new* without a warning.
+
 The rest of the submission checklist — the ones no script can settle —
 is in [`design/work-items/play-listing.md`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/play-listing.md).
 
