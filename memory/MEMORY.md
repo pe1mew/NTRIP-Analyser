@@ -33,7 +33,7 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix: 69 entries here (41 open, 28 resolved this month) and 62 older resolved ones in `memory/gotcha-log-archive.md` — grep both. Triaged 2026-10-14; each retirement names its evidence |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix: 75 entries here (45 open, 30 resolved, counted 2026-10-16) and 62 older resolved ones in `memory/gotcha-log-archive.md` — grep both. Triaged 2026-10-14; each retirement names its evidence |
 | `memory/self-position-decisions.md` | Touching the self-position solve or its views | Six decisions behind it: GPS only, epoch closure, reversed rates; still verified |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
@@ -52,13 +52,33 @@
 | `design/security-review.md` | Touching a parser, the socket layer, or anything a caster feeds | What a hostile caster can do; F3 narrowed 2026-08-25 — TLS shipped, the disclosure survives for plain-text casters |
 | `design/tls.md` + `design/work-items/tls-rollout.md` | Anything TLS — shipped in 3.8.0 | The decision and its surface; the rollout record carries every deviation, falsification and live find (chunked, entropy, SIGPIPE) |
 | `design/legacy-observations.md` | Touching KPI 4, KPI 5, or anything that decides which messages count | Delivery is judged against the sourcetable, so an old GPS+GLONASS station passes. Built 2026-08-13 |
-| `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Twelve published pages; the app links into them, so a claim here is a claim in the product |
+| `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Fifteen pages and the sidebar, last published 2026-10-16 (`tools/publish_wiki.sh --push`); the app links into them, so a claim here is a claim in the product |
 
 ## Current State
 
+<!-- 2026-10-16 -->
+
+- **3.9.0 is released everywhere** (tag 2026-10-15; both editions live
+  on Play 2026-10-16, "Updated on Oct 15"; GitHub release with 8
+  assets, checksums checked from the downloads). It carries everything
+  in the 2026-10-14 entry below, P7 with the scatter called an **upper
+  bound** (no satellite code biases; measured against CAS's DCBs in
+  `design/work-items/station-self-position.md`), and the listing
+  sentence unchanged by the author's decision. **GH#5 verified between
+  the Play installs** on the Huawei 2026-10-16 (signer pins both ways,
+  password carried, STATION OK on the imported connection) and closed.
+  Wiki published 2026-10-16, identical to `docs/wiki/`. `v3.8.1` tagged
+  on `a598a91`; every merged branch deleted, local and remote.
+  **Waiting:** both rewritten store listings (free's closed-test text,
+  free's category moved to Tools, pro's Dutch) are in Play's review;
+  when live, copy them into `design/work-items/play-listing.md` and
+  clear its *Pending since 3.9.0* note. Free's 3.9.0 has no release
+  notes (author's call, left as is).
+  <!-- verify: git rev-parse v3.9.0 && git rev-parse v3.8.1 && grep -q "## \[3.9.0\]" changelog.md -->
+
 <!-- 2026-10-14 -->
 
-- **Main carries the next pro release, unreleased** (2026-10-14): PRs
+- **Main carried the next pro release** (2026-10-14; released as 3.9.0, above): PRs
   #9 (P7 self-position, Reference position tab), #10 (mountpoint map,
   M6–M8) and #11 (3.8.1) merged; GH#5 (pro imports free's connection
   by consent — free's consent screen is the security control, each
@@ -69,10 +89,8 @@
   `sv_mask`, `eph_id`; export v2; PDOP now of the satellites used);
   the watch's per-drop record (`KpiDrop`, `test_kpi_watch`); a cured
   failure cleared on reconnect; AGP 9.4.1 / Gradle 9.8.1 (GH#12). All
-  verified on the S23 and the Huawei. **P7's release waits on** the
-  two-cluster finding (an overnight S export can now place a jump;
-  the first 15 min showed a 2.05 m step exactly at PRN 10 joining)
-  and the listing sentence "does not compute a position".
+  verified on the S23 and the Huawei. P7 then waited on the two-cluster
+  finding and the listing sentence; both settled 2026-10-15 (above).
   <!-- verify: test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/SelfPosition.kt && test -f android/app/src/main/java/nl/pe1mew/ntripanalyser/MountMap.kt && grep -q "KpiDrop" src/core/kpi.h && grep -q 'agp = "9.' android/gradle/libs.versions.toml && grep -q 'object Handover' android/app/src/main/java/nl/pe1mew/ntripanalyser/Handover.kt && grep -q 'ShareConnectionsActivity' android/app/src/free/AndroidManifest.xml -->
 - **Every frontend takes whole sourcetables only, and says why not**
   (`receive_mount_table_whole`, `src/net`): asked once more after a
@@ -85,8 +103,10 @@
   median 24 ms debug, 16 ms bench. Overnight Watch on bench, 8 h 08 min
   unplugged: phone 479 mAh (12.8 %), app 10 min 34 s CPU (2.2 % of a
   core), never suspended — Wi-Fi kernel wakelocks, not the app's.
-  **Open:** the self-position trail split into two clusters ~5–6 m
-  apart in the last two hours (scatter 6.8 m); not yet explained.
+  The self-position trail's two clusters ~5–6 m apart (scatter 6.8 m)
+  were closed 2026-10-15: largely the solver's uncorrected satellite
+  code biases, measured against CAS's DCBs
+  (`design/work-items/station-self-position.md`, *The two clusters*).
   <!-- verify: grep -q 'create("bench")' android/app/build.gradle.kts -->
 
 <!-- 2026-10-12 -->
@@ -131,10 +151,9 @@
   published; the store page answered HTTP 200 with €5.99 and 3.8.0.
   **3.8.1** (H9 only, branch `release-3.8.1`, PR #11) was accepted and
   **published on the open track** 2026-10-14 (submission 8, *Open
-  test*, *Gepubliceerd*); production users still get 3.8.0. Promote it
-  to production when nothing comes back wrong, then tag `v3.8.1` on `release-3.8.1`'s tip
-  (`a598a91`), not on main, which carries unreleased P7 and the map.
-  Pre-registration declined (S5).
+  test*, *Gepubliceerd*); 3.9.0 replaced it on production
+  2026-10-16, and `v3.8.1` was tagged on `release-3.8.1`'s tip
+  (`a598a91`) the same day. Pre-registration declined (S5).
   <!-- verify-net: test "$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -A Mozilla/5.0 'https://play.google.com/store/apps/details?id=nl.pe1mew.ntripanalyser.pro&hl=en')" = 200 -->
   Price €5.00 base, **€5,99 in NL**. The closed test that got it
   there — licence testers, the price table, the reviewer account
@@ -473,7 +492,9 @@ Supplementing CLAUDE.md's list with paths found during work:
 - **Pro picks up where free left off by consent, not by signature**
   (GH#5, 2026-09-13). Play re-signs each app with its own key, so the
   installed editions share no signing identity; the user's approval in
-  free is the security control. Built after both are in production.
+  free is the security control. Each side still pins the other's Play
+  signing certificate in release builds; shipped in 3.9.0 and verified
+  between the two Play installs 2026-10-16.
 - **One frame, and the rules live in it.** The app bar takes no title
   parameter, the analysis bar is absent because no other screen passes
   one, and a row's mark comes from `Panel.affordance(state)` rather than

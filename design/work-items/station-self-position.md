@@ -1247,8 +1247,10 @@ it comes from phase-range rates, which code biases do not move.
   card and share report list them, and `test_kpi_watch` pins it — the
   accumulator's first test. The two drops of that night cannot be
   recovered; the next overnight run will name its own.
-- **Release:** P7 waits for pro's production access and the listing
-  sentence (*The gate*, above).
+- **Release: shipped in 3.9.0** (tagged 2026-10-15, live on Play
+  2026-10-16). Pro's production access came 2026-10-14; the listing
+  sentence stays as it is, by the author's decision of 2026-10-15
+  (`design/work-items/play-listing.md`).
 
 ### P8 — say so
 

@@ -461,6 +461,12 @@ that already makes the settings read-only during a run.
 free's manifest declares it. Pro's manifest declares the action in
 `<queries>`, without which Android 11 would hide free from it.
 
+The Play pins could only be exercised once both editions came from
+Play; they were on 2026-10-16 (3.9.0, Huawei P smart 2019, Android 10):
+each side recognised the other, free asked, and the imported connection
+authenticated and finished STATION OK, with pro's own four connections
+kept beside it.
+
 An earlier draft of this section said upgrading meant typing the
 connection again, because free cannot write a configuration file. It
 still cannot: a plain-text file of passwords on shared storage would be
