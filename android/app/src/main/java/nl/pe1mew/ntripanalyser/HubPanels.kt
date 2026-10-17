@@ -266,7 +266,7 @@ object KpiPanel : Panel {
  */
 /**
  * The network-RTK check: five assertions and the gate test, on top of
- * the eight (phase 2 item 2, `design/work-items/vrs-on-the-phone.md`).
+ * the eight (phase 2 item 2, `design/work-items/archive/vrs-on-the-phone.md`).
  *
  * Composed only by the paid registry — free's hub never names it, per
  * "free advertises without shipping UI it cannot run". The run itself

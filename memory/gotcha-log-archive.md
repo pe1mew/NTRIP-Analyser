@@ -1,10 +1,12 @@
 # Gotcha Log — archive
 
-Resolved entries dated before 2026-10, moved here from
-[gotcha-log.md](gotcha-log.md) on 2026-10-14 under the framework's
-archive rule (agent-ready-projects v1.49.2, #178): moved, never
-summarised. Open entries, this month's entries and the Promoted table
-stay in the log. Grep both files for a mechanism.
+Resolved entries, moved here from [gotcha-log.md](gotcha-log.md) under
+the framework's archive rule (agent-ready-projects v1.49.2, #178):
+moved, never summarised. Those dated before 2026-10 on 2026-10-14; every
+resolved entry up to 2026-10-16 on 2026-10-17, by the author's decision
+at that day's curation, when the read surface stood at 611k characters.
+Open entries and the Promoted table stay in the log. Grep both files
+for a mechanism.
 
 ### JNI symbols existed under a name nothing looks up (2026-08-11) [RESOLVED]
 **Problem**: Every native call threw `UnsatisfiedLinkError` although the symbols were present in `libntrip_android.so`.
@@ -351,3 +353,160 @@ Found by probe rather than by reading: a background colour showed the empty band
 **Root cause**: the runner image moved to cmdline-tools 16.0, which no longer carries the legacy `tools` package, and the action's `packages` input defaults to `'tools platform-tools'` (read from its own `action.yml`). A default nobody wrote down broke on a change nobody made here.
 **Fix**: `packages: platform-tools` in `ci.yml`. When CI fails on a commit that touched no code, read which step failed before reading the commit.
 
+### [RESOLVED] Numbers only a person reads are numbers nothing checks (2026-10-09)
+**Problem**: the message-detail decoder has printed MSM7 pseudoranges **5.6x** too large and phases **1.4x** too large since it was written, by applying the phase rate's `0.0001` scale to all three fields where RTCM gives 2^-29 ms and 2^-31 ms. The MSM4 path was ~12% out on both for the same reason, and QZSS 1124 -- an MSM4 -- was read with MSM6's 20- and 24-bit widths, so those cells came from the wrong bits entirely. Found while reading the layout to build `msm_extract_obs`, not by any check.
+**Root cause**: the columns feed the GUI's detail view and the CLI's verbose output and nothing else. Every tested path reads C/N0, whose scale is right. A field no measurement consumes has no guard, and the three wrong constants sat beside a correct one for months.
+**Fix**: the scales are now named constants used by both decoders, and `test_msm_cnr.c` renders a built frame through `rtcm_set_output_buffer` -- the GUI's own capture path -- and asserts the printed strings against values it computes from RTCM's scales, including a check that the old scale does *not* appear. Falsified by restoring `0.0001`: two checks red. **If a number is only ever read by a human, write the test that reads it like one.**
+
+### [RESOLVED] The reference implementation accused the wrong code (2026-10-09)
+**Problem**: the first run of `test/manual/sv_state_vs_rtklib.c` -- P2's cross-check against RTKLIB -- reported our propagator 1 800 km out across the whole fit interval, while the clock agreed to 0.04 ns. A real 1 800 km error would mean the sky plot has pointed at the wrong satellites since it was written.
+**Root cause**: the harness, not the propagator. RTKLIB's `eph_t` stores toe twice -- an absolute `gtime_t` and `toes` in seconds of week -- and the longitude-of-node term reads `toes`. The harness set only the first, so RTKLIB dropped `-omge * toe` and rotated its *own* orbit by 25 radians. With `toes` set: 0.0000 m.
+**Fix**: the shape of the disagreement was the clue, and is the lesson. The clock agreed, and a rotation about Z preserves both `|r|` and `r.v` -- so the pattern said "rotated frame", not "wrong orbit". **Read what the shape of a disagreement rules out before deciding which side is wrong**: a comparison tool is code too, and it is the code that was written five minutes ago.
+
+### A politely written test defended nothing (2026-10-09) [RESOLVED]
+**Retired 2026-10-14**: `test/test_station_report.c` now sets `has_vel = false` beside a stale `speed_mms = 7.0`, so the flag is what the test proves.
+**Problem**: P5's falsification removed the `has_vel` gate from the report's velocity accumulation -- the gate that stops a stream carrying no phase-range rates from publishing a speed -- and the case named "but a stream without rates reports no speed" stayed green. The check had passed every run since it was written, and was protecting nothing.
+**Root cause**: the test built its snapshot the way a well-behaved session does. `has_vel = false` was set and `selfpos_speed_mms` was left at its `NS_UNSET` initialiser, so the comparison rejected the sample on the sentinel and never consulted the flag. The test proved that *the caller blanks the field*, which is the caller's manners, not the report's defence.
+**Fix**: make the input hostile. The snapshot now carries 7 mm/s *beside* `has_vel = false` -- a number it has no right to -- and the gate is the only thing that can stop it; the falsification then reddens the case by name. **A test must feed the input the defence exists for, not the input a cooperating caller would send** -- the same shape as P4's too-uniform ephemerides, one layer up: there the inputs were identical where they should have differed, here the input was correct where it should have been wrong.
+
+### [RESOLVED] The fields were filled and never published (2026-10-09)
+**Problem**: P5 claimed nine `selfpos_*` snapshot fields "serialised under `selfpos_*`". The report's serialiser carried them; `ns_stats_to_json()` and the CSV row carried none of them, so the daemon's snapshot, `File > Export Statistics` and every CSV reader described a stream without ever mentioning where it put itself. Found a step later, while wiring the GUI window that needed them.
+**Root cause**: two serialisers, one claim. The work went into `station_report.c` and the sentence that was written covered both, because both emit keys of that name. The field block's own Doxygen said "consumers read by key, so the schema version stays" -- a promise about a serialiser nobody had touched.
+**Fix**: both serialisers, same null-not-zero rule, four new cases covering nulls *and* values. The lesson is narrower than "a field nothing fills": **a field that one surface publishes is not a field that is published**, and a commit message that names the measurement rather than the surface cannot be checked against either. Name the surface in the claim, and the reader of the next step will notice when one is missing.
+
+### [RESOLVED] The test harness was looking at another desktop (2026-10-09)
+**Problem**: verifying the new GUI window from a launcher with no console, `FindWindow("NtripSelfPosClass")` returned 0 after the menu command -- and so did `FindWindow` for the *main* window's class, while `GetClassNameA` read that very class off the live handle. It read exactly like "the window was never created".
+**Root cause**: two independent traps, each enough on its own. `FindWindow` and `EnumWindows` search the **calling thread's desktop**, and this host runs on a different one from the process it launched; a `SendMessage` to a handle already in hand crosses regardless, which is why the app still obeyed `WM_CLOSE`. And in the enumeration that replaced them, PowerShell's `Write-Output` inside a scriptblock used as a delegate becomes the delegate's **return value**: the lines never printed, and the callback's non-false return stopped the walk at the first window.
+**Fix**: `EnumThreadWindows` (thread-scoped, not desktop-scoped) and `[Console]::WriteLine` inside the callback. Then the window appeared: `class='NtripSelfPosClass' title='Self-position' visible=True`. **When a check says the thing does not exist, prove the check can see a thing that does** -- here, the main window, which was provably there and equally invisible to the same call.
+
+### [RESOLVED] A verdict on a station, from thirty-two seconds (2026-10-09)
+**Problem**: the new Self-position window, opened on a stream 32 s old, filled its banner with **NOT COMPUTABLE**. Nothing had solved because nothing had had time to. The author's one-word reply to the screenshot was "not good", and it was right: that is a finding about the station, stated from a window far too short to carry one.
+**Root cause**: the window had two states where it needed four. Anything that was not "solved" was presented as "cannot be solved", so `SPP_NO_EPOCH` -- the ordinary condition for the first seconds of every run -- wore the same words as `SPP_SINGLE_FREQ`, which is the one status that really is a property of the stream. **This is `gui-design.md` §14.5's second entry again**: the Stability window said "no dual-frequency pair to measure with" at twenty-five seconds, and the fix there was to wait until the window was judgeable. Same author, same mistake, a new window, a month later -- and the lesson had been written down in the very document the new section was added to.
+**Fix**: four states -- solved, gathering, not computable, not solved -- with "gathering" naming what is being waited for. The general rule, which is the one that keeps being relearned: **a screen may only say what its evidence supports, and "not yet" is evidence of nothing.** Writing that down in a design document did not stop it happening; the thing that caught it was a person looking at the window.
+
+### [RESOLVED] Nothing a build can check is wrong on screen (2026-10-09)
+**Problem**: the same window shipped a heading cut to "What it mea...", notes under a horizontal scrollbar, a caption severed mid-word, and ring labels reading "0.125 m" on a plot with no points in it. The build was warning-free and 19/19 tests passed throughout.
+**Root cause**: three column widths guessed at `190 / 90 / 210` px -- against `gui-design.md` §14.6, *Column widths are measured, not guessed*, which the same session had just read -- a plot allowed half the window regardless of what the figures needed, a one-line `TextOut` for a sentence longer than the plot, and a radius chooser returning its smallest step for an empty set.
+**Fix**: widths measured from the longest string each column can hold, the plot capped at what is left after the figures, `DrawText` with `DT_WORDBREAK | DT_END_ELLIPSIS`, and no ring labels until points set the scale. Then **look at it**: `PrintWindow` into a bitmap, saved as a PNG and read back, which is how the remaining three were found after the first was fixed. Two traps in that harness: call `SetProcessDPIAware()` first, or a 1000x620 window is reported and captured as 800x496 at 125 % scaling and the clipping looks like the bug; and the empty state is not the solved state, which still needs a live station.
+
+### [RESOLVED] The feature was never called (2026-10-09)
+**Problem**: connected to a real station, the Self-position window sat at `GATHERING` -- 170 s of stream, 157 snapshots, 0 epochs solved, reason `no observations in this epoch`. That status is the field's *initial value*: the solve had never run. `selfpos_solve()` was defined in `ntrip_session.c` and called from nowhere, because the call site discarded the return value of `obs_feed()` -- the one thing that says an epoch has closed. The whole feature was dead through P5 **and** P6, two commits and two days of work on top of it.
+**Root cause**: three failures that lined up.
+  1. **Every test starts below the session.** `test_spp` builds its own epoch, `test_observables` its own payload, `test_station_report` and `test_ns_stats` their own snapshots. Nothing drove `ntrip_session` and asked whether a closed epoch reaches the solver. The suite was 19 green tests around a hole in the middle.
+  2. **Every surface handled "nothing solved" correctly** -- null in the JSON, "nothing solved" in the CLI, a reason in the window. The feature's own care about absence is what made its absence look like a station's property.
+  3. **The build asks the compiler almost nothing.** Flags were `-O3 -DNDEBUG -std=gnu99`: no `-Wall`, so `-Wunused-function` never fired on a static function nobody called. Proved after the fact: the committed file compiled with `-Wall` names it in one line.
+**Fix**: the call site, plus the two defences that were missing. `-Wall` on our own targets (the codebase turned out clean under it, bar four real `strncpy` truncations in `gui_thread.c` and a tray tooltip, all fixed), and `test/test_selfpos_session.c`, which replays RTCM through `ns_open_file()` and asserts a closed epoch reaches the solve -- red on the shipped defect, with a one-bit control (DF393 set, epoch never closes) that must stay `SPP_NO_EPOCH`. **A test that starts below the wiring cannot see the wiring**, and "the build is warning-free" means nothing until you know what the build asks.
+
+### [RESOLVED] The rule was written down and applied to one case (2026-10-09)
+**Problem**: with the solve finally running against a real six-system station, it placed it **1.8 km** from its broadcast position: worst code residual 2.6 km, apparent motion 829 m/s, clock drift 393 m/s, 25 satellites at PDOP 0.9.
+**Root cause**: the solver accepted every constellation but GLONASS and SBAS under **one** receiver-clock unknown. Its own header says why GLONASS is out -- *"FDMA inter-frequency biases will not fit under one receiver-clock unknown"* -- which is not a fact about FDMA: every system keeps its own time and its own hardware path, and multi-GNSS SPP therefore carries a clock unknown per system. BeiDou adds a second fault, BDT being 14 s behind GPS while a 1042 ephemeris dates its `toe` in BDT: ~55 km of satellite position. The rule that excluded one case was the rule that excluded all of them, written out in full, in the file, and generalised to nothing.
+**Fix**: GPS only until the solve has a clock unknown per system, with the measured numbers at the filter so the next reader sees the evidence rather than the preference. **When a refusal is justified by a general principle, check which other cases the principle covers** -- the sentence naming the exclusion is the place to do it. And the test that missed it is the shape to remember: `test_spp.c` verified by closure against *one* synthetic constellation, building its measurements from the same single-clock model the solver inverts. A closure test cannot discover that the world has more clocks than the model.
+
+### [RESOLVED] The linker could not write, and the check could not tell (2026-10-09)
+**Problem**: the author was about to re-test the GPS-only fix against a live station on a GUI binary that did not contain it. `bin/ntrip-analyser-gui.exe` was fifteen minutes older than `src/core/spp.c`, while `bin/ntrip-analyser.exe` was current.
+**Root cause**: two failures, one on each side.
+  1. **Windows refuses to overwrite a running `.exe`**: `ld.exe: cannot open output file ...: Permission denied`. The author had the GUI open -- as anyone testing a GUI does -- so every build since relinked the CLI and left the GUI alone. Nothing in the normal workflow says so.
+  2. **The check was blind to it.** Verification had been `cmake --build build 2>&1 | grep -cE "warning:"`, reported as "0 warnings". A link error prints `error`, and a pipe discards make's exit status in favour of grep's. The test suite does not build the GUI, so `20/20` stayed green over a GUI that had failed to link. Both halves of "0 warnings, 20/20 tests" were true and the conclusion was wrong.
+**Fix**: take the build's **exit status** first and read warnings second -- `cmake --build build > log 2>&1; echo $?` -- and, when a GUI change is to be tested, compare the binary's timestamp against its sources before handing it over (`find src gui -newer bin/ntrip-analyser-gui.exe`). **Close the GUI before building it.** This is `What is installed is not what was built` in its sixth shape, and the third time in one day that a failing tool has read as a clean result -- `gcc` absent from PATH printing `0` through `grep -c`, `-fsyntax-only` missing ten warnings, and now a linker that could not write at all.
+
+### [RESOLVED] The guard fired on the thing the protocol exists to express (2026-10-10)
+**Problem**: a station streaming ten GPS satellites reported *fewer than four usable satellites*, 0 epochs solved in 106 s. `SPP_TOO_FEW_SATS` with both refusal counters at zero does not mean "few satellites": it means **not one cell was examined**.
+**Root cause**: the base sends BeiDou in two frames -- 48 cells, then 5 -- which is what MSM's multiple-message bit is for. The epoch-boundary rule read the second frame as "this system has contributed before, so a new bundle has begun" and reset the set, throwing away GPS, GLONASS, Galileo and BeiDou's own first frame. Six cells of 128 reached the solver. The guard existed for a base whose multiple-message bit never clears, and it could not tell that case from a legitimate continuation.
+**Fix**: compare where comparison is sound. The code already said epoch fields are not comparable *across* constellations and stopped one step short of the consequence: they are comparable **within** one. Same system and same epoch is a continuation; same system and a different epoch is the stuck-bit case. **A guard against a malformed stream must be written so it cannot fire on a well-formed one** -- and the thing it nearly always mistakes is the protocol feature it was never told about. Found only by walking a real capture frame by frame; every test in the suite sent one frame per system per epoch, which is the one shape that cannot show it.
+
+### [RESOLVED] The epoch was dated by whichever frame happened to close it (2026-10-10)
+**Problem**: a second live station solved every epoch and placed itself **7.8 km** away -- 3888 m worst code residual, 779 mm/s of apparent motion, 8 satellites at PDOP 1.1. Good geometry, impossible answer.
+**Root cause**: the solve took its time from the frame that cleared DF393, and that frame is whatever the base chooses to send last. This one ends every bundle with BeiDou, whose epoch field is **BDT -- 14 s behind GPS**. Fourteen seconds moves a GPS satellite 55 km along its orbit, and what survives the receiver-clock unknown is kilometres of position and residual. The *other* station tested that day ends its bundles with NavIC, which is GPS-aligned, so identical code was correct there **by luck** -- which is exactly why one station looked plausible and the other did not.
+**Fix**: convert in core where it can be tested -- `msm_epoch_to_gps_tow_ms()`: GPS, Galileo, QZSS, NavIC and SBAS as they are, BeiDou +14 s, GLONASS refused because day-of-week plus milliseconds of *day* cannot be placed in a GPS week without the date and the leap seconds. The epoch carries `tow_gps_ms`, taken from the first frame that can say rather than the last frame to arrive. **A value that arrives on several scales must be converted at the boundary, not consumed wherever it lands** -- and the clue was already in the code: the stream clock had been locking to one constellation's scale for months, with a comment explaining why the scales are not comparable. The solve two files away did not read it.
+
+### [RESOLVED] The station stopped sending the thing the code was waiting for (2026-10-10)
+**Problem**: an hour after the epoch-boundary rule was fixed and verified against RFSEE01, the same station stopped solving entirely: 41 snapshots, 0 epochs, *"waiting for the first observation epoch"*. Nothing had changed in the code since the run that worked.
+**Root cause**: NavIC had dropped out of view. It had been the last frame of every bundle, and the only one clearing DF393 -- so with it went the signal the code waited on to close a set. Every remaining frame said "more follows" and no set ever closed. A 60 s capture confirmed it: **zero** DF393 clears in the whole file. The irony is that this is the exact case the original guard was written for ("a base whose multiple-message bit never clears") -- it detected the condition correctly and still never closed anything, because detection reset the set instead of completing it.
+**Fix**: close the set when the next one demonstrably begins, not only when the protocol says so -- a bundle beginning is proof the previous one ended, and for some stations it is the only proof there will be. **A stream's shape is not a property of the station; it is a property of the sky at that moment.** Two runs an hour apart, same caster, same mountpoint, same code, different message set. Anything that waits for a particular frame must also have a way to proceed without it, and the third test case written against a live capture should be assumed to describe that hour rather than that station.
+
+### [RESOLVED] A station sent a standard field with the sign reversed (2026-10-10)
+**Problem**: RFSEE01's position solved cleanly while its velocity read **1 666 m/s**, drift 932 m/s, rate residual 830 m/s. The same code and orbits gave 0.03 m/s on APEL00NLD0.
+**Root cause**: the receiver at RFSEE01 writes RTCM's phase-range rate (DF399/DF404, positive while the range grows) with the opposite sign -- every satellite the exact negative of its orbit's prediction, to the millimetre per second. Our decoder was right; the station was not. Separately, the rate RMS summed **pre**-fit residuals beneath a comment claiming post-fit, so it reported the clock drift on every station and made the fault look like noise of the drift's size rather than a model mismatch.
+**Fix**: let the data decide -- fit both conventions, keep the one that fits (cm/s against hundreds of m/s, never close), claim nothing with only four rates, and **report** a reversed station rather than silently correcting it. **A field defined by a standard is still a claim made by somebody's firmware**; where the data can say which way round it is, ask the data. The diagnostic that settled it was printing measured against predicted per satellite across two stations -- one line made "decoder, solver or station?" a question with one answer. And the residual bug is the comment-says-one-thing shape again: read the code beneath a comment that describes what the code should do.
+
+### [RESOLVED] [x2] A new function's name filled a snapshot field it never touched (2026-10-12)
+**Recurred the same day, 2026-10-12**: a note added inside `play-listing.md`'s *Full description* section was measured by `check_release.py` as listing text, 4181 characters against Play's 4000, and CI failed on `1fd9814`. The fix the first entry wrote down (*run `check_release.py`*) had been written for `src/core` changes, and this was a document. **`check_release.py` reads documents too** (the listing, the feature matrix, the notices), so run it before handing over *any* commit, not only code ones. The note now has a section of its own outside the measured one.
+
+**Problem**: CI failed on `e978ec8`, but the cause was M1 (`38e32f0`), pushed with it: `check_release.py` reported "the known-gap list has no entries that are now filled -- sourcetable_pos_valid". Nothing had filled the field. M1 had added a core function of exactly that name, `sourcetable_pos_valid(lat, lon)`.
+**Root cause**: the unfilled-field check is a whole-word search for each `NsStatsSnapshot` field name outside `ns_stats.c`, so any identifier spelled like a field counts as a write. The local run before committing M1 was `test_all` and `verify_memory.py`, not `check_release.py`. The guard that would have caught it locally was never run.
+**Fix**: the function became `sourcetable_pos_usable`, so one name stops meaning two things, and the field stays on `SNAPSHOT_KNOWN_GAPS` where it belongs. Before naming a core function, grep `ns_stats.h` for the name. Run `python tools/check_release.py` after any `src/core` change; locally, its only expected failures are the stale-release-artefact lines.
+
+### [RESOLVED] A string handed to a UI library ran as HTML (2026-10-12)
+**Problem**: a test sourcetable entry named `<img src=x onerror="window.pwned=1">` ran its script when the mountpoint map's marker was hovered. The page source was clean: the core had escaped every `<`.
+**Root cause**: `bindTooltip(p.mountpoint)` passes a string, and Leaflet sets a string tooltip as innerHTML (attribution too). The core's escaping protects the *page source*; once JavaScript decodes the JSON, a name is raw text again. Escaping once at the boundary is necessary but not sufficient, because the library is a second boundary.
+**Fix**: every caster-supplied string reaches Leaflet as an element built with `textContent`, and the user's attribution goes through `textContent` → `innerHTML` before Leaflet. Caught only because the page was opened with a hostile sourcetable and a `window.pwned` canary, not by reading the code.
+
+### [RESOLVED] A page said "Copied" when nothing was copied (2026-10-12)
+**Problem**: the location picker said "Copied to clipboard!" in a browser that had refused the write (`NotAllowedError`), so **<<** pasted whatever was there before. This had been the case since the picker was written.
+**Root cause**: the copy used `navigator.clipboard` whenever it existed and fell back only when it did not. The result was never consulted; the success message was printed unconditionally after the call.
+**Fix**: one `copyText(t, done)` for both map pages, which tries `execCommand` and then the API, and reports `done(false)` with a selected box to copy by hand. A message announcing success must be the *callback* of the success, never the line after the call. Same family as "a screen may only say what its evidence supports".
+
+### [RESOLVED] A library option did half of what its name says (2026-10-12)
+**Problem**: Leaflet's `noWrap: true` stopped the repeated worlds, but the page still requested 16 tiles off the world's edge (x = −2…5 at zoom 2), all wasted.
+**Root cause**: the name was read as the behaviour. Leaflet's own documentation says `noWrap` "can be used in combination with the `bounds` option to prevent requesting tiles outside the CRS limits".
+**Fix**: `bounds` added. Found by counting the tile requests the page made, not by reading the option. A recurrence of *read the artefact, not the toolchain's promise*.
+
+### [RESOLVED] A shipped feature broke when the service under it changed (2026-10-12)
+**Problem**: the location picker (**Map**) had shown nothing but *API KEY REQUIRED* watermarks since CARTO began requiring a key from everyone (about 2026-09-23). It was found three weeks later, and only because a new feature reused its tile source.
+**Root cause**: the feature depended on a third party's free terms, and nothing ever looked at the page it produces. The OSM Foundation's tile server, the obvious alternative, refuses a page opened from a file (no `Referer`, 403); a comment in the code had said so, and it was verified again.
+**Fix**: no default tile source. Natural Earth outlines are built in, and the user may set their own key. Nothing shipped depends on a third party's goodwill for the map underneath any more. Lesson: **a dependency on someone else's free service is a claim about their terms, and terms change** — prefer what the program carries.
+
+### [RESOLVED] The GUI's ANSI text went into a UTF-8 page (2026-10-12)
+**Problem**: CARTO's attribution `© OpenStreetMap contributors © CARTO` would have shown as `� … �`.
+**Root cause**: the GUI is an ANSI program, so `©` is the single byte 0xA9; the page is UTF-8, and the core rightly replaces invalid UTF-8 with U+FFFD. Each half was right on its own.
+**Fix**: `AnsiToUtf8` (CP_ACP → wide → CP_UTF8) before quoting. Any GUI text bound for a page, a JSON file or the network crosses an encoding boundary. The sourcetable's bytes do not, because they never were ANSI.
+
+### [RESOLVED] A Leaflet map measured its container before it had a size (2026-10-12)
+**Problem**: the mountpoint map opened at maximum zoom on empty sea.
+**Root cause**: the map's top edge was set by script *after* `L.map()`. Leaflet measures the container once, at creation, so `fitBounds` saw 0 px of height.
+**Fix**: a flex layout, with the header filled in before the map is made. Found by `getBoundingClientRect` and the pane transform, not by the screenshot, which in the browser pane is sometimes blank while the canvas holds 845 894 painted pixels. When a screenshot shows nothing, count the canvas's pixels before believing it.
+
+### [RESOLVED] A new field would have refused the biggest caster on the phone (2026-10-13)
+**Problem**: M6a added the core's kind, distance and bearing to each sourcetable entry crossing to the app. The JNI glue allocated a fixed 1 MB and the bridge refuses rather than cuts, so onocoy -- 1.26 MB with the new fields -- would have reached the phone as "Could not reach the caster". Underneath, the bridge read at most 4096 entries, so the phone's list of onocoy had always lacked about a third.
+**Root cause**: a size chosen from the casters in hand (Centipede's 150 kB), never re-measured when the document grew.
+**Fix**: the bridge sizes its own output (256 KB doubling to 32 MB, written again from the same table), and the entry ceiling is 16384. Found only because the change was run against the largest caster available through the bridge's own fetch, compiled on the desktop -- not against the two-entry caster on the phone.
+
+### [RESOLVED] Twenty seconds of silence was taken for the end of a list (2026-10-13)
+**Problem**: the phone's map drew 12 of onocoy's ~5900 mountpoints as though that were the caster.
+**Root cause**: the sourcetable fetch ends on `ENDSOURCETABLE` or on two silent ten-second waits, and returned whatever it had either way. onocoy goes silent part-way now and then -- curl from the desktop then got 1315 entries without the closing line, then 9, then none.
+**Fix**: `receive_mount_table_ex()` reports an answer that stops before `ENDSOURCETABLE` as stalled or dropped; `receive_mount_table_whole()` asks once more and refuses a list still cut short, in every frontend. Six casters checked all end a whole list with the line. A timeout is not an end-of-data marker; where the protocol has one, require it.
+
+### [RESOLVED] A loopback test died of SIGPIPE on Linux only (2026-10-13)
+**Problem**: CI failed `test_bridge_vrs` with SIGPIPE after new cases were added at its end; Windows passed.
+**Root cause**: the test's caster thread kept writing to a stream the bridge had closed. Before, the process ended at the close; the new cases kept it alive long enough for a write to hit the closed socket, and Linux kills the writer. Windows has no such signal.
+**Fix**: `signal(SIGPIPE, SIG_IGN)` in the test, as `test_tls.c` already did. Closing the socket on a failed send was rejected: the socket is non-blocking, and a full buffer fails the same way. A loopback harness on POSIX ignores SIGPIPE from its first line.
+
+### [RESOLVED] Frame times taken where they could not mean anything (2026-10-13)
+**Problem**: the map's frame times were reported from debug builds, and one set was read from counters never reset before the author's pinch, so it held two map loads and a selection besides.
+**Root cause**: a debug build runs Compose unoptimised -- the same pan was a median 24 ms on debug and 16 ms on a release-configured build -- and `gfxinfo` accumulates since the process started.
+**Fix**: a `bench` build type (release settings, debug key, `….bench`) and `dumpsys gfxinfo <pkg> reset` immediately before the action being measured (`docs/RUNBOOK.md`). The same rule as *measure the way the build measures*, for frames.
+
+### [RESOLVED] Compose state read in composition redrew the whole screen per gesture step (2026-10-13)
+**Problem**: panning the map ran at a median 73 ms a frame even with its outlines pre-rendered.
+**Root cause**: the view's scale and pan were keys of a `LaunchedEffect`, so every gesture step recomposed the screen; the marker loop then read those states twice per mark, 5900 times.
+**Fix**: the view is watched through `snapshotFlow` and read once per frame in the draw; empty-map panning went to 7 ms. Read state where it is used -- the draw phase -- and once.
+
+### A toolchain move left the old Gradle daemon holding lint's cache (2026-10-14) [RESOLVED]
+**Problem**: after AGP 8.11 → 8.13 and again 8.13 → 9.4, `lintVitalAnalyzeProRelease` failed with "being used by another process" on a jar in `lint-cache`; `clean` failed the same way.
+**Root cause**: a daemon of the previous Gradle version still had the file open, and the new wrapper's `--stop` reaches only daemons of its own version.
+**Fix**: stop it with that version's own `gradle --stop` (from `~/.gradle/wrapper/dists`). In `docs/RUNBOOK.md`'s toolchain note.
+
+### A merge of a subset erased what only the superset holds (2026-10-14) [RESOLVED]
+**Problem**: importing free's connection into pro blanked pro's ephemeris stream; self-position on a station that sends no orbits sat at "waiting for orbits".
+**Root cause**: the merge replaced a matching connection outright, and free's empty ephemeris fields meant "I cannot hold this", not "remove it".
+**Fix**: `mergeConnections(fromFree = true)` keeps the fields free cannot hold. A merge from a narrower source must say which fields it owns.
+
+### The wiki went six weeks unpublished behind a broken clone (2026-10-15) [RESOLVED]
+**Problem**: `tools/publish_wiki.sh` failed with "fatal: not a git repository" and copied nothing; the live wiki was still the 25 August version, so the Pro page said "closed testing" a day after pro reached Play. The CI "pages deployment" kept passing, which is the project website, not the wiki.
+**Root cause**: an interrupted clone on 2026-09-02 left `$TMPDIR/ntrip-wiki/.git` holding only `hooks/`; the script reused any folder with a `.git` in it, and git refused that one.
+**Fix**: the script reuses its copy only when `git -C "$WORK" rev-parse --git-dir` prints exactly `.git`, and stops with a message when a fetch fails. A published page is checked by fetching it — the wiki's `_history` date — not by any build status.
+
+### A release went live with no release notes in one edition (2026-10-15) [RESOLVED]
+**Problem**: 3.9.0 reached Play with pro's notes in English and Dutch and free's in neither; free's page shows no *What's new* at all. Play gave no warning.
+**Root cause**: notes are entered per edition and per language, and nothing checks the box is filled before review.
+**Fix**: `docs/RUNBOOK.md` *Before submitting to Play* now asks for a block per listing language on each edition (2026-10-16).

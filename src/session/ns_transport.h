@@ -7,7 +7,7 @@
  * a socket, which is what lets an encrypted transport be a second
  * implementation rather than a second code path.  Plain TCP is the
  * first implementation (`ns_transport.c`); TLS arrives behind the same
- * four calls (design/work-items/tls-rollout.md, L3).
+ * four calls (design/work-items/archive/tls-rollout.md, L3).
  *
  * This is a *client* seam.  The test harnesses' loopback casters are
  * servers and keep their raw sockets: they play the network, they do

@@ -3,7 +3,7 @@
  * @brief Thresholds as data: the defaults are the constants, and a
  *        policy actually decides the verdict.
  *
- * Phase 1 of design/work-items/thresholds-track.md moved every threshold
+ * Phase 1 of design/work-items/archive/thresholds-track.md moved every threshold
  * out of a `#define` used at the point of comparison and into a policy
  * structure carried by the run. That change is supposed to be invisible,
  * and "supposed to be invisible" is the most dangerous kind of change

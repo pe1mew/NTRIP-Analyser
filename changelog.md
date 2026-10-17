@@ -620,7 +620,7 @@ menu can open — Settings, About, and now this — was composed after the
 screens the row set its flag and nothing appeared. The dialogs now
 compose before the screen branches, and the menu's promise of being
 identical everywhere is true for the first time. Phase 2, item 4
-(`design/work-items/export-on-the-phone.md`).
+(`design/work-items/archive/export-on-the-phone.md`).
 
 ### Added — where the reference position stands, in the paid edition
 
@@ -683,7 +683,7 @@ and the whole path live against a real caster, where the automatic gate
 entry fired and the service classified as the fixed base it is.
 `check_release.py` pins the crossing into Kotlin -- the gate enum's
 order, the app's reading of it, and the assertion count the matrix
-quotes. Phase 2, item 2 (`design/work-items/vrs-on-the-phone.md`).
+quotes. Phase 2, item 2 (`design/work-items/archive/vrs-on-the-phone.md`).
 
 ### Added — the Watch card says when the stream dropped
 

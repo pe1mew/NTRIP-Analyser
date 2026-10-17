@@ -33,7 +33,7 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix: 75 entries here (45 open, 30 resolved, counted 2026-10-16) and 62 older resolved ones in `memory/gotcha-log-archive.md` — grep both. Triaged 2026-10-14; each retirement names its evidence |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix: 45 open entries here and 92 resolved ones in `memory/gotcha-log-archive.md` (counted 2026-10-17, after every resolved entry was archived) — grep both. Triaged 2026-10-14; each retirement names its evidence |
 | `memory/self-position-decisions.md` | Touching the self-position solve or its views | Six decisions behind it: GPS only, epoch closure, reversed rates; still verified |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
@@ -50,7 +50,7 @@
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
 | `docs/jsonConfigs.md` | Config reading, writing or interop | One format everywhere; passwords in the clear |
 | `design/security-review.md` | Touching a parser, the socket layer, or anything a caster feeds | What a hostile caster can do; F3 narrowed 2026-08-25 — TLS shipped, the disclosure survives for plain-text casters |
-| `design/tls.md` + `design/work-items/tls-rollout.md` | Anything TLS — shipped in 3.8.0 | The decision and its surface; the rollout record carries every deviation, falsification and live find (chunked, entropy, SIGPIPE) |
+| `design/tls.md` + `design/work-items/archive/tls-rollout.md` | Anything TLS — shipped in 3.8.0 | The decision and its surface; the rollout record carries every deviation, falsification and live find (chunked, entropy, SIGPIPE) |
 | `design/legacy-observations.md` | Touching KPI 4, KPI 5, or anything that decides which messages count | Delivery is judged against the sourcetable, so an old GPS+GLONASS station passes. Built 2026-08-13 |
 | `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Fifteen pages and the sidebar, last published 2026-10-16 (`tools/publish_wiki.sh --push`); the app links into them, so a claim here is a claim in the product |
 
@@ -173,10 +173,10 @@
   accumulated paid capability public for the first time. **The pro
   hold is lifted** -- `design/work-items/release-to-play.md` owns what
   comes next. The rollout record with every deviation and live find is
-  `design/work-items/tls-rollout.md`.
+  `design/work-items/archive/tls-rollout.md`.
   <!-- verify: git rev-parse v3.8.0 -->
 - **Phase 2's earlier five**: VRS check, hand-over, statistics export
-  <!-- verify: grep -c "done 2026-08" design/work-items/tier2-on-the-phone.md -->
+  <!-- verify: grep -c "done 2026-08" design/work-items/archive/tier2-on-the-phone.md -->
   and tier 2 shipped pro-gated in one day each, every plan in
   `design/work-items/*-on-the-phone.md` recording what its steps
   actually did.

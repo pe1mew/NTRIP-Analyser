@@ -615,7 +615,7 @@ answering it without the evidence free's launch produces.
   rule. Cleartext credentials are the field's prevailing practice; the
   decision is on principle. See `design/tls.md`. **Shipped 3.8.0**
   (2026-08-25); the rollout record is
-  [tls-rollout.md](tls-rollout.md).
+  [tls-rollout.md](archive/tls-rollout.md).
 
 ## Open Questions
 

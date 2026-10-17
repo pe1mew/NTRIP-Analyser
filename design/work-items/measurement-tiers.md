@@ -550,7 +550,7 @@ itself — the test suite asserts that a report built with no policy is
 identical to one built with the defaults — but it changes what a tier
 *is*: a standard a user can disagree with, rather than a number the
 program asserts. Design, the five decisions and the four build phases
-are in [thresholds-track.md](thresholds-track.md).
+are in [thresholds-track.md](archive/thresholds-track.md).
 
 Two consequences land inside this track:
 

@@ -2,7 +2,7 @@
 
 Upstream **Mbed TLS 3.6.7** (Apache-2.0), the long-term-support line,
 vendored for TLS to the caster (design/tls.md; the rollout is
-design/work-items/tls-rollout.md). Taken from the official release
+design/work-items/archive/tls-rollout.md). Taken from the official release
 asset `mbedtls-3.6.7.tar.bz2`, whose SHA-256 matched the published
 `mbedtls-3.6.7-sha256sum.txt`:
 

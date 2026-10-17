@@ -11,7 +11,7 @@ an answer without changing the thing it describes.
 Sources: `design/telemetry.md` (nothing is collected, and why),
 `android/design/editions.md` (what pro transmits and when),
 `docs/privacy-policy.md` (what the user is told), `design/tls.md` and
-`design/work-items/tls-rollout.md` (TLS shipped 3.8.0; what that does
+`design/work-items/archive/tls-rollout.md` (TLS shipped 3.8.0; what that does
 -- and deliberately does not do -- to the answers below).
 
 ---

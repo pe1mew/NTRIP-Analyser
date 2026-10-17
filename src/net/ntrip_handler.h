@@ -60,7 +60,7 @@ typedef struct {
     double LONGITUDE;         /**< Longitude for NTRIP connection (optional) */
 
     /** Speak TLS to this caster.  An explicit setting, never inferred
-     *  from the port (design/work-items/tls-rollout.md, decision 5);
+     *  from the port (design/work-items/archive/tls-rollout.md, decision 5);
      *  every connection to this caster -- the stream and the
      *  sourcetable fetch -- inherits it. */
     bool TLS;

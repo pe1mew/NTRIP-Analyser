@@ -7,7 +7,7 @@
  * to sit in `ntrip_session.c` moved here whole -- resolve-and-try-each-
  * address connect, select-based receive, the Windows error read before
  * close -- and TLS arrived behind the same four calls, which is the
- * whole point of the seam (design/work-items/tls-rollout.md, L3).
+ * whole point of the seam (design/work-items/archive/tls-rollout.md, L3).
  *
  * Verification is mandatory.  The chain is checked against the embedded
  * Mozilla bundle, the hostname against the certificate; there is no

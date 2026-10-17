@@ -79,7 +79,7 @@ are a few hundred kilobytes), with a warning when it triggers.
 
 ## F3 — Credentials cross the network in the clear *(narrowed 2026-08-25: TLS shipped; the disclosure survives for plain-text casters)*
 
-**Update, TLS rollout (design/work-items/tls-rollout.md).** The
+**Update, TLS rollout (design/work-items/archive/tls-rollout.md).** The
 decision this finding asked for was made and built: mbedTLS behind the
 transport seam, in all four frontends, both editions, verification
 mandatory. The disclosure below *narrows* rather than retires — many

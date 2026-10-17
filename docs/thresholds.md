@@ -50,7 +50,7 @@ same as a paid one, and a desktop verdict the same as a phone's.
 > [`bin/exampleThresholds.json`](https://github.com/pe1mew/NTRIP-Analyser/blob/main/bin/exampleThresholds.json)
 > is a worked example. The GUI and the service still use the built-in
 > values; see
-> [the design track](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/thresholds-track.md).
+> [the design track](https://github.com/pe1mew/NTRIP-Analyser/blob/main/design/work-items/archive/thresholds-track.md).
 
 ---
 

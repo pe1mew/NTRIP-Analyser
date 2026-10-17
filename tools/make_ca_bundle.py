@@ -1,6 +1,6 @@
 """Generate the embedded CA bundle, from the PEM actually vendored.
 
-One trust store for every product (design/work-items/tls-rollout.md,
+One trust store for every product (design/work-items/archive/tls-rollout.md,
 decision 3): the NDK has no system PEM file to point at, so the
 Mozilla/curl bundle in lib/ca-bundle/cacert.pem is embedded as a C
 array and every build compiles the same one. Generated at *refresh*

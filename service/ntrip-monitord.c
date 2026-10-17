@@ -141,7 +141,7 @@ typedef struct {
 
 /* The thresholds every verdict this daemon publishes is judged by.
  * Built-in for now -- loading a policy file is phase 4 of
- * design/work-items/thresholds-track.md -- but the reports carry the
+ * design/work-items/archive/thresholds-track.md -- but the reports carry the
  * name and fingerprint from the start, so a fleet cannot quietly end up
  * publishing one graph built out of two standards. */
 static Thresholds g_thresholds;

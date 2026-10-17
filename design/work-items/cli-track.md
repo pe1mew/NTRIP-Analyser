@@ -36,7 +36,7 @@ and what "done" will mean.
 | 3 | Capture the ephemeris stream | not scheduled |
 | 4 | KPI 1 blames the station when the stream stops | **built 2026-08-17**; observed 2026-08-16 and again 2026-08-17 |
 | 5 | `--report` — tier 2 in the CLI | **built 2026-08-16**, see [measurement-tiers.md](measurement-tiers.md) §2a |
-| 6 | `--thresholds`, `--thresholds-print` | **built 2026-08-17**, see [thresholds-track.md](thresholds-track.md) |
+| 6 | `--thresholds`, `--thresholds-print` | **built 2026-08-17**, see [thresholds-track.md](archive/thresholds-track.md) |
 | 7 | A run that ends without a verdict says so | **built 2026-08-17** |
 | 8 | A caster that stops sending is noticed, not waited on | **built 2026-08-18**, released in 3.5.0; found on a live monitor, not designed |
 
@@ -609,7 +609,7 @@ policy names it and its fingerprint above the verdict, because once
 verdicts can come from different standards, `STATION OK` means nothing
 between two people unless each says which standard produced it. Design
 and the five decisions behind it in
-[thresholds-track.md](thresholds-track.md).
+[thresholds-track.md](archive/thresholds-track.md).
 
 ### Phase 7 — a run that ends without a verdict says so, built 2026-08-17
 

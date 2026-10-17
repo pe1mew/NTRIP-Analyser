@@ -8,7 +8,7 @@ and it should be held to the same standard as the software.
 Sources: `design/telemetry.md` (what is collected: nothing),
 `android/design/editions.md` (what pro transmits, and when),
 `docs/privacy-policy.md` (the published text), `design/tls.md` and
-`design/work-items/tls-rollout.md` (TLS, shipped 3.8.0 in both
+`design/work-items/archive/tls-rollout.md` (TLS, shipped 3.8.0 in both
 editions -- per-connection, verified, never inferred from the port).
 
 ## Names

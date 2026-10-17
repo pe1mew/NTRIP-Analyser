@@ -41,7 +41,7 @@
  * `src/core/` does no I/O: this parses **text**, and the caller owns the
  * file. Errors are written into a caller's buffer, never printed.
  *
- * See design/work-items/thresholds-track.md.
+ * See design/work-items/archive/thresholds-track.md.
  *
  * Project: NTRIP-Analyser
  * Author: Remko Welling, PE1MEW

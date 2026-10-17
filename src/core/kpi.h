@@ -115,7 +115,7 @@ extern "C" {
  * Every figure above as data rather than as a constant, so that a user
  * can disagree with them — a control network and a hobby base are not
  * held to the same standard, and neither should inherit the other's
- * numbers by accident. See design/work-items/thresholds-track.md, and
+ * numbers by accident. See design/work-items/archive/thresholds-track.md, and
  * docs/thresholds.md for what each one means and how well founded it
  * is.
  *

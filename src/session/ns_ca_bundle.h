@@ -6,7 +6,7 @@
  * tools/make_ca_bundle.py from lib/ca-bundle/cacert.pem and committed;
  * check_release.py regenerates and diffs it, so the array and the PEM
  * cannot disagree.  One bundle everywhere is decision 3 of
- * design/work-items/tls-rollout.md: the NDK has no system trust store,
+ * design/work-items/archive/tls-rollout.md: the NDK has no system trust store,
  * and every product must give the same answer about the same caster.
  *
  * Project: NTRIP-Analyser

@@ -173,7 +173,7 @@ extern "C" {
  * disagree with them: a station on domestic broadband is not the same
  * proposition as one on fibre, and `SR_RECONNECTS_WARN_PER_H` = 1.0
  * marks the first `DEGRADED` for behaving exactly as its owner expects.
- * See design/work-items/thresholds-track.md.
+ * See design/work-items/archive/thresholds-track.md.
  *
  * **The defaults are the macros above**, so a caller that supplies no
  * policy gets the behaviour it always had — which the test suite

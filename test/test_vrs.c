@@ -6,7 +6,7 @@
  * only thing that had ever exercised it was a live caster, which is the
  * one instrument a CI run does not have.  This drives the engine
  * through a gated service, a fixed base, and each way an assertion can
- * fail -- V1 of `design/work-items/vrs-on-the-phone.md`, written before
+ * fail -- V1 of `design/work-items/archive/vrs-on-the-phone.md`, written before
  * the phone becomes the engine's third caller.
  *
  * No sockets, deliberately.  The plan said "loopback", the harness
