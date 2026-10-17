@@ -28,6 +28,15 @@
 #   [ntrip_monitor]
 #   env.statedir /var/lib/ntrip-monitor
 #   env.stale    120
+#   env.category ntrip        (optional; see below)
+#
+# category: each station's graphs go in a category of their own,
+# ntrip_<mountpoint>, which Munin lists as its own entry in the
+# navigation -- one folder per station rather than every station's
+# eight graphs in one page.  Set env.category to put every station in
+# that one category instead, as before.  A category is not part of a
+# graph's name, so changing it moves graphs without touching their RRD
+# history.
 #
 # stale: snapshots older than this many seconds are reported as U
 # (undefined).  Reporting the last known values instead would draw a
@@ -39,6 +48,7 @@
 
 STATEDIR="${statedir:-/var/lib/ntrip-monitor}"
 STALE="${stale:-120}"
+CATEGORY="${category:-}"
 
 # scalar <file> <key> -> value, or "U" if absent/null
 scalar() {
@@ -89,11 +99,14 @@ type_frames() {
 
 emit_config() {
     f="$1"; name="$2"; mount="$3"
+    # Munin lowercases a category; do it here so what is configured is
+    # what is shown.
+    category=$(echo "${CATEGORY:-ntrip_${name}}" | tr 'A-Z' 'a-z')
 
     cat <<EOF
 multigraph ntrip_throughput_${name}
 graph_title NTRIP ${mount} throughput
-graph_category ntrip
+graph_category ${category}
 graph_vlabel bytes/s
 graph_args --base 1024 -l 0
 bytes_per_s.label throughput
@@ -102,7 +115,7 @@ bytes_per_s.min 0
 
 multigraph ntrip_integrity_${name}
 graph_title NTRIP ${mount} frame integrity
-graph_category ntrip
+graph_category ${category}
 graph_vlabel frames/s
 crc_error.label CRC-24Q errors
 crc_error.type DERIVE
@@ -114,7 +127,7 @@ resyncs.min 0
 
 multigraph ntrip_satellites_${name}
 graph_title NTRIP ${mount} satellites tracked
-graph_category ntrip
+graph_category ${category}
 graph_vlabel satellites
 sats_total.label satellites
 sats_total.type GAUGE
@@ -122,7 +135,7 @@ sats_total.min 0
 
 multigraph ntrip_cnr_${name}
 graph_title NTRIP ${mount} mean C/N0
-graph_category ntrip
+graph_category ${category}
 graph_vlabel dB-Hz
 cnr_mean.label mean C/N0
 cnr_mean.type GAUGE
@@ -130,7 +143,7 @@ cnr_mean.warning 35:
 
 multigraph ntrip_iono_${name}
 graph_title NTRIP ${mount} ionosphere (ROTI)
-graph_category ntrip
+graph_category ${category}
 graph_vlabel TECU/min
 graph_info Rate of TEC Index from dual-frequency carrier phase. Under 0.5 is quiet, over 1.0 disturbed. Requires MSM7 with two frequencies; reads U on single-frequency streams.
 roti_median.label median ROTI
@@ -142,7 +155,7 @@ roti_max.type GAUGE
 
 multigraph ntrip_availability_${name}
 graph_title NTRIP ${mount} availability
-graph_category ntrip
+graph_category ${category}
 graph_vlabel state
 connected.label connected (1 = yes)
 connected.type GAUGE
@@ -153,7 +166,7 @@ reconnects.min 0
 
 multigraph ntrip_msgrate_${name}
 graph_title NTRIP ${mount} message rate per type
-graph_category ntrip
+graph_category ${category}
 graph_vlabel frames/s
 EOF
     type_frames "$f" | while read -r t frames; do
@@ -172,7 +185,7 @@ EOF
 
 multigraph ntrip_stability_${name}
 graph_title NTRIP ${mount} stability (tier 2)
-graph_category ntrip
+graph_category ${category}
 graph_vlabel verdict
 graph_args --lower-limit 0 --upper-limit 3 --rigid
 graph_info Stability over a rolling window of hours -- a different question from the rest of these graphs, which describe this instant. 0 = insufficient evidence (the window is not yet long enough to judge, which is the honest answer for the first ten minutes of every session), 1 = stable, 2 = degraded, 3 = unstable. A metric that cannot be measured reads U rather than 0, so "not applicable" is never drawn as "fine". Thresholds: degraded warns, unstable is critical; insufficient evidence never alerts.

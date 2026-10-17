@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+- **Munin: one category per station.** The plugin files each station's
+  graphs under `ntrip_<mountpoint>`, so Munin's navigation lists one
+  entry per station instead of every station's graphs on one page;
+  `env.category ntrip` restores the single category. Graph and field
+  names are unchanged, so RRD history carries over. Checked against
+  shuttle2's live HANESE and RFSEE01 snapshots: values byte-identical to
+  the previous plugin, configuration different only in its 16
+  `graph_category` lines (8 per station).
+
 ## [3.9.0] - 2026-10-15
 
 Both Android editions, the Windows GUI, the CLI and the monitoring

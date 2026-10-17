@@ -327,8 +327,11 @@ sudo ln -s /usr/local/share/munin/plugins/ntrip_monitor /etc/munin/plugins/
 sudo systemctl restart munin-node
 ```
 
-Graphs appear under the **ntrip** category after two master poll cycles
-(about ten minutes). Seven graph families per mountpoint:
+Graphs appear after two master poll cycles (about ten minutes), each
+station in a category of its own, **ntrip_<mountpoint>** (lowercase),
+so Munin's navigation lists one entry per station. Set `env.category`
+(below) to put them all in one category instead. Seven graph families
+per mountpoint:
 
 | Graph | Shows | Alert defaults |
 |---|---|---|
@@ -411,7 +414,11 @@ Plugin configuration, if the defaults need changing
 [ntrip_monitor]
 env.statedir /var/lib/ntrip-monitor
 env.stale    120
+# env.category ntrip   # every station in one category, as up to 3.9.0
 ```
+
+A category is not part of a graph's name, so moving graphs between
+categories keeps their history.
 
 ### Staleness is a feature
 
