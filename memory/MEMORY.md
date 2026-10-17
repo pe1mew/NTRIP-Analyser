@@ -69,11 +69,11 @@
   password carried, STATION OK on the imported connection) and closed.
   Wiki published 2026-10-16, identical to `docs/wiki/`. `v3.8.1` tagged
   on `a598a91`; every merged branch deleted, local and remote.
-  **Waiting:** both rewritten store listings (free's closed-test text,
-  free's category moved to Tools, pro's Dutch) are in Play's review;
-  when live, copy them into `design/work-items/play-listing.md` and
-  clear its *Pending since 3.9.0* note. Free's 3.9.0 has no release
-  notes (author's call, left as is).
+  Both store listings rewritten and live 2026-10-17 (read from the
+  pages): free's closed-test text gone, free moved to Tools, a Dutch
+  translation of their own for both; `play-listing.md` holds them, and
+  `check_release.py` now measures each listing as Play receives it.
+  Free's 3.9.0 has no release notes (author's call, left as is).
   <!-- verify: git rev-parse v3.9.0 && git rev-parse v3.8.1 && grep -q "## \[3.9.0\]" changelog.md -->
 
 <!-- 2026-10-14 -->

@@ -53,11 +53,14 @@ figures included -- they are the station's own observations against
 the station's own broadcast position. The 2026-10-12 reasoning is in
 `design/work-items/station-self-position.md`, "The gate".
 
-**Pending since 3.9.0:** pro gains a Self-position bullet, both
-listings name the mountpoint map and the hand-over from free, and free
-loses the closed-test text it still carried on 2026-10-16 ("First
-closed test of NTRIP Analyser."). The text in the next section is what
-is live; change it there when the console changes.
+**Live 2026-10-17, read from the store pages:** pro gained the
+Self-position bullet and the watch's drop record, both listings name
+the mountpoint map and the hand-over from free, and free lost the
+closed-test text it had shown since going public ("First closed test of
+NTRIP Analyser.", until 2026-10-16). Both listings gained a Dutch
+translation of their own, replacing Google's machine translation
+(*Dutch listing*, below). The text in the next section is what is
+live; change it there when the console changes.
 
 ## Full description
 
@@ -96,7 +99,8 @@ no formatting beyond line breaks.
       from a RINEX navigation file you supply
     - Signal quality per satellite and per constellation
     - Message statistics: types, epochs, and the interval between them
-    - The sourcetable, as the caster publishes it
+    - The sourcetable, as the caster publishes it: every mountpoint with
+      its distance and bearing, in a list or on a map
 
     PRIVACY
 
@@ -116,17 +120,20 @@ no formatting beyond line breaks.
 
     THIS EDITION
 
-    The full eight-KPI check, the analysis views, and the sourcetable
-    browser, for one caster at a time. Positions for network mountpoints
-    are taken from the station's own sourcetable entry or picked on a
-    map; this edition never sends the phone's position anywhere.
+    The full eight-check verdict, the analysis views, and the
+    sourcetable browser, for one caster at a time. Positions for network
+    mountpoints are taken from the station's own sourcetable entry or
+    picked on a map; this edition never sends the phone's position
+    anywhere. Moving to the paid edition later? It can take over the
+    connection saved here, once you agree.
 
 **Pro — append**
 
     THIS EDITION ADDS
 
     - Watch mode: keep measuring for hours, through the screen going
-      dark, with availability, streaks and reconnect counts
+      dark, with availability, streaks and reconnect counts, and every
+      drop out of STATION OK: when, how long, which checks
     - Stability report: six metrics over the whole run -- availability,
       frame integrity, signal, satellites held, ionosphere, delivery --
       each with its own verdict: STABLE, DEGRADED or UNSTABLE
@@ -134,14 +141,17 @@ no formatting beyond line breaks.
       and deliver corrections fit for RTK where you stand
     - Reference-position watch: know the moment a network hands you to
       another station, and how far it moved
+    - Self-position: where the station's own GPS observations put it,
+      against the position it broadcasts -- figures and a plot, no verdict
     - Live position: report where this phone actually is to a network
       mountpoint (asked once, explicitly, and revocable)
     - Satellite tracks on the sky view, up to a day per satellite
     - Statistics export: the full snapshot as JSON, or CSV in the
       monitoring daemon's own dialect
-    - Saved connections, mountpoints picked from the sourcetable by
-      tapping them, an ephemeris side-stream for a complete sky view,
-      and import/export of the shared configuration file
+    - Saved connections, starting with the free edition's if you agree
+      to share it; mountpoints picked by tapping them in the list or on
+      the map; an ephemeris side-stream for a complete sky view; and
+      import/export of the shared configuration file
 
     Bought once. No subscription, and nothing is measured differently
     from the free edition -- the eight checks and their verdicts are
@@ -151,11 +161,179 @@ no formatting beyond line breaks.
 
 Tools. Not "Maps & Navigation": the app navigates nothing, and being
 listed beside consumer GPS apps would attract the wrong installs and the
-wrong reviews.
+wrong reviews. Free sat in *Maps & Navigation* from its first release
+until 2026-10-16, when the store page was read whole for the first
+time; both are Tools since.
 
 Content rating questionnaire: no user-generated content, no
 communication features, no purchases inside the app (pro is paid up
 front).
+
+## Dutch listing (nl-NL)
+
+Entered in the console as a translation of its own (2026-10-16),
+replacing Google's machine translation, which rendered *mountpoint* as
+*montagepunt*, *caster* as *zender* and *watch mode* as *Kijkmodus*.
+Screen names stay in English (*Watch mode*, *Self-position*, *Use
+TLS*, the verdicts) because the app shows them in English. Titles are
+the English ones. Free's text below is what is live, including the
+author's own wording of its first two checks.
+
+### Short description
+
+**Free**
+
+    Is dit GNSS-basisstation geschikt voor RTK? Meet het, en zie waarom.
+
+**Pro**
+
+    Bewaak stations urenlang: stabiliteitsoordelen, netwerk-RTK, exports.
+
+### Full description, free
+
+    NTRIP Analyser maakt verbinding met een NTRIP-caster en beantwoordt
+    een vraag over een GNSS-basisstation: is het geschikt voor RTK, en zo
+    niet, waarom niet?
+
+    Het stuurt geen rover aan en berekent geen positie. Het meet wat het
+    station werkelijk levert -- berichttypen en hun frequentie, satellieten
+    en hun signaalsterkte, de referentiepositie die het uitzendt, en hoe
+    stabiel het dat allemaal volhoudt -- en geeft een oordeel waar je mee
+    verder kunt, of dat je doorgeeft aan wie het station beheert.
+
+    WAT HET CONTROLEERT
+
+    Acht metingen, elk met een eigen oordeel en het getal erachter:
+
+    - de verbinding authenticeren en komen er gegevens binnen
+    - de stream is echt RTCM 3.x, en de ontvangen frames zijn correct (CRC)
+    - het station zendt zijn referentiepositie uit (1005/1006)
+    - waarnemingen komen binnen in het tempo dat het mountpoint opgeeft
+    - genoeg satellieten, over de opgegeven constellaties
+    - de signaalsterkte past bij een werkende antenne
+    - de stream houdt zijn oordeel een volle minuut vast
+    - wat de sourcetable aankondigt, levert de stream ook
+
+    Een meting eindigt met STATION OK, CAUTION of FAILED -- met het
+    bewijs erbij, zodat over het oordeel te praten valt.
+
+    WAT HET VERDER LAAT ZIEN
+
+    - Sky view: satellieten per constellatie, uit uitgezonden banen of
+      uit een RINEX-navigatiebestand dat je zelf aanlevert
+    - Signaalkwaliteit per satelliet en per constellatie
+    - Berichtstatistiek: typen, epochs en de tijd daartussen
+    - De sourcetable zoals de caster die publiceert: elk mountpoint met
+      afstand en richting, in een lijst of op een kaart
+
+    PRIVACY
+
+    Geen account, geen advertenties, geen analysebibliotheek en geen
+    server van de ontwikkelaar. Wat de app verstuurt, gaat naar de caster
+    die je instelt. Inloggegevens worden versleuteld op het toestel
+    bewaard. Biedt de caster TLS, vink dan "Use TLS" aan: de hele
+    verbinding is dan versleuteld en gecontroleerd tegen vertrouwde
+    rootcertificaten. Over een onversleutelde verbinding zegt de app
+    duidelijk, op de plek waar je het wachtwoord intypt, dat alles
+    onderweg kan lezen wat NTRIP verstuurt.
+
+    De app is een client: hij verbindt waar jij hem heen stuurt, met je
+    eigen inloggegevens. Toestemming om een caster te gebruiken, en je
+    aan de voorwaarden houden, is jouw zaak -- de gegevens zijn van wie
+    het station beheert.
+
+    DEZE EDITIE
+
+    De volledige controle met acht metingen, de analyseweergaven en de
+    sourcetable-browser, voor een caster tegelijk. Posities voor
+    netwerk-mountpoints komen uit de eigen sourcetable-regel van het
+    station of kies je op een kaart; deze editie stuurt de positie van de
+    telefoon nergens heen. Later over naar de betaalde editie? Die kan de
+    hier opgeslagen verbinding overnemen, zodra je daarmee instemt.
+
+### Full description, pro
+
+    NTRIP Analyser maakt verbinding met een NTRIP-caster en beantwoordt
+    een vraag over een GNSS-basisstation: is het geschikt voor RTK, en zo
+    niet, waarom niet?
+
+    Het stuurt geen rover aan en berekent geen positie. Het meet wat het
+    station werkelijk levert -- berichttypen en hun frequentie, satellieten
+    en hun signaalsterkte, de referentiepositie die het uitzendt, en hoe
+    stabiel het dat allemaal volhoudt -- en geeft een oordeel waar je mee
+    verder kunt, of dat je doorgeeft aan wie het station beheert.
+
+    WAT HET CONTROLEERT
+
+    Acht metingen, elk met een eigen oordeel en het getal erachter:
+
+    - de verbinding authenticeert en er komen gegevens binnen
+    - de stream is echt RTCM 3.x, en de frames doorstaan de CRC
+    - het station zendt zijn referentiepositie uit (1005/1006)
+    - waarnemingen komen binnen in het tempo dat het mountpoint opgeeft
+    - genoeg satellieten, over de opgegeven constellaties
+    - de signaalsterkte past bij een werkende antenne
+    - de stream houdt zijn oordeel een volle minuut vast
+    - wat de sourcetable aankondigt, levert de stream ook
+
+    Een meting eindigt met STATION OK, CAUTION of FAILED -- met het
+    bewijs erbij, zodat over het oordeel te praten valt.
+
+    WAT HET VERDER LAAT ZIEN
+
+    - Sky view: satellieten per constellatie, uit uitgezonden banen of
+      uit een RINEX-navigatiebestand dat je zelf aanlevert
+    - Signaalkwaliteit per satelliet en per constellatie
+    - Berichtstatistiek: typen, epochs en de tijd daartussen
+    - De sourcetable zoals de caster die publiceert: elk mountpoint met
+      afstand en richting, in een lijst of op een kaart
+
+    PRIVACY
+
+    Geen account, geen advertenties, geen analysebibliotheek en geen
+    server van de ontwikkelaar. Wat de app verstuurt, gaat naar de caster
+    die je instelt. Inloggegevens worden versleuteld op het toestel
+    bewaard. Biedt de caster TLS, vink dan "Use TLS" aan: de hele
+    verbinding is dan versleuteld en gecontroleerd tegen vertrouwde
+    rootcertificaten. Over een onversleutelde verbinding zegt de app
+    duidelijk, op de plek waar je het wachtwoord intypt, dat alles
+    onderweg kan lezen wat NTRIP verstuurt.
+
+    De app is een client: hij verbindt waar jij hem heen stuurt, met je
+    eigen inloggegevens. Toestemming om een caster te gebruiken, en je
+    aan de voorwaarden houden, is jouw zaak -- de gegevens zijn van wie
+    het station beheert.
+
+    DEZE EDITIE VOEGT TOE
+
+    - Watch mode: urenlang doormeten, ook met het scherm uit, met
+      beschikbaarheid, reeksen en aantallen herverbindingen, en elke
+      terugval uit STATION OK: wanneer, hoe lang, welke controles
+    - Stabiliteitsrapport: zes metingen over de hele run --
+      beschikbaarheid, frame-integriteit, signaal, vastgehouden
+      satellieten, ionosfeer, levering -- elk met een eigen oordeel:
+      STABLE, DEGRADED of UNSTABLE
+    - Netwerk-RTK-controle (VRS): accepteert het netwerk je positie, en
+      levert het correcties die geschikt zijn voor RTK waar je staat
+    - Bewaking van de referentiepositie: zie op het moment zelf dat een
+      netwerk je naar een ander station overzet, en hoe ver dat ligt
+    - Self-position: waar de eigen GPS-waarnemingen van het station het
+      plaatsen, ten opzichte van de positie die het uitzendt -- getallen
+      en een plot, geen oordeel
+    - Live position: meld waar deze telefoon werkelijk is aan een
+      netwerk-mountpoint (een keer gevraagd, expliciet, en herroepbaar)
+    - Satellietsporen in de sky view, tot een dag per satelliet
+    - Export van statistiek: de volledige momentopname als JSON, of als
+      CSV in het dialect van de monitoring-daemon
+    - Opgeslagen verbindingen, te beginnen met die van de gratis editie
+      als je die wilt delen; mountpoints kiezen door ze aan te tikken in
+      de lijst of op de kaart; een ephemeris-stream ernaast voor een
+      complete sky view; en import en export van het gedeelde
+      configuratiebestand
+
+    Eenmalig gekocht. Geen abonnement, en er wordt niets anders gemeten
+    dan in de gratis editie -- de acht controles en hun oordelen komen
+    uit dezelfde engine.
 
 ## Screenshots
 

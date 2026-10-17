@@ -248,12 +248,57 @@ def check_listing():
         check(len(s) <= 80, "short description within 80 characters",
               "%d: %s" % (len(s), s))
 
+    # Each listing is the shared opening plus its own edition's append --
+    # what Play receives. Measuring the whole section summed both
+    # appends, a text no listing carries, and failed at 4092 characters
+    # while free stood at 2504 and pro at 3544 (2026-10-17).
     full = listing.split("## Full description", 1)[1] \
                   .split("## Category", 1)[0]
-    body = chr(10).join(l[4:] if l.startswith("    ") else l
-                        for l in full.split(chr(10))).strip()
-    check(len(body) <= 4000, "full description within 4000 characters",
-          str(len(body)))
+    parts = listing_blocks(full)
+    check("shared" in parts and "Free" in parts and "Pro" in parts,
+          "full description has a shared opening and both appends")
+    for ed in ("Free", "Pro"):
+        body = (parts.get("shared", "") + chr(10) * 2
+                + parts.get(ed, "")).strip()
+        check(len(body) <= 4000,
+              ed + " full description within 4000 characters",
+              str(len(body)))
+
+    # The Dutch listing is entered by hand in the console as a
+    # translation of its own; the same limits apply to it.
+    if "## Dutch listing" in listing:
+        nl = listing.split("## Dutch listing", 1)[1].split(chr(10) + "## ", 1)[0]
+        nl_short = nl.split("### Short description", 1)[1] \
+                     .split("### ", 1)[0]
+        for s in [l.strip() for l in nl_short.split(chr(10))
+                  if l.startswith("    ") and l.strip()]:
+            check(len(s) <= 80, "Dutch short description within 80 characters",
+                  "%d: %s" % (len(s), s))
+        for ed in ("free", "pro"):
+            sect = nl.split("### Full description, " + ed, 1)
+            check(len(sect) == 2, "Dutch full description for " + ed + " found")
+            if len(sect) == 2:
+                body = listing_blocks(sect[1].split("### ", 1)[0]) \
+                    .get("shared", "")
+                check(0 < len(body) <= 4000,
+                      "Dutch " + ed + " full description within 4000 characters",
+                      str(len(body)))
+
+
+def listing_blocks(text):
+    """The indented blocks of a listing section, dedented, keyed by the
+    bold label above them (`**Free -- append**` -> "Free"); text before
+    the first label is "shared". Prose between blocks is not listing
+    text and is left out."""
+    out, label, cur = {}, "shared", []
+    for line in text.split(chr(10)):
+        if line.startswith("**") and line.rstrip().endswith("**"):
+            out[label] = chr(10).join(cur).strip(chr(10))
+            label, cur = line.strip("* ").split(" ")[0], []
+        elif line.startswith("    ") or not line.strip():
+            cur.append(line[4:] if line.startswith("    ") else "")
+    out[label] = chr(10).join(cur).strip(chr(10))
+    return out
 
 
 # ── Generated files ───────────────────────────────────────────────────
