@@ -41,6 +41,7 @@
 | `design/feature-matrix.md` | Asking "which product has X?" | Every feature against CLI, GUI, free, pro and the daemon, with the rationale for each split |
 | `design/work-items/{release-to-play,cli-track,gui-track,measurement-tiers}.md` | Picking up work | Four parallel tracks — Android, CLI, GUI, and one that follows a capability rather than an artefact |
 | `design/work-items/pro-to-play.md` | Anything in the Play Console, for either edition | Pro's store rollout, and every console mechanic that cost a step: price and regions, licence testing as the tester sees it, reviewer credentials and where the form lives |
+| `design/appGuiReview.md` | Any change to the Android app's screens, until the review is built | The author's GUI review, item by item (R1…, S1…), with decisions and open questions; collected first, implemented and tested on the Huawei only when the author says it is complete |
 | `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§17 are the check, the stability window, threshold loading, self-position and the mountpoint map, as built |
@@ -55,6 +56,17 @@
 | `docs/wiki/` | Changing anything a user sees, or wondering what they were told | Fifteen pages and the sidebar, last published 2026-10-16 (`tools/publish_wiki.sh --push`); the app links into them, so a claim here is a claim in the product |
 
 ## Current State
+
+<!-- 2026-10-18 -->
+
+- **The Android GUI review is being collected, not built**
+  (`design/appGuiReview.md`, started 2026-10-17). The author gives the
+  findings one by one; each is recorded with its decisions and open
+  questions, and **nothing is implemented until the author says the
+  list is ready**. Then: implement, and test both editions on the
+  Huawei. R10 (a hand-over restarts the Self-position figures) is a
+  core change, so it reaches the GUI, CLI and daemon too.
+  <!-- verify: test -f design/appGuiReview.md && grep -q "State: collecting" design/appGuiReview.md -->
 
 <!-- 2026-10-16 -->
 
@@ -123,18 +135,6 @@
   ARP. M6–M8 for the phone: see 2026-10-13.
   <!-- verify: test -f gui/gui_mountmap.c && test -f src/core/sourcetable_map.c && grep -q "Mountpoint map" design/feature-matrix.md -->
 
-<!-- 2026-10-10 -->
-
-- **Self-position is complete on the desktop and merged to `main`**
-  (pe1mew/NTRIP-Analyser#8, 2026-10-10, merge `38a1e0e`). GUI window with S export, the
-  CLI's `--report`, and the daemon's snapshot and report; orbits from
-  the station's own stream, a configured side-stream, or `-R`. Plan
-  steps P1–P6 and the desktop half of P8 are done; **P7** (pro on
-  Android) waits for pro's production and the listing sentence, and
-  **multi-GNSS** needs its own design. Plan:
-  `design/work-items/station-self-position.md`.
-  <!-- verify: grep -q "Self-position" design/feature-matrix.md && test -f gui/gui_selfpos_window.c -->
-
 <!-- 2026-09-17 -->
 
 - **Free is public on Google Play** (confirmed 2026-09-19). Production
@@ -161,28 +161,11 @@
   `design/work-items/pro-to-play.md` S3–S5.
   <!-- verify: manual — the Play Console is the only source for track state -->
 
-<!-- 2026-08-25 -->
+<!-- standing facts -->
 
-- **3.8.0 released; phase 2 is complete** (2026-08-25). TLS in every
-  <!-- verify: grep -q "## .3.8.0." changelog.md -->
-  product and both editions -- mbedTLS behind the `ns_transport` seam,
-  verification mandatory against the embedded Mozilla roots, chunked
-  NTRIP 2 decoded, an explicit per-connection flag. Developed on the
-  `tls` branch, accepted by PR #4's merge, released same day: GitHub
-  (all platforms' assets) published, free submitted to Play, and every
-  accumulated paid capability public for the first time. **The pro
-  hold is lifted** -- `design/work-items/release-to-play.md` owns what
-  comes next. The rollout record with every deviation and live find is
-  `design/work-items/archive/tls-rollout.md`.
-  <!-- verify: git rev-parse v3.8.0 -->
-- **Phase 2's earlier five**: VRS check, hand-over, statistics export
-  <!-- verify: grep -c "done 2026-08" design/work-items/archive/tier2-on-the-phone.md -->
-  and tier 2 shipped pro-gated in one day each, every plan in
-  `design/work-items/*-on-the-phone.md` recording what its steps
-  actually did.
 - **The issue tracker is live**: #1 is a PR; issues start at #2.
   Backlog items carry `[GH#n]` tags (`design/todo.md`).
-- **check_release.py is at 114 checks with release artefacts present** (fewer report when no artefact exists to judge; 106 until P7 added the SppStatus comparison, 2026-10-12); the gate-table guard has
+- **check_release.py is at 122 checks with release artefacts present** (counted 2026-10-18; fewer report when no artefact exists to judge; 114 until the per-listing and Dutch listing checks of 2026-10-17, 106 until P7 added the SppStatus comparison, 2026-10-12); the gate-table guard has
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.
@@ -192,47 +175,19 @@
   loopback socket with a synthetic clock, and
   `test_bridge_sourcetable.c`, the sourcetable document the app decodes.
 
-Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md), [2026-08-21 to 08-26](sessions-2026-08-21-to-08-26.md).
+Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md), [2026-08-21 to 08-26](sessions-2026-08-21-to-08-26.md), [2026-08-25 to 10-10](sessions-2026-08-25-to-10-10.md).
 
 ## Recently Promoted
 
 <!-- Format: "if [situation], then [what to do] — promoted from gotcha-log YYYY-MM-DD"
      Retire an entry as soon as it appears in its destination. -->
 
-- If you are about to **report a count from a build** — warnings, tests,
-  symbols — produce it the way the build produces it: same standard, same
-  optimisation (`-fsyntax-only` is blind to the truncation warnings;
-  `-std=c99` hides `M_PI`, 2026-08-15) — promoted from gotcha-log
-  2026-08-15 to `CLAUDE.md` hard constraints.
-- If you **add a field to the snapshot schema**, fill it in the same
-  change or do not add it (ARP fields, then `latency_s` 2026-08-16) —
-  promoted from gotcha-log 2026-08-16 to Active Decisions above.
-- If a defect is **reported against a deployed artefact**, ask that
-  artefact its version before reading any code (pro's APK 2026-08-14,
-  the VPS binary 2026-08-16) — promoted from gotcha-log 2026-08-16,
-  generalising the Android-only wording in Active Decisions above.
-- If a **falsification leaves a check green**, the test is the defect:
-  feed it the input the defence exists for, not the input a cooperating
-  caller would send (synthetic ephemerides sharing one `af1`, so a
-  removed clock-drift term was common-mode and invisible, 2026-10-09;
-  a snapshot that politely blanked `selfpos_speed_mms`, so a removed
-  `has_vel` gate was never consulted, 2026-10-09; the same mistake again
-  in the snapshot serialiser's own test hours later, 2026-10-09) —
-  promoted from gotcha-log 2026-10-09 to Active Decisions below.
-- If you are about to **write down what a frontend does** — in the
-  feature matrix, a doc, a brief for another session — **test it on that
-  frontend first** (the daemon "solved stations broadcasting their own
-  orbits" and solved none; `-t --report` was documented the same and did
-  not either; *Read the wiring, missed the gate* before them) —
-  promoted from gotcha-log 2026-10-10 to Active Decisions below.
-- If you **hand the author a command**, put everything it depends on
-  **in the command itself** — the shell it is written for and, for git,
-  `git -C <checkout>`, and for a commit the message as
-  `commit -F <file>` — never in a sentence beside it (a Bash heredoc
-  at a PowerShell prompt, 2026-10-09; a bare `git commit` in the wrong
-  checkout, 2026-10-10; a bare `git commit` whose editor closed empty,
-  2026-10-12) — promoted from gotcha-log 2026-10-10 to Active
-  Decisions below.
+*None waiting.* The six entries here were retired on 2026-10-18, each
+already in its destination: `CLAUDE.md`'s hard constraints (measure the
+way the build measures) and Active Decisions below (fill a snapshot
+field or do not declare it; ask the artefact its version; a green
+falsification accuses the test; test a frontend before describing it; a
+command carries its own context).
 
 ## Key File Paths
 
@@ -352,33 +307,24 @@ Supplementing CLAUDE.md's list with paths found during work:
   it should be wrong, stale where a caller would have blanked it,
   different where uniformity would hide the fault. And **falsify every
   new check by name**, because that is what catches this.
-- **A flag's lifetime must match the thing it describes** — and a
-  record of a run outlives the screen that draws it. Three faces of one
-  rule, all paid for: run-scoped accumulators in composables lost a
-  nine-hour capture (2026-08-23), a per-run provenance flag over a
-  process-lived cache credited a stale file for the stream's orbits
-  (2026-08-25), and the Intent that copies settings into a run forgot
-  the TLS field, so the run silently went plain text (2026-08-25 —
-  a field the copy forgets is a field the run does without).
+- **A flag's lifetime must match the thing it describes — and a record
+  of a run outlives the screen that draws it.** Anything that
+  accumulates across a run -- trails, the C/N0 scatter, counters --
+  belongs where the run lives (`MonitorService`'s companion), never in
+  a composition, which dies on a rotation and is fed nothing while the
+  activity is stopped. Three faces of one rule, all paid for:
+  run-scoped accumulators in composables lost a nine-hour capture
+  (2026-08-23; the scatter had done this since it was written, and
+  tracks inherited it by copying the precedent), a per-run provenance
+  flag over a process-lived cache credited a stale file for the
+  stream's orbits (2026-08-25), and the Intent that copies settings into
+  a run forgot the TLS field, so the run silently went plain text
+  (2026-08-25 — a field the copy forgets is a field the run does
+  without).
 - **Runs start and stop in one place** — the hub owns every run verb;
   the analysis screen is the viewing room (author, 2026-08-25). The
   service door enforces single occupancy with a logged refusal; the
   UI's hidden buttons are a promise, the door is the wall.
-- **A record of a run outlives the screen that draws it.** Anything that
-  accumulates across a session -- trails, the C/N0 scatter, counters --
-  belongs where the run lives (`MonitorService`'s companion), never in a
-  composition. A composition dies on a rotation and is fed nothing while
-  the activity is stopped, so a plot kept there quietly describes the
-  minutes its screen was on rather than the run (2026-08-23; the scatter
-  had done this since it was written, and tracks inherited it by copying
-  the precedent).
-- **A learning project, held to professional standards.** No revenue goal
-  and no growth to optimise, so commercially-argued proposals are
-  off-target — but the engineering bar is a professional one, and "only a
-  learning project" is never a reason to skip a test, a review or a
-  verification (`CLAUDE.md`).
-- **One measurement core, four frontends** — no threshold or verdict in any
-  UI layer (`design/architecture.md`).
 - **Verify a GUI from the launcher its users use.** Started from Explorer a
   Win32 GUI has no console, so `stdout` has no descriptor and anything built
   on it fails silently; started from a shell the same binary behaves
@@ -396,8 +342,6 @@ Supplementing CLAUDE.md's list with paths found during work:
   read the first entry and say how many they ignored (`docs/jsonConfigs.md`).
 - **The app never downloads a navigation file** — the user supplies it, so the
   licence relationship stays theirs (`android/design/views.md`).
-- **KPI 8 judges constellations by the sourcetable's NavSys field**, never by
-  the 1005/1006 indicator bits, which cannot express BeiDou.
 - **The app collects no telemetry** — no SDK, no endpoint, no consent flow.
   Installs and daily-use figures come from Play Console; the shared report
   is for the user to hand to their caster operator, not a line to the
