@@ -399,6 +399,14 @@ data class BridgeDocument(
     val watch: Watch? = null,
     val vrs: VrsDoc? = null,
     val sr: SrDoc? = null,
+    /**
+     * Tier 2's evidence floor from the core's policy (`SR_MIN_WINDOW_S`
+     * unless a thresholds file says otherwise): what the hub's progress
+     * bar counts towards during a watch. Null from a bridge too old to
+     * send it, in which case no tier 2 bar is drawn rather than one
+     * against a guessed number.
+     */
+    @SerialName("sr_min_window_s") val srMinWindowS: Double? = null,
     val sats: List<SatEntry> = emptyList(),
     val eph: EphState = EphState(),
     val arp: ArpInfo? = null,

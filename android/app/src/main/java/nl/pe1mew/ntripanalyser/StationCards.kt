@@ -15,8 +15,11 @@
 
 package nl.pe1mew.ntripanalyser
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,20 +41,48 @@ internal fun VerdictBadge(
     outcome: MonitorService.Outcome,
     configured: Boolean,
     failure: String? = null,
+    /** Why the tier 1 bar last went back to empty, or null (S5.3). */
+    restart: String? = null,
 ) {
+    // Set up but never run: nothing. READY said nothing a reviewer could
+    // use, and the hub now opens with what the app is for, in the
+    // summary row above (design/appGuiReview.md, S4.1). Not configured
+    // still shows, because it says what to do.
+    if (doc == null && configured) return
+
     val verdict = doc?.kpi?.overallEnum ?: RunVerdict.RUNNING
+    val watch = doc?.watch
+    val sr = doc?.sr
+    val inWatch = watch != null && sr != null
+    // A watch gives no word until tier 2 can give its own, after its
+    // evidence floor; then the word is tier 2's (STABLE, DEGRADED,
+    // UNSTABLE), whatever tier 1 says -- tier 1 stays in plain sight in
+    // the indicators and on its card (S5.1; author, 2026-10-20, after a
+    // watch on NEAR held CAUTION over STABLE). Before the floor, CAUTION
+    // and FAILED are shown at once, as the core has them -- a warning the
+    // user cannot see yet helps nobody (S5.2).
+    val tier2Word = inWatch && sr!!.overall != 0
+    val holdWord = inWatch && !tier2Word &&
+        verdict != RunVerdict.CAUTION && verdict != RunVerdict.FAILED
     // "READY" is a claim, and an app with no mountpoint is not ready for
     // anything.  Saying so invites the user to tap the settings card
     // rather than to wonder why the run button does nothing.
     val label = when {
-        doc != null -> doc.kpi.overallName
-        !configured -> stringResource(R.string.verdict_unconfigured)
-        else -> stringResource(R.string.verdict_idle)
+        doc == null -> stringResource(R.string.verdict_unconfigured)
+        tier2Word -> srVerdictWord(sr!!.overall)
+        holdWord -> stringResource(R.string.verdict_running)
+        // The core's word: STATION OK only once the 60 s window has
+        // held, CAUTION and FAILED at once (kpi.c).
+        else -> doc.kpi.overallName
     }
 
     Surface(
-        color = if (doc == null && !configured) Color(0xFF9E9E9E)
-                else runColour(verdict),
+        color = when {
+            doc == null -> Color(0xFF9E9E9E)
+            tier2Word -> srVerdictColour(sr!!.overall)
+            holdWord -> runColour(RunVerdict.RUNNING)
+            else -> runColour(verdict)
+        },
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -75,87 +106,144 @@ internal fun VerdictBadge(
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                     )
-                } else
-                Text(
-                    // Once the window is met the countdown has served its
-                    // purpose; a watch showing "101 of 60 s" reads as a
-                    // fault in the counter.
-                    if (k.sustainedS >= k.sustainTargetS)
-                        stringResource(R.string.sustained_held, dur(k.sustainedS))
-                    else
-                        stringResource(
-                            R.string.sustained_of,
-                            k.sustainedS.toInt(), k.sustainTargetS.toInt(),
-                        ),
-                    color = Color.White,
-                    fontSize = 13.sp,
-                )
-                // The watch's own line (run-flow.md F2): during a
-                // watch, tier 1 settles in the first minute and the
-                // number the user actually waits on is the stability
-                // evidence floor -- so the subtitle says which run is
-                // going and the bar changes duty to that floor. The
-                // headline above stays tier 1's word alone; tier 2
-                // appears named as itself, never borrowed.
-                val watch = doc.watch
-                val sr = doc.sr
-                if (running && watch != null && sr != null) {
-                    Spacer(Modifier.height(4.dp))
+                } else if (inWatch) {
+                    // The watch's own line (run-flow.md F2) and its bar:
+                    // the run's progress towards tier 2's evidence floor,
+                    // which comes from the core's policy through the
+                    // bridge. Until 2026-10-20 the app held its own 600
+                    // here (design/appGuiReview.md, S5). Once the floor is
+                    // met the line names tier 2's headline and the bar
+                    // has done its work.
+                    val floor = doc.srMinWindowS
                     Text(
-                        if (sr.overall == 0)
+                        if (sr!!.overall == 0 && floor != null)
                             stringResource(
                                 R.string.banner_watch_evidence,
-                                dur(watch.elapsedS),
-                                sr.windowS.toInt(), 600,
+                                dur(watch!!.elapsedS),
+                                sr.windowS.toInt(), floor.toInt(),
                             )
                         else
                             stringResource(
                                 R.string.banner_watch_stability,
-                                dur(watch.elapsedS), sr.headline,
+                                dur(watch!!.elapsedS), sr.headline,
                             ),
                         color = Color.White,
                         fontSize = 13.sp,
                         textAlign = TextAlign.Center,
                     )
-                }
-                Spacer(Modifier.height(8.dp))
-                if (running && watch != null && sr != null && sr.overall == 0) {
-                    LinearProgressIndicator(
-                        progress = {
-                            (sr.windowS / 600.0).toFloat().coerceIn(0f, 1f)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = Color.White,
-                    )
-                } else if (running) {
-                    LinearProgressIndicator(
-                        progress = { k.sustainFraction },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = Color.White,
-                    )
-                } else if (outcome == MonitorService.Outcome.RUNNING) {
-                    Text(
-                        stringResource(R.string.run_watching),
-                        color = Color.White,
-                        fontSize = 13.sp,
-                    )
-                } else {
-                    // "Finished" and "stopped" are deliberately different
-                    // words: a run cut short did not measure what a run
-                    // that reached its verdict measured.
-                    Text(
-                        stringResource(
-                            when (outcome) {
-                                MonitorService.Outcome.STOPPED -> R.string.run_stopped
-                                MonitorService.Outcome.LIMIT_REACHED -> R.string.run_limit
-                                else -> R.string.run_finished
+                    if (running && sr.overall == 0 && floor != null && floor > 0.0) {
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = {
+                                (sr.windowS / floor).toFloat().coerceIn(0f, 1f)
                             },
-                            k.elapsedS.toInt(),
-                        ),
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.White,
+                        )
+                    }
+                } else {
+                    Text(
+                        // Once the window is met the countdown has served
+                        // its purpose; "101 of 60 s" reads as a fault in
+                        // the counter.
+                        if (k.sustainedS >= k.sustainTargetS)
+                            stringResource(R.string.sustained_held, dur(k.sustainedS))
+                        else
+                            stringResource(
+                                R.string.sustained_of,
+                                k.sustainedS.toInt(), k.sustainTargetS.toInt(),
+                            ),
                         color = Color.White,
                         fontSize = 13.sp,
                     )
+                    if (running) {
+                        // The run's progress towards its 60 s window. It
+                        // does not advance while a check is still waiting
+                        // for evidence, and it starts again when the
+                        // verdict changes -- the core's clock does both --
+                        // so it says why when it does (S5.2, S5.3).
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { k.sustainFraction },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.White,
+                        )
+                        if (restart != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(restart, color = Color.White, fontSize = 13.sp,
+                                 textAlign = TextAlign.Center)
+                        }
+                    }
                 }
+                if (!running) {
+                    Spacer(Modifier.height(8.dp))
+                    if (outcome == MonitorService.Outcome.RUNNING) {
+                        Text(
+                            stringResource(R.string.run_watching),
+                            color = Color.White,
+                            fontSize = 13.sp,
+                        )
+                    } else {
+                        // "Finished" and "stopped" are deliberately
+                        // different words: a run cut short did not measure
+                        // what a run that reached its verdict measured.
+                        Text(
+                            stringResource(
+                                when (outcome) {
+                                    MonitorService.Outcome.STOPPED -> R.string.run_stopped
+                                    MonitorService.Outcome.LIMIT_REACHED -> R.string.run_limit
+                                    else -> R.string.run_finished
+                                },
+                                k.elapsedS.toInt(),
+                            ),
+                            color = Color.White,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
+                if (k.items.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    KpiIndicators(k.items)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The eight checks at a glance, beside the bar (S5.5, S5.7): one mark per
+ * check, in the colour its own card shows, drawn from the same report as
+ * the cards so the two cannot disagree. On a white strip, because the
+ * badge behind them is itself a verdict colour and a green mark on green
+ * would vanish. Through the whole run: when the bar starts again, this
+ * says which check moved.
+ */
+@Composable
+internal fun KpiIndicators(items: List<KpiItem>) {
+    val n = { v: Verdict -> items.count { it.verdictEnum == v } }
+    val description = stringResource(
+        R.string.kpi_indicators,
+        n(Verdict.PASS), n(Verdict.WARN), n(Verdict.FAIL), n(Verdict.PENDING),
+    )
+    Surface(
+        color = Color.White.copy(alpha = 0.92f),
+        shape = RoundedCornerShape(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { contentDescription = description },
+    ) {
+        Row(
+            Modifier.padding(5.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            items.forEach { item ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(10.dp)
+                        .background(verdictColour(item.verdictEnum),
+                                    RoundedCornerShape(3.dp))
+                )
             }
         }
     }

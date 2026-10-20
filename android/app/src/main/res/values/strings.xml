@@ -3,6 +3,17 @@
 
     <string name="verdict_idle">READY</string>
     <string name="verdict_unconfigured">NOT CONFIGURED</string>
+    <!-- The verdict bar during a watch's first window: no word until
+         tier 2 can give its own (design/appGuiReview.md, S5.1). -->
+    <string name="verdict_running">RUNNING</string>
+    <!-- Why the bar went back to empty: the core's clock restarts when
+         the verdict changes, and a bar that empties without a reason
+         reads as a fault (S5.3). -->
+    <string name="bar_restarted">Restarted: %1$s at %2$s</string>
+    <string name="bar_why_pending">a check is waiting for evidence</string>
+    <string name="bar_why_passing">all checks passing</string>
+    <string name="kpi_indicators">The eight checks: %1$d pass, %2$d warn, %3$d fail, %4$d waiting</string>
+    <string name="action_vrs_hint">Checks plus the network at your position — answer in ~2 min, then runs until stopped</string>
     <string name="sustained_of">%1$d of %2$d s sustained</string>
 
     <string name="sustained_held">Held for %1$s</string>

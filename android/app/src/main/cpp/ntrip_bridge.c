@@ -702,6 +702,12 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
             if (n < 0) return -1;
             pos += n;
         }
+        /* The evidence floor the report judges by, from the policy in
+         * force, beside the report rather than inside its frozen keys:
+         * the hub's progress bar counts towards it, and held its own
+         * 600 until 2026-10-20 (design/appGuiReview.md, S5). */
+        app(out, cap, &pos, ",\"sr_min_window_s\":%.1f",
+            b->sr.pol.min_window_s);
     }
 
     /* What the station says about itself.  More than the position: an

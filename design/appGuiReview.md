@@ -1034,6 +1034,40 @@ warns, chosen on the day); the indicators match the cards at every
 step; the Network-RTK button's subtitle on two lines (R11, 5). Desktop:
 `test_all` still 26/26.
 
+**Results 2026-10-20, Huawei, pro `.dev` on `NEAR`:**
+- READY hidden; the hub opens with the summary row; *Run the check*,
+  *Watch station*, *Network-RTK check* in that order, *Run the check*
+  on screen without scrolling. The Network-RTK subtitle renders on two
+  lines (120 px at 60 px a line).
+- A check: *RUNNING* and the bar at 0 while checks wait ("5 pass, 3
+  waiting"); *CAUTION* at once when check 8 warned (~30 s); the bar
+  counting 9 → 26 → 44 → held 60 s; "Finished after 90 s". The eight
+  indicators matched the cards at every sample.
+- During a watch the Network-RTK button is disabled (`enabled=false`),
+  *Stop* enabled.
+- A watch: evidence counted against the core's floor, now sent by the
+  bridge (`sr_min_window_s`): "42/600 s" → "549/600 s", then
+  "stability: STABLE over 0.2 h".
+- **Decided on the way (author, 2026-10-20):** after the floor a watch's
+  headline is tier 2's word whatever tier 1 says (NEAR held CAUTION over
+  STABLE as first built); tier 1 stays visible in the indicators and on
+  its card. **Verified** on a second watch: CAUTION with "evidence
+  597/600 s", then **STABLE** at 19 min ("stability: STABLE over 0.3
+  h"), the indicators still showing tier 1's one warning.
+- Free, `RFSEE01`: READY hidden, *Run the check* the only run button;
+  *RUNNING* through the waiting checks and the 60 s window (10 → 25 →
+  42 → 58 s), **STATION OK only once it held**, "Finished after 120 s",
+  "8 pass".
+- **The restart reason is built but not observed.** A Wi-Fi drop
+  inside the window does not restart the bar: the stream stops, check 1
+  fails, and the core settles FAILED at once ("Finished after 46 s"),
+  which is right. A restart needs the verdict to change without a hard
+  failure (OK to CAUTION or back), which a station does or does not do
+  on its own. Recorded as not observed, by the author's agreement, and
+  watched for in the runs of steps 3 and 4; the app has no Kotlin unit
+  tests to pin it on the desktop.
+- Desktop, after the bridge change: 0 warnings, 26/26 tests.
+
 ### Step 3 — The Network-RTK check runs on after the gate
 
 *Items:* R11 (1, 3, 6, 7, the revision), S5.6, S5.6a, S5.6b.

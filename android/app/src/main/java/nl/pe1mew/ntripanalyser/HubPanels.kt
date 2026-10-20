@@ -79,13 +79,57 @@ object VerdictPanel : Panel {
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
         val context = LocalContext.current
+        val k = state.doc?.kpi
+        val restart = if (k == null) null else BarRestart.observe(
+            state.run.runId, k,
+        ) { at ->
+            context.getString(
+                R.string.bar_restarted,
+                when {
+                    k.overallEnum == RunVerdict.CAUTION -> k.overallName
+                    k.items.any { it.verdictEnum == Verdict.PENDING } ->
+                        context.getString(R.string.bar_why_pending)
+                    else -> context.getString(R.string.bar_why_passing)
+                },
+                at,
+            )
+        }
         VerdictBadge(
             state.doc, state.run.running, state.run.outcome,
             state.settings.isComplete,
             failure = state.doc?.stats?.failure
                 ?.takeIf { it != Failure.NONE }
                 ?.let { failureSentence(context, it, state.settings) },
+            restart = restart,
         )
+    }
+
+    /**
+     * Why the tier 1 bar last went back to empty (S5.3).
+     *
+     * The core restarts its 60 s clock when the verdict changes -- OK to
+     * CAUTION or back, or a check falling back to waiting -- and says
+     * nothing about it; the drop in `sustained_s` is the only sign. Kept
+     * per run, outside the composition, so a visit to Analysis and back
+     * does not lose the reason. The words are the verdict it restarted
+     * on, and the run time at which it did.
+     */
+    private object BarRestart {
+        private var runId = Long.MIN_VALUE
+        private var last = 0.0
+        private var reason: String? = null
+
+        fun observe(id: Long, k: KpiReport, words: (String) -> String): String? {
+            if (id != runId) { runId = id; last = 0.0; reason = null }
+            // Half a second of slack: the clock is sampled once a second,
+            // and a drop smaller than that is jitter, not a restart.
+            if (last > 0.0 && k.sustainedS + 0.5 < last) {
+                val s = k.elapsedS.toInt()
+                reason = words("%d:%02d".format(s / 60, s % 60))
+            }
+            last = k.sustainedS
+            return reason
+        }
     }
 
     override fun shareSection(state: HubState): ShareSection? {
@@ -309,20 +353,11 @@ object VrsPanel : Panel {
 
     @Composable
     override fun Content(state: HubState, actions: HubActions) {
-        val v = state.doc?.vrs
-        if (v != null) {
-            VrsCard(v)
-        } else if (!state.run.running) {
-            OutlinedButton(
-                onClick = { actions.startVrsCheck() },
-                enabled = state.settings.isComplete,
-                modifier = Modifier.fillMaxWidth(),
-                shape = TRANSPORT_SHAPE,
-                contentPadding = TRANSPORT_PADDING,
-            ) { TransportLabel(stringResource(R.string.action_vrs), "▶") }
-        }
-        // While an ordinary run is going there is nothing to draw: the
-        // button would start a second run, and the card has no report.
+        // The result only. The button that starts the check is
+        // [VrsRunPanel], with the other run buttons: it used to stand
+        // here and be replaced by this card, which is how it seemed to
+        // appear and disappear (design/appGuiReview.md, R3).
+        state.doc?.vrs?.let { VrsCard(it) }
     }
 
     /**
@@ -468,6 +503,34 @@ object WatchControlPanel : Panel {
             TransportLabel(
                 stringResource(R.string.action_watch), "▶",
                 stringResource(R.string.action_watch_hint),
+            )
+        }
+    }
+}
+
+/**
+ * The button that starts the network-RTK check, last of the run buttons:
+ * the widest check, after tier 1 and tier 2 (design/appGuiReview.md, R4,
+ * R11). Always drawn, greyed while any run is going, never replaced by
+ * the check's result card -- which [VrsPanel] draws on its own -- so it
+ * no longer seems to come and go (R3). Composed only by the paid
+ * registry, like the check itself.
+ */
+object VrsRunPanel : Panel {
+    override val key = "vrs-start"
+
+    @Composable
+    override fun Content(state: HubState, actions: HubActions) {
+        OutlinedButton(
+            onClick = { actions.startVrsCheck() },
+            enabled = state.settings.isComplete && !state.run.running,
+            modifier = Modifier.fillMaxWidth(),
+            shape = TRANSPORT_SHAPE,
+            contentPadding = TRANSPORT_PADDING,
+        ) {
+            TransportLabel(
+                stringResource(R.string.action_vrs), "▶",
+                stringResource(R.string.action_vrs_hint),
             )
         }
     }
