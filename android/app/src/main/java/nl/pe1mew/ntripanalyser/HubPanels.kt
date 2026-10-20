@@ -41,6 +41,37 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * What the app is for, in one line, with the ⓘ that explains the rest
+ * (`design/appGuiReview.md`, R1.5 and S2). The line is the store's short
+ * description; the help is the store listing's own text, with the run
+ * buttons' subtitles, each sentence shown only where its edition has the
+ * run it describes.
+ */
+object IntroPanel : Panel {
+    override val key = "intro"
+
+    @Composable
+    override fun Content(state: HubState, actions: HubActions) {
+        val help = buildList {
+            add(stringResource(R.string.hub_help))
+            add(stringResource(
+                if (Features.HAS_WATCH) R.string.hub_help_verdict_watch
+                else R.string.hub_help_verdict))
+            add(stringResource(R.string.hub_help_run))
+            if (Features.HAS_WATCH) add(stringResource(R.string.hub_help_watch))
+            if (Features.HAS_VRS_CHECK) add(stringResource(R.string.hub_help_vrs))
+            add(stringResource(R.string.hub_help_client))
+        }.joinToString("\n\n")
+        SummaryRow(
+            summary = stringResource(R.string.hub_summary),
+            helpTitle = stringResource(R.string.hub_help_title),
+            help = help,
+            inset = 0.dp,
+        )
+    }
+}
+
 /** The verdict, or what is standing in for one while a run is going. */
 object VerdictPanel : Panel {
     override val key = "verdict"

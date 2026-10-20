@@ -129,6 +129,10 @@ fun AnalysisScreen(
     AppScaffold(
         onBack = onLeave,
         menu = menu,
+        // The way out where the way in was: the hub's Analysis bar,
+        // turned round (design/appGuiReview.md, S5.3). The same exit as
+        // the ← and the phone's Back.
+        analysis = AnalysisBar(enabled = true, onOpen = onLeave, back = true),
         // Share what is on screen: the plot, as it is drawn. A plot's
         // natural artefact is a picture, which is why this screen sends
         // one and the hub sends text.

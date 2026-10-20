@@ -26,6 +26,7 @@ package nl.pe1mew.ntripanalyser
  * indistinguishable from a broken one to somebody who has not paid.
  */
 internal val hubPanels: List<Panel> = listOf(
+    IntroPanel,
     VerdictPanel,
     ConnectionPanel,
     BrowsePanel,

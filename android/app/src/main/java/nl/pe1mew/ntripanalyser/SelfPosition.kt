@@ -260,9 +260,14 @@ internal fun SelfPosView(doc: BridgeDocument?) {
     val stats = doc?.stats
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Text(stringResource(R.string.sp_explainer),
-             style = MaterialTheme.typography.bodySmall, color = faint,
-             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+        // The summary on the page, the explanation behind the ⓘ (R1):
+        // the paragraph that stood here, then the two added with it.
+        SummaryRow(
+            summary = stringResource(R.string.sp_summary),
+            helpTitle = stringResource(R.string.view_selfpos),
+            help = stringResource(R.string.sp_explainer) + "\n\n" +
+                stringResource(R.string.sp_help),
+        )
 
         if (sr == null) {
             Text(stringResource(R.string.sp_no_run),

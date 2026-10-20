@@ -979,6 +979,28 @@ and Back, and the screen keeps its scroll position; *Back to checks*
 returns to the hub; the name is on one line at font scale 1.0, and is
 looked at on the largest font size and reported (R2).
 
+**Done 2026-10-20, Huawei, `.dev` builds of both editions** (installed
+19:37–19:38; before-shots taken first from the Play apps):
+- Hub: the summary row with ⓘ at the top, both editions. The help is
+  the edition's own: pro carries the watch and Network-RTK lines and
+  "a watch adds…", free has neither.
+- Every analysis tab, pro's five and free's three: the summary row
+  with ⓘ, and the dialog with the screen's name and its reviewed text.
+  Sky view's tracks sentence in pro, absent in free.
+- The dialog closes by *Close*, Back and a tap outside, the app keeping
+  focus each time. *Back to checks* returns to the hub.
+- **R2, measured:** with the real name built into a dev build for the
+  test (the dev and bench builds carry shorter names) and reverted after:
+  at font scale 1.0, one line everywhere; **at the largest, 1.45, one
+  line on the hub (608 px) but two lines on the analysis screens**,
+  where the back arrow leaves 600 px. Reported for the author's
+  decision, as R2 says, rather than cut short. **Accepted (author,
+  2026-10-20):** one line at every size but the system's largest, where
+  wrapping is what large-text users expect; the size stays
+  `titleMedium`.
+- Not tested: the help text already describes the Network-RTK check as
+  running until stopped, which arrives in step 3.
+
 ### Step 2 — The hub: order, verdict bar, progress
 
 *Items:* R3, R4, S4.1, S4.2, S5.1–S5.7, R11 (5), R11 (4).

@@ -30,7 +30,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,7 +112,18 @@ fun AppScaffold(
                 // No title parameter, deliberately. The name of the app
                 // is the title on every screen; which screen you are on
                 // is said by the back arrow and by the tabs.
-                title = { Text(stringResource(R.string.app_name)) },
+                //
+                // One step down the type scale from the bar's default
+                // (titleLarge, 22 sp), on every screen alike: at the
+                // default size "NTRIP Analyser Pro" took two lines on an
+                // S23 with a larger system font, a tenth of the screen
+                // above the tabs (design/appGuiReview.md, R2).
+                title = {
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                },
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) {
@@ -205,15 +218,23 @@ private fun OverflowMenu(actions: MenuActions) {
 }
 
 /**
- * The way into the three plots.
+ * The way into the plots -- and, on Analysis, the way back out.
  *
  * @param enabled whether there is anything to look at -- a run in
  *                progress, or one that left results behind. Drawn either
  *                way, muted when there is not, because a control that
  *                comes and goes is harder to find than one that waits.
+ * @param back    the bar Analysis shows in the same place: *Back to
+ *                checks*, with the back mark at the left. A reviewer did
+ *                not find the ← at the top (design/appGuiReview.md,
+ *                S5.3); the way out is now where the way in was.
  */
 @Immutable
-class AnalysisBar(val enabled: Boolean, val onOpen: () -> Unit)
+class AnalysisBar(
+    val enabled: Boolean,
+    val onOpen: () -> Unit,
+    val back: Boolean = false,
+)
 
 /** The bar itself: label at the left, the template's forward mark at the right. */
 @Composable
@@ -249,17 +270,29 @@ private fun AnalysisBarRow(bar: AnalysisBar) {
                     start = 16.dp, end = HUB_MARK_INSET,
                     top = 14.dp, bottom = 14.dp,
                 ),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement =
+                if (bar.back) Arrangement.Start else Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                stringResource(R.string.mode_analysis),
-                color = tint,
-                style = MaterialTheme.typography.titleMedium,
-            )
-            // The same mark the hub's rows will carry from P2.1: this one
-            // leads somewhere.
-            Text("▶", color = tint, fontSize = 14.sp)
+            if (bar.back) {
+                // The way back: its mark leads, as the ← in the bar does.
+                Text("◀", color = tint, fontSize = 14.sp)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    stringResource(R.string.mode_back_checks),
+                    color = tint,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            } else {
+                Text(
+                    stringResource(R.string.mode_analysis),
+                    color = tint,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                // The same mark the hub's rows will carry from P2.1: this one
+                // leads somewhere.
+                Text("▶", color = tint, fontSize = 14.sp)
+            }
         }
     }
 }

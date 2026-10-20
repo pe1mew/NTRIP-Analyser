@@ -30,6 +30,7 @@ package nl.pe1mew.ntripanalyser
  * has no screen at all.
  */
 internal val hubPanels: List<Panel> = listOf(
+    IntroPanel,
     VerdictPanel,
     ConnectionPanel,
     BrowsePanel,

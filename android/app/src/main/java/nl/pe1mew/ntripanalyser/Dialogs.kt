@@ -27,6 +27,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
@@ -589,6 +592,81 @@ private fun NoticesDialog(onDismiss: () -> Unit) {
             }
         },
     )
+}
+
+/**
+ * A screen's explanation, opened from its ⓘ (`design/appGuiReview.md`,
+ * R1): a dialog in the mountpoint list's dress -- title, the text
+ * scrolling inside it, *Close* -- and closed as well by a tap outside or
+ * Back. The screen behind is untouched, scroll position included.
+ *
+ * @param text paragraphs separated by a blank line, as the help strings
+ *             are written; each is drawn as its own paragraph.
+ */
+@Composable
+internal fun HelpDialog(title: String, text: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                Modifier
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                text.split("\n\n").forEach {
+                    Text(it, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_close))
+            }
+        },
+    )
+}
+
+/**
+ * The row at the top of a screen: its one-line summary, and at the right
+ * the ⓘ that opens [HelpDialog] (R1, S2). Every analysis screen and the
+ * hub draw it through here, so the summary and the button cannot drift
+ * apart between screens.
+ *
+ * @param inset the row's own side padding: the analysis screens draw edge
+ *              to edge, the hub is already padded by its caller.
+ */
+@Composable
+internal fun SummaryRow(
+    summary: String,
+    helpTitle: String,
+    help: String,
+    inset: androidx.compose.ui.unit.Dp = 16.dp,
+) {
+    // Saved, so a rotation with the dialog open keeps it open.
+    var open by rememberSaveable { mutableStateOf(false) }
+    val label = stringResource(R.string.help_open)
+    Row(
+        Modifier.fillMaxWidth().padding(start = inset),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            summary,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+        )
+        IconButton(onClick = { open = true }) {
+            Text(
+                "ⓘ",
+                fontSize = 22.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.semantics { contentDescription = label },
+            )
+        }
+    }
+    if (open) HelpDialog(helpTitle, help) { open = false }
 }
 
 /**

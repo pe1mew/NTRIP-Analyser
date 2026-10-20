@@ -122,11 +122,17 @@ fun SkyView(
     val surface = MaterialTheme.colorScheme.surface
     val density = LocalDensity.current
 
+    val skyHelp = stringResource(R.string.sky_help).let {
+        // The tracks sentence only where tracks are drawn: free never
+        // describes a line it does not show.
+        if (Features.HAS_TRACKS) it + "\n\n" + stringResource(R.string.sky_help_tracks)
+        else it
+    }
     AnalysisBands(
         modifier = modifier,
-        // The screen says what this view is showing, above the tabs;
-        // saying it again here would be the same sentence twice.
-        explainer = null,
+        topic = stringResource(R.string.sky_summary),
+        helpTitle = stringResource(R.string.view_sky),
+        help = skyHelp,
         summary = {
             // The provenance is in the sentence rather than in a chip
             // beside it, coloured by the same judgement the chip made
@@ -192,8 +198,13 @@ fun SkyView(
  * had drifted into three different orders, with the sky view's legend at
  * the top and the other two at the bottom.
  *
- * @param explainer one sentence saying what is being shown, or `null`
- *                  where the screen itself has already said it.
+ * @param topic     the screen's one-line summary, beside its ⓘ
+ *                  (`design/appGuiReview.md`, R1 and S2). Required: every
+ *                  analysis screen has one, and a screen without one is
+ *                  the drift this template exists to prevent.
+ * @param helpTitle the help dialog's title -- the screen's own name.
+ * @param help      what the ⓘ opens: the explanation that used to stand
+ *                  on the page, paragraphs separated by a blank line.
  * @param summary   the numbers behind the plot.
  * @param footer    what the plot is of -- the station and its ARP on
  *                  the sky view, nothing on the other two.
@@ -201,25 +212,19 @@ fun SkyView(
  */
 @Composable
 internal fun AnalysisBands(
-    explainer: String?,
+    topic: String,
+    helpTitle: String,
+    help: String,
     summary: @Composable ColumnScope.() -> Unit,
     plot: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
     footer: @Composable ColumnScope.() -> Unit = {},
     legend: @Composable ColumnScope.() -> Unit = {},
 ) {
-    val faint = MaterialTheme.colorScheme.onSurfaceVariant
     PlotLayout(
         modifier = modifier,
         above = {
-            if (explainer != null) {
-                Text(
-                    explainer,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = faint,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
+            SummaryRow(topic, helpTitle, help)
             summary()
         },
         plot = plot,
@@ -530,9 +535,11 @@ fun SignalBars(
 
     AnalysisBands(
         modifier = modifier,
-        explainer = stringResource(
+        topic = stringResource(
             if (liveValues) R.string.bars_live else R.string.bars_mean
         ),
+        helpTitle = stringResource(R.string.view_bars),
+        help = stringResource(R.string.bars_help),
         summary = {
         val meanPower = if (shown.isEmpty()) 0f else
             10f * log10(shown.map { 10f.pow(it.cn0 / 10f) }.average().toFloat())
@@ -764,7 +771,9 @@ internal fun HandoverDetail(
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
 
     AnalysisBands(
-        explainer = stringResource(R.string.ho_explainer),
+        topic = stringResource(R.string.ho_explainer),
+        helpTitle = stringResource(R.string.ho_title),
+        help = stringResource(R.string.ho_help),
         summary = {
             if (sum == null) return@AnalysisBands
             Text(
@@ -1269,7 +1278,9 @@ fun ElevationView(
 
     AnalysisBands(
         modifier = modifier,
-        explainer = stringResource(R.string.elev_explain),
+        topic = stringResource(R.string.elev_explain),
+        helpTitle = stringResource(R.string.view_elev),
+        help = stringResource(R.string.elev_help),
         summary = {
         Text(
             stringResource(R.string.elev_header, samples.total),
