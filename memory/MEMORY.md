@@ -59,14 +59,17 @@
 
 <!-- 2026-10-18 -->
 
-- **The Android GUI review is being collected, not built**
-  (`design/appGuiReview.md`, started 2026-10-17). The author gives the
-  findings one by one; each is recorded with its decisions and open
-  questions, and **nothing is implemented until the author says the
-  list is ready**. Then: implement, and test both editions on the
-  Huawei. R10 (a hand-over restarts the Self-position figures) is a
-  core change, so it reaches the GUI, CLI and daemon too.
-  <!-- verify: test -f design/appGuiReview.md && grep -q "State: collecting" design/appGuiReview.md -->
+- **The Android GUI review is decided and planned, not built**
+  (`design/appGuiReview.md`, started 2026-10-17, collection closed and
+  plan written 2026-10-20). Every item is decided; the plan is six
+  steps, each checked on the Huawei in both editions, and **waits for
+  the author's go**. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches
+  `src/core`: Reference position becomes part of the Network-RTK
+  check (the only Analysis screen during it; no verdict of its own),
+  and the static screens ignore hand-overs.
+  <!-- verify: test -f design/appGuiReview.md && grep -q "State: planned" design/appGuiReview.md -->
+  <!-- the probe tracks the plan's state line; change both together -->
+
 
 <!-- 2026-10-16 -->
 
