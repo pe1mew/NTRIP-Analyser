@@ -1039,11 +1039,11 @@ private fun HandoverPolar(
     roverLon: Double,
     roverIsFix: Boolean,
 ) {
-    val scaleM = polarScaleM(trail, stats, roverLat, roverLon)
+    val track = if (roverIsFix) trail.track() else emptyList()
+    val scaleM = polarScaleM(trail, stats, roverLat, roverLon, track)
     val onSurface = MaterialTheme.colorScheme.onSurface
     val density = LocalDensity.current
     val stations = trail.stations()
-    val track = if (roverIsFix) trail.track() else emptyList()
     val current = trail.current
 
     PolarCanvas(
@@ -1063,12 +1063,25 @@ private fun HandoverPolar(
 
         // The rover's track, oldest first, each step in the colour of
         // the station that was serving the rover when it got there.
+        // Thinned to what the screen can show: a point within
+        // TRACK_DRAW_PX of the last one drawn adds nothing visible, and
+        // drawing every point cost 266 ms a frame at the 50 000-point
+        // cap on the Huawei (design/appGuiReview.md, step 4). A change
+        // of station and the newest point are always drawn, so each
+        // colour starts and ends where it did.
+        val skipM = scaleM / radius * TRACK_DRAW_PX
+        val flat = FlatMetres(roverLat)
         var prev: Offset? = null
-        for (p in track) {
+        var kept: ArpTrail.RoverPoint? = null
+        for ((i, p) in track.withIndex()) {
+            val k = kept
+            if (k != null && k.station == p.station && i != track.lastIndex &&
+                flat.dist2(k.lat, k.lon, p.lat, p.lon) < skipM * skipM) continue
             val here = place(p.lat, p.lon)
             prev?.let { drawLine(stationColour(p.station), it, here,
                                  strokeWidth = 3f) }
             prev = here
+            kept = p
         }
 
         // The baseline to the station in use, under the dots it joins.
@@ -1105,6 +1118,7 @@ private fun HandoverPolar(
 /** How many metres the outer ring stands for: the furthest thing, padded. */
 private fun polarScaleM(
     trail: ArpTrail, stats: Stats, roverLat: Double, roverLon: Double,
+    track: List<ArpTrail.RoverPoint>,
 ): Double {
     var worst = 100.0                       // floor: a 2 m ARP still draws
     val alat = stats.arpLat
@@ -1113,12 +1127,41 @@ private fun polarScaleM(
         worst = maxOf(worst, geoDistanceM(roverLat, roverLon, alat, alon))
     for (d in trail.dots())
         worst = maxOf(worst, geoDistanceM(roverLat, roverLon, d.lat, d.lon))
-    // And the rover's own track, which can reach further than any station
-    // on a long drive.
-    for (p in trail.track())
-        worst = maxOf(worst, geoDistanceM(roverLat, roverLon, p.lat, p.lon))
+    // And the rover's track as drawn, which can reach further than any
+    // station on a long drive. The furthest point is found on the flat
+    // approximation and only it measured on the sphere: one trig call
+    // instead of one per point, of which there may be 50 000.
+    val flat = FlatMetres(roverLat)
+    var far: ArpTrail.RoverPoint? = null
+    var farD2 = -1.0
+    for (p in track) {
+        val d2 = flat.dist2(roverLat, roverLon, p.lat, p.lon)
+        if (d2 > farD2) { farD2 = d2; far = p }
+    }
+    far?.let { worst = maxOf(worst, geoDistanceM(roverLat, roverLon, it.lat, it.lon)) }
     return worst * 1.2
 }
+
+/**
+ * Squared distances on a plane tangent at one latitude: no trig per
+ * call. Good enough to compare points or to skip ones a pixel apart,
+ * never to label a distance -- [geoDistanceM] does that.
+ */
+private class FlatMetres(lat0: Double) {
+    private val mPerDegLat = 6371000.0 * Math.PI / 180.0
+    private val mPerDegLon = mPerDegLat * kotlin.math.cos(lat0 * Math.PI / 180.0)
+
+    fun dist2(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        var dlo = lon2 - lon1
+        if (dlo > 180.0) dlo -= 360.0 else if (dlo < -180.0) dlo += 360.0
+        val y = (lat2 - lat1) * mPerDegLat
+        val x = dlo * mPerDegLon
+        return x * x + y * y
+    }
+}
+
+/** Track points closer than this on screen are drawn as one. */
+private const val TRACK_DRAW_PX = 1.5f
 
 /** The last five minutes of rover-to-ARP distance, oldest at the left. */
 @Composable

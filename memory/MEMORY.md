@@ -64,10 +64,10 @@
   editions and committed. Still open: the reference position on a real
   drive (hand-overs, lettered stations, the coloured track), the verdict
   bar's restart reason (built, not yet seen), pro's pending listing
-  wording in `play-listing.md`, and the author's call on bounding the
-  track's drawing cost (measured 2026-10-21 on a bench build: 28 ms a
-  frame bare, 101 ms at 10 000 points, 266 ms at the 50 000 cap; heap
-  +2,7 MB, so frame time is the issue, not memory). Unreleased; `changelog.md` carries it. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches
+  wording in `play-listing.md`. The track is thinned at draw time
+  (2026-10-21, bench build: 79 ms a frame at the 50 000 cap instead of
+  244, 26 ms bare; the first published 266 ms was polluted by the
+  harness, see `design/appGuiReview.md` step 4). Unreleased; `changelog.md` carries it. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches
   `src/core`: Reference position becomes part of the Network-RTK
   check (the only Analysis screen during it; no verdict of its own),
   and the static screens ignore hand-overs.

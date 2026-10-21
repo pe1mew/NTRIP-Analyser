@@ -48,7 +48,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
     the station serving it. Its distance takes assertion A3's verdict,
     where A3 and the line measure the same distance, instead of bands of
     the app's own (5 and 50 km), which had shown 26 km amber beside an
-    A3 PASS.
+    A3 PASS. The track is drawn thinned to what the screen can show
+    (points 1,5 px apart): on the Huawei, a 50 000-point track — the
+    cap, about 14 h of driving — redraws in 79 ms instead of 244, and
+    10 000 points in 48 ms instead of 136, with the same picture.
   - **One frame for every polar plot:** sky view, self-position and
     reference position at one size and place — they were about 720, 850
     and 490 px across — with each ring labelled on the north line; the

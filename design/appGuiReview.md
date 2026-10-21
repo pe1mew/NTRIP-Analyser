@@ -10,9 +10,9 @@ steps 1–6 built and checked on the Huawei 2026-10-20 and -21, each
 committed). **Open:** the reference position on a real drive — hand-overs,
 a second lettered station, the rover's coloured track — which a desk
 cannot produce; the bar's restart reason, built but not yet seen; the
-listing's pending wording, for the author; and whether to bound the
-track's drawing cost, measured at 266 ms a frame at its 50 000-point cap
-(step 4).
+listing's pending wording, for the author. The track's drawing cost is
+bounded by thinning at draw time: 79 ms a frame at the 50 000-point cap
+instead of 244 (step 4).
 
 **Scope: the Android app only** (author, 2026-10-20). With R10
 withdrawn and R11's check giving no verdict, nothing here changes
@@ -1235,33 +1235,43 @@ debugger). A temporary bench-only harness, since removed, filled
 `ArpTrail` with a synthetic 12 m-step drive of N points and eight
 stations, and drew the real `HandoverDetail` with the 1 Hz redraw a run
 gives it (one `offerDistance` a second). 30 s per size; frame phases
-from `gfxinfo framestats` (last 10 frames), heap and PSS from one
+from `gfxinfo framestats` (last 10 frames), Java heap from one
 `meminfo` each. The 50 000-point plot was seen drawn (track, A–H, rings).
 
-| N points | frame total, median (p90) | UI thread | render thread | Java heap | PSS |
-|---------:|------------:|------:|------:|------:|------:|
-| 0 | 28 ms (34) | 14 ms | 12 ms | 5,8 MB | 37 MB |
-| 1 000 | 39 ms (44) | 17 ms | 21 ms | 7,1 MB | 41 MB |
-| 10 000 | 101 ms (125) | 46 ms | 54 ms | 6,6 MB | 43 MB |
-| 50 000 | 266 ms (296) | 136 ms | 127 ms | 8,5 MB | 71 MB |
-
-- The plot's own arithmetic at 50 000 (two track copies, a distance
-  pass for the scale, a distance-and-bearing pass to place each point),
-  timed in the harness: median 65 ms, max 74 ms over 40 seconds. The
-  remaining UI time is recording 50 000 `drawLine`s (64 ms median).
-- Cost is linear in N; memory is not the issue (Java heap +2,7 MB at the
-  cap), frame time is: a quarter of every second at the cap, ~10 % at
-  10 000. The 0-point screen already misses 60 Hz on this phone (28 ms),
-  so "janky" in `gfxinfo` says nothing here; the growth does.
-- How fast N grows: one point per document once the rover has moved
+- **How fast N grows:** one point per document once the rover has moved
   10 m, so at any driving speed one a second — 10 000 is ~2,8 h of
   driving, the 50 000 cap ~14 h.
-- **Open, for the author:** whether to bound it. The obvious bound is
-  drawing: the plot is ~900 px across, so points closer than a pixel or
-  two on screen add nothing visible; thinning at draw time (and one track
-  copy per frame instead of two) would cap the cost at the track's
-  on-screen length rather than its point count. Not built; the recorded
-  track and its cap stay as they are.
+- **First figures withdrawn.** The table committed in `102597d` (266 ms
+  at the cap) was taken with a harness that also timed a replica of the
+  plot's arithmetic in a coroutine. On the main dispatcher that work ran
+  inside the frames it was measuring: 56–60 ms between vsync and the
+  frame's start at 50 000, in both builds. The figures below are from a
+  harness without it, the committed and the thinned `Views.kt` built and
+  measured back to back.
+
+| N points | frame median (p90), as committed | thinned |
+|---------:|------------:|------------:|
+| 0 | 28 ms (35) | 26 ms (34) |
+| 1 000 | 36 ms (43) | 27 ms (30) |
+| 10 000 | 136 ms (168) | 48 ms (56) |
+| 50 000 | 244 ms (270) | 79 ms (102) |
+
+- **Thinning built (author, 2026-10-21, "go, start with 1"):**
+  `HandoverPolar` draws a track point only once it is 1,5 px on screen
+  (`TRACK_DRAW_PX`) from the last one drawn, judged on a flat
+  approximation with no trig; a change of station and the newest point
+  are always drawn, so each colour starts and ends where it did. The
+  scale takes the furthest track point found the same way and measures
+  only that one on the sphere. One track copy a frame instead of two,
+  and the scale now follows the track as drawn (none for a rover set by
+  hand). The recorded track and its 50 000 cap are unchanged.
+- At 50 000: recording fell from 64 to 9 ms, the render thread from
+  131 to 31 ms. What is left grows with N on the UI thread (48 ms at the
+  cap): the passes over every recorded point that remain. Memory was
+  never the issue (Java heap 5–17 MB across all runs, noisy).
+- **Same picture:** screenshots at 50 000 before and after differ in
+  642 of 977 600 pixels of the plot, all at the edges of the track's
+  blobs; scale (75,0 km), stations and track unchanged.
 
 ### Step 5 — Scale labels on the other plots
 
