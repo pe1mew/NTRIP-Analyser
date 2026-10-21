@@ -412,6 +412,9 @@ object HandoverPanel : Panel {
             mountpoint = state.settings.mountpoint,
             roverIsFix = fix != null,
             worstJumpM = worstJump(),
+            // The distance takes A3's colour, the core's judgement of the
+            // same distance (design/appGuiReview.md, R11.6).
+            a3 = state.doc?.vrs?.items?.getOrNull(2)?.verdictEnum,
         )
     }
 

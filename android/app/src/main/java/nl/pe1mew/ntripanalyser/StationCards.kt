@@ -610,12 +610,6 @@ internal fun hoSummary(
     )
 }
 
-internal fun hoDistColour(distM: Double) = when {
-    distM < 5_000.0 -> verdictColour(Verdict.PASS)
-    distM < 50_000.0 -> verdictColour(Verdict.WARN)
-    else -> verdictColour(Verdict.FAIL)
-}
-
 /**
  * The network-RTK assertions, drawn in the eight checks' own dress.
  *

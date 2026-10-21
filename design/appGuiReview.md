@@ -704,6 +704,34 @@ reference-position check and no fourth run button.
    the core at all. `android/design/views.md` §5 calls them "A3's
    usability colours".
 
+### R12 — Every polar plot the same size and layout, the sky view's
+
+**Screens:** Sky view, Self-position, Reference position (the polar
+plots; the mountpoint map is a pannable map, not one of them, and keeps
+only R6's labels).
+
+**The author (2026-10-21):** all polar plots have a different size.
+They shall be the same size, with the same legend, as specified for
+this review (R6), using the sky plot's size and layout as the reference.
+
+**Measured on the author's screenshots (923 px wide, Huawei, 10:21):**
+
+| Plot | Circle diameter | Cardinals | Ring labels | Legend |
+|---|---|---|---|---|
+| Sky view | ~720 px | N, S, E, W outside the circle | on the north line | dot and label row under the footer |
+| Self-position | ~850 px, full width | N and E only, inside the edge | along the east axis | dot and label row |
+| Reference position | ~490 px | none | one "outer ring" label, top left | dot and label row |
+
+**What it means for the plan:** one polar frame, drawn by one
+composable that all three use, with the sky view's geometry: the same
+square, the same margin for the four cardinal letters outside the
+circle, the same ring lines and R6's labels on the north line, and the
+legend in the sky view's row under the plot. Each plot draws only its
+own content inside the frame. R5 ("as wide as the other plots") is
+read as "as large as the sky view": smaller than full width, and the
+same on all three. Done in step 4 for Reference position and step 5
+for Sky view and Self-position, the frame written once in step 4.
+
 ## Suggestions to discuss — not decided
 
 From another reviewer, passed on by the author on 2026-10-17 in Dutch.
@@ -1149,8 +1177,11 @@ base.
 
 *Items:* R5, R6 (for this plot), R7, R8, R9, R11 (6).
 
-- Full width, the distance strip below, the screen scrolling
-  (`HandoverDetail`, `java/Views.kt`).
+- **The shared polar frame (R12)**, written here once: the sky view's
+  size, margin, cardinal letters, ring lines, R6's north-line labels on
+  a patch, and its legend row. Reference position draws in it, the
+  distance strip below, the screen scrolling (`HandoverDetail`,
+  `java/Views.kt`).
 - A red line from the station in use to the rover; earlier stations
   unconnected.
 - The rover's track for the whole run, recorded in `MonitorService`
@@ -1170,13 +1201,40 @@ hand-overs: colours never change, letters in order, the red line to the
 station in use, the track's stretches in their station's colours, the
 distance coloured as the A3 row says. A rover set by hand: no track.
 
+**Results 2026-10-21, Huawei, pro `.dev`, `NEAR`:**
+- **The shared frame, `PolarCanvas`**, carries all three polar plots:
+  Sky view and Self-position moved onto it in this step too, at the
+  author's direction (R12 brought forward from step 5). Measured on the
+  side-by-side screenshots: one diameter and one horizontal place for
+  all three, N E S W outside the circle on each, ring labels on the
+  north line on a patch ("15°…75°", "2.50 m / 5.00 m", "93,4 km /
+  186,9 km"), legends in the sky view's dress. The vertical place still
+  follows the text above each plot.
+- Reference position: station **A** in its colour with its letter, the
+  red baseline to the rover, the distance strip at its own height, the
+  legend "rover · station in use · stations A, B, … and the track near
+  each".
+- **R11.6 refined (author, 2026-10-21, option a):** A3 judges the
+  distance from the position *sent*, the screen shows the distance from
+  the *rover*; the colour applies only when they are one distance (live
+  GGA, or the rover is the set position). At a desk with a set position
+  near the station, a 155,7 km phone distance had come out in A3's
+  green; it is now neutral.
+- **Not seen at the desk, and why:** hand-overs, a second letter, the
+  track and its colours. Settings are locked during a run, so the set
+  position cannot be moved mid-run, and a new run clears the trail;
+  only a moving phone shows them. Left for the author's drive.
+
 ### Step 5 — Scale labels on the other plots
 
 *Items:* R6 (Sky view, Self-position, mountpoint map).
 
-- Sky view: the patch behind its elevation numbers (`SkyCanvas`,
-  `java/Views.kt`).
-- Self-position: every ring labelled on the north line, on a patch
+- Sky view: moved onto the shared frame of step 4 (R12), unchanged in
+  size and layout, gaining the patch behind its elevation numbers
+  (`SkyCanvas`, `java/Views.kt`).
+- Self-position: moved onto the shared frame (R12), so its circle
+  shrinks from full width to the sky view's size and gains all four
+  cardinal letters; every ring labelled on the north line, on a patch
   (`java/SelfPosition.kt`).
 - The mountpoint map: labels from the north-east diagonal to the north
   line (`java/MountMap.kt`), both editions.

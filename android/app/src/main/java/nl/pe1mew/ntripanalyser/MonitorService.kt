@@ -855,6 +855,10 @@ class MonitorService : Service() {
                     val fix = displayPosition ?: livePosition
                     val rlat = fix?.lat ?: runLat
                     val rlon = fix?.lon ?: runLon
+                    // The rover's track, from the phone's fix only: a
+                    // position set by hand does not move, and draws no
+                    // track (design/appGuiReview.md, R8).
+                    if (fix != null) arpTrail.offerRover(fix.lat, fix.lon)
                     arpTrail.offerDistance(
                         (geoDistanceM(rlat, rlon, alat, alon) / 1000.0)
                             .toFloat())

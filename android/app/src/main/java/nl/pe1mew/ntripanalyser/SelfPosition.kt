@@ -318,7 +318,8 @@ internal fun SelfPosView(doc: BridgeDocument?) {
         }
 
         // Square, at the full width of the screen.
-        SelfPosPlot(trail.points(), Modifier.fillMaxWidth().aspectRatio(1f))
+        // The shared polar frame's size and place, the sky view's (R12).
+        SelfPosPlot(trail.points())
 
         // The latest epoch: a diagnostic, labelled as one -- one epoch
         // is never the measurement. One line with the station.
@@ -344,8 +345,9 @@ internal fun SelfPosView(doc: BridgeDocument?) {
         }
 
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            // The sky view's legend, in its spacing and type (R12).
+            Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SpLegend(SpMark.EPOCH, stringResource(R.string.sp_legend_epochs))
@@ -386,8 +388,7 @@ private fun SpLegend(mark: SpMark, label: String) {
             spMark(mark, Offset(size.width / 2f, size.height / 2f), 1.4f)
         }
         Spacer(Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.bodySmall,
-             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -424,7 +425,7 @@ private fun spDistance(m: Double): String =
  * one of the two things this view exists to show.
  */
 @Composable
-private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
+private fun SelfPosPlot(points: List<SelfPosTrail.Point>) {
     val faint = MaterialTheme.colorScheme.onSurfaceVariant
     val labelStyle = MaterialTheme.typography.bodySmall.copy(color = faint)
     val arpStyle = MaterialTheme.typography.bodySmall.copy(color = SP_ARP)
@@ -432,20 +433,25 @@ private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
     val measurer = rememberTextMeasurer()
     val noneText = stringResource(R.string.sp_plot_empty)
 
-    Canvas(modifier) {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        // As little margin as the N and E letters need: the circle is
-        // the screen's width less two letters.
-        val half = minOf(cx, cy) - 14.dp.toPx()
-        if (half < 20f) return@Canvas
+    var widest = 0.0
+    for (p in points) {
+        val d = sqrt((p.e * p.e + p.n * p.n).toDouble())
+        if (d > widest) widest = d
+    }
+    val radius = spPlotRadius(widest)
 
-        var widest = 0.0
-        for (p in points) {
-            val d = sqrt((p.e * p.e + p.n * p.n).toDouble())
-            if (d > widest) widest = d
-        }
-        val radius = spPlotRadius(widest)
+    // The shared polar frame (design/appGuiReview.md, R12): the sky view's
+    // size and place, its grid and N E S W. Rings at the full radius and
+    // half of it, labelled on the north line (R6) -- but only once points
+    // set the scale: an empty plot labelled "0.125 m" read as a station
+    // holding to a tenth of a metre (desktop, 2026-10-09).
+    val labelled = points.isNotEmpty()
+    PolarCanvas(
+        rings = listOf(
+            PolarRing(0.5f, if (labelled) spDistance(radius / 2.0) else null),
+            PolarRing(1f, if (labelled) spDistance(radius) else null),
+        ),
+    ) { cx, cy, half ->
         val scale = (half / radius).toFloat()
 
         // A label on a patch of the page's own colour; [above] puts its
@@ -457,30 +463,14 @@ private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
             drawText(t, topLeft = Offset(x, top))
         }
 
-        // Rings at the full radius and half of it, and the cross through
-        // the reference.
-        val grid = faint.copy(alpha = 0.3f)
-        drawCircle(grid, half, Offset(cx, cy), style = Stroke(1.5f))
-        drawCircle(grid, half / 2f, Offset(cx, cy), style = Stroke(1.5f))
-        drawLine(grid, Offset(cx - half, cy), Offset(cx + half, cy), 1f)
-        drawLine(grid, Offset(cx, cy - half), Offset(cx, cy + half), 1f)
-        val nText = measurer.measure("N", labelStyle)
-        drawText(nText, topLeft = Offset(cx + 6f, cy - half - nText.size.height / 2f))
-        val eText = measurer.measure("E", labelStyle)
-        drawText(eText, topLeft = Offset(cx + half - eText.size.width - 2f,
-                                         cy - eText.size.height - 4f))
-
         spMark(SpMark.ARP, Offset(cx, cy), 1f)
 
-        // Rings are labelled only once points set the scale: an empty
-        // plot labelled "0.125 m" read as a station holding to a tenth
-        // of a metre (desktop, 2026-10-09).
         if (points.isEmpty()) {
-            label(measurer.measure("ARP", arpStyle), cx + 10f, cy - 4f, above = true)
+            label(measurer.measure("ARP", arpStyle), cx + 10f, cy + 4f)
             val t = measurer.measure(noneText, labelStyle)
             drawText(t, topLeft = Offset(cx - t.size.width / 2f,
-                                         cy - half / 2f - t.size.height))
-            return@Canvas
+                                         cy + half / 2f))
+            return@PolarCanvas
         }
 
         // The run: small, because an hour is three and a half thousand
@@ -493,18 +483,12 @@ private fun SelfPosPlot(points: List<SelfPosTrail.Point>, modifier: Modifier) {
             spMark(SpMark.EPOCH, Offset(cx + p.e * scale, cy - p.n * scale), 1f)
         }
 
-        // Labels over the run, each on a patch of the page, so a point
-        // under one hides behind it instead of reading as part of a
-        // letter -- a dot sat in "2.50 m" (Huawei, 2026-10-12). Drawn
-        // before the mean and the latest epoch, which stay on top.
-        // "ARP" above the axis, where the desktop puts it below: the
-        // ring labels sit below the axis, and on a phone the half ring's
-        // label began where "ARP" ended -- "AR2.50 m" (Huawei, 2026-10-12).
-        label(measurer.measure("ARP", arpStyle), cx + 10f, cy - 4f, above = true)
-        val full = measurer.measure(spDistance(radius), labelStyle)
-        label(full, cx + half - 4f - full.size.width, cy + 4f)
-        val halfLbl = measurer.measure(spDistance(radius / 2.0), labelStyle)
-        label(halfLbl, cx + half / 2f - 4f - halfLbl.size.width, cy + 4f)
+        // "ARP" on a patch of the page, so a point under it hides behind
+        // it instead of reading as part of a letter -- a dot sat in
+        // "2.50 m" (Huawei, 2026-10-12). Below and right of the centre:
+        // the ring labels are on the north line now, above it (R6).
+        // Drawn before the mean and the latest epoch, which stay on top.
+        label(measurer.measure("ARP", arpStyle), cx + 10f, cy + 4f)
 
         // Where the run centres, from the points drawn: the plot's own
         // crosshair, not a published figure -- that is the core's.

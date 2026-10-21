@@ -168,8 +168,11 @@ fun SkyView(
                 )
             }
         },
+        // The reference the other polar plots match (R12): the shared
+        // frame at its fixed size, the page scrolling when it must.
+        polar = true,
         plot = { m -> SkyCanvas(sats, onSurface, faint, surface, density,
-                                m.padding(12.dp), tracks, trackRevision) },
+                                m, tracks, trackRevision) },
         footer = {
             Text(
                 footer,
@@ -220,7 +223,23 @@ internal fun AnalysisBands(
     modifier: Modifier = Modifier,
     footer: @Composable ColumnScope.() -> Unit = {},
     legend: @Composable ColumnScope.() -> Unit = {},
+    /**
+     * A polar plot: drawn at [PolarCanvas]'s fixed size, with the page
+     * scrolling, rather than in whatever height the words leave -- the
+     * rule that makes every polar plot the same size (R12).
+     */
+    polar: Boolean = false,
 ) {
+    if (polar) {
+        Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            SummaryRow(topic, helpTitle, help)
+            summary()
+            plot(Modifier.fillMaxWidth())
+            footer()
+            legend()
+        }
+        return
+    }
     PlotLayout(
         modifier = modifier,
         above = {
@@ -316,30 +335,17 @@ private fun SkyCanvas(
             if (tracks == null) emptyList()
             else sats.map { s -> s.gnss to tracks.runsFor(s.gnss, s.prn) }
         }
-        Canvas(modifier) {
-            val cx = size.width / 2f
-            val cy = size.height / 2f
-            val radius = min(cx, cy) - with(density) { 18.dp.toPx() }
-
-            // Elevation rings. The radius is linear in elevation, as the
-            // desktop draws it: 90 deg at the centre, 0 at the rim.
-            for (el in 0..75 step 15) {
-                val r = radius * (90f - el) / 90f
-                drawCircle(
-                    color = faint.copy(alpha = if (el == 0) 0.6f else 0.25f),
-                    radius = r, center = Offset(cx, cy),
-                    style = Stroke(width = 1f),
-                )
-            }
-
-            val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 8f))
-            drawLine(faint.copy(alpha = 0.4f), Offset(cx - radius, cy),
-                     Offset(cx + radius, cy), pathEffect = dash)
-            drawLine(faint.copy(alpha = 0.4f), Offset(cx, cy - radius),
-                     Offset(cx, cy + radius), pathEffect = dash)
-
-            drawCardinals(cx, cy, radius, onSurface, density.density)
-
+        // Elevation rings, in the shared polar frame (R12), which draws
+        // the grid, N E S W and the ring numbers: the radius is linear in
+        // elevation, as the desktop draws it, 90 deg at the centre and 0
+        // at the rim; every ring but the horizon carries its number, with
+        // its degree sign -- the numbers are an axis and carry their unit.
+        PolarCanvas(
+            rings = (0..75 step 15).map { el ->
+                PolarRing((90f - el) / 90f, if (el == 0) null else "$el°")
+            },
+            modifier = modifier,
+        ) { cx, cy, radius ->
             // Markers and their labels scale with the plot, not with the
             // screen. In landscape the whole plot is about a third the
             // size it is in portrait, and fixed 7 dp markers with 11 sp
@@ -400,11 +406,100 @@ private fun SkyCanvas(
                 }
             }
 
-            // Last, so a ring label never disappears under a satellite
-            // that happens to sit on it -- the numbers are the plot's
-            // elevation axis and have to stay readable.
-            drawElevationNumbers(cx, cy, radius, faint, surface, density.density)
+            // The ring numbers come last, from the frame, so a satellite
+            // that happens to sit on one never hides it.
         }
+}
+
+/**
+ * A ring of a polar plot: its radius as a fraction of the frame's, and
+ * its label -- null leaves it unlabelled, as the sky view's horizon is.
+ */
+internal data class PolarRing(val fraction: Float, val label: String?)
+
+/**
+ * The frame every polar plot is drawn in (design/appGuiReview.md, R12):
+ * the sky view's geometry, written once. A square at the width of the
+ * screen, 12 dp in; a circle 18 dp inside that, which is the room the
+ * cardinal letters need outside it; the rings, the dashed axes, N E S W;
+ * and each ring's label where it crosses the north line, just right of
+ * the line, on a patch of the page so a track or a dot under it cannot
+ * make it unreadable (R6). The plot draws its own content in [content],
+ * between the grid and the labels.
+ *
+ * The size is a rule, not what the page leaves over: three plots under
+ * three different headers were three different sizes for exactly that
+ * reason. A page whose words and plot do not fit scrolls.
+ */
+@Composable
+internal fun PolarCanvas(
+    rings: List<PolarRing>,
+    modifier: Modifier = Modifier,
+    content: DrawScope.(cx: Float, cy: Float, radius: Float) -> Unit,
+) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val faint = MaterialTheme.colorScheme.onSurfaceVariant
+    val page = MaterialTheme.colorScheme.surface
+    val density = LocalDensity.current
+    Canvas(modifier.fillMaxWidth().aspectRatio(1f).padding(POLAR_PAD)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val radius = min(cx, cy) - POLAR_MARGIN.toPx()
+        if (radius < 20f) return@Canvas
+
+        for (ring in rings) {
+            drawCircle(
+                color = faint.copy(alpha = if (ring.fraction >= 0.999f) 0.6f else 0.25f),
+                radius = radius * ring.fraction, center = Offset(cx, cy),
+                style = Stroke(width = 1f),
+            )
+        }
+        val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 8f))
+        drawLine(faint.copy(alpha = 0.4f), Offset(cx - radius, cy),
+                 Offset(cx + radius, cy), pathEffect = dash)
+        drawLine(faint.copy(alpha = 0.4f), Offset(cx, cy - radius),
+                 Offset(cx, cy + radius), pathEffect = dash)
+        drawCardinals(cx, cy, radius, onSurface, density.density)
+
+        content(cx, cy, radius)
+
+        // Last, so no mark of the plot can cover the scale.
+        drawRingLabels(cx, cy, radius, rings, faint, page, density.density)
+    }
+}
+
+/** The frame's padding and the room it leaves for N E S W: the sky view's. */
+internal val POLAR_PAD = 12.dp
+internal val POLAR_MARGIN = 18.dp
+
+/**
+ * Each ring's label where it crosses the north line, just right of the
+ * line and just inside the ring, on a patch of the page (R6).
+ */
+private fun DrawScope.drawRingLabels(
+    cx: Float, cy: Float, radius: Float, rings: List<PolarRing>,
+    colour: Color, page: Color, density: Float,
+) {
+    val paint = android.graphics.Paint().apply {
+        color = colour.toArgb()
+        textSize = 10f * density
+        isAntiAlias = true
+    }
+    val patch = android.graphics.Paint().apply {
+        color = page.copy(alpha = 0.85f).toArgb()
+    }
+    val fm = paint.fontMetrics
+    drawContext.canvas.nativeCanvas.apply {
+        for (ring in rings) {
+            val text = ring.label ?: continue
+            val x = cx + 4f * density
+            val y = cy - radius * ring.fraction + 4f * density - fm.ascent
+            drawRect(x - 2f * density, y + fm.ascent - 1f * density,
+                     x + paint.measureText(text) + 2f * density,
+                     y + fm.descent + 1f * density, patch)
+            drawText(text, x, y, paint)
+        }
+    }
 }
 
 /**
@@ -440,35 +535,6 @@ private fun DrawScope.drawCardinals(
         drawText("S", cx, cy + radius + pad, paint)
         drawText("E", cx + radius + pad * 0.8f, cy + pad * 0.35f, paint)
         drawText("W", cx - radius - pad * 0.8f, cy + pad * 0.35f, paint)
-    }
-}
-
-private fun DrawScope.drawElevationNumbers(
-    cx: Float, cy: Float, radius: Float, colour: Color, halo: Color,
-    density: Float,
-) {
-    val paint = android.graphics.Paint().apply {
-        color = colour.toArgb()
-        textSize = 10f * density
-        isAntiAlias = true
-    }
-    // Drawn under each number in the background colour, so the label
-    // reads over a marker instead of merging into it.
-    val outline = android.graphics.Paint(paint).apply {
-        color = halo.toArgb()
-        style = android.graphics.Paint.Style.STROKE
-        strokeWidth = 3f * density
-    }
-    drawContext.canvas.nativeCanvas.apply {
-        for (el in 15..75 step 15) {
-            val r = radius * (90f - el) / 90f
-            // The degree sign on every ring, not only the first: the
-            // numbers are an elevation axis and must carry their unit.
-            val x = cx + 4f * density
-            val y = cy - r + 4f * density
-            drawText("$el°", x, y, outline)
-            drawText("$el°", x, y, paint)
-        }
     }
 }
 
@@ -750,6 +816,7 @@ class TrackAccumulator {
  * hand-over reads as a jump in the dots — and the five-minute
  * distance ring as a strip chart beneath.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun HandoverDetail(
     stats: Stats,
@@ -761,6 +828,13 @@ internal fun HandoverDetail(
     mountpoint: String,
     roverIsFix: Boolean,
     worstJumpM: Double?,
+    /**
+     * A3's verdict from the network-RTK check, which the distance is
+     * coloured with: the core's judgement of the same distance, so the
+     * screen and the check's card cannot disagree. Null or PENDING draws
+     * it neutral (design/appGuiReview.md, R11.6).
+     */
+    a3: Verdict? = null,
 ) {
     val sum = hoSummary(stats, service, roverLat, roverLon)
     val trail = MonitorService.arpTrail
@@ -784,7 +858,18 @@ internal fun HandoverDetail(
                                    distanceText(sum.distM), sum.compass),
                                sum.bearingDeg.toInt()),
                 style = MaterialTheme.typography.bodyMedium,
-                color = hoDistColour(sum.distM),
+                // A3 judges the distance from the position *sent to the
+                // caster*; this line is the distance from the rover drawn
+                // here. They are one distance when the phone's fix is what
+                // is sent, or when the rover is the set position that is
+                // sent -- and only then does A3's colour apply. Otherwise
+                // neutral: a desk with a set position near the station
+                // showed a 155,7 km phone distance in A3's green
+                // (design/appGuiReview.md, R11.6, author 2026-10-21).
+                color = if (a3 == null || a3 == Verdict.PENDING ||
+                            (roverIsFix && !ggaIsPhone))
+                            MaterialTheme.colorScheme.onSurface
+                        else verdictColour(a3),
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
@@ -841,16 +926,16 @@ internal fun HandoverDetail(
                 )
             }
         },
+        // The shared polar frame at its fixed size, the strip under it at
+        // a height of its own, the page scrolling to reach it (R5, R12).
+        polar = true,
         plot = { m ->
-            Column(m.padding(12.dp)) {
-                HandoverPolar(
-                    trail, stats, roverLat, roverLon,
-                    Modifier.weight(3f).fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
+            Column(m) {
+                HandoverPolar(trail, stats, roverLat, roverLon, roverIsFix)
                 DistanceStrip(
                     trail,
-                    Modifier.weight(1f).fillMaxWidth(),
+                    Modifier.padding(horizontal = 12.dp).fillMaxWidth()
+                        .height(110.dp),
                 )
             }
         },
@@ -868,57 +953,105 @@ internal fun HandoverDetail(
             )
         },
         legend = {
-            Row(
+            // The sky view's legend, in its dress (R12): a swatch and a
+            // name per entry, wrapping between entries.
+            FlowRow(
                 Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 LegendDot(HO_ROVER, stringResource(R.string.ho_legend_rover))
-                LegendDot(HO_ARP, stringResource(R.string.ho_legend_arp))
-                LegendDot(HO_HIST, stringResource(R.string.ho_legend_hist))
+                LegendLine(HO_ARP, stringResource(R.string.ho_legend_arp))
+                LegendDot(HO_STATIONS.first(), stringResource(R.string.ho_legend_hist))
             }
         },
     )
 }
 
-/** The desktop VRS monitor’s colours, kept so screenshots agree. */
+/** The desktop VRS monitor's rover blue and in-use red, kept so screenshots agree. */
 private val HO_ROVER = Color(0xFF1E50C8)
 private val HO_ARP   = Color(0xFFD22828)
-private val HO_HIST  = Color(0xFFF0AAAA)
 
+/**
+ * One colour per station, given on first sight and kept for the run
+ * (design/appGuiReview.md, R8): no red, which is the baseline to the
+ * station in use (R7), and no rover blue. Seven, reused in order when a
+ * drive passes more stations than that -- the letter beside each dot
+ * still tells them apart.
+ */
+internal val HO_STATIONS = listOf(
+    Color(0xFF2E7D32),   // green
+    Color(0xFFEF6C00),   // orange
+    Color(0xFF6A1B9A),   // purple
+    Color(0xFF00838F),   // teal
+    Color(0xFF6D4C41),   // brown
+    Color(0xFF9E9D24),   // olive
+    Color(0xFF546E7A),   // slate
+)
+
+private fun stationColour(index: Int) = HO_STATIONS[index % HO_STATIONS.size]
+
+/** A, B, …, Z, then A2, B2, …: a station's letter from its index (R9). */
+internal fun stationLetter(index: Int): String {
+    val l = ('A' + index % 26).toString()
+    return if (index < 26) l else l + (index / 26 + 1)
+}
+
+/** A legend entry in the sky view's dress (R12): swatch, then name. */
 @Composable
 private fun LegendDot(colour: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Canvas(Modifier.size(10.dp)) { drawCircle(colour) }
-        Spacer(Modifier.width(6.dp))
-        Text(label, style = MaterialTheme.typography.bodySmall,
-             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
-/** Rover centred; everything else at true bearing, radius to scale. */
+/** A legend entry for a line rather than a mark: the baseline in use. */
+@Composable
+private fun LegendLine(colour: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Canvas(Modifier.size(width = 16.dp, height = 10.dp)) {
+            drawLine(colour, Offset(0f, size.height / 2f),
+                     Offset(size.width, size.height / 2f), strokeWidth = 2.5f)
+        }
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+    }
+}
+
+/**
+ * Rover centred; everything else at true bearing, radius to scale, in
+ * the shared polar frame (R12).
+ *
+ * The station in use is joined to the rover by a red line, the baseline
+ * the corrections come over (R7); earlier stations are not joined to
+ * anything. Each station has its own colour and letter (R8, R9), and the
+ * rover's track runs through the run in the colour of the station that
+ * served each stretch of it -- no track where the rover is a position set
+ * by hand, which does not move.
+ */
 @Composable
 private fun HandoverPolar(
     trail: ArpTrail,
     stats: Stats,
     roverLat: Double,
     roverLon: Double,
-    modifier: Modifier,
+    roverIsFix: Boolean,
 ) {
-    val faint = MaterialTheme.colorScheme.onSurfaceVariant
-    val ringLabel = stringResource(
-        R.string.ho_ring,
-        distanceText(polarScaleM(trail, stats, roverLat, roverLon)))
-    val labelStyle = MaterialTheme.typography.bodySmall
-    val measurer = rememberTextMeasurer()
-    val page = MaterialTheme.colorScheme.surface
+    val scaleM = polarScaleM(trail, stats, roverLat, roverLon)
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val density = LocalDensity.current
+    val stations = trail.stations()
+    val track = if (roverIsFix) trail.track() else emptyList()
+    val current = trail.current
 
-    Canvas(modifier) {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val radius = minOf(cx, cy) * 0.86f
-        val scaleM = polarScaleM(trail, stats, roverLat, roverLon)
-
+    PolarCanvas(
+        rings = listOf(
+            PolarRing(0.5f, distanceText(scaleM / 2.0)),
+            PolarRing(1f, distanceText(scaleM)),
+        ),
+    ) { cx, cy, radius ->
         fun place(lat: Double, lon: Double): Offset {
             val d = geoDistanceM(roverLat, roverLon, lat, lon)
             val b = geoBearingDeg(roverLat, roverLon, lat, lon) *
@@ -928,39 +1061,44 @@ private fun HandoverPolar(
                           cy - r * kotlin.math.cos(b).toFloat())
         }
 
-        // Rings: full scale and half.
-        drawCircle(faint.copy(alpha = 0.35f), radius, Offset(cx, cy),
-                   style = Stroke(1.5f))
-        drawCircle(faint.copy(alpha = 0.25f), radius / 2f, Offset(cx, cy),
-                   style = Stroke(1.5f))
-
-        // History, oldest to newest, joined faintly: a hand-over is a
-        // long segment between two dots.
-        val dots = trail.dots()
+        // The rover's track, oldest first, each step in the colour of
+        // the station that was serving the rover when it got there.
         var prev: Offset? = null
-        for (d in dots) {
-            val here = place(d.lat, d.lon)
-            prev?.let { drawLine(HO_HIST, it, here, strokeWidth = 3f) }
-            drawCircle(HO_HIST, 6f, here)
+        for (p in track) {
+            val here = place(p.lat, p.lon)
+            prev?.let { drawLine(stationColour(p.station), it, here,
+                                 strokeWidth = 3f) }
             prev = here
         }
 
-        // The reference position now, on top of its own history.
-        val alat = stats.arpLat
-        val alon = stats.arpLon
-        if (stats.arpValid && alat != null && alon != null)
-            drawCircle(HO_ARP, 10f, place(alat, alon))
+        // The baseline to the station in use, under the dots it joins.
+        val inUse = stations.firstOrNull { it.index == current }
+        if (inUse != null)
+            drawLine(HO_ARP, place(inUse.lat, inUse.lon), Offset(cx, cy),
+                     strokeWidth = 3f)
+
+        // The stations, unjoined, each in its own colour with its letter;
+        // the one in use larger and ringed, on top of the others.
+        val markR = with(density) { 6.dp.toPx() }
+        val labelPaint = android.graphics.Paint().apply {
+            color = onSurface.toArgb()
+            textSize = with(density) { 11.sp.toPx() }
+            isAntiAlias = true
+            isFakeBoldText = true
+        }
+        for (s in stations.sortedBy { it.index == current }) {
+            val at = place(s.lat, s.lon)
+            val big = s.index == current
+            val r = if (big) markR * 1.5f else markR
+            drawCircle(stationColour(s.index), r, at)
+            drawCircle(Color.White, r, at, style = Stroke(if (big) 3f else 1.5f))
+            drawContext.canvas.nativeCanvas.drawText(
+                stationLetter(s.index), at.x + r + 3f, at.y + r / 2f, labelPaint)
+        }
 
         // The rover, centre of its own world.
-        drawCircle(HO_ROVER, 10f, Offset(cx, cy))
-
-        // In the corner, which the circle never reaches, on a patch of
-        // the page: drawn at the ring's top it crossed the ring line on a
-        // tester's phone (2026-10-14).
-        val t = measurer.measure(ringLabel, labelStyle.copy(color = faint))
-        drawRect(page, Offset(0f, 0f),
-                 androidx.compose.ui.geometry.Size(t.size.width + 8f, t.size.height + 4f))
-        drawText(t, topLeft = Offset(4f, 2f))
+        drawCircle(HO_ROVER, markR * 1.5f, Offset(cx, cy))
+        drawCircle(Color.White, markR * 1.5f, Offset(cx, cy), style = Stroke(2f))
     }
 }
 
@@ -975,6 +1113,10 @@ private fun polarScaleM(
         worst = maxOf(worst, geoDistanceM(roverLat, roverLon, alat, alon))
     for (d in trail.dots())
         worst = maxOf(worst, geoDistanceM(roverLat, roverLon, d.lat, d.lon))
+    // And the rover's own track, which can reach further than any station
+    // on a long drive.
+    for (p in trail.track())
+        worst = maxOf(worst, geoDistanceM(roverLat, roverLon, p.lat, p.lon))
     return worst * 1.2
 }
 
@@ -1035,9 +1177,18 @@ private fun DistanceStrip(trail: ArpTrail, modifier: Modifier) {
  */
 class ArpTrail {
 
-    data class Dot(val lat: Double, val lon: Double)
+    /** A visit to a station, in the order the run made them. */
+    data class Dot(val lat: Double, val lon: Double, val station: Int = 0)
+
+    /** A distinct reference position: its index is its letter and colour. */
+    data class Station(val lat: Double, val lon: Double, val index: Int)
+
+    /** Where the rover was, and which station it was being served by. */
+    data class RoverPoint(val lat: Double, val lon: Double, val station: Int)
 
     private val dots = ArrayList<Dot>()
+    private val stations = ArrayList<Station>()
+    private val track = ArrayList<RoverPoint>()
 
     /** km, NaN where no sample; a ring, newest at [head]-1. */
     private val ring = FloatArray(RING_N) { Float.NaN }
@@ -1048,16 +1199,62 @@ class ArpTrail {
     var revision: Int = 0
         private set
 
-    /** Note a broadcast reference position; records it if it moved. */
+    /**
+     * Note a broadcast reference position; records it if it moved.
+     *
+     * Each distinct position is a station, kept with the index it got on
+     * first sight: its letter and its colour on the plot come from that
+     * index, so neither changes at a hand-over -- including a hand-back
+     * to a station seen before (design/appGuiReview.md, R8, R9). The
+     * visits themselves are kept in order, for the hand-over count and
+     * the largest jump.
+     */
     @Synchronized
     fun offerDot(lat: Double, lon: Double) {
         val last = dots.lastOrNull()
         if (last != null &&
             geoDistanceM(last.lat, last.lon, lat, lon) <= MOVE_M) return
+        val known = stations.firstOrNull {
+            geoDistanceM(it.lat, it.lon, lat, lon) <= MOVE_M
+        }
+        val station = known ?: Station(lat, lon, stations.size).also {
+            if (stations.size < DOT_CAP) stations.add(it)
+        }
         if (dots.size >= DOT_CAP) dots.removeAt(0)
-        dots.add(Dot(lat, lon))
+        dots.add(Dot(lat, lon, station.index))
         revision++
     }
+
+    /**
+     * Note where the rover is, while the phone has a fix. A point only
+     * once it has moved [TRACK_STEP_M], so a parked phone adds nothing;
+     * tagged with the station serving it then, whose colour its stretch
+     * of track takes (R8). The whole run is kept: at the cap the track is
+     * thinned to every other point rather than cut, so its shape stays.
+     */
+    @Synchronized
+    fun offerRover(lat: Double, lon: Double) {
+        val station = dots.lastOrNull()?.station ?: return
+        val last = track.lastOrNull()
+        if (last != null &&
+            geoDistanceM(last.lat, last.lon, lat, lon) < TRACK_STEP_M) return
+        if (track.size >= TRACK_CAP) {
+            val kept = track.filterIndexed { i, _ -> i % 2 == 0 }
+            track.clear()
+            track.addAll(kept)
+        }
+        track.add(RoverPoint(lat, lon, station))
+        revision++
+    }
+
+    @Synchronized
+    fun stations(): List<Station> = ArrayList(stations)
+
+    @Synchronized
+    fun track(): List<RoverPoint> = ArrayList(track)
+
+    /** The station in use: the last one visited, or null before any. */
+    val current: Int? @Synchronized get() = dots.lastOrNull()?.station
 
     /** One rover-to-ARP distance sample, at the publish cadence. */
     @Synchronized
@@ -1086,6 +1283,8 @@ class ArpTrail {
     @Synchronized
     fun clear() {
         dots.clear()
+        stations.clear()
+        track.clear()
         ring.fill(Float.NaN)
         head = 0
         ringCount = 0
@@ -1101,6 +1300,16 @@ class ArpTrail {
 
         /** Five minutes at the 1 Hz publish, the desktop's chart. */
         const val RING_N = 300
+
+        /** The rover moves this far before its track gains a point. */
+        const val TRACK_STEP_M = 10.0
+
+        /**
+         * The track's safety net, not its window: 12 h at motorway speed,
+         * one point a second, is about 43 000 points, so a whole day's
+         * drive thins once or twice.
+         */
+        const val TRACK_CAP = 50_000
     }
 }
 
