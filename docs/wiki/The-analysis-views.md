@@ -88,7 +88,9 @@ The antenna's own signature. A healthy installation climbs smoothly from
 roughly 35 dB-Hz at the horizon to about 50 at zenith.
 
 - A **flat** curve suggests the antenna, its siting, or the cable.
-- A **dent** at one bearing is usually an obstruction.
+- A **dent** — signals weaker over a band of elevations than above and
+  below it — is usually an obstruction. The plot has no bearing, so it
+  cannot say from which direction.
 - Marks are shaded by how often that combination occurred, so a cell hit
   a thousand times reads darker than one hit once.
 
