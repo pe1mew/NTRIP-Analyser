@@ -4,7 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
-## [Unreleased]
+## [3.10.0] - not yet released (both Android editions to Play's testers from 2026-10-21)
+
+Both Android editions, chiefly; the Munin plugin; one additive call in
+the session layer. The CLI, the Windows GUI and the service measure as
+in 3.9.0.
 
 ### Changed
 
