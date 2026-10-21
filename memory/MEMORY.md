@@ -63,8 +63,9 @@
   2026-10-17 to -21): six steps, each checked on the Huawei in both
   editions and committed. Still open: the reference position on a real
   drive (hand-overs, lettered stations, the coloured track), the verdict
-  bar's restart reason (built, not yet seen), pro's pending listing
-  wording in `play-listing.md`. The track is thinned at draw time
+  bar's restart reason (built, not yet seen). Pro's listing wording is
+  reviewed and waits in `play-listing.md` for the console at release
+  (Dutch pro 3949 of 4000 characters). The track is thinned at draw time
   (2026-10-21, bench build: 79 ms a frame at the 50 000 cap instead of
   244, 26 ms bare; the first published 266 ms was polluted by the
   harness, see `design/appGuiReview.md` step 4). Unreleased; `changelog.md` carries it. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches

@@ -9,8 +9,9 @@ Started 2026-10-17. **State: built** (collection closed 2026-10-20;
 steps 1–6 built and checked on the Huawei 2026-10-20 and -21, each
 committed). **Open:** the reference position on a real drive — hand-overs,
 a second lettered station, the rover's coloured track — which a desk
-cannot produce; the bar's restart reason, built but not yet seen; the
-listing's pending wording, for the author. The track's drawing cost is
+cannot produce; and the bar's restart reason, built but not yet seen.
+Pro's listing wording is reviewed (2026-10-21) and waits in
+`play-listing.md` for the release. The track's drawing cost is
 bounded by thinning at draw time: 79 ms a frame at the 50 000-point cap
 instead of 244 (step 4).
 
