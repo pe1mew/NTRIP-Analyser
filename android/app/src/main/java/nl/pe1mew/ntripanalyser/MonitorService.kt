@@ -49,6 +49,14 @@ class MonitorService : Service() {
      */
     enum class Outcome { IDLE, RUNNING, FINISHED, STOPPED, LIMIT_REACHED }
 
+    /**
+     * Which kind of run this is, or was: kept after the run ends, until
+     * the next one starts, because Analysis shows what the last run was
+     * for -- the static screens after a check or a watch, the reference
+     * position after a network-RTK check (design/appGuiReview.md, R11).
+     */
+    enum class RunKind { CHECK, WATCH, NETWORK_RTK }
+
     /** What the UI observes. */
     data class RunState(
         val running: Boolean = false,
@@ -73,6 +81,8 @@ class MonitorService : Service() {
          * to the measurement underneath it.
          */
         val runId: Long = 0L,
+        /** The kind of the run in [document], or of the last one. */
+        val kind: RunKind = RunKind.CHECK,
     )
 
     private var worker: Thread? = null
@@ -142,8 +152,13 @@ class MonitorService : Service() {
         lastSky = null            // a new run supersedes the old coverage
         lastEphCount = 0
         lastFailure = 0
+        val kind = when {
+            vrsMode -> RunKind.NETWORK_RTK
+            watchMode -> RunKind.WATCH
+            else -> RunKind.CHECK
+        }
         _state.value = RunState(running = true, outcome = Outcome.RUNNING,
-                                runId = runId)
+                                runId = runId, kind = kind)
 
         worker = thread(name = "ntrip-pump") {
             val bridge = NtripBridge.open(
@@ -164,7 +179,8 @@ class MonitorService : Service() {
                 // not the caster's doing: no session object at all.
                 _state.value = RunState(running = false,
                                         error = getString(R.string.err_start),
-                                        outcome = Outcome.FINISHED, runId = runId)
+                                        outcome = Outcome.FINISHED, runId = runId,
+                                        kind = kind)
                 stopSelf()
                 return@thread
             }
@@ -232,7 +248,7 @@ class MonitorService : Service() {
                                 accumulate(doc)
                                 _state.value = RunState(running, doc, null, outcome,
                                                         skyAvailable = liveBridge != null,
-                                                        runId = runId)
+                                                        runId = runId, kind = kind)
                                 updateNotification(doc)
                             }
                             .onFailure { Log.w(TAG, "snapshot decode failed", it) }
@@ -363,12 +379,17 @@ class MonitorService : Service() {
                     // gate test comes after it, and the whole point is
                     // what the caster does next. Only an outright
                     // failure ends it early, exactly as the CLI ends.
+                    //
+                    // Nor at the gate's answer, since 2026-10-20: the
+                    // result appears then, and the run goes on watching
+                    // the reference position until Stop -- the bridge's
+                    // monitoring phase (design/appGuiReview.md, R11).
                     if (vrsMode) {
                         val v = _state.value.document?.vrs
-                        if (v != null &&
-                            (v.failed || (v.gateStarted && v.gateResolved))) {
-                            Log.i(TAG, "network-RTK check done: " +
-                                       (v.items.getOrNull(4)?.detail ?: ""))
+                        if (v != null && v.failed) {
+                            Log.i(TAG, "network-RTK check failed: " +
+                                       (v.items.firstOrNull { it.verdictEnum == Verdict.FAIL }
+                                            ?.detail ?: ""))
                             publish(false, Outcome.FINISHED)
                             break
                         }

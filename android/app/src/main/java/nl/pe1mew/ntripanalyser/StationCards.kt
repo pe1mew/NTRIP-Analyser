@@ -625,7 +625,15 @@ internal fun hoDistColour(distM: Double) = when {
  * base answering NOT gated has passed the question, not failed it.
  */
 @Composable
-internal fun VrsCard(v: VrsDoc) {
+internal fun VrsCard(
+    v: VrsDoc,
+    /** Whether the run is still going: the card says it is watching. */
+    running: Boolean = false,
+    /** Reference-position moves over the run, for the line after it. */
+    moves: Int? = null,
+    /** The largest of those moves, metres; null before there was one. */
+    worstJumpM: Double? = null,
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -677,6 +685,28 @@ internal fun VrsCard(v: VrsDoc) {
                     if (v.gateResolved) MaterialTheme.colorScheme.onSurface
                     else MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // After the gate's answer the check goes on watching the
+            // reference position (R11): said while it runs, and summed up
+            // in one line once it has stopped -- the detail is in
+            // Analysis, which shows the reference position after this
+            // check until the next run.
+            if (v.monitoring && running) {
+                Text(
+                    stringResource(R.string.vrs_monitoring),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (v.monitoring && moves != null) {
+                Text(
+                    if (moves == 0 || worstJumpM == null)
+                        stringResource(R.string.vrs_refpos_none)
+                    else
+                        stringResource(R.string.vrs_refpos_summary,
+                                       moves, distanceText(worstJumpM)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

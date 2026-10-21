@@ -13,7 +13,10 @@ nothing here is built yet.
 withdrawn and R11's check giving no verdict, nothing here changes
 `src/core`, the CLI, the Windows GUI or the daemon. The core's rules
 stay the same for every program; only what the app shows, and where,
-changes.
+changes. **One exception, decided 2026-10-21 (author, step 3, option
+A):** one additive call in `src/session`, `ns_set_auto_reconnect()`,
+which only the bridge calls; the other programs behave as before, and
+were rebuilt and run because the session layer is shared.
 
 ## How this plan is used
 
@@ -939,10 +942,14 @@ nothing is staged as done until that check has passed. Paths are under
   the reference position after the gate" (R11, 1) therefore needs a
   **monitoring phase** in the bridge: once the gate has answered,
   resume the position reports and reopen the connection with reconnect
-  on. The bridge can do this with the session calls it already uses,
-  so `src/session` and `src/core` stay unchanged (Scope, above). While
-  the gate test runs (up to 90 s) the caster is sent no position, and
-  the screen says so.
+  on. ~~The bridge can do this with the session calls it already uses,
+  so `src/session` and `src/core` stay unchanged.~~ *Wrong, found
+  2026-10-21:* a session's reconnect is fixed at open, and a session
+  that ended on the gate's drop cannot be revived with any existing
+  call. The author chose one additive session call over a fresh session
+  after the gate, which would have restarted every count mid-run (step
+  3). While the gate test runs (up to 90 s) the caster is sent no
+  position, and the screen says so.
 - **The core's 600 s reaches the app without a core change**: the
   bridge adds the report policy's `min_window_s` to the document it
   already publishes, beside `sr_to_json`'s output, and the app stops
@@ -1103,6 +1110,40 @@ screens without it. On a fixed base, the gate answers *not gated* and
 the run continues the same way. Hand-overs without driving: moving the
 set position on `NEAR` far enough that the caster assigns another
 base.
+
+**Results 2026-10-21:**
+- *Session* (`src/session`): `ns_set_auto_reconnect(s, on)`, documented
+  in the header only; a live session ended on a drop is revived, one
+  stopped by the caller or replaying a file stays ended.
+- *Bridge*: the monitoring phase begins at the gate's answer, either
+  way. Reconnect on, GGA resumes at once, the eight checks and A1–A5
+  held as they stood; A3 alone re-evaluated, by the core's rule. Held
+  because the core reads any disconnect after the gate began as the
+  answer: unheld, a fixed base's *not gated* turned *gated* on the
+  first drop of a drive.
+- *`test_bridge_vrs.c`*, 39 checks: after a gated drop the same session
+  reconnects, the reconnect is counted, GGA reaches the caster again,
+  the result stands; a fixed base's *not gated* survives a drop.
+  **Falsified three times**, each property broken in its own copy of
+  the bridge, each failing its own checks and no others (no reconnect
+  → 3 failures; no GGA after the gate → 1; result not held → 1).
+- *Four programs*, because the session layer is shared: desktop build
+  0 warnings, 26/26 tests; the CLI's live `--check` on `RFSEE01`:
+  STATION OK, exit 0; the daemon by CI.
+- *Huawei, pro `.dev`, `NEAR`*: CAUTION at ~40 s, held 60 s at ~93 s,
+  the gate's answer at ~6 min ("not gated (fixed base?)": Centipede
+  keeps streaming when GGA stops; the service is still classed a
+  network by its name), and **the run went on**: "Watching the reference
+  position · Stop to end", *Stop* offered, data still arriving (2140 →
+  2490 B/s), the verdict held at "CAUTION · Held for 2 min". Analysis:
+  Reference position alone, during the check and after *Stop*; the next
+  run, a check, showed Sky view, Signal quality, C/N0 vs elevation and
+  Self-position and no Reference position. After *Stop* the card's line
+  became "No hand-over: one reference position throughout".
+- Not yet seen on the device: a hand-over during the monitoring phase
+  (step 4 forces one by moving the set position), and the *Reference
+  position* share section's absence from a check's report (read in the
+  code, `HandoverPanel.shareSection`).
 
 ### Step 4 — The Reference position plot
 

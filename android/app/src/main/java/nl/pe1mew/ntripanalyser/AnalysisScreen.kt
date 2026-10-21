@@ -80,6 +80,8 @@ fun AnalysisScreen(
     elevRevision: Int,
     haveLocation: Boolean,
     rinexAgeS: Double?,
+    /** The tabs for the run being shown ([analysisTabsFor]). */
+    tabs: List<AnalysisTab>,
     tab: AnalysisTab,
     onTab: (AnalysisTab) -> Unit,
     onLeave: () -> Unit,
@@ -107,10 +109,12 @@ fun AnalysisScreen(
     }.orEmpty()
 
     // One page per view, so a swipe moves between them with the
-    // content following the finger rather than cutting. The edition's
-    // own list: pro adds Self-position (P7) and Reference position.
-    val tabs = analysisTabs
+    // content following the finger rather than cutting. The run's own
+    // list: the static screens, or the reference position alone after a
+    // network-RTK check (R11). A tab the list does not hold falls back
+    // to its first.
     val current = tabs.indexOf(tab).coerceAtLeast(0)
+    LaunchedEffect(tabs) { if (tab !in tabs) onTab(tabs.first()) }
     val pagerState = rememberPagerState(initialPage = current) { tabs.size }
     // Kept in step both ways: the tab row still selects a page, and
     // a swipe still moves the selected tab.

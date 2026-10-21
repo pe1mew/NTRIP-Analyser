@@ -219,6 +219,12 @@ struct NtripBridge {
      * was accepted by the socket, which only the sender knows. */
     bool      vrs_mode;
     bool      vrs_gated;       /**< the gate test has begun: GGA stopped */
+    /** The gate has answered and the check goes on watching the
+     *  reference position until stopped (design/appGuiReview.md, R11):
+     *  GGA resumes, the session reconnects after a drop, and the check's
+     *  result -- A1 to A5 and the eight checks -- stays as it stood at
+     *  the answer. Only A3 follows the drive. */
+    bool      vrs_monitoring;
     VrsRun    vrun;
     VrsReport vrep;
 
@@ -487,7 +493,7 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
      * run that spends its first minute reconnecting still uplinks the
      * moment it is back rather than on the next tick of a free-running
      * timer. */
-    if (b->gga_on && !b->vrs_gated &&
+    if (b->gga_on && (!b->vrs_gated || b->vrs_monitoring) &&
         now_s - b->gga_last_s >= BRIDGE_GGA_INTERVAL_S) {
         if (ns_send_gga(b->sess, b->gga_lat, b->gga_lon)) {
             b->gga_last_s = now_s;
@@ -503,8 +509,13 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
      * carries a few frames a minute, so it needs no time of its own. */
     if (b->eph) ns_pump(b->eph, 0);
 
-    kpi_update(&b->run, ns_stats(b->sess), now_s, &b->rep);
-    kpi_watch_update(&b->w, &b->rep, now_s);
+    /* Held once a network-RTK check has had its gate's answer: the eight
+     * checks are the check's result, and a drop on the drive that
+     * follows must not turn them into a different one. */
+    if (!b->vrs_monitoring) {
+        kpi_update(&b->run, ns_stats(b->sess), now_s, &b->rep);
+        kpi_watch_update(&b->w, &b->rep, now_s);
+    }
 
     /* One tier-2 sample per second of stream time, like the CLI. A
      * stream that carries no epochs never advances this clock, and
@@ -518,10 +529,33 @@ int bridge_pump(NtripBridge *b, int timeout_ms, double now_s)
         }
     }
 
-    if (b->vrs_mode) {
+    if (b->vrs_mode && b->vrs_monitoring) {
+        /* After the answer the engine is still fed, so A3 follows the
+         * positions sent on the drive -- but only A3 is taken from it.
+         * The engine reads any disconnect after the gate began as the
+         * gate's answer, so a drop on the road would turn a fixed base's
+         * "not gated" into "gated"; A1 to A5 stay as they were. */
+        VrsReport live;
+        vrs_update(&b->vrun, ns_stats(b->sess), now_s, &live);
+        b->vrep.a[2] = live.a[2];
+    } else if (b->vrs_mode) {
         /* Every pump, even when nothing changed: the engine sees
          * connection edges only through updates (test_vrs.c). */
         vrs_update(&b->vrun, ns_stats(b->sess), now_s, &b->vrep);
+
+        /* The gate has answered: on into the monitoring phase. The run
+         * opened with reconnect off so the gate's drop was seen as one;
+         * now a drop is the road's, and the session rides through it.
+         * The first GGA goes at once, so the caster -- which closed the
+         * stream when they stopped, if it is a network -- is told where
+         * the rover is as soon as the stream is back. */
+        if (b->vrs_gated &&
+            (b->vrep.gate == VRS_GATE_GATED ||
+             b->vrep.gate == VRS_GATE_NOT_GATED)) {
+            b->vrs_monitoring = true;
+            ns_set_auto_reconnect(b->sess, true);
+            b->gga_last_s = -1e9;
+        }
 
         /* The CLI's own gate condition: the KPIs have held their
          * window and the keep-alive assertion has passed, so stopping
@@ -634,11 +668,12 @@ int bridge_snapshot_json(NtripBridge *b, char *out, size_t cap)
         app(out, cap, &pos,
             ",\"vrs\":{\"gate\":%d,\"gate_name\":\"%s\","
             "\"gate_started\":%s,\"failed\":%s,\"complete\":%s,"
-            "\"items\":[",
+            "\"monitoring\":%s,\"items\":[",
             b->vrep.gate, vrs_gate_name(b->vrep.gate),
             b->vrs_gated ? "true" : "false",
             b->vrep.failed ? "true" : "false",
-            b->vrep.complete ? "true" : "false");
+            b->vrep.complete ? "true" : "false",
+            b->vrs_monitoring ? "true" : "false");
         for (int i = 0; i < VRS_ASSERT_COUNT; i++) {
             const VrsResult *a = &b->vrep.a[i];
             app(out, cap, &pos,

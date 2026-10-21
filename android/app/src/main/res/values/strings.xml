@@ -13,6 +13,12 @@
     <string name="bar_why_pending">a check is waiting for evidence</string>
     <string name="bar_why_passing">all checks passing</string>
     <string name="kpi_indicators">The eight checks: %1$d pass, %2$d warn, %3$d fail, %4$d waiting</string>
+    <!-- The network-RTK card after the gate's answer (R11): the run
+         goes on until Stop, and its reference position is summed up in
+         one line once it has stopped. -->
+    <string name="vrs_monitoring">Watching the reference position · Stop to end</string>
+    <string name="vrs_refpos_summary">%1$d hand-over(s) · largest jump %2$s</string>
+    <string name="vrs_refpos_none">No hand-over: one reference position throughout</string>
     <string name="action_vrs_hint">Checks plus the network at your position — answer in ~2 min, then runs until stopped</string>
     <string name="sustained_of">%1$d of %2$d s sustained</string>
 

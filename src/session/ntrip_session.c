@@ -1510,6 +1510,17 @@ void ns_run(NtripSession *s, const volatile int *stop_flag)
 
 void ns_stop(NtripSession *s)      { if (s) s->stopped = true; }
 
+void ns_set_auto_reconnect(NtripSession *s, bool on)
+{
+    if (!s) return;
+    s->opt.auto_reconnect = on;
+    if (on && s->ended && !s->stopped && !s->is_file) {
+        s->ended        = false;
+        s->backoff_s    = 0;
+        s->reconnect_at = ns_now();
+    }
+}
+
 void ns_close(NtripSession *s)
 {
     if (!s) return;

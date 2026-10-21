@@ -291,6 +291,27 @@ void ns_run(NtripSession *s, const volatile int *stop_flag);
 /** @brief Ask the session to end at the next @ref ns_pump. */
 void ns_stop(NtripSession *s);
 
+/**
+ * @brief Switch reconnecting on or off for a session already open.
+ *
+ * For a run whose first part must see a drop as a drop and whose second
+ * part must ride through drops: the phone's network-RTK check, whose gate
+ * test waits for the caster to close the stream and which then goes on
+ * watching the reference position for as long as the user drives
+ * (design/appGuiReview.md, R11). One session for both parts, so its
+ * statistics -- reference-position moves, reconnects, throughput -- run
+ * on across the gate instead of starting again.
+ *
+ * Switching it on also revives a live session that has already ended on
+ * a drop: the next @ref ns_pump attempts a reconnect, counted in the
+ * statistics like any other. A session the caller stopped with
+ * @ref ns_stop, and a replay of a file or stream, stay ended.
+ *
+ * @param s  Session; safe on NULL.
+ * @param on Whether to reconnect after a drop from now on.
+ */
+void ns_set_auto_reconnect(NtripSession *s, bool on);
+
 /** @brief Release the session.  Safe on NULL. */
 void ns_close(NtripSession *s);
 

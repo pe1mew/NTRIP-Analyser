@@ -94,6 +94,7 @@ static void check(int ok, const char *what)
 
 static volatile int g_cut;    /**< this many sourcetable requests get TABLE_CUT */
 static volatile int g_drop;   /**< close the stream: the gate's answer */
+static volatile int g_ggas;   /**< GGA sentences the caster has received */
 static volatile int g_quit;
 
 static sock_t g_listener;
@@ -185,7 +186,12 @@ static void *caster_thread(void *arg)
             } else {
                 send(client[i], (const char *)frame, flen, 0);
                 char scratch[256];               /* drain the GGA uplink */
-                (void)recv(client[i], scratch, sizeof(scratch), 0);
+                int g = recv(client[i], scratch, sizeof(scratch) - 1, 0);
+                if (g > 0) {                     /* and count what it carried */
+                    scratch[g] = 0;
+                    for (const char *p = scratch; (p = strstr(p, "GGA,")); p += 4)
+                        g_ggas++;
+                }
             }
         }
         sleep_ms(20);
@@ -312,7 +318,71 @@ int main(void)
           "nothing failed on the way");
     check(strstr(doc, "\"service\":{\"class\":\"network\",\"why\":\"the stream stopped when the GGA did") != NULL,
           "and the gate's answer makes it a network service in the document");
+
+    /* ── After the answer: the monitoring phase (appGuiReview R11) ──
+     * The check goes on watching the reference position until stopped.
+     * The run opened with reconnect off, so the gate's drop ended the
+     * session; the answer switches reconnecting on, and the same session
+     * comes back, sends its position again, and keeps the check's result
+     * as it stood at the answer. */
+    check(strstr(doc, "\"monitoring\":true") != NULL,
+          "the gate's answer starts the monitoring phase");
+    int ggas_before = g_ggas;
+    g_drop = 0;                                   /* the caster serves again */
+    int back = 0;
+    for (int i = 0; i < 500 && !back; i++) {      /* backoff runs on real time */
+        back = pump_json(b, 75.0) > 0 && strstr(doc, "\"connected\":true") != NULL;
+        if (!back) sleep_ms(20);
+    }
+    check(back, "the same session reconnects after the gate's drop");
+    check(strstr(doc, "\"reconnects\":0") == NULL && strstr(doc, "\"reconnects\":") != NULL,
+          "the reconnect is counted by the session that made it");
+    for (int i = 0; i < 150 && g_ggas == ggas_before; i++) {
+        pump_json(b, 76.0 + i);
+        sleep_ms(20);
+    }
+    check(g_ggas > ggas_before, "positions reach the caster again after the answer");
+    check(strstr(doc, "GGA-gated (network service)") != NULL &&
+          strstr(doc, "No disconnect in the window") != NULL &&
+          strstr(doc, "Continuous through the window") != NULL &&
+          strstr(doc, "\"failed\":false") != NULL,
+          "the check's result stands as it was at the answer");
     bridge_close(b);
+    /* The caster frees a stream slot only when told to drop it, and the
+     * reconnected stream still holds one; the cases below need both. */
+    g_drop = 1;
+    sleep_ms(200);
+
+    /* ── A fixed base: the answer stands through a drop on the road ──
+     * The caster ignores the stopped GGA, so after the gate's 90 s the
+     * answer is "not gated". The engine reads any disconnect after the
+     * gate began as the gate's answer: unheld, the first drop of the
+     * drive would turn this base into a network service. */
+    g_drop = 0;
+    b = bridge_open("127.0.0.1", port, "TEST", "", "",
+                    52.0, 5.0, false, false, true, false);
+    check(b != NULL, "the bridge opens for a fixed-base check");
+    if (b) {
+        pump_until(b, 1.0, "\"vrs\":{");
+        pump_until(b, 61.0, "Continuous through the window");
+        bridge_vrs_gate(b, 61.0);
+        check(pump_until(b, 152.0, "not gated (fixed base?)"),
+              "no drop within the gate's window: not gated");
+        check(strstr(doc, "\"monitoring\":true") != NULL,
+              "the not-gated answer starts the monitoring phase too");
+        g_drop = 1;                               /* the road drops it */
+        int down = 0;
+        for (int i = 0; i < 150 && !down; i++) {
+            down = pump_json(b, 153.0) > 0 && strstr(doc, "\"connected\":false") != NULL;
+            if (!down) sleep_ms(20);
+        }
+        check(down, "a drop after the answer reaches the session");
+        check(strstr(doc, "not gated (fixed base?)") != NULL &&
+              strstr(doc, "GGA-gated (network service)") == NULL,
+              "the drop does not rewrite the gate's answer");
+        bridge_close(b);
+    }
+    sleep_ms(200);
 
     /* ── The same caster, a normal run: no vrs object at all ─────── */
     g_drop = 0;

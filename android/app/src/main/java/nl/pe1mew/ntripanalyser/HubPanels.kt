@@ -357,7 +357,14 @@ object VrsPanel : Panel {
         // [VrsRunPanel], with the other run buttons: it used to stand
         // here and be replaced by this card, which is how it seemed to
         // appear and disappear (design/appGuiReview.md, R3).
-        state.doc?.vrs?.let { VrsCard(it) }
+        state.doc?.vrs?.let {
+            VrsCard(
+                it,
+                running = state.run.running,
+                moves = state.doc?.stats?.arpMoves,
+                worstJumpM = HandoverPanel.worstJump(),
+            )
+        }
     }
 
     /**
@@ -413,7 +420,7 @@ object HandoverPanel : Panel {
     }
 
     /** The largest step between successive recorded positions. */
-    private fun worstJump(): Double? {
+    internal fun worstJump(): Double? {
         val dots = MonitorService.arpTrail.dots()
         if (dots.size < 2) return null
         var worst = 0.0
@@ -426,6 +433,10 @@ object HandoverPanel : Panel {
     }
 
     override fun shareSection(state: HubState): ShareSection? {
+        // The network-RTK check's alone: the reference position is its
+        // part of the RTK suite, and a check or a watch of a base that is
+        // not moving reports none (design/appGuiReview.md, R11).
+        if (state.run.kind != MonitorService.RunKind.NETWORK_RTK) return null
         val stats = state.doc?.stats ?: return null
         val alat = stats.arpLat ?: return null
         val alon = stats.arpLon ?: return null

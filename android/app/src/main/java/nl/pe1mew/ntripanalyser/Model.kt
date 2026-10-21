@@ -46,6 +46,9 @@ data class VrsDoc(
     @SerialName("gate_started") val gateStarted: Boolean = false,
     val failed: Boolean = false,
     val complete: Boolean = false,
+    /** The gate has answered and the run goes on watching the reference
+     *  position until stopped; the result above is held as it stood. */
+    val monitoring: Boolean = false,
     val items: List<KpiItem> = emptyList(),
 ) {
     /** The gate has answered, one way or the other. */

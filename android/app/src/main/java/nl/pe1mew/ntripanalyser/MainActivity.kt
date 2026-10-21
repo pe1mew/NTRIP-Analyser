@@ -134,6 +134,19 @@ val analysisTabs: List<AnalysisTab> = AnalysisTab.entries.filter {
     }
 }
 
+/**
+ * The tabs Analysis opens for a run of this kind (design/appGuiReview.md,
+ * R11). The reference position belongs to the network-RTK check and
+ * shows alone during it, and after it until the next run; every other
+ * run shows the static screens, which describe a base that is not
+ * moving, without it.
+ */
+fun analysisTabsFor(kind: MonitorService.RunKind): List<AnalysisTab> =
+    if (kind == MonitorService.RunKind.NETWORK_RTK && Features.HAS_HANDOVER)
+        listOf(AnalysisTab.REFPOS)
+    else
+        analysisTabs.filter { it != AnalysisTab.REFPOS }
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen() {
@@ -705,6 +718,7 @@ fun MainScreen() {
             elevRevision = elevRevision,
             haveLocation = haveLocation,
             rinexAgeS = rinexAgeS,
+            tabs = analysisTabsFor(runState.kind),
             tab = tab,
             onTab = { tab = it },
             onLeave = { nav.pop() },
