@@ -439,7 +439,12 @@ fun MountMapScreen(
                             val r = (k * step * scale).toFloat()
                             drawCircle(MM_RING, r, Offset(cx, cy), style = Stroke(1.dp.toPx()))
                             val t = measurer.measure(distanceText(k * step), labelStyle)
-                            val at = Offset(cx + r * 0.707f + 3f, cy - r * 0.707f - t.size.height)
+                            // Where the ring crosses the north line, just
+                            // right of it and just inside the ring: the
+                            // place every polar plot labels its rings
+                            // (design/appGuiReview.md, R6), on the patch
+                            // the map already drew its labels on.
+                            val at = Offset(cx + 4.dp.toPx(), cy - r + 4.dp.toPx())
                             drawRect(MM_SEA.copy(alpha = 0.8f), at, Size(t.size.width.toFloat(), t.size.height.toFloat()))
                             drawText(t, topLeft = at)
                             k++

@@ -1242,6 +1242,15 @@ distance coloured as the A3 row says. A rover set by hand: no track.
 *Check:* each plot on the Huawei, labels readable over tracks and
 points, the "N" and the north line clear.
 
+**Results 2026-10-21:** Sky view and Self-position went onto the shared
+frame in step 4 (R12, at the author's direction), so step 5 was the
+mountpoint map alone: its ring labels moved from the north-east diagonal
+to where each ring crosses the north line, just right of it and just
+inside the ring, on the map's existing patch (`MountMap.kt`). Seen on
+the Huawei in both editions: pro on `caster.centipede.fr`, 1308 drawn,
+"50,0 km", "100,0 km", "150,0 km"; free on `rfsee.net`, "10,0 km" to
+"40,0 km".
+
 ### Step 6 — What the project says about itself
 
 - `android/design/views.md`: §3 (cells, not points and a trend), §4 and
