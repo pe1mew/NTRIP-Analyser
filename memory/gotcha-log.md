@@ -233,7 +233,8 @@ framework v1.49.2's archive rule). Grep both for a mechanism.
 **Root cause**: its header comment used ` -- ` as a dash; `--` is illegal inside an XML comment.
 **Fix**: a colon instead. Write XML comments without double hyphens; the house style's ` -- ` belongs in code comments only.
 
-### The phone locked between the steps of a test (2026-10-14) [x4]
+### The phone locked between the steps of a test (2026-10-14) [x7]
+**Recurrence 2026-10-20 and -21 (Huawei)**: during the GUI review's long samples (the 60 s sustain, the 600 s watch floor), and once more before the track bench, which the script caught (it checks the focus before each size and stops with `LOCKED`). Same fix; the timeout stays the author's setting.
 **Problem**: four times in one afternoon a step on the S23 or the Huawei found the lock screen (`NotificationShade` or the clock in the dump) instead of the app, and waited for the author.
 **Root cause**: the screen timeout is shorter than the gap between steps that wait on a build, a watch or the author.
 **Fix**: read `mCurrentFocus` before each step and ask for an unlock instead of acting on the lock screen; a longer timeout during a session is the author's setting to change.
@@ -263,6 +264,41 @@ framework v1.49.2's archive rule). Grep both for a mechanism.
 **Root cause**: most likely none in the build: Play generates APKs from the bundle per SDK range, and this Android 10 phone (SDK 29) would get the 29+ one. **Not checked** that an Android 8 or 9 phone is still offered the app; `bundletool build-apks` on the `.aab` would show the variants.
 **Fix**: judge `minSdk` from the bundle or a locally built APK, not from one device's install.
 
+### `git stash` used to compare against HEAD set aside the whole session (2026-10-20)
+**Problem**: mid-check, a `git stash` meant to see the committed state took every uncommitted change of the step, and the author's untracked `guiTemplate.pptx` with them.
+**Root cause**: stash is a git write command on the working tree, used as if it were a read.
+**Fix**: `git stash pop --index` restored everything, staged state included. Compare against HEAD with `git show HEAD:<path>` or `git diff`, never by moving the work aside; stash is not used here.
+
+### `Select-Object -First` on a Gradle pipe killed the build (2026-10-20)
+**Problem**: `.\gradlew.bat … | Select-Object -First 5` ended Gradle with exit 255 and no error.
+**Root cause**: PowerShell stops the upstream pipeline once `-First` has its lines; Gradle is killed mid-build.
+**Fix**: capture first, then filter: `$o = .\gradlew.bat … ; $o | Select-Object -Last 20`.
+
+### A plan assumed a layer could do what it had never been asked to (2026-10-21)
+**Problem**: the GUI review plan said the network-RTK check could keep monitoring after its gate "with the existing session calls". It could not: once the gate's disconnect ended the session, nothing in `src/session` restarted it.
+**Root cause**: the plan was written from what the bridge seemed to need, not from `ntrip_session.h`. A recurrence of the promoted *a claim about what a layer does is tested before it is written*, in a plan rather than a document.
+**Fix**: found when step 3 started; the author chose an additive call, `ns_set_auto_reconnect()`, pinned by `test/test_bridge_vrs.c`. Grep the header for the call before a plan names a capability.
+
+### A colour judged a distance other than the one beside it (2026-10-21)
+**Problem**: the reference-position drive coloured its distance by A3, and showed 155,7 km in green.
+**Root cause**: A3 judges the distance to the GGA position sent; the number shown was the phone's. They agree only when the phone's fix is what is sent.
+**Fix**: the colour stays neutral unless both measure the same distance (`HandoverDetail`'s `a3` gate). A recurrence of the promoted *a screen may only say what its evidence supports*: a colour is a claim about the number it sits on.
+
+### The bridge test left the test caster's slots taken (2026-10-21)
+**Problem**: after the new reconnect block in `test_bridge_vrs.c`, the following cases could not connect: both of the stub caster's slots were held.
+**Root cause**: the reconnecting session re-opened a slot after `bridge_close` freed the first; the stub had no way to drop it.
+**Fix**: `g_drop = 1` and a short sleep after `bridge_close`, so every case starts with free slots. A new case that reconnects must free what it takes.
+
+### Indented lines in the listing doc read as store text (2026-10-21)
+**Problem**: `tools/check_release.py` failed on `play-listing.md`: the pending bullet change, indented four spaces, was measured as a short description.
+**Root cause**: the checker takes indented blocks as the literal store text.
+**Fix**: proposals and pending wording go in blockquotes, never indented.
+
+### A Wi-Fi toggle is not a clean stimulus on the Huawei (2026-10-20)
+**Problem**: to see the bar's restart reason, Wi-Fi was toggled twice. The phone did not rejoin by itself the first time, and when it did, no restart showed: the drop failed KPI 1 instead.
+**Root cause**: the drop is a real outage, and KPI 1 judging it is correct; a restart needs the candidate verdict to change without a failure. The Huawei also writes no lines for the app to logcat, so nothing there shows what happened.
+**Fix**: recorded as *restart reason not observed* in `design/appGuiReview.md`. Rejoining Wi-Fi is the author's; observe through the screen (`uiautomator dump`), not logcat.
+
 ## Promoted
 
 <!-- Track what has been promoted, so it is not promoted twice and so the loop
@@ -289,8 +325,8 @@ framework v1.49.2's archive rule). Grep both for a mechanism.
 | 2026-08-25 | A pause that lives in prose is not a checklist | **2** — 3.7.2 and 3.7.3 both hit `no matches found` at the upload because packaging lived in a sentence between the commands | `docs/RUNBOOK.md` release sequence; hand over commands only when everything they name exists |
 | 2026-08-26 | Cite the basis, or say there isn't one | **1** — a €12.99 price "band" the agent had never looked up, nearly attached to a live listing; the real search found no paid NTRIP market at all | `CLAUDE.md` hard constraint |
 | 2026-08-25 | A flag's lifetime must match the thing it describes | **2** — `usedEphStream` reset per run over a process-lived cache (2026-08-25); the same family as the matrix's stale-file-as-full-cache | `memory/MEMORY.md` active decisions |
-| 2026-10-09 | A screen may only say what its evidence supports — "not yet" is evidence of nothing | **4** — "fewest held: 9" from a partial first epoch and "no dual-frequency pair" at 25 s (both 2026-08-18, fixed with `SR_WARMUP_S` and a judgeability gate); **NOT COMPUTABLE at 32 s in the new Self-position window, and ring labels of 0.125 m on a plot with no points, both 2026-10-09** — the second pair happened in a window added to the same design document that records the first; **2026-10-12 a web page**: the location picker said "Copied to clipboard!" after a write the browser had refused, its success message printed after the call rather than from its result | `design/gui-design.md` §14.5, §16.5 and §17.4; `memory/MEMORY.md` active decisions |
+| 2026-10-09 | A screen may only say what its evidence supports — "not yet" is evidence of nothing | **5** — **2026-10-21 a colour**: the reference-position drive coloured the phone's 155,7 km green by A3, which judges the GGA position sent, not the phone. Earlier, 4 — "fewest held: 9" from a partial first epoch and "no dual-frequency pair" at 25 s (both 2026-08-18, fixed with `SR_WARMUP_S` and a judgeability gate); **NOT COMPUTABLE at 32 s in the new Self-position window, and ring labels of 0.125 m on a plot with no points, both 2026-10-09** — the second pair happened in a window added to the same design document that records the first; **2026-10-12 a web page**: the location picker said "Copied to clipboard!" after a write the browser had refused, its success message printed after the call rather than from its result | `design/gui-design.md` §14.5, §16.5 and §17.4; `memory/MEMORY.md` active decisions |
 | 2026-10-09 | A falsification that stays green accuses the test, not the code | **3** — synthetic ephemerides sharing one `af1` hid a deleted satellite clock-drift term (P4); a snapshot that blanked `selfpos_speed_mms` beside `has_vel = false` hid a deleted `has_vel` gate (P5); **and again in P6, hours after the promotion**, a snapshot left at its `NS_UNSET` initialisers hid a deleted status gate in the *snapshot* serialiser — the promotion did not stop the test being written politely; the falsification caught it; **2026-10-12, done systematically**: a mutation run of 13 broken copies of `sourcetable_map.c` found three cases passing for the wrong reason (a NUL check the decoder made redundant, a length limit whose test was malformed anyway, every test entry a fixed base) | `memory/MEMORY.md` active decisions and Recently Promoted |
-| 2026-10-10 | A claim about what a frontend does is tested on that frontend before it is written | **3** — *Read the wiring, missed the gate* 2026-09-13; then twice on 2026-10-10: the feature matrix said the daemon solved stations broadcasting their own orbits (it solved none), and `docs/cli.md` said the same of `-t --report` (it did not either) — both assuming a shared layer decoded ephemerides, which none does | `memory/MEMORY.md` active decisions and Recently Promoted |
+| 2026-10-10 | A claim about what a frontend does is tested on that frontend before it is written | **4** — **2026-10-21 in a plan**: the GUI review plan had the network-RTK check reconnect "with the existing session calls", which had no such call. Earlier, 3 — *Read the wiring, missed the gate* 2026-09-13; then twice on 2026-10-10: the feature matrix said the daemon solved stations broadcasting their own orbits (it solved none), and `docs/cli.md` said the same of `-t --report` (it did not either) — both assuming a shared layer decoded ephemerides, which none does | `memory/MEMORY.md` active decisions and Recently Promoted |
 | 2026-10-10 | A command handed to the author carries all its context in the command itself — shell and checkout | **5** — **2026-10-15 `&&` and `/tmp` handed to PowerShell 5.1**, which has neither. Earlier, 4 — a Bash heredoc handed to a PowerShell prompt (2026-10-09); a bare `git commit` run in the wrong checkout, which committed another session's staged work under this one's message (2026-10-10); **a bare `git commit` whose editor closed empty, reported as committed (2026-10-12)** — the message too is context, so commits now go over as `git -C <checkout> commit -F <file>`; **2026-10-13 a `git cherry-pick` handed over while changes were staged**, which git refuses — the order of the commands, and the state of the index, are context too: hand over the commit first, then what depends on it. Each time the context was written beside the command instead of in it | `memory/MEMORY.md` active decisions and Recently Promoted |
-| 2026-10-14 | Driving a phone from a script: read the focus before every tap, Back and swipe | **3** — the blind tap script (Huawei 2026-10-13; Back and swipe on the S23 and an ignored `am start` after install on the Huawei, 2026-10-14), Git Bash rewriting `/sdcard` (2026-09-13, 2026-10-14), the lock screen four times in one afternoon (2026-10-14) | `docs/RUNBOOK.md`, Android: build, install, observe |
+| 2026-10-14 | Driving a phone from a script: read the focus before every tap, Back and swipe | **3** — the blind tap script (Huawei 2026-10-13; Back and swipe on the S23 and an ignored `am start` after install on the Huawei, 2026-10-14), Git Bash rewriting `/sdcard` (2026-09-13, 2026-10-14), the lock screen four times in one afternoon (2026-10-14), and three more in the GUI review (2026-10-20, -21) | `docs/RUNBOOK.md`, Android: build, install, observe |

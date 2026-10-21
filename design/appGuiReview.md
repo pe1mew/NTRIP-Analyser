@@ -9,8 +9,10 @@ Started 2026-10-17. **State: built** (collection closed 2026-10-20;
 steps 1–6 built and checked on the Huawei 2026-10-20 and -21, each
 committed). **Open:** the reference position on a real drive — hand-overs,
 a second lettered station, the rover's coloured track — which a desk
-cannot produce; the bar's restart reason, built but not yet seen; and
-the listing's pending wording, for the author.
+cannot produce; the bar's restart reason, built but not yet seen; the
+listing's pending wording, for the author; and whether to bound the
+track's drawing cost, measured at 266 ms a frame at its 50 000-point cap
+(step 4).
 
 **Scope: the Android app only** (author, 2026-10-20). With R10
 withdrawn and R11's check giving no verdict, nothing here changes
@@ -1227,6 +1229,39 @@ distance coloured as the A3 row says. A rover set by hand: no track.
   track and its colours. Settings are locked during a run, so the set
   position cannot be moved mid-run, and a new run clears the trail;
   only a moving phone shows them. Left for the author's drive.
+
+**Track cost, measured 2026-10-21, Huawei, pro `.bench`** (R8, no
+debugger). A temporary bench-only harness, since removed, filled
+`ArpTrail` with a synthetic 12 m-step drive of N points and eight
+stations, and drew the real `HandoverDetail` with the 1 Hz redraw a run
+gives it (one `offerDistance` a second). 30 s per size; frame phases
+from `gfxinfo framestats` (last 10 frames), heap and PSS from one
+`meminfo` each. The 50 000-point plot was seen drawn (track, A–H, rings).
+
+| N points | frame total, median (p90) | UI thread | render thread | Java heap | PSS |
+|---------:|------------:|------:|------:|------:|------:|
+| 0 | 28 ms (34) | 14 ms | 12 ms | 5,8 MB | 37 MB |
+| 1 000 | 39 ms (44) | 17 ms | 21 ms | 7,1 MB | 41 MB |
+| 10 000 | 101 ms (125) | 46 ms | 54 ms | 6,6 MB | 43 MB |
+| 50 000 | 266 ms (296) | 136 ms | 127 ms | 8,5 MB | 71 MB |
+
+- The plot's own arithmetic at 50 000 (two track copies, a distance
+  pass for the scale, a distance-and-bearing pass to place each point),
+  timed in the harness: median 65 ms, max 74 ms over 40 seconds. The
+  remaining UI time is recording 50 000 `drawLine`s (64 ms median).
+- Cost is linear in N; memory is not the issue (Java heap +2,7 MB at the
+  cap), frame time is: a quarter of every second at the cap, ~10 % at
+  10 000. The 0-point screen already misses 60 Hz on this phone (28 ms),
+  so "janky" in `gfxinfo` says nothing here; the growth does.
+- How fast N grows: one point per document once the rover has moved
+  10 m, so at any driving speed one a second — 10 000 is ~2,8 h of
+  driving, the 50 000 cap ~14 h.
+- **Open, for the author:** whether to bound it. The obvious bound is
+  drawing: the plot is ~900 px across, so points closer than a pixel or
+  two on screen add nothing visible; thinning at draw time (and one track
+  copy per frame instead of two) would cap the cost at the track's
+  on-screen length rather than its point count. Not built; the recorded
+  track and its cap stay as they are.
 
 ### Step 5 — Scale labels on the other plots
 
