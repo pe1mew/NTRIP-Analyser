@@ -18,7 +18,7 @@ the free edition deliberately does not do at all.
 | Taking over the free edition's connection | — | yes, with your consent in the free edition |
 | Watch mode — keep measuring for hours, with availability and degradation counts | — | yes |
 | Network-RTK check — five assertions and a gate test for VRS services | — | yes |
-| Rover-to-ARP distance and hand-over history | — | yes |
+| Rover-to-ARP distance and hand-over history, as part of the network-RTK check | — | yes |
 | Satellite trails on the sky view — where each satellite has been, for a whole session | — | yes |
 | Ephemeris side-stream for a complete sky view | — | yes |
 | Import and export of the shared configuration file | — | yes |

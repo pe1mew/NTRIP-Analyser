@@ -16,6 +16,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
   shuttle2's live HANESE and RFSEE01 snapshots: values byte-identical to
   the previous plugin, configuration different only in its 16
   `graph_category` lines (8 per station).
+- **Android: the author's review of the app's screens**
+  (`design/appGuiReview.md`), both editions unless marked pro. Checked
+  on a Huawei P smart 2019 at each step.
+  - Every analysis screen and the hub open with a one-line summary and
+    an **ⓘ** that opens the screen's explanation; the texts were
+    reviewed line by line. *Back to checks* leaves Analysis from where
+    *Analysis* entered it. The app name is one step smaller: one line at
+    every font size but the largest, where it wraps on Analysis (600 px
+    for 608 needed at font scale 1.45).
+  - The verdict bar: READY is gone; *STATION OK* only once it has held
+    60 s, *CAUTION* and *FAILED* at once; the bar is the run's progress
+    and says why when it starts again; eight marks under it mirror the
+    checks. A watch says *RUNNING* until tier 2's floor, then tier 2's
+    own word — the floor now from the core's policy through the bridge
+    (`sr_min_window_s`) where the app held its own 600.
+  - Run buttons in tier order: *Run again*, *Watch station*, then
+    *Network-RTK check* (pro), the last always drawn and greyed during a
+    run rather than replaced by its result card.
+  - *Pro:* the **network-RTK check goes on after its gate**, watching the
+    reference position until Stop; Analysis shows the reference position
+    alone during and after it, and the static views for every other run.
+    The check's answer is held from the gate on, since the core reads
+    any later disconnect as the gate's answer. One additive session call,
+    `ns_set_auto_reconnect()`, lets the same session reconnect after the
+    gate's drop; `test_bridge_vrs.c` pins it (39 checks, falsified three
+    ways), and the CLI's live check is unchanged.
+  - *Pro:* the **reference position** shows each station a network
+    hands you to with its own colour and letter, the station in use
+    joined to the rover by a red line, and the rover's track coloured by
+    the station serving it. Its distance takes assertion A3's verdict,
+    where A3 and the line measure the same distance, instead of bands of
+    the app's own (5 and 50 km), which had shown 26 km amber beside an
+    A3 PASS.
+  - **One frame for every polar plot:** sky view, self-position and
+    reference position at one size and place — they were about 720, 850
+    and 490 px across — with each ring labelled on the north line; the
+    mountpoint map labels its rings there too.
 
 ## [3.9.0] - 2026-10-15
 

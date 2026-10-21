@@ -62,6 +62,31 @@ translation of their own, replacing Google's machine translation
 (*Dutch listing*, below). The text in the next section is what is
 live; change it there when the console changes.
 
+**Pending for the release after 3.9.0, not yet reviewed by the author
+(2026-10-21):** the reference position is no longer a view of every pro
+run but part of the network-RTK check (`design/appGuiReview.md`, R11),
+so pro's two bullets become one. Proposed, English (quoted, not
+indented: `tools/check_release.py` reads indented lines in this part of
+the file as short descriptions):
+
+> - Network-RTK (VRS) check: does the network accept your position
+>   and deliver corrections fit for RTK where you stand -- then it
+>   keeps watching as you drive: each station it hands you to,
+>   lettered, and how far the reference position moved
+
+replacing both the *Network-RTK (VRS) check* and the
+*Reference-position watch* bullets. Dutch, in the same place:
+
+> - Netwerk-RTK-controle (VRS): accepteert het netwerk je positie, en
+>   levert het correcties die geschikt zijn voor RTK waar je staat --
+>   daarna blijft hij meekijken terwijl je rijdt: elk station waar het
+>   netwerk je naartoe overzet, met een letter, en hoe ver de
+>   referentiepositie verschoof
+
+replacing *Netwerk-RTK-controle (VRS)* and *Bewaking van de
+referentiepositie*. Both listings stay under 4000 characters either way
+(the English pro listing is 3544 today).
+
 ## Full description
 
 Shared opening, then an edition-specific section. Play descriptions take

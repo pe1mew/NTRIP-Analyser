@@ -55,7 +55,7 @@ or forms a verdict; that rule is what makes the next row true.
 | Ephemeris decode from the observation stream | 1019/1020/1042/1044/1045/1046 through a single seven-type switch. Lets a station place its own satellites with nothing configured. The session layer frames them but decodes nothing, so the daemon decodes them itself, from every station stream, for the self-position solve; it publishes no orbit and draws no sky. | ● | ● | ● | ● | ◐ |
 | Ionospheric ROTI | Geometry-free dual-frequency combination from MSM6/7, per satellite and as a polar heatmap. No other free NTRIP tool does this. | ○ | ● | ⋯ | ⋯ | ● |
 | Session history time-series | Six metrics across the session. Min/max/average hide dropouts — a 45 s gap and a steady stream can average alike. | ○ | ● | ○ | ⋯ | ◐ |
-| Rover-to-ARP distance and hand-over | Live distance and direction, with accumulated ARP dots that reveal a network switching stations under you. In pro, the Reference position analysis tab since 2026-10-12; it was a hub card before. | ◐ | ● | ○ | ● | ○ |
+| Rover-to-ARP distance and hand-over | Live distance and direction, with the stations a network switched you between, each lettered and coloured, and the rover's track coloured by the station serving it. In pro, part of the network-RTK check since 2026-10-21 (after its answer and until Stop, Analysis shows it alone); an analysis tab of every run from 2026-10-12, a hub card before. | ◐ | ● | ○ | ● | ○ |
 
 ## Visualisation
 
@@ -182,7 +182,7 @@ gaining a row for it.
 | `HAS_EPH_STREAM` | false | true | The on-demand ephemeris side-stream |
 | `HAS_TRACKS` | false | true | Trails on the sky plot: where each satellite has been |
 | `HAS_VRS_CHECK` | false | true | The network-RTK check: five assertions and the gate test on the hub |
-| `HAS_HANDOVER` | false | true | Rover-to-ARP distance and the hand-over history: the Reference position analysis tab |
+| `HAS_HANDOVER` | false | true | Rover-to-ARP distance and the hand-over history: the Reference position screen of the network-RTK check |
 | `HAS_EXPORT` | false | true | Statistics export: the snapshot as JSON or the daemon's CSV |
 | `HAS_TIER2` | false | true | The stability report: six metrics over stream time, ten minutes of evidence or an honest shrug |
 | `HAS_SELFPOS` | false | true | The Self-position analysis tab and its run-scoped E/N trail; the solve itself runs in both |

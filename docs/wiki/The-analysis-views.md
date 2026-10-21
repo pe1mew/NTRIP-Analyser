@@ -9,15 +9,28 @@ imported file too old to use. Tapping the line opens
 
 Tap **Analysis** on the bar at the bottom of the station screen. Three
 views, chosen by the tabs at the top or by swiping between them;
-**←** returns to the station.
+**Back to checks**, in the same place at the bottom, returns to the
+station — as do **←** and the phone's Back.
+
+Each view opens with a one-line summary, and the **ⓘ** beside it
+explains the view — what is drawn, where it comes from, and how to
+read it — in a box closed by *Close*, a tap outside it, or Back.
 
 In the free edition these show **what the station check captured**, held
 after the run ends.
 
-Pro adds two more tabs after these three: **[Self-position](Self-position)**
-— where the station's own observations put it — and **Reference
-position** — where a service's reference position stands relative to
-you, and where it has been ([Network-RTK check](Network-RTK-check#watching-the-reference-position-pro)).
+Pro adds **[Self-position](Self-position)** after these three — where
+the station's own observations put it. During and after a
+[network-RTK check](Network-RTK-check#watching-the-reference-position-pro)
+Analysis opens something else: the **Reference position** alone, where
+a service's reference position stands relative to you and where it has
+been. The views here describe a base that is not moving; the reference
+position belongs to the check that is about a rover.
+
+The polar views — the sky view, Self-position and Reference position —
+share one frame: the same size and place, N E S W outside the circle,
+each ring labelled where it crosses the north line, and the legend
+under the plot.
 
 ---
 

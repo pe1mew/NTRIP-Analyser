@@ -17,11 +17,13 @@ evidence before it says anything at all.
 
 The run keeps going until you stop it — through the screen going dark,
 and with a notification for its whole life so the system leaves the
-connection alone. While it runs, the verdict banner says so: its
-subtitle reads *watch 4 min · evidence 98/600 s* and its progress bar
-climbs toward the ten-minute stability floor; once the floor is
-passed, the bar retires and the subtitle carries the stability verdict
-instead.
+connection alone. While it runs, the verdict banner says so: until the
+ten-minute stability floor is met it reads *RUNNING* — or *CAUTION* or
+*FAILED*, which show at once — its subtitle reads *watch 4 min ·
+evidence 98/600 s*, and its progress bar climbs toward the floor. Once
+the floor is passed the bar retires, the subtitle carries the stability
+verdict, and the banner's word becomes the watch's own: STABLE, DEGRADED
+or UNSTABLE. The eight checks stay in sight in the small marks under it.
 
 Everything else behaves as during a check: the eight rows keep
 updating, and the analysis views keep filling — the **Analysis**

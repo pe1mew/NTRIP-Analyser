@@ -59,15 +59,16 @@
 
 <!-- 2026-10-18 -->
 
-- **The Android GUI review is decided and planned, not built**
-  (`design/appGuiReview.md`, started 2026-10-17, collection closed and
-  plan written 2026-10-20). Every item is decided; the plan is six
-  steps, each checked on the Huawei in both editions, and **waits for
-  the author's go**. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches
+- **The Android GUI review is built** (`design/appGuiReview.md`,
+  2026-10-17 to -21): six steps, each checked on the Huawei in both
+  editions and committed. Still open: the reference position on a real
+  drive (hand-overs, lettered stations, the coloured track), the verdict
+  bar's restart reason (built, not yet seen), and pro's pending listing
+  wording in `play-listing.md`. Unreleased; `changelog.md` carries it. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches
   `src/core`: Reference position becomes part of the Network-RTK
   check (the only Analysis screen during it; no verdict of its own),
   and the static screens ignore hand-overs.
-  <!-- verify: test -f design/appGuiReview.md && grep -q "State: planned" design/appGuiReview.md -->
+  <!-- verify: test -f design/appGuiReview.md && grep -q "State: built" design/appGuiReview.md && grep -q "PolarCanvas" android/app/src/main/java/nl/pe1mew/ntripanalyser/Views.kt && grep -q "ns_set_auto_reconnect" src/session/ntrip_session.h -->
   <!-- the probe tracks the plan's state line; change both together -->
 
 

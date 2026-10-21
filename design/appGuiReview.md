@@ -5,9 +5,12 @@ as the author gives them, and implemented only once the author says the
 list is complete. Verified on the Huawei P smart 2019 (Android 10), in
 both editions.
 
-Started 2026-10-17. **State: planned** (collection closed by the author
-2026-10-20; implementation plan below, awaiting the author's go) —
-nothing here is built yet.
+Started 2026-10-17. **State: built** (collection closed 2026-10-20;
+steps 1–6 built and checked on the Huawei 2026-10-20 and -21, each
+committed). **Open:** the reference position on a real drive — hand-overs,
+a second lettered station, the rover's coloured track — which a desk
+cannot produce; the bar's restart reason, built but not yet seen; and
+the listing's pending wording, for the author.
 
 **Scope: the Android app only** (author, 2026-10-20). With R10
 withdrawn and R11's check giving no verdict, nothing here changes
@@ -1268,6 +1271,18 @@ the Huawei in both editions: pro on `caster.centipede.fr`, 1308 drawn,
 
 *Check:* `python tools/check_release.py`, `python
 tools/verify_memory.py`, CI on the pushed commit.
+
+**Done 2026-10-21:** `android/design/views.md` (§1's ephemeris stream
+corrected to pro only, §3's cells, §4's plot, §5 rewritten for the
+network-RTK check, and two new sections: the polar frame, and every
+screen's summary and ⓘ); the wiki's Network-RTK check, analysis views,
+getting started, watch mode, pro edition and paid-edition pages;
+`design/feature-matrix.md`'s two rows; `changelog.md`'s `[Unreleased]`;
+and in `play-listing.md` a **pending** change to pro's bullets, English
+and Dutch, for the author to review before the next release.
+`check_release.py`: only the 3.9.0 bundles predating these sources
+fail; the wiki's links resolve. The wiki is published by the author,
+after the release.
 
 ## Verification on the Huawei
 

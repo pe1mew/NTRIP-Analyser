@@ -123,7 +123,9 @@ tracking poorly. That distinction is the whole point of the view: an
 absent marker must never be readable as a missing satellite.
 
 **A RINEX navigation file the user supplies** (both editions) and an
-**ephemeris stream** (both editions, on demand) compute the position from
+**ephemeris stream** (pro only, on demand — `Features.HAS_EPH_STREAM`;
+this line said "both editions" until 2026-10-21, against the table
+above and the code) compute the position from
 the orbit and the base's own ARP. They are exact, independent of the
 handset, and cover every constellation the base tracks.
 
@@ -280,8 +282,12 @@ strong.
 
 ## 3. C/N0 versus elevation
 
-A separate view: every sample of the session as a point, C/N0 against
-elevation, with a per-constellation trend. This is the antenna
+A separate view: every sample of the session, C/N0 against elevation,
+gathered into cells of one degree by one dB-Hz, coloured by
+constellation and drawn more solid the more samples a cell holds
+(logarithmic opacity, `ElevationAccumulator`). There is no trend line;
+this paragraph said "a point, with a per-constellation trend" until
+2026-10-21, which the code never drew. This is the antenna
 diagnostic — a healthy installation rises smoothly from roughly 35 dB-Hz
 at the horizon to about 50 dB-Hz at zenith, and a flat or dented curve
 points at the antenna, its siting, or an obstruction rather than at the
@@ -305,10 +311,12 @@ daemon run. The plan and the measurements are in
 - **The state is the core's** — solved, gathering, not computable
   (single-frequency) or not solved — so the phone cannot disagree with
   the GUI about which applies.
-- **The plot** is east/north about the ARP, square at the screen's full
-  width, the ARP fixed at the centre: self-centring would hide the
-  offset. Ring radius by the desktop's 1-2-5 rule. Labels sit on a patch
-  of the page over the trail; the mean and the latest epoch on top.
+- **The plot** is east/north about the ARP, the ARP fixed at the
+  centre: self-centring would hide the offset. Ring radius by the
+  desktop's 1-2-5 rule. Drawn in the shared polar frame since
+  2026-10-21 (*The polar frame*, below) — the sky view's size and place,
+  where it was square at the screen's full width before — with its rings
+  labelled on the north line; the mean and the latest epoch on top.
 - **The legend draws each mark with the plot's own function**, so it
   does not rest on colour.
 - **The latest epoch** is one line under the plot, labelled as a
@@ -318,22 +326,63 @@ daemon run. The plan and the measurements are in
 The solve runs in free as well — a measurement is never gated by
 edition — but nothing draws it there.
 
-## 5. Reference position — pro only
+## 5. Reference position — pro only, inside the network-RTK check
 
 Where the service's reference position stands relative to the rover,
-and where it has been this run: the desktop's VRS monitor, redrawn. The
-rover at the centre, the ARP at its true bearing with the radius scaled
-to fit, earlier positions as faint joined dots — a hand-over reads as a
-jump — and the last five minutes of distance as a strip chart beneath.
-The summary names the distance in A3's usability colours and the
-hand-over count in what the service *is*: a network's moves are its
-job, a fixed base's are a fault. The largest jump between positions
-appears once there has been one.
+and where it has been this run: the desktop's VRS monitor, redrawn.
+**Since 2026-10-21 it is part of the network-RTK check**, not an
+analysis tab of every run (`design/appGuiReview.md`, R11): the check
+gives its answer at the gate, then watches the reference position until
+Stop, and during and after it Analysis opens this screen alone. The
+other views describe a base that is not moving; this one is about a
+rover.
 
-It was a hub card with a detail screen until 2026-10-12, and moved
-here with Self-position: both are views of a station over the run, not
-checks
-([`handover-on-the-phone.md`](../../design/work-items/handover-on-the-phone.md), H8).
+- **The plot**, in the shared polar frame: the rover at the centre;
+  each distinct reference position a *station*, at its true bearing and
+  distance, with a colour and a letter (A, B, …) fixed at first sight
+  for the whole run (`ArpTrail.offerDot`); the station in use larger,
+  joined to the rover by a red line, the baseline (R7); earlier stations
+  joined to nothing. The rover's **track** for the whole run, from the
+  phone's fix only, a point per 10 m and thinned rather than cut at
+  50 000, each stretch in the colour of the station that served it (R8).
+  The last five minutes of distance as a strip chart beneath.
+- **The distance's colour is A3's verdict** from the report, the core's
+  judgement of that distance — and only where A3 and the line measure
+  the same distance: the phone's fix sent by live GGA, or the set
+  position with no fix. Otherwise neutral (R11.6). Until 2026-10-21 the
+  app coloured it by bands of its own, 5 and 50 km, which contradicted
+  A3 (26 km amber beside an A3 PASS).
+- The hand-over count is worded by what the service *is* — a network's
+  moves are its job, a fixed base's are a fault — and the largest jump
+  appears once there has been one.
+
+It was a hub card with a detail screen until 2026-10-12, then an
+analysis tab of every pro run
+([`handover-on-the-phone.md`](../../design/work-items/handover-on-the-phone.md), H8),
+and since 2026-10-21 the network-RTK check's.
+
+## The polar frame — every polar plot alike
+
+Sky view, Self-position and Reference position are drawn in one frame,
+`PolarCanvas` in `Views.kt` (`design/appGuiReview.md`, R6, R12): the sky
+view's geometry at a fixed size — a square at the screen's width, the
+circle 18 dp inside it for N E S W outside — with the dashed axes, and
+each ring labelled where it crosses the north line, just right of it,
+on a patch of the page, drawn last. The legend is the sky view's row
+under the plot. The size is a rule, not the height a page leaves over:
+three plots under three headers were three sizes (about 720, 850 and
+490 px across on a 923-px screenshot, 2026-10-21) for exactly that
+reason, and a page whose words and plot do not fit now scrolls. The
+mountpoint map labels its rings on the north line too.
+
+## Every screen's summary and ⓘ
+
+Each analysis screen and the hub open with a one-line summary and an ⓘ
+that opens the screen's explanation in a dialog (`SummaryRow`,
+`HelpDialog` in `Dialogs.kt`; R1). The texts are in
+`res/values/strings.xml`, reviewed by the author line by line
+(`design/appGuiReview.md`, *R1 texts*); the template requires a summary
+and help from every analysis screen, so none can come without them.
 
 ## What the stream itself decides about these plots
 

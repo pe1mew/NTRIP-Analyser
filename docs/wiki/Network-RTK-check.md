@@ -11,9 +11,14 @@ assertions and a gate test, judged by the same engine the desktop's
 `--check-vrs` uses, so a service reads the same from a phone in the
 field and a terminal at a desk.
 
-Tap **Network-RTK check** on the station screen. It runs the eight
-checks and the assertions together, and **ends by itself** — about
-three minutes on a healthy service.
+Tap **Network-RTK check** on the station screen — the last of the run
+buttons, after the check and the watch. It runs the eight checks and the
+assertions together and gives its answer in about three minutes on a
+healthy service; then it **keeps watching the reference position until
+you tap Stop**, and its card says so — *Watching the reference position
+· Stop to end*. That second part is for the road: see
+[watching the reference position](#watching-the-reference-position-pro)
+below.
 
 ## The five assertions
 
@@ -65,30 +70,52 @@ wrong instrument here.
 - The check needs a position to report: the one you set in the
   connection settings, or, with [live reporting](Live-position) agreed,
   the phone's own.
-- It is a verdict on **one connection**: unlike a watch, it does not
-  reconnect after a drop — a drop is evidence, and A1, A4 or the gate
-  will say which kind.
-- The stream stopping at the end of a gated run is the test concluding,
-  not a fault. The service dropped you because you stopped reporting,
-  which is what it promised to do.
+- Up to the gate's answer it is a verdict on **one connection**: it does
+  not reconnect after a drop — a drop is evidence, and A1, A4 or the
+  gate will say which kind.
+- The stream stopping during a gated test is the test concluding, not a
+  fault. The service dropped you because you stopped reporting, which is
+  what it promised to do. Once the gate has answered, the app reports
+  your position again and reconnects, so the watching can go on.
+- **The answer is kept as it stood.** From the gate's answer on, the
+  eight checks and A1–A5 stay as they were: a drop on the road must not
+  turn a fixed base's *not gated* into *gated*. Only A3 — the distance
+  from the position you send — keeps following you.
 - Like every check, it is a client on somebody's caster — run it
   against services you are entitled to use.
 
 ## Watching the reference position (Pro)
 
 The check above answers *what kind of service is this* in three
-minutes. The **Reference position** tab — the last of the
-[analysis views](The-analysis-views) — answers *what is it doing to
-you over time*: how far the service's reference position is from where
-you stand, in the same green/amber/red bands assertion A3 judges by,
-and how often it has **moved**.
+minutes. Its second part answers *what is it doing to you over time*:
+how far the service's reference position is from where you stand, and
+how often it has **moved**. During a network-RTK check — and after it,
+until the next run — **Analysis** opens the **Reference position**
+screen alone; the other views, which describe a base that is not
+moving, belong to the check and the watch.
 
-It is laid out like the other analysis views: a plot with the rover at
-the centre and the reference position at its true bearing and
-distance, the history as dots — **a hand-over reads as a jump in the
-dots** — and the last five minutes of distance as a chart, where a
-drift and a jump look nothing alike. The largest jump between positions
-appears once there has been one.
+The distance is coloured by **assertion A3's own verdict** — the same
+judgement as the A3 row on the card, so the two cannot disagree — but
+only when the rover drawn here is the position being sent to the
+caster: this phone's fix with [live reporting](Live-position) on, or
+the set position when there is no fix. Otherwise A3 is judging a
+different distance from the one on screen, and the line stays neutral.
+
+The plot is the one every polar view uses — the sky view's size and
+place, rings labelled on the north line. The rover is at the centre;
+each reference position the run has met is a **station**, drawn at its
+true bearing and distance with its own **colour** and **letter** — A,
+B, C… in the order they appeared, kept for the whole run, a hand-back
+to an earlier station included. The station in use is drawn larger and
+joined to the rover by a **red line**, the baseline the corrections
+come over; earlier stations are joined to nothing. Where the phone has
+a fix, the **rover's track** runs through the whole run, each stretch in
+the colour of the station serving it then — so a hand-over shows as the
+track changing colour. Under the plot, the last five minutes of
+distance as a chart, where a drift and a jump look nothing alike. The
+largest jump between positions appears once there has been one, and
+after **Stop** the card sums the run up in one line — how many
+hand-overs, and the largest.
 
 What movement *means* depends on what the service is. The tab says
 which it is and why: the gate test above where it ran, otherwise what
@@ -125,9 +152,9 @@ little; that is your own receiver's wander, not the station's.
 
 ### Taking it on the road
 
-This view works during any run, however started — including a
-[watch](Watch-mode) begun from the analysis screen and left going for
-a drive. Two sides of it behave differently on the move, and knowing
+Start a **network-RTK check** and drive: after its answer it goes on
+watching until you tap **Stop**, reconnecting through drops as a watch
+does. Two sides of it behave differently on the move, and knowing
 which is which is knowing what you measured:
 
 - **The station side keeps itself, screen on or off.** The reference
@@ -152,8 +179,9 @@ service handed over once — to a network, which is its job.
 
 So for a drive that is *about* hand-overs: **screen on, mounted, and
 [live reporting](Live-position) agreed.** With those three, the
-reference position chases you and each hand-over lands as a jump in
-the dots and a step in the distance chart.
+reference position chases you and each hand-over lands as a new
+lettered station, the track changing colour, and a step in the distance
+chart.
 
 Without live reporting, a drive shows something different — and the
 view stays honest about it: the caster only ever sees your fixed
@@ -163,8 +191,10 @@ grows as you drive away from it. That is a correct picture of what the
 service was told, not a fault in the view.
 
 The history keeps the most recent **32** positions; the count keeps
-counting past that. On Android 15 and later the six-hour ceiling on a
-watch applies as ever ([Watch mode](Watch-mode)).
+counting past that. The rover's track is kept for the whole run, a
+point each time the phone has moved ten metres. On Android 15 and later
+the six-hour ceiling on a long run applies as ever
+([Watch mode](Watch-mode)).
 
 ---
 

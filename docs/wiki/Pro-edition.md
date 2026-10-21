@@ -33,7 +33,7 @@ you know well is the best evidence against one.
 | **[Watch mode](Watch-mode)** | Keep measuring for hours: availability, streaks, degradations |
 | **[Stability report](Watch-mode#the-stability-report)** | Six metrics over stream time with their own verdicts — has this station *been* fit |
 | **[Network-RTK check](Network-RTK-check)** | Five assertions and a gate test for VRS and network services, where the eight checks alone mislead |
-| **[Reference position](Network-RTK-check#watching-the-reference-position-pro)** | Live rover-to-ARP distance, and the hand-over history that shows a network switching stations under you — an analysis tab |
+| **[Reference position](Network-RTK-check#watching-the-reference-position-pro)** | Part of the network-RTK check, after its answer and until Stop: live rover-to-ARP distance, and the hand-over history that shows a network switching stations under you — an analysis tab |
 | **[Self-position](Self-position)** | Where the station's own observations put it, against the position it broadcasts — an analysis tab |
 | **[Saved connections](Saved-connections)** | Up to sixteen casters, the shared configuration file, and the import of your free edition's connection |
 | **[Reporting where you are](Live-position)** | Sending this phone's position to a network mountpoint |

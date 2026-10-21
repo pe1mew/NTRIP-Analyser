@@ -69,16 +69,24 @@ fill in as the evidence arrives. A verdict is only claimed once it has
 held for a full minute, so a station that flickers cannot pass by being
 healthy at the right moment.
 
-While it runs you can tap **Analysis** to watch the views, and **Back**
-to return to the verdict.
+While it runs you can tap **Analysis** to watch the views, and **Back
+to checks** to return to the verdict. Every screen opens with a
+one-line summary; its **ⓘ** explains the rest.
 
 ## 3. Read the answer
 
-The badge at the top is the verdict. When a run cannot start at all it
-says why there instead of counting seconds — *the caster rejected the
-user name or password* — and the row that carries the field at fault is
-the one to tap; [Troubleshooting](Troubleshooting) lists every message
-and what to change.
+The badge at the top is the verdict; it appears once a run has started.
+While the run is going it says *RUNNING*, and its bar shows how far the
+run is towards its minute: the bar waits while checks are still
+gathering evidence, and if the verdict changes inside the minute it
+starts again and says why. *CAUTION* and *FAILED* show at once; *STATION
+OK* only once it has held. Under the bar, eight small marks show each
+check's state in its own colour, so a change is visible without
+scrolling. When a run cannot start at all the badge says why instead of
+counting seconds — *the caster rejected the user name or password* — and
+the row that carries the field at fault is the one to tap;
+[Troubleshooting](Troubleshooting) lists every message and what to
+change.
 
 Below it, each of the **[eight checks](The-eight-checks)** carries its
 own verdict, the number behind it, and a sentence saying what it means.
