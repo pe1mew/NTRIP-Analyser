@@ -1,6 +1,6 @@
 /**
  * @file SelfPosition.kt
- * @brief Self-position on the phone (P7, `design/work-items/station-self-position.md`).
+ * @brief Self-position on the phone (P7, `design/work-items/archive/station-self-position.md`).
  *
  * Where the station's **own** observations place it, against the
  * position it broadcasts in 1005/1006. Nothing is measured here: the

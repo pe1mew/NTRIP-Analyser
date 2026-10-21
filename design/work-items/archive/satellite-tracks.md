@@ -1,6 +1,6 @@
 # Satellite tracks on the phone — plan
 
-Phase 2, item 1 ([guiV2rollout.md](../guiV2rollout.md)), the first paid
+Phase 2, item 1 ([guiV2rollout.md](../../guiV2rollout.md)), the first paid
 capability built on the v3 template. Pro only.
 
 **What it is.** Where a satellite has been, drawn behind where it is: a

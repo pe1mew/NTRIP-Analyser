@@ -235,7 +235,7 @@ int msm_extract_cnr(const unsigned char *payload, int payload_len,
  *
  * The sibling of @ref msm_extract_cnr, reading the whole cell rather
  * than its C/N0, so that something can solve with it
- * (`design/work-items/station-self-position.md` P1).  The pseudorange is
+ * (`design/work-items/archive/station-self-position.md` P1).  The pseudorange is
  * the satellite's rough range **combined with** the cell's fine part,
  * because the fine part alone is a plausible number that is wrong by the
  * distance to the satellite.

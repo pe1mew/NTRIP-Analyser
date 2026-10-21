@@ -382,7 +382,7 @@ object VrsPanel : Panel {
 
 /**
  * Rover-to-ARP distance and the hand-over history (phase 2 item 3,
- * `design/work-items/handover-on-the-phone.md`). Pro's registry only.
+ * `design/work-items/archive/handover-on-the-phone.md`). Pro's registry only.
  *
  * No card since 2026-10-12: the polar plot and the strip chart are
  * pro's last analysis tab (author's direction, following

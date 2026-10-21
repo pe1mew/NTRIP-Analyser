@@ -302,7 +302,7 @@ Where the station's **own** observations put it, against the position it
 broadcasts: GPS-only, dual-frequency, single-point, every epoch, from
 the core's solver (`src/core/spp.c`), the same one the GUI and the
 daemon run. The plan and the measurements are in
-[`station-self-position.md`](../../design/work-items/station-self-position.md), P7.
+[`station-self-position.md`](../../design/work-items/archive/station-self-position.md), P7.
 
 - **Figures, no verdict**, from the core's report over the tier-2
   window: epochs solved, mean offset E/N/U on one line, scatter about
@@ -358,7 +358,7 @@ rover.
 
 It was a hub card with a detail screen until 2026-10-12, then an
 analysis tab of every pro run
-([`handover-on-the-phone.md`](../../design/work-items/handover-on-the-phone.md), H8),
+([`handover-on-the-phone.md`](../../design/work-items/archive/handover-on-the-phone.md), H8),
 and since 2026-10-21 the network-RTK check's.
 
 ## The polar frame — every polar plot alike
@@ -467,7 +467,7 @@ editions: the order is presentation, not measurement.
 Every mountpoint of the caster on one screen, opened from *Map
 mountpoints…* beside *Browse mountpoints…* on the hub, before a run
 (`MountMap.kt`; plan and measurements in
-[`mountpoint-map.md`](../../design/work-items/mountpoint-map.md), M6).
+[`mountpoint-map.md`](../../design/work-items/archive/mountpoint-map.md), M6).
 It answers *which base is near me, and which way?* once, the way the
 list answers *which one?*, so it lives beside the list and not among
 the analysis tabs, which watch a run.

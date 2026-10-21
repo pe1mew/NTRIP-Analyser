@@ -1,6 +1,6 @@
 # Pro to Google Play — rollout plan
 
-The item [release-to-play.md](release-to-play.md) has been holding a
+The item [release-to-play.md](../release-to-play.md) has been holding a
 place for since it was written: the paid edition's own listing. It
 became startable on 2026-08-25, the day 3.8.0 shipped and the
 author's hold — *pro does not go to Play until the last feature lands*

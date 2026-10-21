@@ -15,7 +15,7 @@
  * knew: a tester's drive from the Netherlands to Switzerland on
  * Centipede's NEAR read "a fixed base should not move; corrections are
  * unreliable" for the one hand-over a nearest-base service owed him
- * (design/work-items/handover-on-the-phone.md, H9).
+ * (design/work-items/archive/handover-on-the-phone.md, H9).
  *
  * This is a classification, not a verdict on the station: it chooses
  * which sentence a hand-over gets, and the reason always states the

@@ -25,12 +25,12 @@ it are about places:
 
 ## This is not item 4.2 coming back
 
-[`todo.md` §4.2](../todo.md) dropped a map *widget* because it had
+[`todo.md` §4.2](../../todo.md) dropped a map *widget* because it had
 nothing to show: one fixed base is a stationary dot for the whole run,
 and "a map earns its place by showing movement or **spatial
 relationships**". A map of every mountpoint shows spatial relationships
 and nothing else. It is also used the way
-[`editions.md`](../../android/design/editions.md) says a map should be
+[`editions.md`](../../../android/design/editions.md) says a map should be
 used, as a picker: it answers "which one?" once, before a run, and is
 closed during the run.
 

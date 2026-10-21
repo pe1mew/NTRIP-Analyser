@@ -52,7 +52,7 @@ question is no longer about review risk: adding a ninth check means
 updating a store listing and the five other surfaces that state the
 number, a decision to take deliberately rather than a condition to wait
 for. **Pro has the same exposure now**: its listing states the same
-count and is in its own closed test, so `design/work-items/pro-to-play.md`
+count and is in its own closed test, so `design/work-items/archive/pro-to-play.md`
 holds this work until pro is through.
 
 ---

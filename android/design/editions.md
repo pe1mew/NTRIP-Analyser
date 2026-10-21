@@ -209,7 +209,7 @@ dropped: a picker answers "which point?" once, where a widget would draw
 a stationary dot for the length of a run.
 
 **The mountpoint map keeps to all three** (2026-10-13,
-`design/work-items/mountpoint-map.md`, M6). It is a drawing, not a tile
+`design/work-items/archive/mountpoint-map.md`, M6). It is a drawing, not a tile
 map: every mountpoint of the caster placed by the core's own distance
 and bearing from the centre, over Natural Earth's land and borders,
 which the app carries as an asset (`basemap_ne50m.bin`, public domain,

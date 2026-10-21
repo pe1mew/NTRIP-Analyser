@@ -364,7 +364,7 @@ from the measurements. In the service's snapshot and CSV (appended
 last), and in the GUI's **S** export, now version 2, whose points read
 `[t, e, n, u, sats, pdop, sv_mask, eph_id]`, named by `points_columns`.
 GH#13; for the two-cluster trail in
-`design/work-items/station-self-position.md`. The GUI's trail now holds
+`design/work-items/archive/station-self-position.md`. The GUI's trail now holds
 **twelve hours** rather than two, so an overnight run's export covers
 the night and not only its last two hours (drawing all 43 200 points
 measured 46 ms, once a second while the window is open).
@@ -688,7 +688,7 @@ creeping 9 m per broadcast still gets counted. The CLI's JSON and the
 daemon's CSV carry honest numbers for the first time; the release
 checks compare the 10 m threshold and the 32-position history between
 core, app and desktop, so the three cannot drift apart. Phase 2,
-item 3 (`design/work-items/handover-on-the-phone.md`).
+item 3 (`design/work-items/archive/handover-on-the-phone.md`).
 
 First field use corrected the rover end: the distance had used the
 position you *send*, which tap-to-use fills with the station's own
@@ -764,7 +764,7 @@ Nothing was added to the core or to the bridge. A trail is not a
 measurement; it is a record of positions already computed, kept by the
 screen that draws them, exactly as the C/N0-against-elevation scatter
 already accumulates. Phase 2, item 1
-(`design/work-items/satellite-tracks.md`).
+(`design/work-items/archive/satellite-tracks.md`).
 
 ## [3.7.3] - 2026-08-25
 

@@ -11,7 +11,7 @@
  * positions that are not positions.
  *
  * Three things are pinned beside the parser
- * (design/work-items/mountpoint-map.md, M1):
+ * (design/work-items/archive/mountpoint-map.md, M1):
  *
  *   - The STR solution field is read strictly. An empty field read as
  *     "single base" would be a claim the caster never made.

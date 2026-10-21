@@ -459,7 +459,7 @@ Play's 500 characters. **The credentials live only in the console,
 never in this repository**, and neither does anything that would help
 someone guess them. Before any production submission, confirm the
 account still works — from mobile data, not the home network. The
-full procedure is in `design/work-items/pro-to-play.md` S5.
+full procedure is in `design/work-items/archive/pro-to-play.md` S5.
 
 Google reuses the credentials for **every update's review**, so the
 account has to stay alive for the life of the apps. Its master copy is

@@ -195,7 +195,7 @@ char* receive_mount_table_ex(const NTRIP_Config *config, const char *agent,
  * @ref receive_mount_table_ex, asked once more after a silence or a
  * list cut short -- onocoy did both on 2026-10-13, and once a phone
  * drew 12 of its ~5900 mountpoints as all there were
- * (design/work-items/mountpoint-map.md). Then:
+ * (design/work-items/archive/mountpoint-map.md). Then:
  * - a list still cut short: NULL, @p why stalled or dropped;
  * - a refusal with no list in it (401, a web page): NULL, @p why its
  *   reason;

@@ -3,7 +3,7 @@
  * @brief View -> Mountpoint map: every mountpoint of the loaded
  *        sourcetable on a map, in the user's browser.
  *
- * design/work-items/mountpoint-map.md, M3. The map is somebody else's,
+ * design/work-items/archive/mountpoint-map.md, M3. The map is somebody else's,
  * as the location picker's is (`OnMapPick`): the GUI writes a page to
  * `%TEMP%` and the browser fetches Leaflet and the tiles. Nothing here
  * is a measurement -- the data, each entry's kind and every escape come

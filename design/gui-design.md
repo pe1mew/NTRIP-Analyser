@@ -1184,7 +1184,7 @@ with every figure in it matching the image to the last digit.
 
 Every mountpoint of the loaded sourcetable on a map, and a way to
 choose one there. Plan and measurements:
-[`design/work-items/mountpoint-map.md`](work-items/mountpoint-map.md)
+[`design/work-items/archive/mountpoint-map.md`](work-items/archive/mountpoint-map.md)
 (M1–M4 as built, 2026-10-11/12). This section is the GUI's half, as
 built.
 

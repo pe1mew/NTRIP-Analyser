@@ -33,19 +33,19 @@
 
 | File | When to load | Key insight |
 |------|-------------|-------------|
-| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix: 45 open entries here and 92 resolved ones in `memory/gotcha-log-archive.md` (counted 2026-10-17, after every resolved entry was archived) — grep both. Triaged 2026-10-14; each retirement names its evidence |
+| `memory/gotcha-log.md` | Stuck, or something behaves impossibly — **and before removing anything that looks out of place** | Problem→root cause→fix: 45 open entries here and 92 resolved ones in `memory/archive/gotcha-log-archive.md` (counted 2026-10-17, after every resolved entry was archived) — grep both. Triaged 2026-10-14; each retirement names its evidence |
 | `memory/self-position-decisions.md` | Touching the self-position solve or its views | Six decisions behind it: GPS only, epoch closure, reversed rates; still verified |
 | `memory/doxygen-in-headers-only.md` | Writing or moving documentation comments | Doxygen merges header and `.c` blocks — document the declaration only |
 | `design/architecture.md` | Touching `src/core`, `src/session`, or adding a frontend | Why the session layer exists and what the snapshot guarantees |
 | `design/todo.md` | Asking "does X already exist?" | Shipped vs planned, stable item numbers, and rejected ideas with reasons |
 | `design/feature-matrix.md` | Asking "which product has X?" | Every feature against CLI, GUI, free, pro and the daemon, with the rationale for each split |
 | `design/work-items/{release-to-play,cli-track,gui-track,measurement-tiers}.md` | Picking up work | Four parallel tracks — Android, CLI, GUI, and one that follows a capability rather than an artefact |
-| `design/work-items/pro-to-play.md` | Anything in the Play Console, for either edition | Pro's store rollout, and every console mechanic that cost a step: price and regions, licence testing as the tester sees it, reviewer credentials and where the form lives |
+| `design/work-items/archive/pro-to-play.md` | Anything in the Play Console, for either edition | Pro's store rollout, and every console mechanic that cost a step: price and regions, licence testing as the tester sees it, reviewer credentials and where the form lives |
 | `design/appGuiReview.md` | Any change to the Android app's screens, until the review is built | The author's GUI review, item by item (R1…, S1…), with decisions and open questions; collected first, implemented and tested on the Huawei only when the author says it is complete |
 | `design/kpi-candidates.md` | Proposing a new KPI | Why only one of four candidates was a KPI, and the two-tier answer that came out of it |
 | `design/work-items/measurement-tiers.md` | Anything about KPIs or long-run measurement | Two tiers: the 90-second fitness check, and a stability report over hours. Only latency earns a ninth KPI |
 | `design/gui-design.md` | Any `gui/` work | Window patterns; §13-§17 are the check, the stability window, threshold loading, self-position and the mountpoint map, as built |
-| `design/work-items/mountpoint-map.md` | The mountpoint map, map tiles, the location picker, or sourcetable classification | M1–M5 as built with every measurement: 8471 sourcetable records behind the kinds, why there is no default tile source, five faults found by opening the page. M6–M8 (the phone, both editions) as built, with frame times and onocoy's stalls |
+| `design/work-items/archive/mountpoint-map.md` | The mountpoint map, map tiles, the location picker, or sourcetable classification | M1–M5 as built with every measurement: 8471 sourcetable records behind the kinds, why there is no default tile source, five faults found by opening the page. M6–M8 (the phone, both editions) as built, with frame times and onocoy's stalls |
 | `android/design/editions.md` | Any Android product decision | Free/pro split, payment model, profiles, GGA position sources |
 | `android/design/views.md` | Android UI or sky-plot work | What each view answers, and where orbits actually come from |
 | `android/design/design-review.md` | Changing anything cited as `design-review Dn` | Decisions D1–D7, dated, referenced from seven code sites |
@@ -83,7 +83,7 @@
   assets, checksums checked from the downloads). It carries everything
   in the 2026-10-14 entry below, P7 with the scatter called an **upper
   bound** (no satellite code biases; measured against CAS's DCBs in
-  `design/work-items/station-self-position.md`), and the listing
+  `design/work-items/archive/station-self-position.md`), and the listing
   sentence unchanged by the author's decision. **GH#5 verified between
   the Play installs** on the Huawei 2026-10-16 (signer pins both ways,
   password carried, STATION OK on the imported connection) and closed.
@@ -116,7 +116,7 @@
   (`receive_mount_table_whole`, `src/net`): asked once more after a
   silence or a list cut short before `ENDSOURCETABLE`; onocoy did both,
   and once drew 12 of ~5900 mountpoints as all. `NRBY` is a network
-  keyword. Plan: `design/work-items/mountpoint-map.md`, M6c.
+  keyword. Plan: `design/work-items/archive/mountpoint-map.md`, M6c.
   <!-- verify: grep -q "receive_mount_table_whole" src/net/ntrip_handler.h && grep -q '"NRBY"' src/core/sourcetable.c -->
 - **Measure on a bench build** (`assembleProBench`, `….pro.bench`):
   release settings, debug key, beside the Play app. Panning 5900 marks:
@@ -126,7 +126,7 @@
   The self-position trail's two clusters ~5–6 m apart (scatter 6.8 m)
   were closed 2026-10-15: largely the solver's uncorrected satellite
   code biases, measured against CAS's DCBs
-  (`design/work-items/station-self-position.md`, *The two clusters*).
+  (`design/work-items/archive/station-self-position.md`, *The two clusters*).
   <!-- verify: grep -q 'create("bench")' android/app/build.gradle.kts -->
 
 <!-- 2026-10-12 -->
@@ -166,7 +166,7 @@
   Price €5.00 base, **€5,99 in NL**. The closed test that got it
   there — licence testers, the price table, the reviewer account
   (dedicated, watched daily) — is recorded step by step in
-  `design/work-items/pro-to-play.md` S3–S5.
+  `design/work-items/archive/pro-to-play.md` S3–S5.
   <!-- verify: manual — the Play Console is the only source for track state -->
 
 <!-- standing facts -->
@@ -183,7 +183,7 @@
   loopback socket with a synthetic clock, and
   `test_bridge_sourcetable.c`, the sourcetable document the app decodes.
 
-Older entries: [sessions up to 2026-08-20](sessions-to-2026-08-20.md), [2026-08-21 to 08-26](sessions-2026-08-21-to-08-26.md), [2026-08-25 to 10-10](sessions-2026-08-25-to-10-10.md).
+Older entries: [sessions up to 2026-08-20](archive/sessions-to-2026-08-20.md), [2026-08-21 to 08-26](archive/sessions-2026-08-21-to-08-26.md), [2026-08-25 to 10-10](archive/sessions-2026-08-25-to-10-10.md).
 
 ## Recently Promoted
 
@@ -310,7 +310,7 @@ Supplementing CLAUDE.md's list with paths found during work:
   hours after writing this entry, a snapshot left at its `NS_UNSET`
   initialisers hid a deleted status gate in the snapshot serialiser —
   **knowing the pattern did not stop it; running the falsification
-  did** (all 2026-10-09, `design/work-items/station-self-position.md`
+  did** (all 2026-10-09, `design/work-items/archive/station-self-position.md`
   P4-P6). **Feed a test the input its defence exists for** — wrong where
   it should be wrong, stale where a caller would have blanked it,
   different where uniformity would hide the fault. And **falsify every

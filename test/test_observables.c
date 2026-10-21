@@ -3,7 +3,7 @@
  * @brief The MSM observables reader: ranges known by construction.
  *
  * `msm_extract_obs` exists so that something can solve with the stream's
- * pseudoranges and phases (`design/work-items/station-self-position.md`
+ * pseudoranges and phases (`design/work-items/archive/station-self-position.md`
  * P1).  Every number it produces is scaled from a bit field, and a wrong
  * scale or a missed block still yields a plausible-looking float, so
  * this test builds frames whose values it computes independently and

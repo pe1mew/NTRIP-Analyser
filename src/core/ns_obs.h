@@ -8,7 +8,7 @@
  * text and dropped, which is why `design/kpi-candidates.md` records code
  * and phase RMS as "not computable": not absent from the wire, absent
  * from memory.  This is the structure that ends that, and
- * `design/work-items/station-self-position.md` P1 is why.
+ * `design/work-items/archive/station-self-position.md` P1 is why.
  *
  * **One epoch, never a history.** A base at 1 Hz would otherwise grow a
  * megabyte a minute, and the phone has to run this too (decision 8 of

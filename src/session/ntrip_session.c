@@ -173,7 +173,7 @@ struct NtripSession {
     /* The current epoch's observables: ranges, phases and rates, which
      * the stream has always carried and nothing kept.  One epoch, never
      * a history -- measured at 7 704 bytes, which a handset can hold
-     * (`design/work-items/station-self-position.md` P1). */
+     * (`design/work-items/archive/station-self-position.md` P1). */
     NsObsEpoch obs;
 
     /* What the sourcetable promised, for the advertised-vs-observed

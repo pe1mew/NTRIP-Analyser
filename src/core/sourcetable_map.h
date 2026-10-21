@@ -3,7 +3,7 @@
  * @brief A sourcetable as map data, and the token that brings a choice
  *        back from the map.
  *
- * design/work-items/mountpoint-map.md, M2. The GUI writes a page that a
+ * design/work-items/archive/mountpoint-map.md, M2. The GUI writes a page that a
  * browser opens; the page cannot call the GUI, so a mountpoint chosen
  * on the map comes back as text on the clipboard (decision D2). Both
  * ends of that route live here, in the core, because both handle text

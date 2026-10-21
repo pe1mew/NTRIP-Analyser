@@ -4,7 +4,7 @@
  *        rather than against the arithmetic that produced them.
  *
  * `sv_state_at` is the step every later number inherits
- * (`design/work-items/station-self-position.md` P2): a metre of error
+ * (`design/work-items/archive/station-self-position.md` P2): a metre of error
  * here is a metre in each position solved from it, and nothing
  * downstream would say so.  Checking a propagator against itself proves
  * nothing, so these checks come from outside it:

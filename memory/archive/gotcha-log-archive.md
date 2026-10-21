@@ -1,6 +1,6 @@
 # Gotcha Log — archive
 
-Resolved entries, moved here from [gotcha-log.md](gotcha-log.md) under
+Resolved entries, moved here from [gotcha-log.md](../gotcha-log.md) under
 the framework's archive rule (agent-ready-projects v1.49.2, #178):
 moved, never summarised. Those dated before 2026-10 on 2026-10-14; every
 resolved entry up to 2026-10-16 on 2026-10-17, by the author's decision

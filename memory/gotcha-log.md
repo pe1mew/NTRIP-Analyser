@@ -1,7 +1,7 @@
 # Gotcha Log
 
 Resolved entries from before the current month are in
-[gotcha-log-archive.md](gotcha-log-archive.md) (moved 2026-10-14,
+[gotcha-log-archive.md](archive/gotcha-log-archive.md) (moved 2026-10-14,
 framework v1.49.2's archive rule). Grep both for a mechanism.
 
 <!-- Structured problem/solution journal. Append-only.
@@ -132,7 +132,7 @@ framework v1.49.2's archive rule). Grep both for a mechanism.
 ### Play Console mechanics that cost a step each (2026-08-26)
 **Problem**: four wrong assumptions in one sitting -- that the package name binds at first upload, that the price could wait until production, that a bundle uploaded once is available to every track, and that a version code can be uploaded twice.
 **Root cause**: none of it is guessable; all of it is stated by the forms.
-**Fix**: package binds **at app creation** and is permanent; the price is padlocked behind a **seller/payments account** and blocks rollout to *any* track including closed; **tracks do not share releases** (an empty internal release reads as three separate errors); a version code exists once per app, so a second track attaches it with **"Toevoegen vanuit bibliotheek"**. Recorded in `design/work-items/pro-to-play.md` S3.
+**Fix**: package binds **at app creation** and is permanent; the price is padlocked behind a **seller/payments account** and blocks rollout to *any* track including closed; **tracks do not share releases** (an empty internal release reads as three separate errors); a version code exists once per app, so a second track attaches it with **"Toevoegen vanuit bibliotheek"**. Recorded in `design/work-items/archive/pro-to-play.md` S3.
 **Added 2026-09-16**: the console's menu moved -- *Beleid en programma's* now sits under *Controleren en verbeteren*, and a completed declaration shows only on App-content's *Actie ondernomen* tab while the default tab reads "Je bent helemaal bij". A remembered route was out of date; the route that works is in `pro-to-play.md` S5. Ask for a screenshot of the menu rather than recite one.
 
 ### The console's error banner threw away the reason (2026-09-09)

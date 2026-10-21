@@ -2,7 +2,7 @@
  * @file test_sourcetable_map.c
  * @brief The mountpoint map's data, and the token that comes back.
  *
- * design/work-items/mountpoint-map.md, M2. Two crossings of text from
+ * design/work-items/archive/mountpoint-map.md, M2. Two crossings of text from
  * outside the program:
  *
  *   - **Out.** A caster's sourcetable written as GeoJSON into a page the

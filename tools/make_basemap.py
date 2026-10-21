@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the mountpoint map's built-in basemap from Natural Earth.
 
-The mountpoint map (design/work-items/mountpoint-map.md) is drawn over
+The mountpoint map (design/work-items/archive/mountpoint-map.md) is drawn over
 outlines the program carries itself, so it needs no tile server, no key
 and no network for the map underneath. This turns two Natural Earth
 1:50m GeoJSON files into gui/basemap_ne50m.js, which the GUI compiles in

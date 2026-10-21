@@ -4,7 +4,7 @@
  *
  * One epoch of observables in, one position out, by least squares over
  * the iono-free combination: P3 of
- * `design/work-items/station-self-position.md`.
+ * `design/work-items/archive/station-self-position.md`.
  *
  * **What the number is, and is not.** Broadcast ephemeris gives a
  * metre-level position, so the offset against the station's declared

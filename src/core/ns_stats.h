@@ -236,7 +236,7 @@ typedef struct {
 
     /* ── Self-position ────────────────────────────────────────────────
      * Where the station's own observations place it, and how fast it is
-     * moving: `design/work-items/station-self-position.md`.  The offset
+     * moving: `design/work-items/archive/station-self-position.md`.  The offset
      * is against the broadcast ARP and is **metre-level by
      * construction** -- a broadcast-ephemeris solution's own error, not
      * the antenna having moved -- so the information is in the scatter

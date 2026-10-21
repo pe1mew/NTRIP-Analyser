@@ -5,7 +5,7 @@
  * One implementation for every frontend. The GUI had two private copies
  * -- `haversine_km` for the sourcetable's distance column and
  * `geo_distance_m` for the ARP checks -- and the mountpoint map
- * (design/work-items/mountpoint-map.md) would have needed a third on
+ * (design/work-items/archive/mountpoint-map.md) would have needed a third on
  * the phone.
  *
  * **A sphere, not the ellipsoid.** Mean Earth radius, haversine

@@ -300,7 +300,7 @@ static int parse_glonass_record(int prn,
      * directly.  Both were discarded until 2026-10-09; a GLONASS record
      * without them has an orbit and no time, and a solve that read the
      * zeros would be wrong by whatever the satellite's clock happens to
-     * be off (`design/work-items/station-self-position.md` P2). */
+     * be off (`design/work-items/archive/station-self-position.md` P2). */
     eph.glo_tau_n     = -clock_bias;
     eph.glo_gamma_n   = gamma_n;
 

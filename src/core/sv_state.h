@@ -7,7 +7,7 @@
  * things at the instant the signal left the satellite: the position in
  * the frame the measurement is made in, the velocity, and the satellite
  * clock's offset from system time.  This module adds those, and is P2 of
- * `design/work-items/station-self-position.md`.
+ * `design/work-items/archive/station-self-position.md`.
  *
  * **It is the step everything downstream inherits.** A metre of error
  * here is a metre of error in every position formed from it, silently,

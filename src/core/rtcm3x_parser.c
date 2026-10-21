@@ -2047,7 +2047,7 @@ void decode_rtcm_1020(const unsigned char *payload, int payload_len) {
      * 2026-10-09: tau_n at 2^-30 s, gamma_n at 2^-40, both already
      * sign-magnitude decoded.  Without them GLONASS has an orbit and no
      * time, which suffices for a sky plot and not for a solve
-     * (`design/work-items/station-self-position.md` P2). */
+     * (`design/work-items/archive/station-self-position.md` P2). */
     eph.glo_tau_n      = (double)tau_raw   * pow(2.0, -30);
     eph.glo_gamma_n    = (double)gamma_raw * pow(2.0, -40);
     sv_eph_store(&eph);

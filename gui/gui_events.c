@@ -1691,7 +1691,7 @@ static BOOL MapWriteBasemap(AppState *state, const char *dir)
 
 /**
  * @brief View -> Mountpoint map: every mountpoint of the loaded
- *        sourcetable, in the browser (design/work-items/mountpoint-map.md).
+ *        sourcetable, in the browser (design/work-items/archive/mountpoint-map.md).
  *
  * Data and escaping come from the core (sourcetable_to_geojson), the
  * page from gui_mountmap.c.  The page names the caster the sourcetable

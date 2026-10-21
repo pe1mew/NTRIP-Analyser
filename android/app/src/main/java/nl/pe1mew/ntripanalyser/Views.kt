@@ -694,7 +694,7 @@ fun SignalBars(
 /**
  * Where each satellite has been, for as long as one screen wants it.
  *
- * Phase 2 item 1, pro only (`design/work-items/satellite-tracks.md`).
+ * Phase 2 item 1, pro only (`design/work-items/archive/satellite-tracks.md`).
  * A sibling of [ElevationAccumulator], and here for the same reason: a
  * trail is not a measurement, it is a record of positions the core has
  * already computed, kept by the screen that draws them. The desktop

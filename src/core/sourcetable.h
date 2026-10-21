@@ -164,7 +164,7 @@ const char *sourcetable_network_keyword(const char *text);
  *
  * Why the solution field counts for so little, and the `nmea` flag for
  * nothing, is measured: 8471 entries from seven casters, 2026-10-11
- * (design/work-items/mountpoint-map.md, M1). Every entry filled the
+ * (design/work-items/archive/mountpoint-map.md, M1). Every entry filled the
  * solution field; the 15 that said "network" were 10 ephemeris and SSR
  * products and 5 physical IGS stations, while two nearest-base services
  * said "single base". One caster sets `nmea` on all 769 of its bases.

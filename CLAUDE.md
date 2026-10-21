@@ -39,7 +39,7 @@ because people will point it at real stations and believe what it says.
 | Any Windows GUI work | `design/gui-design.md` — §13 station check, §14 stability, §15 thresholds, §16 self-position, §17 mountpoint map, all as built |
 | Any Android work | `android/design/editions.md` (free/pro split, payment, profiles, GGA sources) and `android/design/views.md` (what each view is for) |
 | Reading or writing configuration files | `docs/jsonConfigs.md` — one format everywhere, passwords in the clear |
-| Stuck, or something behaves impossibly | `memory/gotcha-log.md` — problem→root cause→fix, open and recent — and `memory/gotcha-log-archive.md`, older resolved ones; grep both |
+| Stuck, or something behaves impossibly | `memory/gotcha-log.md` — problem→root cause→fix, open and recent — and `memory/archive/gotcha-log-archive.md`, older resolved ones; grep both |
 | Writing or moving documentation comments | `memory/doxygen-in-headers-only.md` |
 | Ending a session | Run `/curate` — review the gotcha log, promote patterns, update the memory index. **This project's claim runner is `python tools/verify_memory.py`**, standing in for the skill's `verify-runner.sh`: it reads this file, the index, the gotcha log and `memory/self-position-decisions.md`, and runs `verify-net:` claims too (`--offline` skips them) |
 | Monthly, or after major restructuring | Run `/audit-context` — duplication, wrong-layer placement, broken references |

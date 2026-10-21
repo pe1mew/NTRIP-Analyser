@@ -9,7 +9,7 @@
  * over the stream the GUI already has open.
  *
  * Three things about it are deliberate, and each is a decision recorded
- * in `design/work-items/station-self-position.md`:
+ * in `design/work-items/archive/station-self-position.md`:
  *
  * - **There is no verdict.** Not `STABLE`, not `STATION OK`, not a
  *   coloured row: figures only. A verdict needs a threshold, and what

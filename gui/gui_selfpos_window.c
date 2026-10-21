@@ -3,7 +3,7 @@
  * @brief Self-position window: where the station's own data puts it.
  *
  * See gui_selfpos_window.h for what this is and why it carries no
- * verdict, and design/work-items/station-self-position.md for the
+ * verdict, and design/work-items/archive/station-self-position.md for the
  * measurement itself.
  *
  * Threading: the ring fills from the session's statistics event, which

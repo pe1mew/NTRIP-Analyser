@@ -299,7 +299,7 @@ add_test(NAME tls
 # polite. Records cut short, a solution field holding the wrong thing,
 # positions that are not positions, the whole-word keyword rule, and
 # distance and bearing against hand-worked cases
-# (design/work-items/mountpoint-map.md, M1).
+# (design/work-items/archive/mountpoint-map.md, M1).
 add_executable(test_sourcetable test/test_sourcetable.c)
 target_link_libraries(test_sourcetable PRIVATE ntrip_core)
 add_test(NAME sourcetable COMMAND test_sourcetable)

@@ -720,7 +720,7 @@ answer, which only Play-installed copies of both can exercise. Design:
 
 ### 2.6 Every mountpoint on a map — **Desktop shipped; Android built, unreleased**
 
-Plan: [`design/work-items/mountpoint-map.md`](work-items/mountpoint-map.md) (2026-10-11).
+Plan: [`design/work-items/archive/mountpoint-map.md`](work-items/archive/mountpoint-map.md) (2026-10-11).
 
 A caster's stations by place rather than by name: where its coverage
 is, which base is nearest, and whether an entry's registered position
@@ -786,9 +786,9 @@ chart, sky-plot overlay (including painting the existing 24 h trail buffer by RO
 timelapse in one image; note `SkyTrackPoint` widens 16→20 B, ~11.8→14.7 MB), and the dedicated
 Ionosphere window. Plus `sats_dualfreq`/`roti_median` in the snapshot for the daemon and Munin.
 
-### 3.3 The station's own position and velocity — **Desktop shipped to `main` (pe1mew/NTRIP-Analyser#8); Android open** `[onocoy]`
+### 3.3 The station's own position and velocity — **Shipped**: desktop through pe1mew/NTRIP-Analyser#8, the paid Android edition (P7) in 3.9.0 `[onocoy]`
 
-Plan: [`design/work-items/station-self-position.md`](work-items/station-self-position.md) (2026-10-09).
+Plan: [`design/work-items/archive/station-self-position.md`](work-items/archive/station-self-position.md) (2026-10-09).
 
 Solve a single-point position and a velocity from the station's *own* observations, and report the
 north/east/up offset against the broadcast ARP, its scatter, and the velocity a static base should
@@ -824,7 +824,16 @@ P3's `rnx2rtkp` comparison is done on the author's own station: RTKLIB and this 
 order a single-point solve can, and the GUI and the daemon agree to a centimetre over 43 minutes.
 Eight defects were found on live stations on the way; the plan records each. **Remaining:** P7, the
 paid Android edition, after pro reaches production and the listing sentence is changed on purpose;
-and multi-GNSS, which is a solve to design rather than a constellation to let back in.
+and multi-GNSS, which is a solve to design rather than a constellation to let back in. P7 shipped
+in 3.9.0 (2026-10-15); multi-GNSS remains.
+
+**Open: correct satellite code biases** (2026-10-21, from the archived plan). The offset and scatter
+are largely this solver's own uncorrected per-satellite code biases: applying CAS's DCBs put the
+mean within 0.3 m of the ARP and halved the median step at a 10° mask (2026-10-15). Shipped with the limitation
+stated — the scatter is an upper bound — because the phone and the daemon cannot fetch a bias
+product. Later routes: an SSR stream's code biases (RTCM 1059), or preferring L1/L2 P(Y) where a
+station sends it. The measurement and the decision: *The bias comparison, 2026-10-15* in the
+[archived plan](work-items/archive/station-self-position.md).
 
 ---
 

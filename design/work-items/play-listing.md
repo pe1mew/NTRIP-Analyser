@@ -51,7 +51,7 @@ stays, on both listings. The app computes nothing a user would survey
 with; everything it shows is provided by others, the self-position
 figures included -- they are the station's own observations against
 the station's own broadcast position. The 2026-10-12 reasoning is in
-`design/work-items/station-self-position.md`, "The gate".
+`design/work-items/archive/station-self-position.md`, "The gate".
 
 **Live 2026-10-17, read from the store pages:** pro gained the
 Self-position bullet and the watch's drop record, both listings name
