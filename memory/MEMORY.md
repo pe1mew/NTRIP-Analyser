@@ -66,8 +66,10 @@
   public 16:37 UTC with 8 assets, every one checked against both
   `SHA256SUMS` from a fresh download; the Windows binaries byte-identical
   to the local build, the tarball's Munin plugin to the repository's.
-  Not yet: pro's description (still the two old bullets; the reviewed
-  one waits in `play-listing.md`) and the wiki publish.
+  Wiki published 2026-10-22: a fresh clone is identical to `docs/wiki/`
+  (16 files), and the served pages carry the new text. Not yet: pro's
+  description (still the two old bullets; the reviewed one waits in
+  `play-listing.md`).
   <!-- verify: git rev-parse v3.10.0 && grep -q '"3.10.0"' src/core/version.h && grep -q "## \[3.10.0\] - 2026-10-22" changelog.md -->
 
 <!-- 2026-10-18 -->
