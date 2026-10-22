@@ -57,18 +57,27 @@
 
 ## Current State
 
+<!-- 2026-10-22 -->
+
+- **3.10.0 is on Play, the rest of the release is not yet done**
+  (2026-10-22). Both editions went through the closed track to
+  production; both store pages read 3.10.0, "Updated on Oct 22". Pro's
+  notes are live in English and Dutch; **free's are empty in both**,
+  as at 3.9.0. Pro's description still carries the two old bullets: the
+  reviewed one waits in `play-listing.md`. Not yet: the `v3.10.0` tag,
+  the GitHub release with desktop and Linux assets, the wiki publish.
+  <!-- verify: grep -q '"3.10.0"' src/core/version.h && grep -q "## \[3.10.0\] - 2026-10-22" changelog.md -->
+
 <!-- 2026-10-18 -->
 
 - **The Android GUI review is built** (`design/appGuiReview.md`,
   2026-10-17 to -21): six steps, each checked on the Huawei in both
   editions and committed. Still open: the reference position on a real
   drive (hand-overs, lettered stations, the coloured track), the verdict
-  bar's restart reason (built, not yet seen). Pro's listing wording is
-  reviewed and waits in `play-listing.md` for the console at release
-  (Dutch pro 3949 of 4000 characters). The track is thinned at draw time
+  bar's restart reason (built, not yet seen). The track is thinned at draw time
   (2026-10-21, bench build: 79 ms a frame at the 50 000 cap instead of
   244, 26 ms bare; the first published 266 ms was polluted by the
-  harness, see `design/appGuiReview.md` step 4). Unreleased; `changelog.md` carries it. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches
+  harness, see `design/appGuiReview.md` step 4). Shipped in 3.10.0. Since 2026-10-20 (R11, R10 withdrawn) nothing in it touches
   `src/core`: Reference position becomes part of the Network-RTK
   check (the only Analysis screen during it; no verdict of its own),
   and the static screens ignore hand-overs.

@@ -299,6 +299,11 @@ framework v1.49.2's archive rule). Grep both for a mechanism.
 **Root cause**: the harness also timed a replica of the plot's arithmetic in a `LaunchedEffect`. Compose's main dispatcher runs coroutines inside the Choreographer frame, so 56–60 ms of the harness's own work sat between vsync and each measured frame, in both builds.
 **Fix**: found by splitting the frame into phases (`IntendedVsync`→`AnimationStart` was the gap); the replica was removed and both builds measured back to back. A harness does no work of its own on the thread it measures; split a surprising frame into its phases before believing it. Recurrence of the promoted *measure the way the build measures*.
 
+### Free went live with no release notes, twice (2026-10-22) [x2]
+**Problem**: free 3.10.0 is on production with an empty *What's new* in English and Dutch, read from both store pages; pro's notes, entered the same day, are there in both. Free 3.9.0 went out the same way (2026-10-15).
+**Root cause**: the notes were written and handed over, but free's boxes were never filled. The RUNBOOK warns of it in prose; nothing between the upload and *Send for review* reads it, and Play publishes an empty *What's new* without a warning.
+**Fix**: read both store pages for the version's notes in both languages after every release (`3.x.y:` in the page source, `hl=en` and `hl=nl`), not only the version number. A third time would argue for putting the read in the release checklist as a command.
+
 ### A Wi-Fi toggle is not a clean stimulus on the Huawei (2026-10-20)
 **Problem**: to see the bar's restart reason, Wi-Fi was toggled twice. The phone did not rejoin by itself the first time, and when it did, no restart showed: the drop failed KPI 1 instead.
 **Root cause**: the drop is a real outage, and KPI 1 judging it is correct; a restart needs the candidate verdict to change without a failure. The Huawei also writes no lines for the app to logcat, so nothing there shows what happened.
