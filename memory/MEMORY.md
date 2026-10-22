@@ -59,14 +59,16 @@
 
 <!-- 2026-10-22 -->
 
-- **3.10.0 is on Play, the rest of the release is not yet done**
-  (2026-10-22). Both editions went through the closed track to
-  production; both store pages read 3.10.0, "Updated on Oct 22". Pro's
-  notes are live in English and Dutch; **free's are empty in both**,
-  as at 3.9.0. Pro's description still carries the two old bullets: the
-  reviewed one waits in `play-listing.md`. Not yet: the `v3.10.0` tag,
-  the GitHub release with desktop and Linux assets, the wiki publish.
-  <!-- verify: grep -q '"3.10.0"' src/core/version.h && grep -q "## \[3.10.0\] - 2026-10-22" changelog.md -->
+- **3.10.0 is released on Play and GitHub** (2026-10-22). Both editions
+  went through the closed track to production; both store pages read
+  3.10.0, "Updated on Oct 22". Pro's notes are live in English and
+  Dutch; **free's are empty in both**, as at 3.9.0. GitHub release
+  public 16:37 UTC with 8 assets, every one checked against both
+  `SHA256SUMS` from a fresh download; the Windows binaries byte-identical
+  to the local build, the tarball's Munin plugin to the repository's.
+  Not yet: pro's description (still the two old bullets; the reviewed
+  one waits in `play-listing.md`) and the wiki publish.
+  <!-- verify: git rev-parse v3.10.0 && grep -q '"3.10.0"' src/core/version.h && grep -q "## \[3.10.0\] - 2026-10-22" changelog.md -->
 
 <!-- 2026-10-18 -->
 
