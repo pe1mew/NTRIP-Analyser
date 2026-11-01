@@ -67,10 +67,11 @@
   (`ns_failure_is_transient`); the daemon also before first acceptance
   (`retry_before_accept`), and exits 1 if every station ends. Not
   covered by a test: the daemon's exit status and the failed-send path.
-  Shuttle2 runs 3.9.0's daemon, restarted 2026-11-01 16:21 with all four
-  stations streaming; the upgrade and the unit file need the author's
-  sudo. Onocoy now refuses its ephemeris stream for that account type
-  (403, onocoy's decision); Kadaster's serves the stations instead.
+  Shuttle2 runs it already: 3.10.1 built on the host from `7958897`
+  (not a release asset) and the 60 s unit, active since 2026-11-01
+  16:56, all four stations streaming. One station there still points
+  at onocoy's ephemeris stream, which refuses that account type (403,
+  onocoy's decision); the others have Kadaster's.
   <!-- verify: grep -q "ns_failure_is_transient" src/core/ns_failure.h && grep -q "retry_before_accept" service/ntrip-monitord.c -->
 
 <!-- 2026-10-22 -->
