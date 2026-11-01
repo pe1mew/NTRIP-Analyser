@@ -299,6 +299,11 @@ framework v1.49.2's archive rule). Grep both for a mechanism.
 **Root cause**: the harness also timed a replica of the plot's arithmetic in a `LaunchedEffect`. Compose's main dispatcher runs coroutines inside the Choreographer frame, so 56–60 ms of the harness's own work sat between vsync and each measured frame, in both builds.
 **Fix**: found by splitting the frame into phases (`IntendedVsync`→`AnimationStart` was the gap); the replica was removed and both builds measured back to back. A harness does no work of its own on the thread it measures; split a surprising frame into its phases before believing it. Recurrence of the promoted *measure the way the build measures*.
 
+### "auto_reconnect" covered drops, not refusals, and a monitor died of it (2026-11-01)
+**Problem**: shuttle2's daemon lost four stations in 41 hours, each to one 503 or one missing mountpoint, then exited 0, and `Restart=on-failure` left it down for two days. The first three losses showed only in the journal.
+**Root cause**: `take_header` ended the session on any refusal without reading `auto_reconnect`, and a comment in the daemon called those "terminal". A mountpoint leaving the sourcetable is what a base going offline looks like: the event a monitor exists for. The exit status then told systemd all was well. A retry alone would also have hammered the caster: `do_connect` reset the backoff at the send, not at the acceptance.
+**Fix**: `ns_failure_is_transient()`, `retry_before_accept` for the daemon, the backoff reset moved to the acceptance, exit 1 when every station ends, `RestartSec=60`. Pinned by `test_refused_retry`. When an option promises resilience, list every path that ends the session and read each one: there were three, and a failed send was the third.
+
 ### Free went live with no release notes, twice (2026-10-22) [x2]
 **Problem**: free 3.10.0 is on production with an empty *What's new* in English and Dutch, read from both store pages; pro's notes, entered the same day, are there in both. Free 3.9.0 went out the same way (2026-10-15).
 **Root cause**: the notes were written and handed over, but free's boxes were never filled. The RUNBOOK warns of it in prose; nothing between the upload and *Send for review* reads it, and Play publishes an empty *What's new* without a warning.

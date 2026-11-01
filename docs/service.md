@@ -310,8 +310,18 @@ journalctl -u ntrip-monitord -f      # logs go to stderr → journald
 ls -la /var/lib/ntrip-monitor/       # one <mountpoint>.json per stream
 ```
 
-The daemon reconnects with exponential backoff (5 s doubling to 60 s)
+The daemon reconnects with exponential backoff (1 s doubling to 60 s)
 when a caster drops, and counts every reconnect in the snapshot.
+
+It keeps retrying the same way through a refusal that passes by itself:
+a caster that is full or restarting (409, 503), and a mountpoint that is
+not in the sourcetable, which is what a base going offline looks like.
+That holds from the start, so a boot during an outage loses no station.
+A wrong password, a mountpoint the account may not use (401, 403) or a
+port that is not a caster need a person: that station's session ends and
+the journal says why, while the others carry on. If every station ends
+that way the daemon exits with status 1, and systemd tries again once a
+minute.
 
 For testing without systemd, `--oneshot` connects, waits a settling
 window, publishes one snapshot per mountpoint and exits:
@@ -476,7 +486,8 @@ sliver at the right edge of a 30-hour view.
 |---|---|
 | Snapshots exist but Munin shows nothing | Plugin not symlinked, or `env.statedir` mismatch |
 | All graphs blank (`U`) | Daemon stopped — the staleness guard is doing its job |
-| `connected` is 0, `reconnects` climbing | Caster unreachable or credentials rejected; see `journalctl -u ntrip-monitord` |
+| `connected` is 0, `reconnects` climbing | Caster unreachable, restarting or full, or the base is offline; the snapshot's `failure_detail` and `journalctl -u ntrip-monitord` say which |
+| `connected` is 0, `reconnects` no longer climbing, the others go on | Refused in a way that needs a person (401, 403, not a caster): that station's session has ended and its snapshot keeps saying so. `journalctl -u ntrip-monitord \| grep "session ended"` |
 | Snapshots under `/var/lib/private/` | The unit was started with an old `DynamicUser=` version; reinstall the unit, `systemctl daemon-reload`, remove the stale directories, restart |
 | Plugin works via `munin-run` but not in graphs | munin *master* not polling this node; check `/var/log/munin/munin-update.log` |
 

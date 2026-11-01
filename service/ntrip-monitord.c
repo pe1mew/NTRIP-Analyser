@@ -207,6 +207,7 @@ static int md_eph_source(MdConfig *cfg, const cJSON *mp, const char *station)
     NsOptions o;
     ns_options_default(&o);
     o.auto_reconnect   = true;     /* the same leash as a station's */
+    o.retry_before_accept = true;
     o.stats_interval_s = 0.0;
     o.send_gga         = false;    /* an orbit stream needs no rover */
     o.user_agent       = NTRIP_USER_AGENT(NTRIP_ARTEFACT_SERVICE);
@@ -404,6 +405,9 @@ static bool load_md_config(const char *path, MdConfig *cfg)
         NsOptions *o = &cfg->opt[cfg->n];
         ns_options_default(o);
         o->auto_reconnect = true;      /* a monitor must ride out drops */
+        /* ...and start through an outage: a boot while the caster is
+         * restarting, or a base offline, must not lose the station. */
+        o->retry_before_accept = true;
         o->stats_interval_s = 0.0;     /* the daemon reads stats itself */
         /* Name the daemon explicitly.  This is the one artefact that holds
          * a connection open around the clock, so it is the one a caster
@@ -802,6 +806,7 @@ int main(int argc, char **argv)
      * before any data has arrived. */
     double started = md_now();
     double last_publish = started;
+    int status = 0;
 
     while (!g_stop) {
         /* Round-robin.  The timeout divides across sessions so one idle
@@ -815,7 +820,8 @@ int main(int argc, char **argv)
         for (int k = 0; k < cfg.n_eph; k++) {
             if (eph[k] && ns_pump(eph[k], timeout) < 0) {
                 /* Ended for good (auto_reconnect gives up only on a
-                 * terminal condition); the reason is already logged. */
+                 * refusal that needs a person, ns_failure_is_transient);
+                 * the reason is already logged. */
                 ns_close(eph[k]);
                 eph[k] = NULL;
             }
@@ -851,15 +857,18 @@ int main(int argc, char **argv)
             if (oneshot) break;
         }
         if (all_ended) {
-            /* Only reachable when auto_reconnect is off or every session
-             * hit a terminal condition; publish the final state and stop
-             * rather than spinning. */
+            /* Only reachable when every session was refused in a way that
+             * needs a person; publish the final state and stop rather
+             * than spinning. A failure, so that systemd's on-failure
+             * restart applies: exiting 0 here left shuttle2 unmonitored
+             * for two days with the unit reading "success" (2026-10-30). */
             for (int i = 0; i < cfg.n; i++) {
                 if (!sess[i]) continue;
                 publish(&cfg, sess[i]);
                 publish_report(&cfg, &reports[i],
                                cfg.opt[i].config.MOUNTPOINT);
             }
+            if (!oneshot) status = 1;
             break;
         }
     }
@@ -869,5 +878,5 @@ int main(int argc, char **argv)
     rtcm_set_output_buffer(NULL);
     rtcm_strbuf_free(&g_decode_sink);
     fprintf(stderr, "%s: stopped\n", NTRIP_ARTEFACT_SERVICE);
-    return 0;
+    return status;
 }

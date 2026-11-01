@@ -274,6 +274,15 @@ add_executable(test_failure test/test_failure.c)
 target_link_libraries(test_failure PRIVATE ntrip_session)
 add_test(NAME failure COMMAND test_failure)
 
+# A 503 or a missing mountpoint used to end a session for good, and one
+# daemon lost all four stations and then itself that way. A caster on the
+# loopback answers each connection from a script, because what is pinned
+# is what happens across connections, including that a wrong password
+# still ends at once and that refusals back off.
+add_executable(test_refused_retry test/test_refused_retry.c)
+target_link_libraries(test_refused_retry PRIVATE ntrip_session)
+add_test(NAME refused_retry COMMAND test_refused_retry)
+
 # The valuable TLS tests are the refusals. A real TLS caster on the
 # loopback presents the committed fixtures from test/data/tls -- good,
 # expired, wrong-host, self-signed -- plus a plain-text port answering
@@ -411,7 +420,8 @@ add_custom_target(test_all
             test_sv_state test_spp test_selfpos_session
             test_legacy_obs test_eph_validity test_capture test_station_report
             test_stream_clock test_ns_stats test_policy test_kpi_stopped
-            test_stall test_failure test_sourcetable test_station_class
+            test_stall test_failure test_refused_retry test_sourcetable
+            test_station_class
             test_kpi_watch test_sourcetable_map
             test_vrs test_bridge_vrs test_bridge_sourcetable
             test_tls)

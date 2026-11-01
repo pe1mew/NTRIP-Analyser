@@ -4,6 +4,40 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
+## [Unreleased]
+
+### Fixed
+
+- **A refusal that passes by itself no longer ends a stream for good.**
+  With reconnecting on, a 503, a 409 or a missing mountpoint ended the
+  session like a wrong password, even after days of streaming, though a
+  mountpoint leaves the sourcetable whenever its base goes offline. The
+  monitoring service lost four stations that way in 41 hours (shuttle2,
+  2026-10-29 and -30), one answer each, with nothing but a journal line.
+  They now retry with the usual backoff and the snapshot says why; a
+  401, a 403 or a port that is not a caster still end at once, as does a
+  mountpoint mistyped on a first connect. The service also rides these
+  out from the start, so a boot during an outage loses no station. This
+  reaches the GUI's auto-reconnect, the CLI's `--reconnect`, and the
+  Android app's runs after their first connect. `test_refused_retry`
+  pins it against a scripted loopback caster, ten deliberate breakages
+  all caught.
+- **The monitoring service no longer exits 0 when every station has
+  ended.** `Restart=on-failure` read that as success, and shuttle2 sat
+  unmonitored for two days with the unit saying so. It exits 1, and
+  `RestartSec` is 60 s, the session's own backoff ceiling, so a wrong
+  password is tried once a minute. **Reinstall the unit file** to get
+  the new interval.
+- **Backoff across refusals.** The wait restarted when a request was
+  sent, which would have retried a refusing caster every second; it now
+  restarts when the caster accepts. Measured on the loopback: 2,1 s,
+  then 4,1 s between refused attempts.
+- A failed send straight after connecting ended the session even with
+  reconnecting on; it now retries.
+- `docs/service.md` gave the backoff as starting at 5 s (it is 1 s), and
+  said rejected credentials show as `reconnects` climbing (they end the
+  session).
+
 ## [3.10.0] - 2026-10-22
 
 Both Android editions, chiefly; the Munin plugin; one additive call in

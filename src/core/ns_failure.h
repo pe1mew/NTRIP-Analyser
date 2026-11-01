@@ -82,6 +82,23 @@ NsFailure ns_failure_from_response(bool valid, int status,
                                    const char *content_type);
 
 /**
+ * @brief Whether a refusal may cure itself, so retrying is the answer.
+ *
+ * A caster that is full or restarting answers @ref NS_FAIL_BUSY, and a
+ * mountpoint whose base is offline is simply not in the sourcetable
+ * until it comes back: @ref NS_FAIL_NO_MOUNTPOINT. Both pass without
+ * anyone doing anything. A wrong password, a mountpoint the account may
+ * not use, or a port that is not a caster do not, and retrying those
+ * only knocks on a door that needs a person.
+ *
+ * shuttle2 lost four stations this way in 41 hours (2026-10-29, -30),
+ * each to one 503 or one missing mountpoint, and then the daemon.
+ *
+ * @return true for a refusal worth retrying with backoff.
+ */
+bool ns_failure_is_transient(NsFailure f);
+
+/**
  * @brief A stable token for a failure -- for tests, logs and the CSV.
  *
  * Never shown to a user; @ref ns_failure_text is what a user reads.

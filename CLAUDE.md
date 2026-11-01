@@ -148,8 +148,8 @@ NDK, so nothing testable on a desktop belongs there.
 | `android/app/src/main/java/.../Navigation.kt` | `Dest` and the hand-rolled `NavStack`. No `navigation-compose` |
 | `android/app/src/{free,pro}/.../Registry.kt` | **The list is the layout** — what an edition shows, in order, hub and report alike |
 | `android/app/src/{free,pro}/.../Features.kt` | Compile-time edition gates |
-| `test/` | Twenty-six tests, one file each, named for what they pin — no network, no caster. Hostile input is fed on purpose (RTCM frames, a caster's sourcetable, a clipboard, TLS certificates). Two to know: `test_spp.c` checks the solve by closure (pseudoranges built at a known point, inverted, the point demanded back), and `test_selfpos_session.c` replays RTCM through `ns_open_file`, because every other test starts below the session and the call site was dead for two steps of the plan |
-<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 26 -->
+| `test/` | Twenty-seven tests, one file each, named for what they pin — no network, no caster. Hostile input is fed on purpose (RTCM frames, a caster's sourcetable, a clipboard, TLS certificates). Two to know: `test_spp.c` checks the solve by closure (pseudoranges built at a known point, inverted, the point demanded back), and `test_selfpos_session.c` replays RTCM through `ns_open_file`, because every other test starts below the session and the call site was dead for two steps of the plan |
+<!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 27 -->
 | `changelog.md` | Entries carry the measurement behind each claim |
 | `.github/workflows/ci.yml` | Core, tests, release checks, the daemon's own Makefile and both Android editions, per push; claims weekly. **Not** the Win32 GUI |
 | `.github/workflows/release-linux.yml` | On a `v*` tag: build, test, package, attach the Linux assets. `ubuntu-22.04` deliberately — its glibc 2.35 is the floor the binaries then require |

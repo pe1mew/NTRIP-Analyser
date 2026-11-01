@@ -57,6 +57,21 @@
 
 ## Current State
 
+<!-- 2026-11-01 -->
+
+- **The daemon's refusal fix is in the tree, unreleased** (2026-11-01;
+  `changelog.md` `[Unreleased]`). shuttle2 stopped 2026-10-30 19:06:
+  four stations each lost to one 503 or missing mountpoint over 41
+  hours, then exit 0. Transient refusals now retry
+  (`ns_failure_is_transient`); the daemon also before first acceptance
+  (`retry_before_accept`), and exits 1 if every station ends. Not
+  covered by a test: the daemon's exit status and the failed-send path.
+  Shuttle2 still runs 3.9.0's daemon and needs the author's sudo for the
+  restart, the upgrade and the unit file. Onocoy now refuses its
+  ephemeris stream for that account type (403, onocoy's decision): the
+  author is pointing the side-stream at Kadaster.
+  <!-- verify: grep -q "ns_failure_is_transient" src/core/ns_failure.h && grep -q "retry_before_accept" service/ntrip-monitord.c -->
+
 <!-- 2026-10-22 -->
 
 - **3.10.0 is released on Play and GitHub** (2026-10-22). Both editions
@@ -190,8 +205,8 @@
   <!-- verify: python tools/check_release.py > /dev/null 2>&1 || test $? -eq 1 -->
   collected on every new Features flag (tracks, VRS, hand-over,
   export, tier 2) before the commit that introduced it went green.
-- **Twenty-six C tests**, including two desktop-built bridge harnesses:
-  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 26 -->
+- **Twenty-seven C tests**, including two desktop-built bridge harnesses:
+  <!-- verify: test "$(ctest --test-dir build -N 2>/dev/null | sed -n 's/^Total Tests: //p')" = 27 -->
   `test_bridge_vrs.c`, which drives the phone's own plumbing over a
   loopback socket with a synthetic clock, and
   `test_bridge_sourcetable.c`, the sourcetable document the app decodes.

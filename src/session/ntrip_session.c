@@ -120,6 +120,7 @@ struct NtripSession {
     uint64_t   ck_remain;
     NsFailure  failure;    /**< why this session cannot run, if it cannot */
     bool       header_done;
+    bool       accepted;   /**< the caster has said yes at least once  */
     bool       announced_streaming;
     bool       framing_enabled;    /**< ns_set_framing_enabled          */
     NsArpTrack arp_track;          /**< reference-position movement      */
@@ -1085,6 +1086,15 @@ static void set_failure(NtripSession *s, NsFailure f)
 
 /* ── Connection ──────────────────────────────────────────────────── */
 
+/** @brief Book the next attempt, one backoff step further on. */
+static void schedule_retry(NtripSession *s, double now)
+{
+    s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
+    if (s->backoff_s > s->opt.reconnect_backoff_max_s)
+        s->backoff_s = s->opt.reconnect_backoff_max_s;
+    s->reconnect_at = now + s->backoff_s;
+}
+
 static void do_connect(NtripSession *s)
 {
     NsEvent ev;
@@ -1111,10 +1121,7 @@ static void do_connect(NtripSession *s)
                      sizeof(s->stats.failure_detail), "%s", tls_why);
         emit_log(s, NS_LOG_ERROR, "%s", s->stats.failure_detail);
         if (!s->opt.auto_reconnect) { emit_end(s, NS_END_NET_ERROR); return; }
-        s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
-        if (s->backoff_s > s->opt.reconnect_backoff_max_s)
-            s->backoff_s = s->opt.reconnect_backoff_max_s;
-        s->reconnect_at = ns_now() + s->backoff_s;
+        schedule_retry(s, ns_now());
         return;
     }
 
@@ -1143,7 +1150,8 @@ static void do_connect(NtripSession *s)
         emit_log(s, NS_LOG_ERROR, "Failed to send the request");
         ns_transport_close(s->tr);
         s->tr = NULL;
-        emit_end(s, NS_END_NET_ERROR);
+        if (!s->opt.auto_reconnect) { emit_end(s, NS_END_NET_ERROR); return; }
+        schedule_retry(s, ns_now());
         return;
     }
 
@@ -1152,7 +1160,6 @@ static void do_connect(NtripSession *s)
     s->ck_state    = CK_SIZE;    /* a reconnect renegotiates chunking */
     s->ck_remain   = 0;
     s->header_done = false;
-    s->backoff_s   = 0;
     s->last_rx_t   = ns_now();   /* silence is counted from here */
     s->stats.connected = true;
 
@@ -1187,11 +1194,7 @@ static void drop_connection(NtripSession *s, double now,
     emit_log(s, NS_LOG_WARN, "%s", why);
 
     if (!s->opt.auto_reconnect) { emit_end(s, reason); return; }
-
-    s->backoff_s = s->backoff_s ? s->backoff_s * 2 : 1;
-    if (s->backoff_s > s->opt.reconnect_backoff_max_s)
-        s->backoff_s = s->opt.reconnect_backoff_max_s;
-    s->reconnect_at = now + s->backoff_s;
+    schedule_retry(s, now);
 }
 
 /**
@@ -1254,6 +1257,17 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
         ns_transport_close(s->tr);
         s->tr = NULL;
         s->connected = false;
+        s->stats.connected = false;
+        /* A 503 or a missing mountpoint passes by itself, and a session
+         * ended on one stays ended: shuttle2 lost four stations in 41
+         * hours to one such answer each (2026-10-29, -30). On a first
+         * connect it is usually a typing error, which must say so now
+         * rather than retry for ever, unless the caller asked for it. */
+        if (s->opt.auto_reconnect && ns_failure_is_transient(answer) &&
+            (s->accepted || s->opt.retry_before_accept)) {
+            schedule_retry(s, ns_now());
+            return -1;
+        }
         emit_end(s, NS_END_REJECTED);
         return -1;
     }
@@ -1262,7 +1276,11 @@ static int take_header(NtripSession *s, const unsigned char *data, int len)
      * that answers 401 is still a failure -- but here, where the answer
      * is in. Left set, a stall or a DNS miss survived the reconnect that
      * cured it, and the phone showed "Cannot find rfsee.net" under
-     * STATION OK (S23, 2026-10-14). */
+     * STATION OK (S23, 2026-10-14). The backoff restarts here too, not
+     * at the send: reset there, every refusal retried one second later
+     * for as long as a caster stayed down. */
+    s->accepted  = true;
+    s->backoff_s = 0;
     if (s->failure != NS_FAIL_NONE) set_failure(s, NS_FAIL_NONE);
     if (s->handshake.version == NS_PROTO_V1) {
         emit_log(s, NS_LOG_INFO,

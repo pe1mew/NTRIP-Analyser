@@ -16,7 +16,10 @@ Wants=network-online.target
 Type=simple
 ExecStart=/usr/local/sbin/ntrip-monitord --config /etc/ntrip-monitord/monitord.json
 Restart=on-failure
-RestartSec=10
+# The daemon exits non-zero only when every station was refused in a way
+# that needs a person, so this is one attempt a minute with, say, a wrong
+# password: the session's own backoff ceiling, not ten seconds.
+RestartSec=60
 
 # A static user (created via ntrip-monitord.sysusers), NOT DynamicUser=.
 # DynamicUser relocates StateDirectory under /var/lib/private, which is

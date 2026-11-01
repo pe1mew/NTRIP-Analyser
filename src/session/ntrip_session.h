@@ -153,7 +153,21 @@ typedef struct {
     double stats_interval_s;      /**< emit NS_EV_STATS this often; 0 = never */
     bool   send_gga;              /**< periodic GGA uplink, for VRS mountpoints */
     double gga_interval_s;        /**< default 1.0 when send_gga is set      */
-    bool   auto_reconnect;        /**< reconnect with backoff after a drop   */
+    /**
+     * Reconnect with backoff after a drop, and after a refusal that may
+     * cure itself (@ref ns_failure_is_transient) once the caster has
+     * accepted this session at least once. A refusal that needs a
+     * person ends the session either way.
+     */
+    bool   auto_reconnect;
+    /**
+     * Also ride out a transient refusal before the first acceptance.
+     * Off, a mountpoint mistyped into a frontend fails at once rather
+     * than retrying for ever; on, a monitor started during a caster
+     * outage or while a base is offline still comes up by itself.
+     * Needs @ref auto_reconnect.
+     */
+    bool   retry_before_accept;
     int    reconnect_backoff_max_s;
     const char *user_agent;       /**< NULL selects a default                */
 

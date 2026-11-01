@@ -19,6 +19,11 @@
  * one vocabulary rather than two.
  */
 
+bool ns_failure_is_transient(NsFailure f)
+{
+    return f == NS_FAIL_BUSY || f == NS_FAIL_NO_MOUNTPOINT;
+}
+
 NsFailure ns_failure_from_response(bool valid, int status,
                                    const char *content_type)
 {
