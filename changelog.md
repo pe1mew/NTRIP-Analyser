@@ -4,7 +4,10 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).  
 
-## [Unreleased]
+## [3.10.1] - not yet released (both Android editions to Play's testers from 2026-11-01)
+
+The monitoring service, chiefly; the same session fix reaches every
+program that reconnects. No measurement or verdict changes.
 
 ### Fixed
 

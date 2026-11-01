@@ -62,37 +62,15 @@ translation of their own, replacing Google's machine translation
 (*Dutch listing*, below). The text in the next section is what is
 live; change it there when the console changes.
 
-**Pending for the release after 3.9.0, reviewed by the author
-2026-10-21:** the reference position is no longer a view of every pro
-run but part of the network-RTK check (`design/appGuiReview.md`, R11),
-so pro's two bullets become one. The live bullet's "the moment" a
-network hands you over is dropped -- it read like an alert, and there is
-none -- and the rover's coloured track is added (author). English
-(quoted, not indented: `tools/check_release.py` reads indented lines in
-this part of the file as listing text):
-
-> - Network-RTK (VRS) check: does the network accept your position
->   and deliver corrections fit for RTK where you stand -- then it
->   keeps watching as you drive: each station it hands you to,
->   lettered, how far the reference position moved, and your track,
->   coloured by the station serving it
-
-replacing both the *Network-RTK (VRS) check* and the
-*Reference-position watch* bullets. Dutch, in the same place ("ze": *de
-controle*, author):
-
-> - Netwerk-RTK-controle (VRS): accepteert het netwerk je positie, en
->   levert het correcties die geschikt zijn voor RTK waar je staat --
->   daarna blijft ze meekijken terwijl je rijdt: elk station waar het
->   netwerk je naartoe overzet, met een letter, hoe ver de
->   referentiepositie verschoof, en je route, gekleurd naar het station
->   dat je bediende
-
-replacing *Netwerk-RTK-controle (VRS)* and *Bewaking van de
-referentiepositie*. Counted the way `check_release.py` counts, with the
-bullet swapped into the live text (2026-10-21): English pro 3572 today,
-3640 after (+68); Dutch pro 3866 today, 3949 after (+83) -- 51 under
-Play's 4000, so the Dutch listing has no room for more.
+**Pro's description for 3.10.0, live by 2026-11-01** (read from the
+store page, `hl=en` and `hl=nl`). The reference position stopped being
+a view of every pro run and became part of the network-RTK check
+(`design/appGuiReview.md`, R11), so pro's two bullets became one.
+"The moment" a network hands you over was dropped -- it read like an
+alert, and there is none -- and the rover's coloured track added
+(author, 2026-10-21). "Ze" in the Dutch is *de controle* (author). English
+pro 3640 characters, Dutch pro 3949 by `check_release.py`'s count: 51
+under Play's 4000, so the Dutch listing has no room for more.
 
 ## Full description
 
@@ -170,9 +148,10 @@ no formatting beyond line breaks.
       frame integrity, signal, satellites held, ionosphere, delivery --
       each with its own verdict: STABLE, DEGRADED or UNSTABLE
     - Network-RTK (VRS) check: does the network accept your position
-      and deliver corrections fit for RTK where you stand
-    - Reference-position watch: know the moment a network hands you to
-      another station, and how far it moved
+      and deliver corrections fit for RTK where you stand -- then it
+      keeps watching as you drive: each station it hands you to,
+      lettered, how far the reference position moved, and your track,
+      coloured by the station serving it
     - Self-position: where the station's own GPS observations put it,
       against the position it broadcasts -- figures and a plot, no verdict
     - Live position: report where this phone actually is to a network
@@ -346,9 +325,11 @@ author's own wording of its first two checks.
       satellieten, ionosfeer, levering -- elk met een eigen oordeel:
       STABLE, DEGRADED of UNSTABLE
     - Netwerk-RTK-controle (VRS): accepteert het netwerk je positie, en
-      levert het correcties die geschikt zijn voor RTK waar je staat
-    - Bewaking van de referentiepositie: zie op het moment zelf dat een
-      netwerk je naar een ander station overzet, en hoe ver dat ligt
+      levert het correcties die geschikt zijn voor RTK waar je staat --
+      daarna blijft ze meekijken terwijl je rijdt: elk station waar het
+      netwerk je naartoe overzet, met een letter, hoe ver de
+      referentiepositie verschoof, en je route, gekleurd naar het station
+      dat je bediende
     - Self-position: waar de eigen GPS-waarnemingen van het station het
       plaatsen, ten opzichte van de positie die het uitzendt -- getallen
       en een plot, geen oordeel

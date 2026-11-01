@@ -59,17 +59,18 @@
 
 <!-- 2026-11-01 -->
 
-- **The daemon's refusal fix is in the tree, unreleased** (2026-11-01;
-  `changelog.md` `[Unreleased]`). shuttle2 stopped 2026-10-30 19:06:
+- **3.10.1 carries the daemon's refusal fix, prepared, not yet
+  released** (2026-11-01). Pro's description for 3.10.0 is live in both
+  languages. shuttle2 stopped 2026-10-30 19:06:
   four stations each lost to one 503 or missing mountpoint over 41
   hours, then exit 0. Transient refusals now retry
   (`ns_failure_is_transient`); the daemon also before first acceptance
   (`retry_before_accept`), and exits 1 if every station ends. Not
   covered by a test: the daemon's exit status and the failed-send path.
-  Shuttle2 still runs 3.9.0's daemon and needs the author's sudo for the
-  restart, the upgrade and the unit file. Onocoy now refuses its
-  ephemeris stream for that account type (403, onocoy's decision): the
-  author is pointing the side-stream at Kadaster.
+  Shuttle2 runs 3.9.0's daemon, restarted 2026-11-01 16:21 with all four
+  stations streaming; the upgrade and the unit file need the author's
+  sudo. Onocoy now refuses its ephemeris stream for that account type
+  (403, onocoy's decision); Kadaster's serves the stations instead.
   <!-- verify: grep -q "ns_failure_is_transient" src/core/ns_failure.h && grep -q "retry_before_accept" service/ntrip-monitord.c -->
 
 <!-- 2026-10-22 -->
@@ -82,10 +83,8 @@
   `SHA256SUMS` from a fresh download; the Windows binaries byte-identical
   to the local build, the tarball's Munin plugin to the repository's.
   Wiki published 2026-10-22: a fresh clone is identical to `docs/wiki/`
-  (16 files), and the served pages carry the new text. Not yet: pro's
-  description (still the two old bullets; the reviewed one waits in
-  `play-listing.md`).
-  <!-- verify: git rev-parse v3.10.0 && grep -q '"3.10.0"' src/core/version.h && grep -q "## \[3.10.0\] - 2026-10-22" changelog.md -->
+  (16 files), and the served pages carry the new text.
+  <!-- verify: git show v3.10.0:src/core/version.h | grep -q '"3.10.0"' && git rev-parse v3.10.0 && grep -q "## \[3.10.0\] - 2026-10-22" changelog.md -->
 
 <!-- 2026-10-18 -->
 
